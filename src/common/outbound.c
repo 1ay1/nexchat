@@ -4019,7 +4019,7 @@ const struct commands xc_cmds[] = {
 #endif
 #endif
 #if 0
-	{"EXPORTCONF", cmd_exportconf, 0, 0, 1, N_("EXPORTCONF, exports HexChat settings")},
+	{"EXPORTCONF", cmd_exportconf, 0, 0, 1, N_("EXPORTCONF, exports nexchat settings")},
 #endif
 	{"FLUSHQ", cmd_flushq, 0, 0, 1,
 	 N_("FLUSHQ, flushes the current server's send queue")},
@@ -4112,7 +4112,7 @@ const struct commands xc_cmds[] = {
 	{"RECONNECT", cmd_reconnect, 0, 0, 1,
 	 N_("RECONNECT [<host>] [<port>] [<password>], Can be called just as /RECONNECT to reconnect to the current server or with /RECONNECT ALL to reconnect to all the open servers")},
 #endif
-	{"RECV", cmd_recv, 1, 0, 1, N_("RECV <text>, send raw data to HexChat, as if it was received from the IRC server")},
+	{"RECV", cmd_recv, 1, 0, 1, N_("RECV <text>, send raw data to nexchat, as if it was received from the IRC server")},
 	{"RELOAD", cmd_reload, 0, 0, 1, N_("RELOAD <name>, reloads a plugin or script")},
 	{"SAY", cmd_say, 0, 0, 1,
 	 N_("SAY <text>, sends the text to the object in the current window")},

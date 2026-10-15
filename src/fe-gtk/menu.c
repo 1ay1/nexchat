@@ -1758,10 +1758,10 @@ menu_about (GtkWidget *wid, gpointer sess)
 	gtk_about_dialog_set_program_name (dialog, _(DISPLAY_NAME));
 	gtk_about_dialog_set_version (dialog, PACKAGE_VERSION);
 	gtk_about_dialog_set_license (dialog, license); /* gtk3 can use GTK_LICENSE_GPL_2_0 */
-	gtk_about_dialog_set_website (dialog, "http://hexchat.github.io");
+	gtk_about_dialog_set_website (dialog, "https://github.com/1ay1/nexchat");
 	gtk_about_dialog_set_website_label (dialog, "Website");
 	gtk_about_dialog_set_logo (dialog, pix_hexchat);
-	gtk_about_dialog_set_copyright (dialog, "\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor");
+	gtk_about_dialog_set_copyright (dialog, "\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
 	gtk_about_dialog_set_comments (dialog, comment);
 
 	gtk_window_set_transient_for (GTK_WINDOW(dialog), GTK_WINDOW(parent_window));
@@ -1772,7 +1772,7 @@ menu_about (GtkWidget *wid, gpointer sess)
 }
 
 static struct mymenu mymenu[] = {
-	{N_("He_xChat"), 0, 0, M_NEWMENU, MENU_ID_HEXCHAT, 0, 1},
+	{N_("ne_xchat"), 0, 0, M_NEWMENU, MENU_ID_HEXCHAT, 0, 1},
 	{N_("Network Li_st"), menu_open_server_list, (char *)&pix_book, M_MENUPIX, 0, 0, 1, GDK_KEY_s},
 	{0, 0, 0, M_SEP, 0, 0, 0},
 

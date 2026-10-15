@@ -86,7 +86,7 @@ endif
 
 if get_option('plugin')
   common_deps += libgmodule_dep
-  install_headers('hexchat-plugin.h')
+  install_headers('hexchat-plugin.h', 'nexchat-plugin.h')
 endif
 
 hexchat_common = static_library('hexchatcommon',

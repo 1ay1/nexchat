@@ -419,6 +419,7 @@ def exec_in_interp(python):
         local_interp = Plugin()
         local_interp.locals = {}
         local_interp.globals['hexchat'] = hexchat
+        local_interp.globals['nexchat'] = hexchat
 
     code = compile_line(python)
     try:
@@ -489,7 +490,7 @@ def _on_py_command(word, word_eol, userdata):
         list_plugins()
 
     elif subcmd == 'about':
-        lib.hexchat_print(lib.ph, b'HexChat Python interface version ' + VERSION)
+        lib.hexchat_print(lib.ph, b'nexchat Python interface version ' + VERSION)
 
     else:
         lib.hexchat_command(lib.ph, b'HELP PY')
@@ -556,7 +557,7 @@ def _on_plugin_deinit():
     sys.stderr = sys.__stderr__
     pydoc.help = pydoc.Helper()
 
-    for mod in ('_hexchat', 'hexchat', 'xchat', '_hexchat_embedded'):
+    for mod in ('_hexchat', 'hexchat', 'nexchat', 'xchat', '_hexchat_embedded'):
         try:
             del sys.modules[mod]
 

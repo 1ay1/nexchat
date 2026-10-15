@@ -80,7 +80,7 @@ if host_machine.system() == 'windows'
   hexchat_gtk_ldflags += '-Wl,-e,mainCRTStartup'
 endif
 
-executable('hexchat',
+executable('nexchat',
   sources:  resources + hexchat_gtk_sources,
   dependencies: hexchat_gtk_deps,
   c_args: hexchat_gtk_cflags,

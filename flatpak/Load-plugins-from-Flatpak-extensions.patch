@@ -15,7 +15,7 @@ index 3ad3c558..6addf962 100644
  	lib_dir = plugin_get_libdir ();
  	sub_dir = g_build_filename (get_xdir (), "addons", NULL);
  
-+	for_files ("/app/extensions/lib/hexchat/plugins", "*.so", plugin_auto_load_cb);
++	for_files ("/app/extensions/lib/nexchat/plugins", "*.so", plugin_auto_load_cb);
 +
  #ifdef WIN32
  	/* a long list of bundled plugins that should be loaded automatically,

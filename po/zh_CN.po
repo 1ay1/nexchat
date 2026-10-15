@@ -38,8 +38,8 @@ msgstr ""
 #: data/misc/io.github.Hexchat.appdata.xml.in:4
 #: data/misc/io.github.Hexchat.appdata.xml.in:5
 #: data/misc/io.github.Hexchat.desktop.in.in:3
-msgid "HexChat"
-msgstr "HexChat"
+msgid "nexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:9
 #: data/misc/io.github.Hexchat.desktop.in.in:4
@@ -582,8 +582,8 @@ msgid "EXECWRITE, sends data to the processes stdin"
 msgstr "EXECWRITE，把数据发送给进程的标准输入"
 
 #: src/common/outbound.c:3993
-msgid "EXPORTCONF, exports HexChat settings"
-msgstr "EXPORTCONF, 导出 HexChat 设置"
+msgid "EXPORTCONF, exports nexchat settings"
+msgstr "EXPORTCONF, 导出 nexchat 设置"
 
 #: src/common/outbound.c:3996
 msgid "FLUSHQ, flushes the current server's send queue"
@@ -904,8 +904,8 @@ msgid "Unknown Command %s. Try /help\n"
 msgstr "未知命令 %s。请尝试键入 /help\n"
 
 #: src/common/plugin.c:403
-msgid "No hexchat_plugin_init symbol; is this really a HexChat plugin?"
-msgstr "无 hexchat_plugin_init 符号，这确实是 HexChat 的插件吗？"
+msgid "No hexchat_plugin_init symbol; is this really a nexchat/HexChat plugin?"
+msgstr "无 hexchat_plugin_init 符号，这确实是 nexchat 的插件吗？"
 
 #: src/common/plugin-identd.c:175
 #, c-format
@@ -3484,8 +3484,8 @@ msgid "Execute command:"
 msgstr "执行命令："
 
 #: src/fe-gtk/fe-gtk.c:89
-msgid "Open URL or execute command in an existing HexChat"
-msgstr "在已有的 HexChat 中打开 URL 或执行命令"
+msgid "Open URL or execute command in an existing nexchat"
+msgstr "在已有的 nexchat 中打开 URL 或执行命令"
 
 #: src/fe-gtk/fe-gtk.c:91
 msgid "Begin minimized. Level 0=Normal 1=Iconified 2=Tray"
@@ -3766,8 +3766,8 @@ msgid ""
 msgstr "这台服务器仍然有 %d 个与它相关的频道或对话。要全部关闭吗？"
 
 #: src/fe-gtk/maingui.c:1177
-msgid "Quit HexChat?"
-msgstr "要退出 HexChat 吗？"
+msgid "Quit nexchat?"
+msgstr "要退出 nexchat 吗？"
 
 #: src/fe-gtk/maingui.c:1197
 msgid "Don't ask next time."
@@ -4190,8 +4190,8 @@ msgid "CTCP Replies - %s"
 msgstr "CTCP 回应 - %s"
 
 #: src/fe-gtk/menu.c:1757
-msgid "He_xChat"
-msgstr "HexChat(_X)"
+msgid "ne_xchat"
+msgstr "nexchat(_X)"
 
 #: src/fe-gtk/menu.c:1758
 msgid "Network Li_st"

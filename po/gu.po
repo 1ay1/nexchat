@@ -20,7 +20,7 @@ msgstr ""
 #: data/misc/io.github.Hexchat.appdata.xml.in:4
 #: data/misc/io.github.Hexchat.appdata.xml.in:5
 #: data/misc/io.github.Hexchat.desktop.in.in:3
-msgid "HexChat"
+msgid "nexchat"
 msgstr ""
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:9
@@ -564,7 +564,7 @@ msgid "EXECWRITE, sends data to the processes stdin"
 msgstr "EXECWRITE, પ્રક્રિયાઓ stdin ને માહિતી મોકલે છે"
 
 #: src/common/outbound.c:3993
-msgid "EXPORTCONF, exports HexChat settings"
+msgid "EXPORTCONF, exports nexchat settings"
 msgstr ""
 
 #: src/common/outbound.c:3996
@@ -886,7 +886,7 @@ msgid "Unknown Command %s. Try /help\n"
 msgstr ""
 
 #: src/common/plugin.c:403
-msgid "No hexchat_plugin_init symbol; is this really a HexChat plugin?"
+msgid "No hexchat_plugin_init symbol; is this really a nexchat/HexChat plugin?"
 msgstr ""
 
 #: src/common/plugin-identd.c:175
@@ -3466,7 +3466,7 @@ msgid "Execute command:"
 msgstr "આદેશ ચલાવો:"
 
 #: src/fe-gtk/fe-gtk.c:89
-msgid "Open URL or execute command in an existing HexChat"
+msgid "Open URL or execute command in an existing nexchat"
 msgstr ""
 
 #: src/fe-gtk/fe-gtk.c:91
@@ -3748,7 +3748,7 @@ msgid ""
 msgstr ""
 
 #: src/fe-gtk/maingui.c:1177
-msgid "Quit HexChat?"
+msgid "Quit nexchat?"
 msgstr ""
 
 #: src/fe-gtk/maingui.c:1197
@@ -4172,7 +4172,7 @@ msgid "CTCP Replies - %s"
 msgstr ""
 
 #: src/fe-gtk/menu.c:1757
-msgid "He_xChat"
+msgid "ne_xchat"
 msgstr ""
 
 #: src/fe-gtk/menu.c:1758

@@ -19,8 +19,8 @@ python3_source = custom_target('python-bindings',
   command: [find_program('generate_plugin.py'), '@INPUT@', '@OUTPUT@']
 )
 
-install_data(['_hexchat.py', 'hexchat.py', 'xchat.py'],
-  install_dir: join_paths(get_option('libdir'), 'hexchat/python')
+install_data(['_hexchat.py', 'hexchat.py', 'nexchat.py', 'xchat.py'],
+  install_dir: join_paths(get_option('libdir'), 'nexchat/python')
 )
 
 shared_module('python', python3_source,

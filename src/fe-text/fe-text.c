@@ -95,7 +95,7 @@ fe_new_window (struct session *sess, int focus)
 
 	g_snprintf (buf, sizeof (buf),
 				"\n"
-				" \017HexChat-Text \00310"PACKAGE_VERSION"\n"
+				" \017nexchat-text \00310"PACKAGE_VERSION"\n"
 				" \017Running on \00310%s\n",
 				get_sys_str (1));
 	fe_print_text (sess, buf, 0, FALSE);

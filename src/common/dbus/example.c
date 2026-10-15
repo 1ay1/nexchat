@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include "../marshal.c"
 
-#define DBUS_SERVICE "org.hexchat.service"
+#define DBUS_SERVICE "io.github.nexchat.service"
 #define DBUS_REMOTE "/org/hexchat/Remote"
 #define DBUS_REMOTE_CONNECTION_INTERFACE "org.hexchat.connection"
 #define DBUS_REMOTE_PLUGIN_INTERFACE "org.hexchat.plugin"

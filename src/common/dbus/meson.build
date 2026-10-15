@@ -14,21 +14,23 @@ dbus_includes = [
 
 dbus_service_dir = join_paths(get_option('datadir'), 'dbus-1/services')
 
+# bus name is nexchat's own so --existing never reaches a running HexChat.
+# object paths and interfaces stay org.hexchat.* so remote scripts keep working.
 if get_option('dbus-service-use-appid')
-  dbus_service_name = 'io.github.Hexchat'
-  dbus_output_file = 'io.github.Hexchat.service'
-  dbus_cargs = '-DDBUS_SERVICE="io.github.Hexchat"'
+  dbus_service_name = 'io.github.nexchat'
+  dbus_output_file = 'io.github.nexchat.service'
+  dbus_cargs = '-DDBUS_SERVICE="io.github.nexchat"'
 else
-  dbus_service_name = 'org.hexchat.service'
-  dbus_output_file = 'org.hexchat.service.service'
-  dbus_cargs = '-DDBUS_SERVICE="org.hexchat.service"'
+  dbus_service_name = 'io.github.nexchat.service'
+  dbus_output_file = 'io.github.nexchat.service.service'
+  dbus_cargs = '-DDBUS_SERVICE="io.github.nexchat.service"'
 endif
 
 dbus_conf = configuration_data()
 dbus_conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 dbus_conf.set('service_name', dbus_service_name)
 configure_file(
-  input: 'org.hexchat.service.service.in',
+  input: 'nexchat.service.in',
   output: dbus_output_file,
   configuration: dbus_conf,
   install: true,

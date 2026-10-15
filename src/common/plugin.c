@@ -433,7 +433,7 @@ plugin_load (session *sess, char *filename, char *arg)
 	if (!g_module_symbol (handle, "hexchat_plugin_init", (gpointer *)&init_func))
 	{
 		g_module_close (handle);
-		return _("No hexchat_plugin_init symbol; is this really a HexChat plugin?");
+		return _("No hexchat_plugin_init symbol; is this really a nexchat/HexChat plugin?");
 	}
 
 	/* find the plugin's deinit routine, if any */
@@ -466,7 +466,9 @@ plugin_get_libdir (void)
 {
 	const char *libdir;
 
-	libdir = g_getenv ("HEXCHAT_LIBDIR");
+	libdir = g_getenv ("NEXCHAT_LIBDIR");
+	if (!libdir || !*libdir)
+		libdir = g_getenv ("HEXCHAT_LIBDIR");
 	if (libdir && *libdir)
 		return libdir;
 	else

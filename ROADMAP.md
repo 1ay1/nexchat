@@ -72,25 +72,27 @@ You can't keep the UX the same if you haven't recorded what it is first.
 
 ## Phase 1: rebrand (no toolkit changes)
 
+Done. Tests: `tests/migrate-config.sh` (meson test), `tests/plugin-aliases.sh <install prefix>` (python/lua/perl, old and new names).
+
 This is done first and kept separate, so the port diffs only contain port changes.
 
 What users see:
-- [ ] Project name, binary `nexchat`, window titles, about dialog, translation strings (`po/`, 59 languages). Change the names in the strings without breaking the translations.
-- [ ] A new app ID, e.g. `io.github.nexchat.Nexchat` (to be decided), plus the .desktop file, metainfo, icons, man page and Flatpak manifest.
-- [ ] New icon art. `data/icons/hexchat*.svg` and the tray PNGs need replacements. Keep the tree and user-list icons as they are.
-- [ ] Windows installer (`win32/installer`) and Windows version resources.
+- [x] Project name, binary `nexchat` / `nexchat-text`, window titles, about dialog ("Based on HexChat"), menu `ne_xchat` (Alt+X still works). Translations: `po/rebrand-po.py` rewrote the brand msgids and the existing translations in 53 languages, so nothing fell back to English.
+- [x] App ID `io.github.nexchat`: .desktop, appdata, plugin metainfo, theme manager, man page, Flatpak manifest and CI.
+- [x] Icon: the same hexagon recoloured blue (`data/icons/nexchat.svg`/`.png`). Tree, user-list and tray status icons unchanged.
+- [ ] Windows installer and macOS bundle: moved to phase 6, since those scripts get rewritten for GTK4 anyway.
 
 User data:
-- [ ] Config dir moves to `~/.config/nexchat` (`%APPDATA%\nexchat` on Windows). On first run, if it's missing and `~/.config/hexchat` exists, **copy** the old one over, never move it. Keep the same file names inside (`hexchat.conf`, `servlist.conf`, `pevents.conf`…), or rename them with a fallback that reads the old names. Users must keep their networks, logs and themes.
-- [ ] Theme files (`.hct`) from HexChat must keep working.
+- [x] Config dir is `~/.config/nexchat` (`%APPDATA%\nexchat`). On first run, if it's missing and the HexChat dir exists, the HexChat dir is **copied** (symlinks skipped, a failed copy is set aside as `.partial`). File names inside stay the same (`hexchat.conf` etc.), so a copied config just works. `-d/--cfgdir` never migrates. Portable Windows installs keep `config\` next to the exe.
+- [x] Theme files (`.hct`): format unchanged.
 
 Plugin compatibility (nothing breaks):
-- [ ] Keep the `hexchat_plugin_init` symbol and the `hexchat_*` API struct as they are. Existing compiled plugins must load.
-- [ ] Ship `nexchat-plugin.h` as a thin alias header, and keep `hexchat-plugin.h` too. Install both `.pc` files.
-- [ ] Python: keep `import hexchat` and `import xchat`, and add `import nexchat`. Perl: keep `HexChat::` and `Xchat::`. Lua: keep the `hexchat` table and add `nexchat`.
-- [ ] Keep `hexchat_get_info(ph, "gtkwin_ptr")`. Document that from phase 3 it returns a GTK4 window.
-- [ ] D-Bus: register the new name, and the old `org.hexchat.service` name too, if it's free.
-- [ ] Keep the CTCP VERSION reply honest: "nexchat x.y (HexChat fork)".
+- [x] `hexchat_plugin_init` and the `hexchat_*` API are unchanged. Existing compiled plugins load.
+- [x] `nexchat-plugin.h` alias header plus `hexchat-plugin.h`; both `nexchat-plugin.pc` and `hexchat-plugin.pc` are installed. Plugins go in `lib/nexchat/plugins`; `NEXCHAT_LIBDIR` overrides it, and `HEXCHAT_LIBDIR` still works.
+- [x] Python: `import nexchat` / `hexchat` / `xchat`. Lua: `nexchat` and `hexchat` globals. Perl: `Nexchat::` / `HexChat::` / `Xchat::`.
+- [ ] `gtkwin_ptr` stays. Document what it returns once it's a GTK4 window (phase 4).
+- [x] D-Bus: bus name `io.github.nexchat.service`, so `--existing` never talks to a running HexChat. Object paths and interfaces stay `org.hexchat.*`, so remote-control scripts only need the new bus name.
+- [x] CTCP VERSION reply is "nexchat 2.16.2 / <os>".
 
 ## Phase 2: GTK3
 
@@ -153,6 +155,7 @@ After phase 4 it runs on GTK4, but it still uses GtkTreeView, which is deprecate
 
 ## Phase 6: release
 
+- [ ] Rebuild the Windows (MSVC `win32/*.sln`, Inno Setup installer) and macOS (`osx/`, gtk-mac-bundler) packaging for GTK4. Phase 1 left their HexChat names alone because those scripts get rewritten here anyway.
 - [ ] Packages: Flatpak, AUR (`nexchat-git` and a release package), Windows installer (meson + gvsbuild GTK4), and a macOS bundle if there's demand.
 - [ ] A migration note for HexChat users: config import, plugin compatibility, and the small differences that couldn't be avoided (from section 9).
 - [ ] Version: start at nexchat 3.0 so it's obviously after HexChat 2.16.

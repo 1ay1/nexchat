@@ -54,7 +54,7 @@ typedef struct
 static char *
 get_client (void)
 {
-	return g_strdup_printf ("HexChat %s", hexchat_get_info(ph, "version"));
+	return g_strdup_printf ("nexchat %s", hexchat_get_info(ph, "version"));
 }
 
 static hwinfo hwinfos[] = {

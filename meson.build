@@ -1,4 +1,4 @@
-project('hexchat', 'c',
+project('nexchat', 'c',
   version: '2.16.2',
   meson_version: '>= 0.47.0',
   default_options: [
@@ -31,10 +31,10 @@ endif
 config_h = configuration_data()
 config_h.set_quoted('PACKAGE_VERSION', meson.project_version())
 config_h.set_quoted('PACKAGE_NAME', meson.project_name())
-config_h.set_quoted('GETTEXT_PACKAGE', 'hexchat')
+config_h.set_quoted('GETTEXT_PACKAGE', 'nexchat')
 config_h.set_quoted('LOCALEDIR', join_paths(get_option('prefix'),
                                  get_option('datadir'), 'locale'))
-config_h.set_quoted('G_LOG_DOMAIN', 'hexchat')
+config_h.set_quoted('G_LOG_DOMAIN', 'nexchat')
 config_h.set10('ENABLE_NLS', true)
 
 # Optional features
@@ -55,7 +55,7 @@ config_h.set('HAVE_MEMRCHR', cc.has_function('memrchr'))
 config_h.set('HAVE_STRINGS_H', cc.has_header('strings.h'))
 
 config_h.set_quoted('HEXCHATLIBDIR',
-  join_paths(get_option('prefix'), get_option('libdir'), 'hexchat/plugins')
+  join_paths(get_option('prefix'), get_option('libdir'), 'nexchat/plugins')
 )
 
 if libssl_dep.found()

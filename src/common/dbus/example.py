@@ -23,14 +23,14 @@ from gi.repository import Gio
 
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 connection = Gio.DBusProxy.new_sync(bus, Gio.DBusProxyFlags.NONE, None,
-  						'org.hexchat.service', '/org/hexchat/Remote', 'org.hexchat.connection', None)
+  						'io.github.nexchat.service', '/org/hexchat/Remote', 'org.hexchat.connection', None)
 path = connection.Connect('(ssss)', 
 					'example.py',
 					'Python example', 
 					'Example of a D-Bus client written in python', 
 					'1.0')		
 hexchat = Gio.DBusProxy.new_sync(bus, Gio.DBusProxyFlags.NONE, None,
-								'org.hexchat.service', path, 'org.hexchat.plugin', None)
+								'io.github.nexchat.service', path, 'org.hexchat.plugin', None)
          
 # Note the type before every arguement, this must be done.
 # Type requirements are listed in our docs and characters are listed in the dbus docs.

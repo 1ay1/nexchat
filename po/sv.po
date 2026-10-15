@@ -31,8 +31,8 @@ msgstr ""
 #: data/misc/io.github.Hexchat.appdata.xml.in:4
 #: data/misc/io.github.Hexchat.appdata.xml.in:5
 #: data/misc/io.github.Hexchat.desktop.in.in:3
-msgid "HexChat"
-msgstr "HexChat"
+msgid "nexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:9
 #: data/misc/io.github.Hexchat.desktop.in.in:4
@@ -575,8 +575,8 @@ msgid "EXECWRITE, sends data to the processes stdin"
 msgstr "EXECWRITE, skickar data till processens standard in"
 
 #: src/common/outbound.c:3993
-msgid "EXPORTCONF, exports HexChat settings"
-msgstr "EXPORTCONF, exporterar HexChat-inställningar"
+msgid "EXPORTCONF, exports nexchat settings"
+msgstr "EXPORTCONF, exporterar nexchat-inställningar"
 
 #: src/common/outbound.c:3996
 msgid "FLUSHQ, flushes the current server's send queue"
@@ -897,8 +897,8 @@ msgid "Unknown Command %s. Try /help\n"
 msgstr "Okänt kommando %s. Prova /help\n"
 
 #: src/common/plugin.c:403
-msgid "No hexchat_plugin_init symbol; is this really a HexChat plugin?"
-msgstr "Ingen hexchat_plugin_init symbol; är detta verkligen en HexChat-insticksmodul?"
+msgid "No hexchat_plugin_init symbol; is this really a nexchat/HexChat plugin?"
+msgstr "Ingen hexchat_plugin_init symbol; är detta verkligen en nexchat-insticksmodul?"
 
 #: src/common/plugin-identd.c:175
 #, c-format
@@ -3477,8 +3477,8 @@ msgid "Execute command:"
 msgstr "Startkommando:"
 
 #: src/fe-gtk/fe-gtk.c:89
-msgid "Open URL or execute command in an existing HexChat"
-msgstr "Öppna URL eller kör kommando i en existerande HexChat"
+msgid "Open URL or execute command in an existing nexchat"
+msgstr "Öppna URL eller kör kommando i en existerande nexchat"
 
 #: src/fe-gtk/fe-gtk.c:91
 msgid "Begin minimized. Level 0=Normal 1=Iconified 2=Tray"
@@ -3759,8 +3759,8 @@ msgid ""
 msgstr "Denna server har fortfarande %d kanaler eller dialoger associerade med den. Stänga dem alla?"
 
 #: src/fe-gtk/maingui.c:1177
-msgid "Quit HexChat?"
-msgstr "Avsluta HexChat?"
+msgid "Quit nexchat?"
+msgstr "Avsluta nexchat?"
 
 #: src/fe-gtk/maingui.c:1197
 msgid "Don't ask next time."
@@ -4183,8 +4183,8 @@ msgid "CTCP Replies - %s"
 msgstr "CTCP-svar - %s"
 
 #: src/fe-gtk/menu.c:1757
-msgid "He_xChat"
-msgstr "He_xChat"
+msgid "ne_xchat"
+msgstr "ne_xchat"
 
 #: src/fe-gtk/menu.c:1758
 msgid "Network Li_st"

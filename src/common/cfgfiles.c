@@ -35,7 +35,8 @@
 #include <io.h>
 #else
 #include <unistd.h>
-#define HEXCHAT_DIR "hexchat"
+#define HEXCHAT_DIR "nexchat"
+#define HEXCHAT_OLD_DIR "hexchat"
 #endif
 
 #define DEF_FONT "Monospace 9"
@@ -295,6 +296,85 @@ char *xdir = NULL;	/* utf-8 encoding */
 #include <shlobj.h>
 #endif
 
+/* the dir HexChat used, so a fresh nexchat can pick up the user's setup */
+static char *
+get_old_xdir (void)
+{
+#ifndef WIN32
+	return g_build_filename (g_get_user_config_dir (), HEXCHAT_OLD_DIR, NULL);
+#else
+	wchar_t* roaming_path_wide;
+	gchar *roaming_path, *dir;
+
+	if (portable_mode () || SHGetKnownFolderPath (&FOLDERID_RoamingAppData, 0, NULL, &roaming_path_wide) != S_OK)
+		return NULL;	/* portable installs keep config next to the exe */
+
+	roaming_path = g_utf16_to_utf8 (roaming_path_wide, -1, NULL, NULL, NULL);
+	CoTaskMemFree (roaming_path_wide);
+	dir = g_build_filename (roaming_path, "HexChat", NULL);
+	g_free (roaming_path);
+	return dir;
+#endif
+}
+
+static gboolean
+copy_tree (const char *src, const char *dst)
+{
+	GDir *dir;
+	const char *name;
+	gboolean ok = TRUE;
+
+	if (g_mkdir_with_parents (dst, 0700) != 0)
+		return FALSE;
+
+	dir = g_dir_open (src, 0, NULL);
+	if (!dir)
+		return FALSE;
+
+	while (ok && (name = g_dir_read_name (dir)))
+	{
+		char *s = g_build_filename (src, name, NULL);
+		char *d = g_build_filename (dst, name, NULL);
+
+		if (g_file_test (s, G_FILE_TEST_IS_SYMLINK))
+			;	/* skip, could point anywhere */
+		else if (g_file_test (s, G_FILE_TEST_IS_DIR))
+			ok = copy_tree (s, d);
+		else
+		{
+			GFile *fs = g_file_new_for_path (s);
+			GFile *fd = g_file_new_for_path (d);
+			ok = g_file_copy (fs, fd, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, NULL);
+			g_object_unref (fs);
+			g_object_unref (fd);
+		}
+		g_free (s);
+		g_free (d);
+	}
+	g_dir_close (dir);
+	return ok;
+}
+
+/* first run of nexchat: copy (never move) the old HexChat config dir over */
+static void
+migrate_old_xdir (void)
+{
+	char *old = get_old_xdir ();
+
+	if (old && g_access (xdir, F_OK) != 0 && g_file_test (old, G_FILE_TEST_IS_DIR))
+	{
+		if (!copy_tree (old, xdir))
+		{
+			g_warning ("could not copy settings from %s to %s", old, xdir);
+			/* half a copy is worse than none, start fresh instead */
+			char *tmp = g_strconcat (xdir, ".partial", NULL);
+			g_rename (xdir, tmp);
+			g_free (tmp);
+		}
+	}
+	g_free (old);
+}
+
 char *
 get_xdir (void)
 {
@@ -322,11 +402,13 @@ get_xdir (void)
 			roaming_path = g_utf16_to_utf8 (roaming_path_wide, -1, NULL, NULL, NULL);
 			CoTaskMemFree (roaming_path_wide);
 
-			xdir = g_build_filename (roaming_path, "HexChat", NULL);
+			xdir = g_build_filename (roaming_path, "nexchat", NULL);
 
 			g_free (roaming_path);
 		}
 #endif
+		/* only when the default dir is in use, -d/--cfgdir sets xdir before this */
+		migrate_old_xdir ();
 	}
 
 	return xdir;

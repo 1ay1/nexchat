@@ -24,7 +24,7 @@ msgstr ""
 #: data/misc/io.github.Hexchat.appdata.xml.in:4
 #: data/misc/io.github.Hexchat.appdata.xml.in:5
 #: data/misc/io.github.Hexchat.desktop.in.in:3
-msgid "HexChat"
+msgid "nexchat"
 msgstr "헥스채트"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:9
@@ -568,7 +568,7 @@ msgid "EXECWRITE, sends data to the processes stdin"
 msgstr "EXECWRITE, 프로세스의 표준 입력으로 데이터를 보냅니다"
 
 #: src/common/outbound.c:3993
-msgid "EXPORTCONF, exports HexChat settings"
+msgid "EXPORTCONF, exports nexchat settings"
 msgstr "EXPORTCONF, 헥스채트 설정을 내보냅니다"
 
 #: src/common/outbound.c:3996
@@ -890,7 +890,7 @@ msgid "Unknown Command %s. Try /help\n"
 msgstr "알 수 없는 %s 명령입니다. /help 명령을 사용하십시오\n"
 
 #: src/common/plugin.c:403
-msgid "No hexchat_plugin_init symbol; is this really a HexChat plugin?"
+msgid "No hexchat_plugin_init symbol; is this really a nexchat/HexChat plugin?"
 msgstr "hexchat_plugin_init 심볼이 없습니다. 헥스채트 추가 기능이 맞습니까?"
 
 #: src/common/plugin-identd.c:175
@@ -3470,7 +3470,7 @@ msgid "Execute command:"
 msgstr "연결시 명령:"
 
 #: src/fe-gtk/fe-gtk.c:89
-msgid "Open URL or execute command in an existing HexChat"
+msgid "Open URL or execute command in an existing nexchat"
 msgstr "URL을 열거나 헥스채트의 명령을 실행합니다"
 
 #: src/fe-gtk/fe-gtk.c:91
@@ -3752,7 +3752,7 @@ msgid ""
 msgstr "이 서버에 대화방 또는 참여자 %d개(명)과 연결되어 있습니다. 모두 닫으시겠습니까?"
 
 #: src/fe-gtk/maingui.c:1177
-msgid "Quit HexChat?"
+msgid "Quit nexchat?"
 msgstr "헥스채트를 끝낼까요?"
 
 #: src/fe-gtk/maingui.c:1197
@@ -4176,7 +4176,7 @@ msgid "CTCP Replies - %s"
 msgstr "CTCP 응답 - %s"
 
 #: src/fe-gtk/menu.c:1757
-msgid "He_xChat"
+msgid "ne_xchat"
 msgstr "헥스채트(_X)"
 
 #: src/fe-gtk/menu.c:1758

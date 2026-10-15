@@ -1,10 +1,10 @@
 {
-  "app-id": "io.github.Hexchat",
+  "app-id": "io.github.nexchat",
   "branch": "stable",
   "runtime": "org.gnome.Platform",
   "runtime-version": "40",
   "sdk": "org.gnome.Sdk",
-  "command": "hexchat",
+  "command": "nexchat",
   "finish-args": [
     "--share=ipc",
     "--socket=x11",
@@ -17,11 +17,11 @@
     "--talk-name=org.mpris.MediaPlayer2.*"
   ],
   "add-extensions": {
-    "io.github.Hexchat.Plugin": {
+    "io.github.nexchat.Plugin": {
       "version": "20.08",
       "directory": "extensions",
       "add-ld-path": "lib",
-      "merge-dirs": "lib/hexchat/plugins",
+      "merge-dirs": "lib/nexchat/plugins",
       "subdirectories": true,
       "no-autodownload": true,
       "autodelete": true
@@ -46,7 +46,7 @@
       ]
     },
     {
-      "name": "hexchat",
+      "name": "nexchat",
       "buildsystem": "meson",
       "config-opts": [
         "--buildtype=release",

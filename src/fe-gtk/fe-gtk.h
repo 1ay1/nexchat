@@ -22,7 +22,7 @@
 
 #include "config.h"
 
-#define DISPLAY_NAME "HexChat"
+#define DISPLAY_NAME "nexchat"
 
 #ifndef WIN32
 #include <sys/types.h>

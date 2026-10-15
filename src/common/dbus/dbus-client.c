@@ -129,7 +129,7 @@ hexchat_remote (void)
 
 	if (!remote_object)
 	{
-		write_error("Failed to connect to HexChat", &error);
+		write_error("Failed to connect to nexchat", &error);
 		g_object_unref (connection);
 		exit (0);
 	}

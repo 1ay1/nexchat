@@ -55,6 +55,7 @@ sub HexChat::Internal::print;
 sub EAT_XCHAT ();
 BEGIN {
 	*Xchat:: = *HexChat::;
+	*Nexchat:: = *HexChat::;
 }
 
 our %EXPORT_TAGS = (

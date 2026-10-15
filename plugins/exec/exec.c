@@ -27,7 +27,7 @@
 
 static hexchat_plugin *ph;   /* plugin handle */
 static char name[] = "Exec";
-static char desc[] = "Execute commands inside HexChat";
+static char desc[] = "Execute commands inside nexchat";
 static char version[] = "1.2";
 
 static int

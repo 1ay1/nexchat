@@ -1,30 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.Hexchat</id>
-  <name>HexChat</name>
-  <launchable type="desktop-id">io.github.Hexchat.desktop</launchable>
-  <developer_name>HexChat</developer_name>
+  <id>io.github.nexchat</id>
+  <name>nexchat</name>
+  <launchable type="desktop-id">io.github.nexchat.desktop</launchable>
+  <developer_name>nexchat</developer_name>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-2.0+</project_license>
-  <translation type="gettext">hexchat</translation>
+  <translation type="gettext">nexchat</translation>
   <summary>IRC Client</summary>
   <description>
-    <p>HexChat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files.</p>
-    <p>HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts.</p>
+    <p>nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files.</p>
+    <p>nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts.</p>
+    <p>nexchat is a continuation of HexChat on a modern toolkit. It looks and works the same way, and keeps your HexChat settings, themes and scripts.</p>
   </description>
-  <url type="homepage">http://hexchat.github.io</url>
-  <url type="bugtracker">https://github.com/hexchat/hexchat</url>
-  <url type="donation">https://goo.gl/jESZvU</url>
+  <url type="homepage">https://github.com/1ay1/nexchat</url>
+  <url type="bugtracker">https://github.com/1ay1/nexchat/issues</url>
   <url type="help">https://hexchat.readthedocs.io/en/latest/</url>
   <screenshots>
     <screenshot type="default">
-      <image>http://i.imgur.com/tLMguQz.png</image>
+      <image>https://raw.githubusercontent.com/1ay1/nexchat/master/docs/ux-reference/gtk2/main-tree.png</image>
       <caption>Main Chat Window</caption>
     </screenshot>
   </screenshots>
   <provides>
-    <!-- Renamed from this -->
-    <id>hexchat.desktop</id>
+    <binary>nexchat</binary>
   </provides>
   <releases>
     <release date="2024-02-07" version="2.16.2">
@@ -159,5 +158,5 @@
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
   </content_rating>
-  <update_contact>tingping_at_fedoraproject.org</update_contact>
+  <update_contact>tfeayush_at_gmail.com</update_contact>
 </component>

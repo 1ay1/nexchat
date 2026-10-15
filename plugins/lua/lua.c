@@ -1270,6 +1270,8 @@ static void prepare_state(lua_State *L, script_info *info)
 	lua_pushlightuserdata(L, info);
 	lua_setfield(L, LUA_REGISTRYINDEX, registry_field);
 	luaopen_hexchat(L);
+	lua_pushvalue(L, -1);
+	lua_setglobal(L, "nexchat");
 	lua_setglobal(L, "hexchat");
 	lua_getglobal(L, "hexchat");
 	lua_getfield(L, -1, "print");

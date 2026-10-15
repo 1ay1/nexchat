@@ -20,5 +20,5 @@ jobs:
 
     - uses: bilelmoussaoui/flatpak-github-actions/flatpak-builder@v3
       with:
-        bundle: hexchat.flatpak
-        manifest-path: flatpak/io.github.Hexchat.json
+        bundle: nexchat.flatpak
+        manifest-path: flatpak/io.github.nexchat.json
