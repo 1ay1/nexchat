@@ -1,0 +1,39 @@
+<Primary>Page_Up                 Change Page              -1                 Relative
+<Primary>Page_Down               Change Page              1                  Relative
+<Alt>9                           Change Page              9
+<Alt>8                           Change Page              8
+<Alt>7                           Change Page              7
+<Alt>6                           Change Page              6
+<Alt>5                           Change Page              5
+<Alt>4                           Change Page              4
+<Alt>3                           Change Page              3
+<Alt>2                           Change Page              2
+<Alt>1                           Change Page              1
+<Alt>grave                       Change Page              auto
+<Primary>o                       Insert in Buffer         ^O
+<Primary>b                       Insert in Buffer         ^B
+<Primary>k                       Insert in Buffer         ^C
+<Primary>i                       Insert in Buffer         ^I
+<Primary>u                       Insert in Buffer         ^U
+<Primary>r                       Insert in Buffer         ^R
+<Shift>Page_Down                 Change Selected Nick
+<Shift>Page_Up                   Change Selected Nick     Up
+Page_Down                        Scroll Page              Down
+<Primary>Home                    Scroll Page              Top
+<Primary>End                     Scroll Page              Bottom
+Page_Up                          Scroll Page              Up
+<Shift>Down                      Scroll Page              +1
+<Shift>Up                        Scroll Page              -1
+Down                             Next Command
+Up                               Last Command
+Tab                              Complete nick/command
+<Shift>ISO_Left_Tab              Complete nick/command    Previous
+space                            Check For Replace
+Return                           Check For Replace
+KP_Enter                         Check For Replace
+<Primary>Tab                     Complete nick/command    Up
+<Alt>Left                        Move front tab left
+<Alt>Right                       Move front tab right
+<Primary><Shift>Page_Up          Move tab family left
+<Primary><Shift>Page_Down        Move tab family right
+F9                               Run Command              /GUI MENU TOGGLE

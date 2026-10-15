@@ -1,0 +1,233 @@
+[appearance_settings]
+  HEADER     General
+  MENU       Language:  -> hex_gui_lang
+  EFONT      Main font:  -> hex_text_font_main
+  EFONT      Font:  -> hex_text_font
+  HEADER     Text Box
+  TOGGLE     Colored nick names  -> hex_text_color_nicks
+  TOGGLR     Indent nick names  -> hex_text_indent
+  HEADER     Transparency Settings
+  HSCALE     Window opacity:  -> hex_gui_transparency
+  HEADER     Timestamps
+  TOGGLE     Enable timestamps  -> hex_stamp_text
+  ENTRY      Timestamp format:  -> hex_stamp_text_format
+  HEADER     Title Bar
+  TOGGLE     Show channel modes  -> hex_gui_win_modes
+  TOGGLR     Show number of users  -> hex_gui_win_ucount
+  TOGGLE     Show nickname  -> hex_gui_win_nick
+
+[inputbox_settings]
+  HEADER     Input Box
+  TOGGLE     Use the text box font and colors  -> hex_gui_input_style
+  TOGGLE     Render colors and attributes  -> hex_gui_input_attr
+  TOGGLE     Show nick box  -> hex_gui_input_nick
+  TOGGLE     Show user mode icon in nick box  -> hex_gui_input_icon
+  TOGGLE     Spell checking  -> hex_gui_input_spell
+  ENTRY      Dictionaries to use:  -> hex_text_spell_langs
+  LABEL      Use language codes (as in \"%LOCALAPPDATA%\\enchant\\myspell\\dicts\").\nSeparate multiple entries with commas.
+  LABEL      Use language codes. Separate multiple entries with commas.
+  HEADER     Nick Completion
+  ENTRY      Nick completion suffix:  -> hex_completion_suffix
+  MENU       Nick completion sorted:  -> hex_completion_sort
+  NUMBER     Nick completion amount:  -> hex_completion_amount
+
+[userlist_settings]
+  HEADER     User List
+  TOGGLE     Show hostnames in user list  -> hex_gui_ulist_show_hosts
+  TOGGLE     Use the Text box font and colors  -> hex_gui_ulist_style
+  TOGGLE     Show icons for user modes  -> hex_gui_ulist_icons
+  TOGGLE     Color nicknames in userlist  -> hex_gui_ulist_color
+  TOGGLE     Show user count in channels  -> hex_gui_ulist_count
+  MENU       User list sorted by:  -> hex_gui_ulist_sort
+  MENU       Show user list at:  -> hex_gui_ulist_pos
+  HEADER     Away Tracking
+  TOGGLE     Track the away status of users and mark them in a different color  -> hex_away_track
+  NUMBER     On channels smaller than:  -> hex_away_size_max
+  HEADER     Action Upon Double Click
+  ENTRY      Execute command:  -> hex_gui_ulist_doubleclick
+  HEADER     Extra Gadgets
+  MENU       Lag meter:  -> hex_gui_lagometer
+  MENU       Throttle meter:  -> hex_gui_throttlemeter
+
+[tabs_settings]
+  HEADER     Channel Switcher
+  RADIO      Switcher type:  -> hex_gui_tab_layout
+  TOGGLE     Open an extra tab for server messages  -> hex_gui_tab_server
+  TOGGLE     Open a new tab when you receive a private message  -> hex_gui_autoopen_dialog
+  TOGGLE     Sort tabs in alphabetical order  -> hex_gui_tab_sort
+  TOGGLE     Show icons in the channel tree  -> hex_gui_tab_icons
+  TOGGLE     Show dotted lines in the channel tree  -> hex_gui_tab_dots
+  TOGGLE     Scroll mouse-wheel to change tabs  -> hex_gui_tab_scrollchans
+  TOGGLE     Middle click to close tab  -> hex_gui_tab_middleclose
+  TOGGLE     Smaller text  -> hex_gui_tab_small
+  MENU       Focus new tabs:  -> hex_gui_tab_newtofront
+  MENU       Placement of notices:  -> hex_irc_notice_pos
+  MENU       Show channel switcher at:  -> hex_gui_tab_pos
+  NUMBER     Shorten tab labels to:  -> hex_gui_tab_trunc
+  HEADER     Tabs or Windows
+  MENU       Open channels in:  -> hex_gui_tab_chans
+  MENU       Open dialogs in:  -> hex_gui_tab_dialogs
+  MENU       Open utilities in:  -> hex_gui_tab_utils
+
+[color_settings]
+  TOGGLE     Messages  -> hex_text_stripcolor_msg
+  TOGGLE     Scrollback  -> hex_text_stripcolor_replay
+  TOGGLE     Topic  -> hex_text_stripcolor_topic
+
+[filexfer_settings]
+  HEADER     Files and Directories
+  MENU       Auto accept file offers:  -> hex_dcc_auto_recv
+  EFOLDER    Download files to:  -> hex_dcc_dir
+  EFOLDER    Move completed files to:  -> hex_dcc_completed_dir
+  TOGGLE     Save nick name in filenames  -> hex_dcc_save_nick
+  HEADER     Auto Open DCC Windows
+  TOGGLE     Send window  -> hex_gui_autoopen_send
+  TOGGLE     Receive window  -> hex_gui_autoopen_recv
+  TOGGLE     Chat window  -> hex_gui_autoopen_chat
+  HEADER     Maximum File Transfer Speeds (Byte per Second)
+  NUMBER     One upload:  -> hex_dcc_max_send_cps
+  NUMBER     One download:  -> hex_dcc_max_get_cps
+  NUMBER     All uploads combined:  -> hex_dcc_global_max_send_cps
+  NUMBER     All downloads combined:  -> hex_dcc_global_max_get_cps
+
+[alert_settings]
+  HEADER     Alerts
+  3OGGLE     Show notifications on:
+  3OGGLE     Blink tray icon on:
+  3OGGLE     Blink task bar on:
+  3OGGLE     Make a beep sound on:
+  3OGGLE     Make a beep sound on:
+  3OGGLE     Make a beep sound on:
+  TOGGLE     Omit alerts when marked as being away  -> hex_away_omit_alerts
+  TOGGLE     Omit alerts while the window is focused  -> hex_gui_focus_omitalerts
+  HEADER     Tray Behavior
+  TOGGLE     Enable system tray icon  -> hex_gui_tray
+  TOGGLE     Minimize to tray  -> hex_gui_tray_minimize
+  TOGGLE     Close to tray  -> hex_gui_tray_close
+  TOGGLE     Automatically mark away/back  -> hex_gui_tray_away
+  TOGGLE     Only show notifications when hidden or iconified  -> hex_gui_tray_quiet
+  HEADER     Highlighted Messages
+  LABEL      Highlighted messages are ones where your nickname is mentioned, but also:
+  ENTRY      Extra words to highlight:  -> hex_irc_extra_hilight
+  ENTRY      Nick names not to highlight:  -> hex_irc_no_hilight
+  ENTRY      Nick names to always highlight:  -> hex_irc_nick_hilight
+  LABEL      Separate multiple words with commas.\nWildcards are accepted.
+
+[alert_settings_nonotifications]
+  HEADER     Alerts
+  3OGGLE     Blink tray icon on:
+  3OGGLE     Bounce dock icon on:
+  3OGGLE     Blink task bar on:
+  3OGGLE     Make a beep sound on:
+  3OGGLE     Make a beep sound on:
+  3OGGLE     Make a beep sound on:
+  TOGGLE     Omit alerts when marked as being away  -> hex_away_omit_alerts
+  TOGGLE     Omit alerts while the window is focused  -> hex_gui_focus_omitalerts
+  HEADER     Tray Behavior
+  TOGGLE     Enable system tray icon  -> hex_gui_tray
+  TOGGLE     Minimize to tray  -> hex_gui_tray_minimize
+  TOGGLE     Close to tray  -> hex_gui_tray_close
+  TOGGLE     Automatically mark away/back  -> hex_gui_tray_away
+  HEADER     Highlighted Messages
+  LABEL      Highlighted messages are ones where your nickname is mentioned, but also:
+  ENTRY      Extra words to highlight:  -> hex_irc_extra_hilight
+  ENTRY      Nick names not to highlight:  -> hex_irc_no_hilight
+  ENTRY      Nick names to always highlight:  -> hex_irc_nick_hilight
+  LABEL      Separate multiple words with commas.\nWildcards are accepted.
+
+[alert_settings_unity]
+  HEADER     Alerts
+  3OGGLE     Show notifications on:
+  3OGGLE     Blink task bar on:
+  3OGGLE     Make a beep sound on:
+  TOGGLE     Omit alerts when marked as being away  -> hex_away_omit_alerts
+  TOGGLE     Omit alerts while the window is focused  -> hex_gui_focus_omitalerts
+  HEADER     Highlighted Messages
+  LABEL      Highlighted messages are ones where your nickname is mentioned, but also:
+  ENTRY      Extra words to highlight:  -> hex_irc_extra_hilight
+  ENTRY      Nick names not to highlight:  -> hex_irc_no_hilight
+  ENTRY      Nick names to always highlight:  -> hex_irc_nick_hilight
+  LABEL      Separate multiple words with commas.\nWildcards are accepted.
+
+[alert_settings_unityandnonotifications]
+  HEADER     Alerts
+  3OGGLE     Blink task bar on:
+  3OGGLE     Make a beep sound on:
+  TOGGLE     Omit alerts when marked as being away  -> hex_away_omit_alerts
+  TOGGLE     Omit alerts while the window is focused  -> hex_gui_focus_omitalerts
+  HEADER     Highlighted Messages
+  LABEL      Highlighted messages are ones where your nickname is mentioned, but also:
+  ENTRY      Extra words to highlight:  -> hex_irc_extra_hilight
+  ENTRY      Nick names not to highlight:  -> hex_irc_no_hilight
+  ENTRY      Nick names to always highlight:  -> hex_irc_nick_hilight
+  LABEL      Separate multiple words with commas.\nWildcards are accepted.
+
+[general_settings]
+  HEADER     Default Messages
+  ENTRY      Quit:  -> hex_irc_quit_reason
+  ENTRY      Leave channel:  -> hex_irc_part_reason
+  ENTRY      Away:  -> hex_away_reason
+  HEADER     Away
+  TOGGLE     Show away once  -> hex_away_show_once
+  TOGGLE     Automatically unmark away  -> hex_away_auto_unmark
+  HEADER     Miscellaneous
+  TOGGLE     Display MODEs in raw form  -> hex_irc_raw_modes
+  TOGGLE     WHOIS on notify  -> hex_notify_whois_online
+  TOGGLE     Hide join and part messages  -> hex_irc_conf_mode
+  TOGGLE     Hide nick change messages  -> hex_irc_hide_nickchange
+
+[advanced_settings]
+  HEADER     Auto Copy Behavior
+  TOGGLE     Automatically copy selected text  -> hex_text_autocopy_text
+  TOGGLE     Automatically include timestamps  -> hex_text_autocopy_stamp
+  TOGGLE     Automatically include color information  -> hex_text_autocopy_color
+  HEADER     Miscellaneous
+  ENTRY      Real name:  -> hex_irc_real_name
+  ENTRY      Alternative fonts:  -> hex_text_font_alternative
+  TOGGLE     Display lists in compact mode  -> hex_gui_compact
+  TOGGLE     Use server time if supported  -> hex_irc_cap_server_time
+  TOGGLE     Automatically reconnect to servers on disconnect  -> hex_net_auto_reconnect
+  NUMBER     Auto reconnect delay:  -> hex_net_reconnect_delay
+  NUMBER     Auto join delay:  -> hex_irc_join_delay
+  MENU       Ban Type:  -> hex_irc_ban_type
+
+[logging_settings]
+  HEADER     Logging
+  TOGGLE     Display scrollback from previous session  -> hex_text_replay
+  NUMBER     Scrollback lines:  -> hex_text_max_lines
+  TOGGLE     Enable logging of conversations to disk  -> hex_irc_logging
+  ENTRY      Log filename:  -> hex_irc_logmask
+  LABEL      %s=Server %c=Channel %n=Network.
+  HEADER     Timestamps
+  TOGGLE     Insert timestamps in logs  -> hex_stamp_log
+  ENTRY      Log timestamp format:  -> hex_stamp_log_format
+  LABEL      See the strftime MSDN article for details.
+  LABEL      See the strftime manpage for details.
+  HEADER     URLs
+  TOGGLE     Enable logging of URLs to disk  -> hex_url_logging
+  TOGGLE     Enable URL grabber  -> hex_url_grabber
+  NUMBER     Maximum number of URLs to grab:  -> hex_url_grabber_limit
+
+[network_settings]
+  HEADER     Your Address
+  ENTRY      Bind to:  -> hex_net_bind_host
+  LABEL      Only useful for computers with multiple addresses.
+  HEADER     File Transfers
+  TOGGLE     Get my address from the IRC server  -> hex_dcc_ip_from_server
+  ENTRY      DCC IP address:  -> hex_dcc_ip
+  NUMBER     First DCC listen port:  -> hex_dcc_port_first
+  NUMBER     Last DCC listen port:  -> hex_dcc_port_last
+  HEADER     Proxy Server
+  ENTRY      Hostname:  -> hex_net_proxy_host
+  NUMBER     Port:  -> hex_net_proxy_port
+  MENU       Type:  -> hex_net_proxy_type
+  MENU       Use proxy for:  -> hex_net_proxy_use
+  HEADER     Proxy Authentication
+  TOGGLE     Use authentication (HTTP or SOCKS5 only)  -> hex_net_proxy_auth
+  ENTRY      Username:  -> hex_net_proxy_user
+  ENTRY      Password:  -> hex_net_proxy_pass
+
+[identd_settings]
+  HEADER     Identd Server
+  TOGGLE     Enabled  -> hex_identd_server
+  NUMBER     Port:  -> hex_identd_port

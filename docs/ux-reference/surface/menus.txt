@@ -1,0 +1,81 @@
+[He_xChat]
+  Network Li_st    [Ctrl+s]
+  ----
+  _New
+    Server Tab    [Ctrl+t]
+    Channel Tab
+    Server Window    [Ctrl+n]
+    Channel Window
+  ----
+  _Load Plugin or Script...
+  ----
+  <Detach/Attach>
+  <Close>
+  ----
+  _Quit    [Ctrl+q]
+
+[_View]
+  _Menu Bar (toggle)    [Ctrl+F9]
+  _Topic Bar (toggle)
+  _User List (toggle)    [Ctrl+F7]
+  U_ser List Buttons (toggle)
+  M_ode Buttons (toggle)
+  ----
+  _Channel Switcher
+    _Tabs (radio)
+    T_ree (radio)
+  _Network Meters
+    Off (radio)
+    Graph (radio)
+    Text (radio)
+    Both (radio)
+  ----
+  _Fullscreen (toggle)    [F11]
+
+[_Server]
+  _Disconnect
+  _Reconnect
+  _Join a Channel...
+  Channel _List
+  ----
+  Marked _Away (toggle)    [Alt+a (Ctrl+Alt+a if _Help uses 'a')]
+
+[_Usermenu]
+
+[S_ettings]
+  _Preferences
+  ----
+  Auto Replace
+  CTCP Replies
+  Dialog Buttons
+  Keyboard Shortcuts
+  Text Events
+  URL Handlers
+  User Commands
+  User List Buttons
+  User List Popup
+
+[_Window]
+  _Ban List
+  Character Chart
+  Direct Chat
+  File _Transfers
+  Friends List
+  Ignore List
+  _Plugins and Scripts
+  _Raw Log
+  _URL Grabber
+  ----
+  Reset Marker Line    [Ctrl+m]
+  Move to Marker Line    [Ctrl+Shift+m]
+  _Copy Selection    [Ctrl+Shift+c]
+  C_lear Text
+  Save Text...
+  Search
+    Search Text...    [Ctrl+f]
+    Search Next    [Ctrl+g]
+    Search Previous    [Ctrl+Shift+g]
+
+[_Help]
+  _Contents    [F1]
+  _About

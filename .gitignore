@@ -1,4 +1,6 @@
 /build
+/build-*/
+/.agentty/
 builddir/
 doxygen*.tmp
 html/
