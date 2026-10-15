@@ -46,7 +46,7 @@ Keys
 - [ ] The Keyboard Shortcuts editor reads and writes the same `keybindings.conf`.
 
 Dialogs
-- [ ] Each dialog in `gtk2/` has the same widgets, labels, order, buttons and default button: network list and edit, preferences (all 16 pages), join, channel list, ban list, DCC, friends, ignore, plugins, raw log, URL grabber, char chart, the editors (auto replace, CTCP, dialog buttons, text events, URL handlers, user commands, userlist buttons/popup), about, file choosers.
+- [ ] Each dialog in `gtk2/` has the same widgets, labels, order, buttons and default button: network list and edit, preferences (all 13 pages, `preferences-00..12.png`), join, channel list, ban list, DCC, friends, ignore, plugins, raw log, URL grabber, char chart, the editors (auto replace, CTCP, dialog buttons, text events, URL handlers, user commands, userlist buttons/popup), about, file choosers.
 - [ ] The network list opens at first start, and "Skip network list on startup" works.
 
 Behaviour

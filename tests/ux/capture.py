@@ -256,7 +256,6 @@ def main():
     # dialogs opened through their commands / menus
     dialogs = [
         ("network-list", lambda: key("ctrl+s")),
-        ("preferences", lambda: menu_pick("e", 1)),
         ("join-channel", lambda: menu_pick("s", 3)),
         ("channel-list", lambda: menu_pick("s", 4)),
         ("auto-replace", lambda: menu_pick("e", 2)),
@@ -290,18 +289,34 @@ def main():
                 key("Escape", delay=0.4)
                 focus_main()
 
-    # preferences pages: walk the category tree with Down
+    # preferences pages: click into the category tree, then walk it with Down.
+    # parent rows (Interface/Chatting/Network) can't be selected, so only keep
+    # a shot when the window content actually changed.
     if want("preferences-pages"):
+        import hashlib
         before = set(windows())
         menu_pick("e", 1)
         time.sleep(1)
         prefs = new_toplevels(before)
         if prefs:
             pw = prefs[-1]
-            # focus is on the category tree, first row selected
-            for i in range(16):
-                shot(f"preferences-{i:02d}", pw)
-                key("Down", delay=0.4)
+            # click each row of the category tree (rows ~27px apart starting at y=50
+            # at 96 dpi); parent rows don't change the page, so dedupe by content
+            seen = set()
+            page = 0
+            for row in range(18):
+                xdo("mousemove", "--window", pw, "80", str(50 + row * 27))
+                xdo("click", "1")
+                time.sleep(0.5)
+                tmpf = os.path.join(tmp, "pref.png")
+                subprocess.run(["import", "-window", pw, tmpf], env=env,
+                               stderr=subprocess.DEVNULL)
+                h = hashlib.md5(open(tmpf, "rb").read()).hexdigest()
+                if h not in seen:
+                    seen.add(h)
+                    shutil.copy(tmpf, os.path.join(args.out, f"preferences-{page:02d}.png"))
+                    print("shot", f"preferences-{page:02d}")
+                    page += 1
         close_new(before)
         focus_main()
 
