@@ -34,6 +34,7 @@ typedef struct session hexchat_context;
 #include "../common/cfgfiles.h"
 #include "gtkutil.h"
 #include "maingui.h"
+#include "nxlist.h"
 
 /* model for the plugin treeview */
 enum
@@ -52,50 +53,35 @@ static GtkWidget *plugin_window = NULL;
 static GtkWidget *
 plugingui_treeview_new (GtkWidget *box)
 {
-	GtkListStore *store;
+	nx_store *store;
 	GtkWidget *view;
-	GtkTreeViewColumn *col;
-	int col_id;
+	static const char *const titles[] = { N_("Name"), N_("Version"), N_("File"), N_("Description") };
+	int i;
 
-	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING,
-	                            G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
-	g_return_val_if_fail (store != NULL, NULL);
-	view = gtkutil_treeview_new (box, GTK_TREE_MODEL (store), NULL,
-	                             NAME_COLUMN, _("Name"),
-	                             VERSION_COLUMN, _("Version"),
-	                             FILE_COLUMN, _("File"),
-	                             DESC_COLUMN, _("Description"),
-	                             FILEPATH_COLUMN, NULL, -1);
-	for (col_id=0; (col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), col_id));
-	     col_id++)
-			gtk_tree_view_column_set_alignment (col, 0.5);
+	store = nx_store_new (FALSE, N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING,
+	                      G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
+	for (i = 0; i < 4; i++)
+		nx_col_set_title_align (nx_view_add_column (view, _(titles[i]), NX_COL_TEXT, i), 0.5);
+	/* GTK3 had the path as a 5th, empty-titled column */
+	nx_col_set_title_align (nx_view_add_column (view, NULL, NX_COL_TEXT, FILEPATH_COLUMN), 0.5);
+	/* GTK3's default: type-ahead on the first text column */
+	nx_view_set_search_column (view, NAME_COLUMN);
+	nx_widget_show (view);
 
 	return view;
 }
 
 static char *
-plugingui_getfilename (GtkTreeView *view)
+plugingui_getfilename (GtkWidget *view)
 {
-	GtkTreeModel *model;
-	GtkTreeSelection *sel;
-	GtkTreeIter iter;
-	GValue file;
-	char *str;
+	nx_row *row = nx_view_get_selected (view);
+	char *str = NULL;
 
-	memset (&file, 0, sizeof (file));
-
-	sel = gtk_tree_view_get_selection (view);
-	if (gtk_tree_selection_get_selected (sel, &model, &iter))
-	{
-		gtk_tree_model_get_value (model, &iter, FILEPATH_COLUMN, &file);
-
-		str = g_value_dup_string (&file);
-		g_value_unset (&file);
-
-		return str;
-	}
-
-	return NULL;
+	if (row)
+		nx_row_get (row, FILEPATH_COLUMN, &str, -1);
+	return str;
 }
 
 static void
@@ -111,16 +97,15 @@ fe_pluginlist_update (void)
 {
 	hexchat_plugin *pl;
 	GSList *list;
-	GtkTreeView *view;
-	GtkListStore *store;
-	GtkTreeIter iter;
+	GtkWidget *view;
+	nx_store *store;
 
 	if (!plugin_window)
 		return;
 
 	view = g_object_get_data (G_OBJECT (plugin_window), "view");
-	store = GTK_LIST_STORE (gtk_tree_view_get_model (view));
-	gtk_list_store_clear (store);
+	store = nx_view_get_store (view);
+	nx_store_clear (store);
 
 	list = plugin_list;
 	while (list)
@@ -128,12 +113,11 @@ fe_pluginlist_update (void)
 		pl = list->data;
 		if (pl->version[0] != 0)
 		{
-			gtk_list_store_append (store, &iter);
-			gtk_list_store_set (store, &iter, NAME_COLUMN, pl->name,
-			                    VERSION_COLUMN, pl->version,
-			                    FILE_COLUMN, file_part (pl->filename),
-			                    DESC_COLUMN, pl->desc,
-			                    FILEPATH_COLUMN, pl->filename, -1);
+			nx_row_set (nx_store_append (store, NULL), NAME_COLUMN, pl->name,
+			            VERSION_COLUMN, pl->version,
+			            FILE_COLUMN, file_part (pl->filename),
+			            DESC_COLUMN, pl->desc,
+			            FILEPATH_COLUMN, pl->filename, -1);
 		}
 		list = list->next;
 	}
@@ -176,13 +160,14 @@ static void
 plugingui_unload (GtkWidget * wid, gpointer unused)
 {
 	char *modname, *file;
-	GtkTreeView *view;
-	GtkTreeIter iter;
+	GtkWidget *view;
+	nx_row *row;
 	
 	view = g_object_get_data (G_OBJECT (plugin_window), "view");
-	if (!gtkutil_treeview_get_selected (view, &iter, NAME_COLUMN, &modname,
-	                                    FILEPATH_COLUMN, &file, -1))
+	row = nx_view_get_selected (view);
+	if (!row)
 		return;
+	nx_row_get (row, NAME_COLUMN, &modname, FILEPATH_COLUMN, &file, -1);
 
 	if (g_str_has_suffix (file, "."PLUGIN_SUFFIX))
 	{
@@ -206,7 +191,7 @@ plugingui_unload (GtkWidget * wid, gpointer unused)
 }
 
 static void
-plugingui_reloadbutton_cb (GtkWidget *wid, GtkTreeView *view)
+plugingui_reloadbutton_cb (GtkWidget *wid, GtkWidget *view)
 {
 	char *file = plugingui_getfilename(view);
 

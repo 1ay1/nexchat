@@ -12,6 +12,7 @@ hexchat_gtk_sources = [
   'gtkevents.c',
   'gtkdnd.c',
   'nxmenu.c',
+  'nxlist.c',
   'nxdialog.c',
   'ignoregui.c',
   'joind.c',
@@ -169,6 +170,16 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('nxmenu', nxmenu_test)
 endif
 
+# nxlist.c: the same list/tree semantics on GTK3 (GtkTreeView) and GTK4
+nxlist_test = executable('nxlist-test',
+  sources: ['../../tests/nxlist-test.c', 'nxlist.c'],
+  include_directories: include_directories('.'),
+  dependencies: gtk_dep,
+)
+if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
+  test('nxlist', nxlist_test)
+endif
+
 # Backend-independent smoke test: connect, join, render (no XTest needed).
 # On X11 backends it runs under a private Xvfb.
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
@@ -195,6 +206,8 @@ if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contain
   endif
   test('wayland-nxmenu', find_program('sh'),
     args: [wl_with, nxmenu_test], env: wl_env, timeout: 60)
+  test('wayland-nxlist', find_program('sh'),
+    args: [wl_with, nxlist_test], env: wl_env, timeout: 60)
   if use_dbus
     test('wayland-dbus-remote', find_program('sh'),
       args: [wl_with, sh, files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
@@ -247,6 +260,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('nxmenu', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), nxmenu_test],
     env: gui_env + ['DISP=:87'], timeout: 60)
+  test('nxlist', find_program('sh'),
+    args: [files('../../tests/ux/with-xvfb.sh'), nxlist_test],
+    env: gui_env + ['DISP=:88'], timeout: 60)
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), find_program('sh').full_path(),
            files('../../tests/smoke-gui.sh'), hexchat_gtk],
