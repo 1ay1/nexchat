@@ -555,11 +555,18 @@ fe_self_shot (gpointer data)
 																			gdk_window_get_height (gw)) : NULL;
 		if (pix)
 		{
-			gdk_pixbuf_save (pix, path, "png", NULL, NULL);
+			GError *err = NULL;
+			if (!gdk_pixbuf_save (pix, path, "png", &err, NULL))
+			{
+				g_printerr ("NEXCHAT_SHOT: %s: %s\n", path, err->message);
+				g_error_free (err);
+			}
 			g_object_unref (pix);
 		}
 #endif
 	}
+	else
+		g_printerr ("NEXCHAT_SHOT: no main window yet\n");
 	g_free (path);
 	return G_SOURCE_REMOVE;
 }

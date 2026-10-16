@@ -33,6 +33,6 @@ fail=0
 kill -0 "$app" 2>/dev/null || { echo "FAIL: client exited"; tail -20 "$tmp/log"; fail=1; }
 grep -q '^NICK smoke' "$tmp/server.log" || { echo "FAIL: no NICK"; fail=1; }
 grep -q '^JOIN #smoke' "$tmp/server.log" || { echo "FAIL: no JOIN"; fail=1; }
-[ -s "$tmp/shot.png" ] || { echo "FAIL: no window shot"; fail=1; }
+[ -s "$tmp/shot.png" ] || { echo "FAIL: no window shot"; ls -la "$tmp"; tail -20 "$tmp/log"; fail=1; }
 if grep -qE 'CRITICAL' "$tmp/log"; then echo "FAIL: criticals"; grep CRITICAL "$tmp/log" | head; fail=1; fi
 [ $fail -eq 0 ] && echo "smoke-gui: ok" || exit 1
