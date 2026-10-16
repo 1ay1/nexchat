@@ -30,6 +30,12 @@ GtkWidget *gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, in
 /* gtk_container_add with GTK2 semantics for boxes (expand + fill) */
 void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
 
+/* gtk_dialog_run() replacement (it's gone in GTK4): show the dialog, spin a
+   nested main loop until it responds or is destroyed, return the response
+   id (GTK_RESPONSE_NONE if destroyed). Only for the few callers that must
+   block - startup messages before the main loop, and FE_MSG_WAIT. */
+int gtkutil_dialog_run_blocking (GtkDialog *dialog);
+
 /* GtkImageMenuItem (deprecated in GTK3, gone in GTK4): a GtkMenuItem whose
    child is [image][label] laid out like GtkImageMenuItem did (16px icon
    column, 6px gap). image may be NULL; label is a mnemonic, or markup if

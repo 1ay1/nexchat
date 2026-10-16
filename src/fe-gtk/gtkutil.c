@@ -75,6 +75,68 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 		gtk_container_add (GTK_CONTAINER (container), child);
 }
 
+typedef struct
+{
+	GMainLoop *loop;
+	int response;
+	gboolean destroyed;
+} run_info;
+
+static void
+run_response_cb (GtkDialog *dialog, int response, run_info *ri)
+{
+	ri->response = response;
+	if (g_main_loop_is_running (ri->loop))
+		g_main_loop_quit (ri->loop);
+}
+
+static void
+run_destroy_cb (GtkWidget *dialog, run_info *ri)
+{
+	ri->destroyed = TRUE;
+	if (g_main_loop_is_running (ri->loop))
+		g_main_loop_quit (ri->loop);
+}
+
+static gboolean
+run_delete_cb (GtkWidget *dialog, GdkEvent *ev, run_info *ri)
+{
+	/* like gtk_dialog_run: closing the window answers DELETE_EVENT and the
+	   dialog stays alive for the caller to destroy */
+	ri->response = GTK_RESPONSE_DELETE_EVENT;
+	if (g_main_loop_is_running (ri->loop))
+		g_main_loop_quit (ri->loop);
+	return TRUE;
+}
+
+int
+gtkutil_dialog_run_blocking (GtkDialog *dialog)
+{
+	run_info ri = { NULL, GTK_RESPONSE_NONE, FALSE };
+	gulong h1, h2, h3;
+
+	g_object_ref (dialog);
+	h1 = g_signal_connect (dialog, "response", G_CALLBACK (run_response_cb), &ri);
+	h2 = g_signal_connect (dialog, "destroy", G_CALLBACK (run_destroy_cb), &ri);
+	h3 = g_signal_connect (dialog, "delete-event", G_CALLBACK (run_delete_cb), &ri);
+
+	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
+	gtk_widget_show (GTK_WIDGET (dialog));
+
+	ri.loop = g_main_loop_new (NULL, FALSE);
+	g_main_loop_run (ri.loop);
+	g_main_loop_unref (ri.loop);
+
+	if (!ri.destroyed)
+	{
+		g_signal_handler_disconnect (dialog, h1);
+		g_signal_handler_disconnect (dialog, h2);
+		g_signal_handler_disconnect (dialog, h3);
+	}
+	g_object_unref (dialog);
+	return ri.response;
+}
+
 GtkWidget *
 gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image)
 {

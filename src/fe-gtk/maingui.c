@@ -1212,6 +1212,40 @@ mg_count_dccs (void)
 	return dccs;
 }
 
+/* response handler for the quit dialog; same outcomes the gtk_dialog_run
+   switch had, but the dialog no longer blocks the main loop */
+static void
+mg_quit_dialog_response (GtkDialog *dlg, int response, GtkWidget *checkbutton1)
+{
+	gboolean dont_ask = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (checkbutton1));
+
+	gtk_widget_destroy (GTK_WIDGET (dlg));	/* clears the static via "destroy" */
+
+	switch (response)
+	{
+	case 0:
+		if (dont_ask)
+			prefs.hex_gui_quit_dialog = 0;
+		hexchat_exit ();
+		break;
+	case 1: /* minimize to tray */
+		if (dont_ask)
+		{
+			prefs.hex_gui_tray_close = 1;
+			/*prefs.hex_gui_quit_dialog = 0;*/
+		}
+		/* force tray icon ON, if not already */
+		if (!prefs.hex_gui_tray)
+		{
+			prefs.hex_gui_tray = 1;
+			tray_apply_setup ();
+		}
+		tray_toggle_visibility (TRUE);
+		break;
+	/* Cancel, Escape, window closed: nothing, as before */
+	}
+}
+
 void
 mg_open_quit_dialog (gboolean minimize_button)
 {
@@ -1300,33 +1334,13 @@ mg_open_quit_dialog (gboolean minimize_button)
 	gtk_widget_show (button);
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog), button, 0);
 
+	/* gtk_dialog_run made it modal for its duration */
+	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
+	g_signal_connect (G_OBJECT (dialog), "destroy",
+							G_CALLBACK (gtk_widget_destroyed), &dialog);
+	g_signal_connect (G_OBJECT (dialog), "response",
+							G_CALLBACK (mg_quit_dialog_response), checkbutton1);
 	gtk_widget_show (dialog);
-
-	switch (gtk_dialog_run (GTK_DIALOG (dialog)))
-	{
-	case 0:
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (checkbutton1)))
-			prefs.hex_gui_quit_dialog = 0;
-		hexchat_exit ();
-		break;
-	case 1: /* minimize to tray */
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (checkbutton1)))
-		{
-			prefs.hex_gui_tray_close = 1;
-			/*prefs.hex_gui_quit_dialog = 0;*/
-		}
-		/* force tray icon ON, if not already */
-		if (!prefs.hex_gui_tray)
-		{
-			prefs.hex_gui_tray = 1;
-			tray_apply_setup ();
-		}
-		tray_toggle_visibility (TRUE);
-		break;
-	}
-
-	gtk_widget_destroy (dialog);
-	dialog = NULL;
 }
 
 void

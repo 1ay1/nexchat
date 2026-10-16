@@ -109,7 +109,7 @@ create_msg_dialog (gchar *title, gchar *message)
 	gtk_window_set_icon (GTK_WINDOW (dialog), pix_hexchat);
 #endif
 
-	gtk_dialog_run (GTK_DIALOG (dialog));
+	gtkutil_dialog_run_blocking (GTK_DIALOG (dialog));
 	gtk_widget_destroy (dialog);
 }
 #endif
@@ -594,7 +594,7 @@ fe_message (char *msg, int flags)
 	gtk_widget_show (dialog);
 
 	if (flags & FE_MSG_WAIT)
-		gtk_dialog_run (GTK_DIALOG (dialog));
+		gtkutil_dialog_run_blocking (GTK_DIALOG (dialog));
 }
 
 void

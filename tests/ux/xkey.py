@@ -52,7 +52,7 @@ def focus_at(dpy, x, y):
     x11.XSync(dpy, 0)
 
 MODS = {"ctrl": "Control_L", "control": "Control_L", "alt": "Alt_L",
-        "shift": "Shift_L", "super": "Super_L"}
+        "shift": "Shift_L", "super": "Super_L", "meta": "Meta_L"}
 
 
 def keycode(dpy, name):
