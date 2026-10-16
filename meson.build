@@ -44,9 +44,12 @@ config_h.set('USE_DBUS', dbus_glib_dep.found())
 config_h.set('USE_PLUGIN', get_option('plugin'))
 
 config_h.set('G_DISABLE_SINGLE_INCLUDES', true)
-# GTK_DISABLE_DEPRECATED comes back in phase 3, once GtkTable, H/VBox,
-# stock items etc. are gone. Until then GTK3's deprecated API is allowed.
-config_h.set('GDK_DISABLE_DEPRECATION_WARNINGS', true)
+# Phase 3: no deprecated GTK3 API. These hide every deprecated declaration,
+# so reintroducing one is a compile error, not a warning. The one exception
+# is src/fe-gtk/tray-backend-statusicon.c (GtkStatusIcon has no GTK3
+# replacement), which #undefs them for itself.
+config_h.set('GTK_DISABLE_DEPRECATED', true)
+config_h.set('GDK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')

@@ -30,6 +30,7 @@
 #include "maingui.h"
 #include "menu.h"
 #include "gtkutil.h"
+#include "tray-backend.h"
 
 #ifndef WIN32
 #include <unistd.h>
@@ -61,7 +62,7 @@ typedef GdkPixbuf* TrayIcon;
 #define ICON_FILE pix_tray_fileoffer
 #define TIMEOUT 500
 
-static GtkStatusIcon *sticon;
+static tray_backend *sticon;
 static gint flash_tag;
 static TrayStatus tray_status;
 #ifdef WIN32
@@ -140,7 +141,7 @@ void
 fe_tray_set_tooltip (const char *text)
 {
 	if (sticon)
-		gtk_status_icon_set_tooltip_text (sticon, text);
+		tray_backend_set_tooltip (sticon, text);
 }
 
 static void
@@ -170,7 +171,7 @@ tray_stop_flash (void)
 
 	if (sticon)
 	{
-		gtk_status_icon_set_from_pixbuf (sticon, ICON_NORMAL);
+		tray_backend_set_icon (sticon, ICON_NORMAL);
 		nets = tray_count_networks ();
 		chans = tray_count_channels ();
 		if (nets)
@@ -209,24 +210,24 @@ tray_timeout_cb (TrayIcon icon)
 {
 	if (custom_icon1)
 	{
-		if (gtk_status_icon_get_pixbuf (sticon) == custom_icon1)
+		if (tray_backend_get_icon (sticon) == custom_icon1)
 		{
 			if (custom_icon2)
-				gtk_status_icon_set_from_pixbuf (sticon, custom_icon2);
+				tray_backend_set_icon (sticon, custom_icon2);
 			else
-				gtk_status_icon_set_from_pixbuf (sticon, ICON_NORMAL);
+				tray_backend_set_icon (sticon, ICON_NORMAL);
 		}
 		else
 		{
-			gtk_status_icon_set_from_pixbuf (sticon, custom_icon1);
+			tray_backend_set_icon (sticon, custom_icon1);
 		}
 	}
 	else
 	{
-		if (gtk_status_icon_get_pixbuf (sticon) == ICON_NORMAL)
-			gtk_status_icon_set_from_pixbuf (sticon, icon);
+		if (tray_backend_get_icon (sticon) == ICON_NORMAL)
+			tray_backend_set_icon (sticon, icon);
 		else
-			gtk_status_icon_set_from_pixbuf (sticon, ICON_NORMAL);
+			tray_backend_set_icon (sticon, ICON_NORMAL);
 	}
 	return 1;
 }
@@ -238,7 +239,7 @@ tray_set_flash (TrayIcon icon)
 		return;
 
 	/* already flashing the same icon */
-	if (flash_tag && gtk_status_icon_get_pixbuf (sticon) == icon)
+	if (flash_tag && tray_backend_get_icon (sticon) == icon)
 		return;
 
 	/* no flashing if window is focused */
@@ -247,7 +248,7 @@ tray_set_flash (TrayIcon icon)
 
 	tray_stop_flash ();
 
-	gtk_status_icon_set_from_pixbuf (sticon, icon);
+	tray_backend_set_icon (sticon, icon);
 	if (prefs.hex_gui_tray_blink)
 		flash_tag = g_timeout_add (TIMEOUT, (GSourceFunc) tray_timeout_cb, icon);
 }
@@ -268,7 +269,7 @@ fe_tray_set_flash (const char *filename1, const char *filename2, int tout)
 	if (filename2)
 		custom_icon2 = tray_icon_from_file (filename2);
 
-	gtk_status_icon_set_from_pixbuf (sticon, custom_icon1);
+	tray_backend_set_icon (sticon, custom_icon1);
 	flash_tag = g_timeout_add (tout, (GSourceFunc) tray_timeout_cb, NULL);
 	tray_status = TS_CUSTOM;
 }
@@ -310,7 +311,7 @@ fe_tray_set_file (const char *filename)
 	if (filename)
 	{
 		custom_icon1 = tray_icon_from_file (filename);
-		gtk_status_icon_set_from_pixbuf (sticon, custom_icon1);
+		tray_backend_set_icon (sticon, custom_icon1);
 		tray_status = TS_CUSTOM;
 	}
 }
@@ -373,11 +374,11 @@ tray_menu_restore_cb (GtkWidget *item, gpointer userdata)
 }
 
 static void
-tray_menu_notify_cb (GObject *tray, GParamSpec *pspec, gpointer user_data)
+tray_menu_notify_cb (tray_backend *tb, gboolean embedded, gpointer user_data)
 {
 	if (sticon)
 	{
-		if (!gtk_status_icon_is_embedded (sticon))
+		if (!embedded)
 		{
 			tray_restore_timer = g_timeout_add(500, (GSourceFunc)tray_menu_try_restore, NULL);
 		}
@@ -526,7 +527,7 @@ tray_menu_settings (GtkWidget * wid, gpointer none)
 }
 
 static void
-tray_menu_cb (GtkWidget *widget, guint button, guint time, gpointer userdata)
+tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 {
 	static GtkWidget *menu;
 	GtkWidget *submenu;
@@ -592,30 +593,28 @@ tray_menu_cb (GtkWidget *widget, guint button, guint time, gpointer userdata)
 	tray_menu_timer = g_timeout_add (500, (GSourceFunc)tray_check_hide, menu);
 #endif
 
-	gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL,
-						 userdata, button, time);
+	tray_backend_popup_menu (tb, GTK_MENU (menu), button, time);
+}
+
+static void
+tray_activate_cb (tray_backend *tb, gpointer userdata)
+{
+	tray_menu_restore_cb (NULL, NULL);
 }
 
 static void
 tray_init (void)
 {
+	static const tray_backend_callbacks cb = {
+		tray_activate_cb, tray_menu_cb, tray_menu_notify_cb
+	};
+
 	flash_tag = 0;
 	tray_status = TS_NONE;
 	custom_icon1 = NULL;
 	custom_icon2 = NULL;
 
-	sticon = gtk_status_icon_new_from_pixbuf (ICON_NORMAL);
-	if (!sticon)
-		return;
-
-	g_signal_connect (G_OBJECT (sticon), "popup-menu",
-							G_CALLBACK (tray_menu_cb), sticon);
-
-	g_signal_connect (G_OBJECT (sticon), "activate",
-							G_CALLBACK (tray_menu_restore_cb), NULL);
-
-	g_signal_connect (G_OBJECT (sticon), "notify::embedded",
-							G_CALLBACK (tray_menu_notify_cb), NULL);
+	sticon = tray_backend_new (ICON_NORMAL, &cb, NULL);
 }
 
 static int
@@ -749,7 +748,7 @@ tray_cleanup (void)
 
 	if (sticon)
 	{
-		g_object_unref ((GObject *)sticon);
+		tray_backend_free (sticon);
 		sticon = NULL;
 	}
 }

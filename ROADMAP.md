@@ -135,15 +135,19 @@ Exit criteria: the parity checklist matches the GTK2 reference, and the smoke te
 
 Goal: it builds with `-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED`. After this phase, the move to GTK4 is mostly mechanical.
 
-- [ ] Stop using `GtkStock` names and stock icons. Use named icons, and keep the same images where they're used today.
+**Status: the build goal is met.** `meson.build` sets `GTK_DISABLE_DEPRECATED` and `GDK_DISABLE_DEPRECATED` for the whole tree, so using a deprecated GTK3 call is now a compile error. The only exception is `tray-backend-statusicon.c` (GtkStatusIcon has no GTK3 replacement). The items below that aren't deprecations in GTK3 (menu models, async dialogs, key handling) are still open; they're needed for GTK4.
+
+- [x] Stop using `GtkStock` names and stock icons. Use named icons, and keep the same images where they're used today.
+  - `gtkutil_stock_icon_name()` maps every stock id we use to the icon name GTK 3.24's own stock table used (`gtk/deprecated/gtkiconfactory.c`); ids whose image only exists under the stock name (gtk-ok, gtk-cancel, gtk-connect, …) are named icons GTK3 ships under the same name, checked with `tests/ux/iconprobe.c`. Button labels come from GTK's own translated stock labels (`gtk30` catalogue, `gtkutil_stock_label()`), so every language keeps its button text. `GTK_STOCK_*` became `NX_STOCK_*` plain strings.
+- [x] Other deprecated calls, all replaced: GtkImageMenuItem (menu item with [icon][accel label], shortcuts still shown), GtkFontSelectionDialog → GtkFontChooserDialog, GtkColorSelectionDialog → GtkColorChooserDialog (opens in its editor; same RGB out), GtkStyle `input_style` (CSS already did it), `gtk_misc_*`, `gtk_menu_popup` (context menus → `popup_at_pointer`), `gtk_tree_view_set_rules_hint` (dropped, striping is the theme's), `gdk_beep`, viewport/treeview adjustments, `gdk_window_get_pointer`, `gtk_adjustment_changed`, widget state, dialog action area, `add_with_viewport`, GtkArrow, GtkAlignment, window opacity, `gdk_screen_get_number`.
 - [ ] Menus: build all menus from GMenuModel + GAction while still on GTK3, using `gtk_menu_new_from_model` and `gtk_menu_bar_new_from_model`. It's the biggest job in this phase:
   - main menu, popups, user list buttons, `/MENU` and plugin menu entries, toggles and radio groups (`menu_entry`: `group`, `state`, `ucmd`), icons, markup labels, enabling and disabling at runtime;
   - mnemonics (`_Server`, `_Window`…) and accelerators must stay exactly the same;
   - `fe_menu_add/del/update` keep the same behaviour for plugins.
-- [ ] `GtkUIManager`/`GtkAction`, if any: replace with GAction.
+- [x] `GtkUIManager`/`GtkAction`, if any: none used.
 - [ ] Dialogs: stop using `gtk_dialog_run`. Write async versions with the same buttons, the same order and the same default response.
 - [ ] Key handling in `fkeys.c`: write it as one function that takes (keyval, state) and returns a result, so it doesn't matter how the key event was delivered. Tab completion, history, and the `/KEYBINDING` list stay exactly the same.
-- [ ] Hide the tray behind a small interface (`tray_backend.h`): GtkStatusIcon on GTK3 for now, so phase 4 can swap in the new backends.
+- [x] Hide the tray behind a small interface (`tray-backend.h`): GtkStatusIcon on GTK3 (`tray-backend-statusicon.c`, the only file allowed deprecated API), so phase 4 can swap in the new backends.
 - [ ] Hide window position and urgency behind small functions too (see section 9).
 
 ## Phase 4: GTK4
@@ -192,6 +196,9 @@ After phase 4 it runs on GTK4, but it still uses GtkTreeView, which is deprecate
 | Hiding/showing the window from the tray | Wayland can't put a window back where it was | Use `gtk_window_present`. On X11, restore the position as before. |
 | Fonts and colours in the chat view | No more `modify_*` calls | A per-widget CSS provider, generated from the prefs. |
 | Transparent background (old X11 trick) | Doesn't work with compositors | Dropped in phase 2. Window opacity still works. |
+| Font picker (Preferences > Text box > Browse) | GtkFontSelectionDialog is deprecated in GTK3 and gone in GTK4 | GtkFontChooserDialog: a searchable list with a preview instead of three columns. It returns the same Pango font string, so `text_font` is unchanged. |
+| Colour picker (Preferences > Colors) | GtkColorSelectionDialog (the triangle) is deprecated and gone in GTK4 | GtkColorChooserDialog, opened straight in its editor (hue/saturation plane, hex entry). Same RGB out; `colors.conf` is byte-identical (`tests/ux/colors-roundtrip.sh`). |
+| Striped rows in lists (DCC, ignore, keyboard shortcuts, …) | `gtk_tree_view_set_rules_hint` is deprecated with no replacement | Up to the theme. Adwaita doesn't stripe. |
 
 ## Rules for every PR
 

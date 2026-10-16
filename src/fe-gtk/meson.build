@@ -18,6 +18,7 @@ hexchat_gtk_sources = [
   'palette-c16.c',
   'pixmaps.c',
   'plugin-tray.c',
+  'tray-backend-statusicon.c',
   'plugin-notification.c',
   'rawlog.c',
   'servlistgui.c',

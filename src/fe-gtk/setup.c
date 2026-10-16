@@ -875,7 +875,7 @@ setup_apply_trans (int *tag)
 }
 
 static void
-setup_hscale_cb (GtkHScale *wid, const setting *set)
+setup_hscale_cb (GtkScale *wid, const setting *set)
 {
 	static int tag = 0;
 
