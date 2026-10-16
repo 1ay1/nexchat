@@ -33,6 +33,7 @@
 #include "../common/fe.h"
 #include "../common/text.h"
 #include "gtkutil.h"
+#include "nxlist.h"
 #include "xtext.h"
 #include "maingui.h"
 #include "palette.h"
@@ -148,20 +149,16 @@ pevent_dialog_close (GtkWidget *wid, gpointer arg)
 }
 
 static void
-pevent_edited (GtkCellRendererText *render, gchar *pathstr, gchar *new_text, gpointer data)
+pevent_edited (nx_row *row, const char *new_text, gpointer data)
 {
-	GtkTreeModel *model = gtk_tree_view_get_model (GTK_TREE_VIEW (pevent_dialog_list));
-	GtkTreePath *path;
-	GtkTreeIter iter;
 	GtkXText *xtext = GTK_XTEXT (pevent_dialog_twid);
 	int len, m;
 	const char *text;
 	char *out;
 	int sig;
 
-	if (!gtkutil_treeview_get_selected (GTK_TREE_VIEW (pevent_dialog_list),
-											&iter, ROW_COLUMN, &sig, -1))
-		return;
+	/* the row edited, as GTK3's handler read the selected one */
+	sig = nx_row_get_int (row, ROW_COLUMN);
 
 	text = new_text;
 	len = strlen (new_text);
@@ -182,10 +179,7 @@ pevent_edited (GtkCellRendererText *render, gchar *pathstr, gchar *new_text, gpo
 		return;
 	}
 
-	path = gtk_tree_path_new_from_string (pathstr);
-	gtk_tree_model_get_iter (model, &iter, path);
-	gtk_list_store_set (GTK_LIST_STORE (model), &iter, TEXT_COLUMN, new_text, -1);
-	gtk_tree_path_free (path);
+	nx_row_set (row, TEXT_COLUMN, new_text, -1);
 
 	g_free (pntevts_text[sig]);
 	g_free (pntevts[sig]);
@@ -214,11 +208,10 @@ pevent_dialog_hfill (GtkWidget *list, int e)
 {
 	int i = 0;
 	char *text;
-	GtkTreeIter iter;
-	GtkListStore *store;
+	char num[16];
+	nx_store *store = nx_view_get_store (list);
 
-	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (list)));
-	gtk_list_store_clear (store);
+	nx_store_clear (store);
 
 	while (i < (te[e].num_args & 0x7f))
 	{
@@ -226,46 +219,41 @@ pevent_dialog_hfill (GtkWidget *list, int e)
 		i++;
 		if (text[0] == '\001')
 			text++;
-		gtk_list_store_insert_with_values (store, &iter, -1,
-													  0, i,
-													  1, text, -1);
+		g_snprintf (num, sizeof num, "%d", i);
+		nx_row_set (nx_store_append (store, NULL), 0, num, 1, text, -1);
 	}
 }
 
 static void
-pevent_selection_changed (GtkTreeSelection *sel, gpointer userdata)
+pevent_selection_changed (GtkWidget *view, gpointer userdata)
 {
-	GtkTreeIter iter;
-	int sig;
+	nx_row *row = nx_view_get_selected (view);
 
-	if (!gtkutil_treeview_get_selected (GTK_TREE_VIEW (pevent_dialog_list),
-										&iter, ROW_COLUMN, &sig, -1))
+	if (!row)
 	{
-		gtk_list_store_clear (GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (pevent_dialog_hlist))));
+		nx_store_clear (nx_view_get_store (pevent_dialog_hlist));
 		return;
 	}
 
-	pevent_dialog_hfill (pevent_dialog_hlist, sig);
+	pevent_dialog_hfill (pevent_dialog_hlist, nx_row_get_int (row, ROW_COLUMN));
 }
 
 static void
 pevent_dialog_fill (GtkWidget *list)
 {
 	int i;
-	GtkListStore *store;
-	GtkTreeIter iter;
+	nx_store *store = nx_view_get_store (list);
 
-	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (list)));
-	gtk_list_store_clear (store);
+	nx_store_clear (store);
 
 	i = NUM_XP;
 	do
 	{
 		i--;
-		gtk_list_store_insert_with_values (store, &iter, 0,
-													  EVENT_COLUMN, te[i].name,
-													  TEXT_COLUMN, pntevts_text[i],
-													  ROW_COLUMN, i, -1);
+		nx_row_set (nx_store_prepend (store, NULL),
+		            EVENT_COLUMN, te[i].name,
+		            TEXT_COLUMN, pntevts_text[i],
+		            ROW_COLUMN, i, -1);
 	}
 	while (i != 0);
 }
@@ -338,53 +326,25 @@ pevent_test_cb (GtkWidget * wid, GtkWidget * twid)
 static GtkWidget *
 pevent_treeview_new (GtkWidget *box)
 {
-	GtkWidget *scroll;
-	GtkListStore *store;
-	GtkTreeViewColumn *col;
-	GtkTreeSelection *sel;
+	nx_store *store;
 	GtkWidget *view;
-	GtkCellRenderer *render;
+	nx_col *col;
 
-	scroll = nx_scrolled_window_new ();
-	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	nx_scrolled_window_set_shadow_in (scroll, TRUE);
-	gtk_widget_set_size_request (GTK_WIDGET (scroll), -1, 250);
+	store = nx_store_new (FALSE, N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
+	nx_scrolled_window_set_shadow_in (gtk_widget_get_parent (view), TRUE);
+	gtk_widget_set_size_request (gtk_widget_get_parent (view), -1, 250);
+	nx_view_set_search_column (view, EVENT_COLUMN);
+	nx_view_on_select (view, pevent_selection_changed, NULL);
 
-	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
-	g_return_val_if_fail (store != NULL, NULL);
+	col = nx_view_add_column (view, _("Event"), NX_COL_TEXT, EVENT_COLUMN);
+	nx_col_set_resizable (col, TRUE);
+	nx_col_set_min_width (col, 100);
 
-	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-	gtk_tree_view_set_fixed_height_mode (GTK_TREE_VIEW (view), TRUE);
-	gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), TRUE);
-
-	sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (view));
-	g_signal_connect (G_OBJECT (sel), "changed",
-		G_CALLBACK (pevent_selection_changed), NULL);
-
-	render = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (
-			GTK_TREE_VIEW (view), EVENT_COLUMN,
-			_("Event"), render,
-			"text", EVENT_COLUMN,
-			NULL);
-
-	render = gtk_cell_renderer_text_new ();
-	g_object_set (render, "editable", TRUE, NULL);
-	g_signal_connect (G_OBJECT (render), "edited",
-		G_CALLBACK (pevent_edited), NULL);
-	gtk_tree_view_insert_column_with_attributes (
-			GTK_TREE_VIEW (view), TEXT_COLUMN,
-			_("Text"), render,
-			"text", TEXT_COLUMN,
-			NULL);
-
-	col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), EVENT_COLUMN);
-	gtk_tree_view_column_set_sizing (col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
-	gtk_tree_view_column_set_resizable (col, TRUE);
-	gtk_tree_view_column_set_min_width (col, 100);
-
-	gtkutil_container_add (GTK_WIDGET (scroll), view);
-	gtkutil_container_add (GTK_WIDGET (box), scroll);
+	col = nx_view_add_column (view, _("Text"), NX_COL_TEXT, TEXT_COLUMN);
+	nx_col_set_editable (col, TRUE);
+	nx_col_on_edited (col, pevent_edited, NULL);
 
 	return view;
 }
@@ -392,43 +352,18 @@ pevent_treeview_new (GtkWidget *box)
 static GtkWidget *
 pevent_hlist_treeview_new (GtkWidget *box)
 {
-	GtkWidget *scroll;
-	GtkListStore *store;
-	GtkTreeViewColumn *col;
+	nx_store *store;
 	GtkWidget *view;
-	GtkCellRenderer *render;
 
-	scroll = nx_scrolled_window_new ();
-	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	nx_scrolled_window_set_shadow_in (scroll, TRUE);
-
-	store = gtk_list_store_new (2, G_TYPE_INT, G_TYPE_STRING);
-	g_return_val_if_fail (store != NULL, NULL);
-
-	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-	gtk_tree_view_set_fixed_height_mode (GTK_TREE_VIEW (view), TRUE);
-	gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), FALSE);
+	/* the number as text: a GTK3 int column showed it the same */
+	store = nx_store_new (FALSE, 2, G_TYPE_STRING, G_TYPE_STRING);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
+	nx_scrolled_window_set_shadow_in (gtk_widget_get_parent (view), TRUE);
 	gtk_widget_set_can_focus (view, FALSE);
 
-	render = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (
-			GTK_TREE_VIEW (view), 0,
-			_("$ Number"), render,
-			"text", 0,
-			NULL);
-
-	render = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (
-			GTK_TREE_VIEW (view), 1,
-			_("Description"), render,
-			"text", 1,
-			NULL);
-
-	col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), 0);
-	gtk_tree_view_column_set_sizing (col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
-
-	gtkutil_container_add (GTK_WIDGET (scroll), view);
-	gtkutil_container_add (GTK_WIDGET (box), scroll);
+	nx_view_add_column (view, _("$ Number"), NX_COL_TEXT, 0);
+	nx_view_add_column (view, _("Description"), NX_COL_TEXT, 1);
 
 	return view;
 }
@@ -460,12 +395,7 @@ pevent_dialog_show ()
 	/* GTK2's treeview selected the cursor row when it took focus, so the
 	   dialog opened with the first event selected and its $-number list and
 	   preview filled in. GTK3 only moves the cursor; select it ourselves. */
-	{
-		GtkTreeIter first;
-		GtkTreeModel *model = gtk_tree_view_get_model (GTK_TREE_VIEW (pevent_dialog_list));
-		if (gtk_tree_model_get_iter_first (model, &first))
-			gtk_tree_selection_select_iter (gtk_tree_view_get_selection (GTK_TREE_VIEW (pevent_dialog_list)), &first);
-	}
+	nx_view_select (pevent_dialog_list, nx_store_first (nx_view_get_store (pevent_dialog_list)));
 
 	wid = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (wid), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);

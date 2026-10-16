@@ -21,6 +21,13 @@ add_to (GtkWidget *box, GtkWidget *child)
 #if GTK_CHECK_VERSION(4, 0, 0)
 	else if (GTK_IS_FRAME (box))
 		gtk_frame_set_child (GTK_FRAME (box), child);
+	/* gtk_container_add on a pane filled the first free side */
+	else if (GTK_IS_PANED (box) && !gtk_paned_get_start_child (GTK_PANED (box)))
+		gtk_paned_set_start_child (GTK_PANED (box), child);
+	else if (GTK_IS_PANED (box))
+		gtk_paned_set_end_child (GTK_PANED (box), child);
+	else
+		g_warning ("nxlist: can't add to a %s", G_OBJECT_TYPE_NAME (box));
 #else
 	else
 		gtk_container_add (GTK_CONTAINER (box), child);
@@ -995,6 +1002,36 @@ view_focus_in (GtkEventControllerFocus *f, GtkWidget *view)
 		nx_view_select (view, r);
 }
 
+/* first shown: at the top, or at the selected row, as GtkTreeView was */
+static gboolean
+view_scroll_first (gpointer data)
+{
+	GtkWidget *view = data;
+	view_priv *p = vp (view);
+	nx_row *r;
+
+	if (p)
+	{
+		r = nx_view_get_selected (view);
+		if (!r)
+			r = pos_row (p, 0);
+		if (r)
+			gtk_column_view_scroll_to (GTK_COLUMN_VIEW (p->cv), row_pos (p, r), NULL,
+												GTK_LIST_SCROLL_NONE, NULL);
+	}
+	g_object_unref (view);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+view_map (GtkWidget *view, gpointer data)
+{
+	if (g_object_get_data (G_OBJECT (view), "nx-mapped"))
+		return;
+	g_object_set_data (G_OBJECT (view), "nx-mapped", GINT_TO_POINTER (1));
+	g_idle_add (view_scroll_first, g_object_ref (view));
+}
+
 static void
 view_destroy (GtkWidget *view, gpointer data)
 {
@@ -1027,6 +1064,7 @@ nx_view_new (nx_store *store)
 	build_models (cv);
 	g_signal_connect (cv, "activate", G_CALLBACK (view_activate), cv);
 	g_signal_connect (cv, "destroy", G_CALLBACK (view_destroy), NULL);
+	g_signal_connect (cv, "map", G_CALLBACK (view_map), NULL);
 	k = gtk_event_controller_key_new ();
 	g_signal_connect (k, "key-pressed", G_CALLBACK (view_key), cv);
 	gtk_widget_add_controller (cv, k);
@@ -1369,6 +1407,8 @@ nx_view_select (GtkWidget *view, nx_row *row)
 	p->in_select = TRUE;
 	gtk_selection_model_select_item (p->sel, pos, p->mode != GTK_SELECTION_MULTIPLE);
 	p->in_select = FALSE;
+	/* a list filled before it's shown starts at its top in GTK3; GtkListView
+	   keeps wherever inserting left it: the map handler scrolls */
 }
 
 void
