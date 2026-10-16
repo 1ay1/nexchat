@@ -58,5 +58,7 @@ void nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata);
    that still need one (menu popups positioned at the pointer). NULL
    outside a handler. */
 GdkEvent *nx_current_event (void);
+/* the widget that event arrived on (the one the hook is on) */
+GtkWidget *nx_current_event_widget (void);
 
 #endif

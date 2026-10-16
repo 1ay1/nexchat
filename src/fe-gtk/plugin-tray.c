@@ -374,6 +374,12 @@ tray_menu_restore_cb (GtkWidget *item, gpointer userdata)
 }
 
 static void
+tray_menu_restore_item (nx_item *item, gpointer userdata)
+{
+	tray_toggle_visibility (FALSE);
+}
+
+static void
 tray_menu_notify_cb (tray_backend *tb, gboolean embedded, gpointer user_data)
 {
 	if (sticon)
@@ -437,7 +443,7 @@ tray_find_away_status (void)
 }
 
 static void
-tray_foreach_server (GtkWidget *item, char *cmd)
+tray_foreach_server (nx_item *item, gpointer cmd)
 {
 	GSList *list;
 	server *serv;
@@ -450,32 +456,24 @@ tray_foreach_server (GtkWidget *item, char *cmd)
 	}
 }
 
-static GtkWidget *
-tray_make_item (GtkWidget *menu, char *label, void *callback, void *userdata)
+/* label NULL: a separator */
+static nx_item *
+tray_make_item (nx_menu *menu, char *label, nx_item_cb callback, void *userdata)
 {
-	GtkWidget *item;
-
-	if (label)
-		item = gtk_menu_item_new_with_mnemonic (label);
-	else
-		item = gtk_separator_menu_item_new ();	/* GTK3: empty item is a gap, not a line */
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (callback), userdata);
-	gtk_widget_show (item);
-
-	return item;
+	if (!label)
+		return nx_menu_add_separator (menu, NX_MENU_APPEND);
+	return nx_menu_add_item (menu, NX_MENU_APPEND, label, NX_ITEM_MNEMONIC, NULL, callback, userdata);
 }
 
 #ifndef WIN32
 static void
-tray_toggle_cb (GtkCheckMenuItem *item, unsigned int *setting)
+tray_toggle_cb (nx_item *item, gpointer setting)
 {
-	*setting = gtk_check_menu_item_get_active (item);
+	*(unsigned int *) setting = nx_item_get_active (item);
 }
 
 static void
-blink_item (unsigned int *setting, GtkWidget *menu, char *label)
+blink_item (unsigned int *setting, nx_menu *menu, char *label)
 {
 	menu_toggle_item (label, menu, tray_toggle_cb, setting, *setting);
 }
@@ -520,18 +518,24 @@ tray_check_hide (GtkWidget *menu)
 #endif
 
 static void
-tray_menu_settings (GtkWidget * wid, gpointer none)
+tray_menu_settings (nx_item *item, gpointer none)
 {
 	extern void setup_open (void);
 	setup_open ();
 }
 
 static void
+tray_menu_quit_item (nx_item *item, gpointer none)
+{
+	tray_menu_quit_cb (NULL, NULL);
+}
+
+static void
 tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 {
 	static GtkWidget *menu;
-	GtkWidget *submenu;
-	GtkWidget *item;
+	nx_menu *submenu;
+	nx_item *item;
 	int away_status;
 
 	/* ph may have an invalid context now */
@@ -543,41 +547,41 @@ tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 		tray_menu_destroy (menu, NULL);
 	}
 
-	menu = gtk_menu_new ();
-	/*gtk_menu_set_screen (GTK_MENU (menu), gtk_widget_get_screen (widget));*/
+	/* GtkStatusIcon is GTK3 only, so this stays a GtkMenu (= an nx_menu) */
+	menu = NX_MENU_WIDGET (nx_menu_new ());
 
 	if (tray_get_window_status () == WS_HIDDEN)
-		tray_make_item (menu, _("_Restore Window"), tray_menu_restore_cb, NULL);
+		tray_make_item (NX_MENU (menu), _("_Restore Window"), tray_menu_restore_item, NULL);
 	else
-		tray_make_item (menu, _("_Hide Window"), tray_menu_restore_cb, NULL);
-	tray_make_item (menu, NULL, tray_menu_quit_cb, NULL);
+		tray_make_item (NX_MENU (menu), _("_Hide Window"), tray_menu_restore_item, NULL);
+	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
 
 #ifndef WIN32 /* submenus are buggy on win32 */
-	submenu = mg_submenu (menu, _("_Blink on"));
+	submenu = mg_submenu (NX_MENU (menu), _("_Blink on"));
 	blink_item (&prefs.hex_input_tray_chans, submenu, _("Channel Message"));
 	blink_item (&prefs.hex_input_tray_priv, submenu, _("Private Message"));
 	blink_item (&prefs.hex_input_tray_hilight, submenu, _("Highlighted Message"));
 	/*blink_item (BIT_FILEOFFER, submenu, _("File Offer"));*/
 
-	submenu = mg_submenu (menu, _("_Change status"));
+	submenu = mg_submenu (NX_MENU (menu), _("_Change status"));
 #else /* so show away/back in main tray menu */
-	submenu = menu;
+	submenu = NX_MENU (menu);
 #endif
 
 	away_status = tray_find_away_status ();
 	item = tray_make_item (submenu, _("_Away"), tray_foreach_server, "away");
 	if (away_status == 1)
-		gtk_widget_set_sensitive (item, FALSE);
+		nx_item_set_sensitive (item, FALSE);
 	item = tray_make_item (submenu, _("_Back"), tray_foreach_server, "back");
 	if (away_status == 2)
-		gtk_widget_set_sensitive (item, FALSE);
+		nx_item_set_sensitive (item, FALSE);
 
-	menu_add_plugin_items (menu, "\x5$TRAY", NULL);
+	menu_add_plugin_items (NX_MENU (menu), "\x5$TRAY", NULL);
 
-	tray_make_item (menu, NULL, tray_menu_quit_cb, NULL);
-	mg_create_icon_item (_("_Preferences"), NX_STOCK_PREFERENCES, menu, tray_menu_settings, NULL);
-	tray_make_item (menu, NULL, tray_menu_quit_cb, NULL);
-	mg_create_icon_item (_("_Quit"), NX_STOCK_QUIT, menu, tray_menu_quit_cb, NULL);
+	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
+	mg_create_icon_item (_("_Preferences"), NX_STOCK_PREFERENCES, NX_MENU (menu), tray_menu_settings, NULL);
+	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
+	mg_create_icon_item (_("_Quit"), NX_STOCK_QUIT, NX_MENU (menu), tray_menu_quit_item, NULL);
 
 	g_object_ref (menu);
 	g_object_ref_sink (menu);

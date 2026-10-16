@@ -326,7 +326,7 @@ fe_ban_list_end (struct session *sess, int rplcode)
 }
 
 static void
-banlist_copyentry (GtkWidget *menuitem, GtkTreeView *view)
+banlist_copy (GtkTreeView *view, gboolean mask_only)
 {
 	GtkTreeModel *model;
 	GtkTreeSelection *sel;
@@ -350,15 +350,14 @@ banlist_copyentry (GtkWidget *menuitem, GtkTreeView *view)
 		gtk_tree_model_get_value (model, &iter, FROM_COLUMN, &from);
 		gtk_tree_model_get_value (model, &iter, DATE_COLUMN, &date);
 
-		/* poor way to get which is selected but it works */
-		if (strcmp (_("Copy mask"), gtk_menu_item_get_label (GTK_MENU_ITEM(menuitem))) == 0)
+		if (mask_only)
 			str = g_value_dup_string (&mask);
 		else
 			str = g_strdup_printf (_("%s on %s by %s"), g_value_get_string (&mask),
 								g_value_get_string (&date), g_value_get_string (&from));
 
 		if (str[0] != 0)
-			gtkutil_copy_to_clipboard (menuitem, str);
+			gtkutil_copy_to_clipboard (GTK_WIDGET (view), str);
 			
 		g_value_unset (&mask);
 		g_value_unset (&from);
@@ -368,12 +367,24 @@ banlist_copyentry (GtkWidget *menuitem, GtkTreeView *view)
 	gtk_tree_selection_set_mode (sel, GTK_SELECTION_MULTIPLE);
 }
 
+static void
+banlist_copymask (nx_item *item, gpointer view)
+{
+	banlist_copy (view, TRUE);
+}
+
+static void
+banlist_copyentry (nx_item *item, gpointer view)
+{
+	banlist_copy (view, FALSE);
+}
+
 static gboolean
 banlist_button_pressed (GtkWidget *wid, guint button, int n_press, double x, double y,
 								GdkModifierType state, gpointer userdata)
 {
 	GtkTreePath *path;
-	GtkWidget *menu, *maskitem, *allitem;
+	nx_menu *menu;
 
 	/* Check for right click */
 	if (n_press == 1 && button == 3)
@@ -385,16 +396,10 @@ banlist_button_pressed (GtkWidget *wid, guint button, int n_press, double x, dou
 			gtk_tree_view_set_cursor (GTK_TREE_VIEW(wid), path, NULL, FALSE);
 			gtk_tree_path_free (path);
 			
-			menu = gtk_menu_new ();
-			maskitem = gtk_menu_item_new_with_label (_("Copy mask"));
-			allitem = gtk_menu_item_new_with_label (_("Copy entry"));
-			g_signal_connect (maskitem, "activate", G_CALLBACK(banlist_copyentry), wid);
-			g_signal_connect (allitem, "activate", G_CALLBACK(banlist_copyentry), wid);
-			gtk_menu_shell_append (GTK_MENU_SHELL(menu), maskitem);
-			gtk_menu_shell_append (GTK_MENU_SHELL(menu), allitem);
-			nx_widget_show_all (menu);
-			
-			gtk_menu_popup_at_pointer (GTK_MENU (menu), nx_current_event ());
+			menu = nx_menu_new ();
+			nx_menu_add_item (menu, NX_MENU_APPEND, _("Copy mask"), 0, NULL, banlist_copymask, wid);
+			nx_menu_add_item (menu, NX_MENU_APPEND, _("Copy entry"), 0, NULL, banlist_copyentry, wid);
+			nx_menu_popup (menu, wid, nx_current_event (), NULL, NULL);
 		}
 		
 		return TRUE;

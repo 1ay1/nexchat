@@ -64,7 +64,16 @@ nx_menu *nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int fla
 /* number of entries (separators included) */
 int nx_menu_get_n_items (nx_menu *menu);
 nx_item *nx_menu_get_item (nx_menu *menu, int index);
-void nx_menu_remove (nx_menu *menu, nx_item *item);
+/* take the item (and its submenu) out of its menu and free it */
+void nx_item_remove (nx_item *item);
+/* remove every entry */
+void nx_menu_clear (nx_menu *menu);
+/* run cb when this (sub)menu is shown. GTK3: each time the submenu opens;
+   GTK4 (no per-submenu signal): once, when the popup it's in opens. */
+typedef void (*nx_menu_show_cb) (nx_menu *menu, gpointer userdata);
+void nx_menu_on_show (nx_menu *menu, nx_menu_show_cb cb, gpointer userdata);
+/* drop the on_show hook again */
+void nx_menu_on_show_disconnect (nx_menu *menu);
 
 void nx_item_set_sensitive (nx_item *item, gboolean sensitive);
 gboolean nx_item_get_sensitive (nx_item *item);
@@ -74,6 +83,9 @@ void nx_item_set_active_quiet (nx_item *item, gboolean active);
 /* the label as given (mnemonic underscore / markup kept), NULL for
    separators */
 const char *nx_item_get_label (nx_item *item);
+/* the text shown: markup tags and the mnemonic underscore gone, NULL for
+   separators. Returned string lives as long as the item. */
+const char *nx_item_get_text (nx_item *item);
 nx_menu *nx_item_get_submenu (nx_item *item);
 gboolean nx_item_is_separator (nx_item *item);
 /* a widget to hang clipboard/toplevel lookups off from an item's

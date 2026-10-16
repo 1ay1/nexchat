@@ -27,20 +27,20 @@ GtkWidget *menu_create_main (void *accel_group, int bar, int away, int toplevel,
 void menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group);
 void menu_urlmenu (GdkEvent *event, char *url);
 void menu_chanmenu (session *sess, GdkEvent *event, char *chan);
-void menu_addfavoritemenu (server *serv, GtkWidget *menu, char *channel, gboolean istree);
-void menu_addconnectmenu (server *serv, GtkWidget *menu);
+void menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean istree);
+void menu_addconnectmenu (server *serv, nx_menu *menu);
 void menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel);
 void menu_middlemenu (session *sess, GdkEvent *event);
 void userlist_button_cb (GtkWidget * button, char *cmd);
 void nick_command_parse (session *sess, char *cmd, char *nick, char *allnick);
 void usermenu_update (void);
-GtkWidget *menu_toggle_item (char *label, GtkWidget *menu, void *callback, void *userdata, int state);
-GtkWidget *menu_quick_item (char *cmd, char *label, GtkWidget * menu, int flags, gpointer userdata, char *icon);
-GtkWidget *menu_quick_sub (char *name, GtkWidget *menu, GtkWidget **sub_item_ret, int flags, int pos);
+nx_item *menu_toggle_item (char *label, nx_menu *menu, nx_item_cb callback, void *userdata, int state);
+nx_item *menu_quick_item (char *cmd, char *label, nx_menu *menu, int flags, gpointer userdata, char *icon);
+nx_menu *menu_quick_sub (char *name, nx_menu *menu, nx_item **sub_item_ret, int flags, int pos);
 GtkWidget *create_icon_menu (char *labeltext, void *stock_name, int is_stock);
-void menu_create (GtkWidget *menu, GSList *list, char *target, int check_path);
+void menu_create (nx_menu *menu, GSList *list, char *target, int check_path);
 void menu_bar_toggle (void);
-void menu_add_plugin_items (GtkWidget *menu, char *root, char *target);
+void menu_add_plugin_items (nx_menu *menu, char *root, char *target);
 void menu_change_layout (void);
 
 void menu_set_away (session_gui *gui, int away);

@@ -1158,24 +1158,13 @@ mg_tab_close (session *sess)
 	}
 }
 
-static void
-mg_menu_destroy (GtkWidget *menu, gpointer userdata)
-{
-	nx_widget_destroy (menu);
-	g_object_unref (menu);
-}
-
+/* an item with a stock icon (its label is a mnemonic) */
 void
-mg_create_icon_item (char *label, char *stock, GtkWidget *menu,
-							void *callback, void *userdata)
+mg_create_icon_item (char *label, char *stock, nx_menu *menu,
+							nx_item_cb callback, void *userdata)
 {
-	GtkWidget *item;
-
-	item = create_icon_menu (label, stock, TRUE);
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (callback),
-							userdata);
-	gtk_widget_show (item);
+	nx_menu_add_item (menu, NX_MENU_APPEND, label, NX_ITEM_MNEMONIC, stock,
+							callback, userdata);
 }
 
 static int
@@ -1430,7 +1419,7 @@ mg_link_gentab (chan *ch, GtkWidget *box)
 }
 
 static void
-mg_detach_tab_cb (GtkWidget *item, chan *ch)
+mg_detach_tab_cb (nx_item *item, gpointer ch)
 {
 	if (chan_get_tag (ch) == TAG_IRC)	/* IRC tab */
 	{
@@ -1444,14 +1433,14 @@ mg_detach_tab_cb (GtkWidget *item, chan *ch)
 }
 
 static void
-mg_destroy_tab_cb (GtkWidget *item, chan *ch)
+mg_destroy_tab_cb (nx_item *item, gpointer ch)
 {
 	/* treat it just like the X button press */
 	mg_xbutton_cb (mg_gui->chanview, ch, chan_get_tag (ch), chan_get_userdata (ch));
 }
 
 static void
-mg_color_insert (GtkWidget *item, gpointer userdata)
+mg_color_insert (nx_item *item, gpointer userdata)
 {
 	char buf[32];
 	char *text;
@@ -1481,39 +1470,23 @@ mg_color_insert (GtkWidget *item, gpointer userdata)
 }
 
 static void
-mg_markup_item (GtkWidget *menu, char *text, int arg)
+mg_markup_item (nx_menu *menu, char *text, int arg)
 {
-	GtkWidget *item;
-
-	item = gtk_menu_item_new_with_label ("");
-	gtk_label_set_markup (GTK_LABEL (nx_bin_get_child (item)), text);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (mg_color_insert), GINT_TO_POINTER (arg));
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	gtk_widget_show (item);
+	nx_menu_add_item (menu, NX_MENU_APPEND, text, NX_ITEM_MARKUP, NULL,
+							mg_color_insert, GINT_TO_POINTER (arg));
 }
 
-GtkWidget *
-mg_submenu (GtkWidget *menu, char *text)
+nx_menu *
+mg_submenu (nx_menu *menu, char *text)
 {
-	GtkWidget *submenu, *item;
-
-	item = gtk_menu_item_new_with_mnemonic (text);
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	gtk_widget_show (item);
-
-	submenu = gtk_menu_new ();
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), submenu);
-	gtk_widget_show (submenu);
-
-	return submenu;
+	return nx_menu_add_submenu (menu, NX_MENU_APPEND, text, NX_ITEM_MNEMONIC, NULL);
 }
 
 static void
-mg_create_color_menu (GtkWidget *menu, session *sess)
+mg_create_color_menu (nx_menu *menu, session *sess)
 {
-	GtkWidget *submenu;
-	GtkWidget *subsubmenu;
+	nx_menu *submenu;
+	nx_menu *subsubmenu;
 	char buf[256];
 	int i;
 
@@ -1547,14 +1520,14 @@ mg_create_color_menu (GtkWidget *menu, session *sess)
 }
 
 static void
-mg_set_guint8 (GtkCheckMenuItem *item, guint8 *setting)
+mg_set_guint8 (nx_item *item, gpointer setting)
 {
 	session *sess = current_sess;
 	guint8 logging = sess->text_logging;
 
-	*setting = SET_OFF;
-	if (gtk_check_menu_item_get_active (item))
-		*setting = SET_ON;
+	*(guint8 *) setting = SET_OFF;
+	if (nx_item_get_active (item))
+		*(guint8 *) setting = SET_ON;
 
 	/* has the logging setting changed? */
 	if (logging != sess->text_logging)
@@ -1565,7 +1538,7 @@ mg_set_guint8 (GtkCheckMenuItem *item, guint8 *setting)
 }
 
 static void
-mg_perchan_menu_item (char *label, GtkWidget *menu, guint8 *setting, guint global)
+mg_perchan_menu_item (char *label, nx_menu *menu, guint8 *setting, guint global)
 {
 	guint8 initial_value = *setting;
 
@@ -1577,9 +1550,9 @@ mg_perchan_menu_item (char *label, GtkWidget *menu, guint8 *setting, guint globa
 }
 
 static void
-mg_create_perchannelmenu (session *sess, GtkWidget *menu)
+mg_create_perchannelmenu (session *sess, nx_menu *menu)
 {
-	GtkWidget *submenu;
+	nx_menu *submenu;
 
 	submenu = menu_quick_sub (_("_Settings"), menu, NULL, XCMENU_MNEMONIC, -1);
 
@@ -1593,9 +1566,9 @@ mg_create_perchannelmenu (session *sess, GtkWidget *menu)
 }
 
 static void
-mg_create_alertmenu (session *sess, GtkWidget *menu)
+mg_create_alertmenu (session *sess, nx_menu *menu)
 {
-	GtkWidget *submenu;
+	nx_menu *submenu;
 	int hex_balloon, hex_beep, hex_tray, hex_flash;
 
 
@@ -1627,10 +1600,10 @@ mg_create_alertmenu (session *sess, GtkWidget *menu)
 static void
 mg_create_tabmenu (session *sess, GdkEvent *event, chan *ch)
 {
-	GtkWidget *menu, *item;
+	nx_menu *menu;
 	char buf[256];
 
-	menu = gtk_menu_new ();
+	menu = nx_menu_new ();
 
 	if (sess)
 	{
@@ -1638,10 +1611,7 @@ mg_create_tabmenu (session *sess, GdkEvent *event, chan *ch)
 		g_snprintf (buf, sizeof (buf), "<span foreground=\"#3344cc\"><b>%s</b></span>", name);
 		g_free (name);
 
-		item = gtk_menu_item_new_with_label ("");
-		gtk_label_set_markup (GTK_LABEL (nx_bin_get_child (item)), buf);
-		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-		gtk_widget_show (item);
+		nx_menu_add_item (menu, NX_MENU_APPEND, buf, NX_ITEM_MARKUP, NULL, NULL, NULL);
 
 		/* separator */
 		menu_quick_item (0, 0, menu, XCMENU_SHADED, 0, 0);
@@ -1661,21 +1631,19 @@ mg_create_tabmenu (session *sess, GdkEvent *event, chan *ch)
 			menu_addconnectmenu (sess->server, menu);
 	}
 
-	mg_create_icon_item (_("_Detach"), NX_STOCK_REDO, menu,
-								mg_detach_tab_cb, ch);
-	mg_create_icon_item (_("_Close"), NX_STOCK_CLOSE, menu,
-								mg_destroy_tab_cb, ch);
+	nx_menu_add_item (menu, NX_MENU_APPEND, _("_Detach"), NX_ITEM_MNEMONIC, NX_STOCK_REDO,
+							mg_detach_tab_cb, ch);
+	nx_menu_add_item (menu, NX_MENU_APPEND, _("_Close"), NX_ITEM_MNEMONIC, NX_STOCK_CLOSE,
+							mg_destroy_tab_cb, ch);
 	if (sess && tabmenu_list)
 		menu_create (menu, tabmenu_list, sess->channel, FALSE);
 	if (sess)
 		menu_add_plugin_items (menu, "\x4$TAB", sess->channel);
 
-	g_object_ref (menu);
-	g_object_ref_sink (menu);
-	g_object_unref (menu);
-	g_signal_connect (G_OBJECT (menu), "selection-done",
-							G_CALLBACK (mg_menu_destroy), NULL);
-	nx_menu_popup_at_pointer (menu, event);
+	{
+		GtkWidget *w = nx_current_event_widget ();
+		nx_menu_popup (menu, w ? w : parent_window, event, NULL, NULL);
+	}
 }
 
 static gboolean
@@ -2804,7 +2772,9 @@ mg_change_layout (int type)
 static void
 mg_inputbox_rightclick (GtkEntry *entry, GtkWidget *menu)
 {
-	mg_create_color_menu (menu, NULL);
+	/* GTK3: GtkEntry's own popup is a GtkMenu, i.e. an nx_menu.
+	   TODO GTK4: GtkText's extra-menu (with the spell entry) */
+	mg_create_color_menu (NX_MENU (menu), NULL);
 }
 
 /* Search bar adapted from Conspire's by William Pitcock */

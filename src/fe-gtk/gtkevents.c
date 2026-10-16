@@ -37,11 +37,18 @@ hook_free (gpointer h, GClosure *c)
 /* ================= GTK4: event controllers ================= */
 
 static GdkEvent *cur_event;
+static GtkWidget *cur_widget;
 
 GdkEvent *
 nx_current_event (void)
 {
 	return cur_event;
+}
+
+GtkWidget *
+nx_current_event_widget (void)
+{
+	return cur_widget;
 }
 
 static void
@@ -54,8 +61,10 @@ click_pressed (GtkGestureClick *g, int n_press, double x, double y, hook *h)
 	gboolean stop;
 
 	cur_event = gtk_event_controller_get_current_event (ec);
+	cur_widget = w;
 	stop = ((nx_click_cb) h->cb) (w, button, n_press, x, y, state, h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 	if (stop)
 		gtk_gesture_set_state (GTK_GESTURE (g), GTK_EVENT_SEQUENCE_CLAIMED);
 }
@@ -80,8 +89,10 @@ key_pressed (GtkEventControllerKey *k, guint keyval, guint keycode,
 	gboolean stop;
 
 	cur_event = gtk_event_controller_get_current_event (GTK_EVENT_CONTROLLER (k));
+	cur_widget = w;
 	stop = ((nx_key_cb) h->cb) (w, keyval, state, h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 	return stop;
 }
 
@@ -181,9 +192,11 @@ drag_end (GtkGestureDrag *g, double ox, double oy, hook *h)
 
 	gtk_gesture_drag_get_start_point (g, &sx, &sy);
 	cur_event = gtk_event_controller_get_current_event (ec);
+	cur_widget = w;
 	((nx_click_cb) h->cb) (w, h->button, 1, sx + ox, sy + oy,
 								  gtk_event_controller_get_current_event_state (ec), h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 }
 
 void
@@ -222,11 +235,18 @@ nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata)
 /* ================= GTK3: the old "*-event" signals ================= */
 
 static GdkEvent *cur_event;
+static GtkWidget *cur_widget;
 
 GdkEvent *
 nx_current_event (void)
 {
 	return cur_event;
+}
+
+GtkWidget *
+nx_current_event_widget (void)
+{
+	return cur_widget;
 }
 
 static gboolean
@@ -245,8 +265,10 @@ button_press_sig (GtkWidget *w, GdkEventButton *ev, hook *h)
 	default: return FALSE;
 	}
 	cur_event = (GdkEvent *) ev;
+	cur_widget = w;
 	stop = ((nx_click_cb) h->cb) (w, ev->button, n, ev->x, ev->y, ev->state, h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 	return stop;
 }
 
@@ -263,8 +285,10 @@ key_press_sig (GtkWidget *w, GdkEventKey *ev, hook *h)
 {
 	gboolean stop;
 	cur_event = (GdkEvent *) ev;
+	cur_widget = w;
 	stop = ((nx_key_cb) h->cb) (w, ev->keyval, ev->state, h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 	return stop;
 }
 
@@ -343,8 +367,10 @@ button_release_sig (GtkWidget *w, GdkEventButton *ev, hook *h)
 {
 	gboolean stop;
 	cur_event = (GdkEvent *) ev;
+	cur_widget = w;
 	stop = ((nx_click_cb) h->cb) (w, ev->button, 1, ev->x, ev->y, ev->state, h->userdata);
 	cur_event = NULL;
+	cur_widget = NULL;
 	return stop;
 }
 

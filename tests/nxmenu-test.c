@@ -146,6 +146,25 @@ main (int argc, char **argv)
 	CHECK (nx_item_get_submenu (subitem) == sub, "submenu link");
 	CHECK (nx_item_get_submenu (plain) == NULL, "no submenu");
 
+	/* displayed text: mnemonic underscore and markup gone */
+	{
+		nx_item *mk = nx_menu_add_item (sub, NX_MENU_APPEND, "<b>Bo_ld</b> x", NX_ITEM_MARKUP | NX_ITEM_MNEMONIC, NULL, NULL, NULL);
+		nx_item *mk2 = nx_menu_add_item (sub, NX_MENU_APPEND, "<i>a_b</i>", NX_ITEM_MARKUP, NULL, NULL, NULL);
+		nx_item *dbl = nx_menu_add_item (sub, NX_MENU_APPEND, "a__b_c", NX_ITEM_MNEMONIC, NULL, NULL, NULL);
+
+		CHECK (!strcmp (nx_item_get_text (plain), "Plain"), "text plain: %s", nx_item_get_text (plain));
+		CHECK (!strcmp (nx_item_get_text (chk), "Check"), "text check: %s", nx_item_get_text (chk));
+		CHECK (!strcmp (nx_item_get_text (nx_menu_get_item (sub, 0)), "a_b"), "text non-mnemonic keeps _: %s",
+				 nx_item_get_text (nx_menu_get_item (sub, 0)));
+		CHECK (!strcmp (nx_item_get_text (mk), "Bold x"), "text markup+mnemonic: %s", nx_item_get_text (mk));
+		CHECK (!strcmp (nx_item_get_text (mk2), "a_b"), "text markup: %s", nx_item_get_text (mk2));
+		CHECK (!strcmp (nx_item_get_text (dbl), "a_bc"), "text __: %s", nx_item_get_text (dbl));
+		CHECK (nx_item_get_text (sep) == NULL, "separator has no text");
+		nx_item_remove (mk);
+		nx_item_remove (mk2);
+		nx_item_remove (dbl);
+	}
+
 	/* plain + check */
 	nx_item_activate (plain);
 	check_trace ("plain;", "plain activate");
@@ -190,7 +209,7 @@ main (int argc, char **argv)
 	check_trace ("inner;", "submenu item");
 
 	/* remove */
-	nx_menu_remove (m, r2);
+	nx_item_remove (r2);
 	CHECK (nx_menu_get_n_items (m) == 7, "7 after remove");
 	nx_item_activate (r3);
 	check_trace ("r1;r3+;", "radio after removing a member");
@@ -206,7 +225,7 @@ main (int argc, char **argv)
 			"[\n"
 			"  First -> nx.i4\n"
 			"  _Plain -> nx.i0\n"
-			"  X -> nx.i5\n"
+			"  X -> nx.i8\n"
 			"  Check -> nx.i1\n"
 			"]\n"
 			"[\n"
@@ -224,7 +243,7 @@ main (int argc, char **argv)
 
 		/* insensitive -> disabled action */
 		nx_item_set_sensitive (x, FALSE);
-		CHECK (!g_action_group_get_action_enabled (nx_menu_get_actions (m), "i5"), "x disabled");
+		CHECK (!g_action_group_get_action_enabled (nx_menu_get_actions (m), "i8"), "x disabled");
 		/* check state is the action state */
 		{
 			GVariant *s = g_action_group_get_action_state (nx_menu_get_actions (m), "i1");

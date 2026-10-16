@@ -31,6 +31,7 @@
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
 #include "gtkcompat.h"
+#include "nxmenu.h"
 
 #ifdef HAVE_GTK_MAC
 #include <gtkosxapplication.h>

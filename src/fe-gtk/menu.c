@@ -225,12 +225,12 @@ userlist_button_cb (GtkWidget * button, char *cmd)
 /* a popup-menu-item has been selected */
 
 static void
-popup_menu_cb (GtkWidget * item, char *cmd)
+popup_menu_cb (nx_item *item, gpointer cmd)
 {
 	char *nick;
 
 	/* the userdata is set in menu_quick_item() */
-	nick = g_object_get_data (G_OBJECT (item), "u");
+	nick = nx_item_get_data (item, "u");
 
 	if (!nick)	/* userlist popup menu */
 	{
@@ -245,125 +245,90 @@ popup_menu_cb (GtkWidget * item, char *cmd)
 		nick_command_parse (current_sess, cmd, nick, nick);
 }
 
-GtkWidget *
-menu_toggle_item (char *label, GtkWidget *menu, void *callback, void *userdata,
+nx_item *
+menu_toggle_item (char *label, nx_menu *menu, nx_item_cb callback, void *userdata,
 						int state)
 {
-	GtkWidget *item;
+	return nx_menu_add_check (menu, NX_MENU_APPEND, label, NX_ITEM_MNEMONIC, state,
+									  callback, userdata);
+}
 
-	item = gtk_check_menu_item_new_with_mnemonic (label);
-	gtk_check_menu_item_set_active ((GtkCheckMenuItem*)item, state);
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (callback), userdata);
-	gtk_widget_show (item);
+/* label NULL: a separator. cmd: a user command run with userdata as the
+   target nick (popup_menu_cb). icon: a file or stock name. */
+static nx_item *
+menu_quick_item_at (char *cmd, char *label, nx_menu *menu, int flags,
+						 gpointer userdata, char *icon, int pos)
+{
+	nx_item *item;
+	char *path = NULL;
+	int nflags = 0;
 
+	if (!label)
+	{
+		/* GTK2 drew an empty GtkMenuItem as a separator line; GTK3 draws an
+		   empty gap. Use the real thing. */
+		item = nx_menu_add_separator (menu, pos);
+		nx_item_set_data (item, "u", userdata);
+		/* (XCMENU_SHADED on a separator was a no-op too) */
+		return item;
+	}
+
+	if (icon && access (icon, R_OK) != 0)
+	{
+		/* not a full path: try relative to <xdir>, else it's a stock name */
+		path = g_build_filename (get_xdir (), icon, NULL);
+		if (access (path, R_OK) == 0)
+			icon = path;
+	}
+	/* an icon item's label is a mnemonic and never markup
+	   (gtk_image_menu_item_new_with_mnemonic) */
+	if (icon)
+		nflags = NX_ITEM_MNEMONIC;
+	else
+	{
+		if (flags & XCMENU_MARKUP)
+			nflags |= NX_ITEM_MARKUP;
+		if (flags & XCMENU_MNEMONIC)
+			nflags |= NX_ITEM_MNEMONIC;
+	}
+	if (flags & XCMENU_SHADED)
+		nflags |= NX_ITEM_INSENSITIVE;
+	item = nx_menu_add_item (menu, pos, label, nflags, icon,
+									 cmd ? popup_menu_cb : NULL, cmd);
+	nx_item_set_data (item, "u", userdata);
+	g_free (path);
 	return item;
 }
 
-GtkWidget *
-menu_quick_item (char *cmd, char *label, GtkWidget * menu, int flags,
+nx_item *
+menu_quick_item (char *cmd, char *label, nx_menu *menu, int flags,
 					  gpointer userdata, char *icon)
 {
-	GtkWidget *img, *item;
-	char *path;
-
-	if (!label)
-		/* GTK2 drew an empty GtkMenuItem as a separator line; GTK3 draws an
-		   empty gap. Use the real thing. */
-		item = gtk_separator_menu_item_new ();
-	else
-	{
-		if (icon)
-		{
-			img = NULL;
-			if (access (icon, R_OK) == 0)	/* try fullpath */
-				img = gtk_image_new_from_file (icon);
-			else
-			{
-				/* try relative to <xdir> */
-				path = g_build_filename (get_xdir (), icon, NULL);
-				if (access (path, R_OK) == 0)
-					img = gtk_image_new_from_file (path);
-				else
-					img = gtkutil_image_new_from_stock (icon, GTK_ICON_SIZE_MENU);
-				g_free (path);
-			}
-			/* was gtk_image_menu_item_new_with_mnemonic: label is a mnemonic */
-			item = gtkutil_menu_item_new_with_image (label, FALSE, img);
-		}
-		else
-		{
-			if (flags & XCMENU_MARKUP)
-			{
-				item = gtk_menu_item_new_with_label ("");
-				if (flags & XCMENU_MNEMONIC)
-					gtk_label_set_markup_with_mnemonic (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), label);
-				else
-					gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), label);
-			} else
-			{
-				if (flags & XCMENU_MNEMONIC)
-					item = gtk_menu_item_new_with_mnemonic (label);
-				else
-					item = gtk_menu_item_new_with_label (label);
-			}
-		}
-	}
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_object_set_data (G_OBJECT (item), "u", userdata);
-	if (cmd)
-		g_signal_connect (G_OBJECT (item), "activate",
-								G_CALLBACK (popup_menu_cb), cmd);
-	if (flags & XCMENU_SHADED)
-		gtk_widget_set_sensitive (GTK_WIDGET (item), FALSE);
-	nx_widget_show_all (item);
-
-	return item;
+	return menu_quick_item_at (cmd, label, menu, flags, userdata, icon, NX_MENU_APPEND);
 }
 
 static void
-menu_quick_item_with_callback (void *callback, char *label, GtkWidget * menu,
+menu_quick_item_with_callback (nx_item_cb callback, char *label, nx_menu *menu,
 										 void *arg)
 {
-	GtkWidget *item;
-
-	item = gtk_menu_item_new_with_label (label);
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (callback), arg);
-	gtk_widget_show (item);
+	nx_menu_add_item (menu, NX_MENU_APPEND, label, 0, NULL, callback, arg);
 }
 
-GtkWidget *
-menu_quick_sub (char *name, GtkWidget *menu, GtkWidget **sub_item_ret, int flags, int pos)
+nx_menu *
+menu_quick_sub (char *name, nx_menu *menu, nx_item **sub_item_ret, int flags, int pos)
 {
-	GtkWidget *sub_menu;
-	GtkWidget *sub_item;
+	nx_menu *sub_menu;
+	int nflags = 0;
 
 	if (!name)
 		return menu;
 
-	/* Code to add a submenu */
-	sub_menu = gtk_menu_new ();
+	/* markup submenu labels never took a mnemonic */
 	if (flags & XCMENU_MARKUP)
-	{
-		sub_item = gtk_menu_item_new_with_label ("");
-		gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (sub_item))), name);
-	}
-	else
-	{
-		if (flags & XCMENU_MNEMONIC)
-			sub_item = gtk_menu_item_new_with_mnemonic (name);
-		else
-			sub_item = gtk_menu_item_new_with_label (name);
-	}
-	gtk_menu_shell_insert (GTK_MENU_SHELL (menu), sub_item, pos);
-	gtk_widget_show (sub_item);
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (sub_item), sub_menu);
-
-	if (sub_item_ret)
-		*sub_item_ret = sub_item;
+		nflags = NX_ITEM_MARKUP;
+	else if (flags & XCMENU_MNEMONIC)
+		nflags = NX_ITEM_MNEMONIC;
+	sub_menu = nx_menu_add_submenu (menu, pos, name, nflags, sub_item_ret);
 
 	if (flags & XCMENU_DOLIST)
 		/* We create a new element in the list */
@@ -371,7 +336,7 @@ menu_quick_sub (char *name, GtkWidget *menu, GtkWidget **sub_item_ret, int flags
 	return sub_menu;
 }
 
-static GtkWidget *
+static nx_menu *
 menu_quick_endsub (void)
 {
 	/* Just delete the first element in the linked list pointed to by first */
@@ -385,14 +350,14 @@ menu_quick_endsub (void)
 }
 
 static void
-toggle_cb (GtkWidget *item, char *pref_name)
+toggle_cb (nx_item *item, gpointer pref_name)
 {
 	char buf[256];
 
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
-		g_snprintf (buf, sizeof (buf), "set %s 1", pref_name);
+	if (nx_item_get_active (item))
+		g_snprintf (buf, sizeof (buf), "set %s 1", (char *) pref_name);
 	else
-		g_snprintf (buf, sizeof (buf), "set %s 0", pref_name);
+		g_snprintf (buf, sizeof (buf), "set %s 0", (char *) pref_name);
 
 	handle_command (current_sess, buf, FALSE);
 }
@@ -470,10 +435,11 @@ menu_extract_icon (char *name, char **label, char **icon)
 /* append items to "menu" using the (struct popup*) list provided */
 
 void
-menu_create (GtkWidget *menu, GSList *list, char *target, int check_path)
+menu_create (nx_menu *menu, GSList *list, char *target, int check_path)
 {
 	struct popup *pop;
-	GtkWidget *tempmenu = menu, *subitem = NULL;
+	nx_menu *tempmenu = menu;
+	nx_item *subitem = NULL;
 	int childcount = 0;
 
 	submenu_list = g_slist_prepend (0, menu);
@@ -495,8 +461,8 @@ menu_create (GtkWidget *menu, GSList *list, char *target, int check_path)
 		} else if (!g_ascii_strncasecmp (pop->name, "ENDSUB", 6))
 		{
 			/* empty sub menu due to no programs in PATH? */
-			if (check_path && childcount < 1)
-				nx_widget_destroy (subitem);
+			if (check_path && childcount < 1 && subitem)
+				nx_item_remove (subitem);
 			subitem = NULL;
 
 			if (tempmenu != menu)
@@ -547,31 +513,31 @@ menu_create (GtkWidget *menu, GSList *list, char *target, int check_path)
 }
 
 static char *str_copy = NULL;		/* for all pop-up menus */
-static GtkWidget *nick_submenu = NULL;	/* user info submenu */
+static nx_menu *nick_submenu = NULL;	/* user info submenu */
 
+/* a popup closed (and was freed) */
 static void
-menu_destroy (GtkWidget *menu, gpointer objtounref)
+menu_destroy (gpointer objtounref)
 {
-	nx_widget_destroy (menu);
-	g_object_unref (menu);
 	if (objtounref)
 		g_object_unref (G_OBJECT (objtounref));
 	nick_submenu = NULL;
 }
 
+/* pop up at the pointer of the event being handled, over the widget it
+   came to */
 static void
-menu_popup (GtkWidget *menu, GdkEvent *event, gpointer objtounref)
+menu_popup (nx_menu *menu, GdkEvent *event, gpointer objtounref)
 {
-	g_object_ref (menu);
-	g_object_ref_sink (menu);
-	g_object_unref (menu);
-	g_signal_connect (G_OBJECT (menu), "selection-done",
-							G_CALLBACK (menu_destroy), objtounref);
-	nx_menu_popup_at_pointer (menu, event);
+	GtkWidget *w = nx_current_event_widget ();
+
+	nx_menu_popup (menu, w ? w : parent_window, event, menu_destroy, objtounref);
 }
 
+/* the nick info submenu opens: /WHOIS (output hidden) to fill in what's
+   missing; fe_userlist_update then rebuilds it */
 static void
-menu_nickinfo_cb (GtkWidget *menu, session *sess)
+menu_nickinfo_cb (nx_menu *menu, gpointer sess)
 {
 	char buf[512];
 
@@ -582,26 +548,35 @@ menu_nickinfo_cb (GtkWidget *menu, session *sess)
 	g_snprintf (buf, sizeof (buf), "WHOIS %s %s", str_copy, str_copy);
 	handle_command (sess, buf, FALSE);
 	/* and hide the output */
-	sess->server->skip_next_whois = 1;
+	((session *) sess)->server->skip_next_whois = 1;
 }
 
 static void
-copy_to_clipboard_cb (GtkWidget *item, char *url)
+copy_to_clipboard_cb (nx_item *item, gpointer url)
 {
-	gtkutil_copy_to_clipboard (item, url);
+	GtkWidget *w = nx_item_get_widget (item);
+
+	gtkutil_copy_to_clipboard (w ? w : parent_window, url);
+}
+
+/* an info line; choosing it copies `copy` (NULL: it does nothing) */
+static void
+menu_info_item (nx_menu *submenu, char *markup, char *copy)
+{
+	nx_menu_add_item (submenu, NX_MENU_APPEND, markup, NX_ITEM_MARKUP, NULL,
+							copy ? copy_to_clipboard_cb : NULL, copy);
 }
 
 /* returns boolean: Some data is missing */
 
 static gboolean
-menu_create_nickinfo_menu (struct User *user, GtkWidget *submenu)
+menu_create_nickinfo_menu (struct User *user, nx_menu *submenu)
 {
 	char buf[512];
 	char unknown[96];
 	char *real, *fmt, *users_country;
 	struct away_msg *away;
 	gboolean missing = FALSE;
-	GtkWidget *item;
 
 	/* let the translators tweak this if need be */
 	fmt = _("<tt><b>%-11s</b></tt> %s");
@@ -616,40 +591,28 @@ menu_create_nickinfo_menu (struct User *user, GtkWidget *submenu)
 	{
 		g_snprintf (buf, sizeof (buf), fmt, _("Real Name:"), unknown);
 	}
-	item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (copy_to_clipboard_cb), 
-							user->realname ? user->realname : unknown);
+	/* `unknown` is on the stack: an item showing it copies nothing (it
+	   copied freed memory before) */
+	menu_info_item (submenu, buf, user->realname);
 
 	g_snprintf (buf, sizeof (buf), fmt, _("User:"),
 				 user->hostname ? user->hostname : unknown);
-	item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (copy_to_clipboard_cb), 
-							user->hostname ? user->hostname : unknown);
+	menu_info_item (submenu, buf, user->hostname);
 	
 	g_snprintf (buf, sizeof (buf), fmt, _("Account:"),
 				 user->account ? user->account : unknown);
-	item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (copy_to_clipboard_cb), 
-							user->account ? user->account : unknown);
+	menu_info_item (submenu, buf, user->account);
 
 	users_country = country (user->hostname);
 	if (users_country)
 	{
 		g_snprintf (buf, sizeof (buf), fmt, _ ("Country:"), users_country);
-		item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-		g_signal_connect (G_OBJECT (item), "activate",
-			G_CALLBACK (copy_to_clipboard_cb), users_country);
+		menu_info_item (submenu, buf, users_country);
 	}
 
 	g_snprintf (buf, sizeof (buf), fmt, _("Server:"),
 				 user->servername ? user->servername : unknown);
-	item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (copy_to_clipboard_cb), 
-							user->servername ? user->servername : unknown);
+	menu_info_item (submenu, buf, user->servername);
 
 	if (user->lasttalk)
 	{
@@ -662,7 +625,7 @@ menu_create_nickinfo_menu (struct User *user, GtkWidget *submenu)
 	{
 		g_snprintf (buf, sizeof (buf), fmt, _("Last Msg:"), unknown);
 	}
-	menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
+	menu_info_item (submenu, buf, NULL);
 
 	if (user->away)
 	{
@@ -672,10 +635,7 @@ menu_create_nickinfo_menu (struct User *user, GtkWidget *submenu)
 			char *msg = strip_color (away->message ? away->message : unknown, -1, STRIP_ALL|STRIP_ESCMARKUP);
 			g_snprintf (buf, sizeof (buf), fmt, _("Away Msg:"), msg);
 			g_free (msg);
-			item = menu_quick_item (0, buf, submenu, XCMENU_MARKUP, 0, 0);
-			g_signal_connect (G_OBJECT (item), "activate",
-									G_CALLBACK (copy_to_clipboard_cb), 
-									away->message ? away->message : unknown);
+			menu_info_item (submenu, buf, away->message);
 		}
 		else
 			missing = TRUE;
@@ -687,8 +647,6 @@ menu_create_nickinfo_menu (struct User *user, GtkWidget *submenu)
 void
 fe_userlist_update (session *sess, struct User *user)
 {
-	GList *items, *next;
-
 	if (!nick_submenu || !str_copy)
 		return;
 
@@ -697,15 +655,10 @@ fe_userlist_update (session *sess, struct User *user)
 		return;
 
 	/* get rid of the "show" signal */
-	g_signal_handlers_disconnect_by_func (nick_submenu, menu_nickinfo_cb, sess);
+	nx_menu_on_show_disconnect (nick_submenu);
 
-	/* destroy all the old items */
-	items = gtk_container_get_children (GTK_CONTAINER (nick_submenu));
-	for (next = items; next; next = next->next)
-		nx_widget_destroy (next->data);
-	g_list_free (items);
-
-	/* and re-create them with new info */
+	/* destroy all the old items and re-create them with new info */
+	nx_menu_clear (nick_submenu);
 	menu_create_nickinfo_menu (user, nick_submenu);
 }
 
@@ -714,7 +667,7 @@ menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel)
 {
 	char buf[512];
 	struct User *user;
-	GtkWidget *submenu, *menu = gtk_menu_new ();
+	nx_menu *submenu, *menu = nx_menu_new ();
 
 	g_free (str_copy);
 	str_copy = g_strdup (nick);
@@ -739,7 +692,7 @@ menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel)
 			if (menu_create_nickinfo_menu (user, submenu) ||
 				 !user->hostname || !user->realname || !user->servername)
 			{
-				g_signal_connect (G_OBJECT (submenu), "show", G_CALLBACK (menu_nickinfo_cb), sess);
+				nx_menu_on_show (submenu, menu_nickinfo_cb, sess);
 			}
 
 			menu_quick_endsub ();
@@ -811,38 +764,12 @@ menu_cmbuttons_showhide_cb (session *sess)
 	}
 }
 
-/* GTK2 code assigned GtkCheckMenuItem->active directly, which changed the
-   state without emitting "activate"/"toggled". gtk_check_menu_item_set_active
-   emits both (and for radio items also toggles the previously active group
-   member), so block all connected handlers on the item and its radio group
-   while changing the state to keep the old, signal-free semantics. */
+/* GTK2 code assigned GtkCheckMenuItem->active directly: the state changes,
+   no handler runs (nx_item_set_active_quiet keeps that) */
 static void
-menu_check_item_set_active_quiet (GtkCheckMenuItem *item, gboolean active)
+menu_check_item_set_active_quiet (GtkWidget *item, gboolean active)
 {
-	GSList *group, *l;
-	guint sig_activate = g_signal_lookup ("activate", GTK_TYPE_MENU_ITEM);
-	guint sig_toggled = g_signal_lookup ("toggled", GTK_TYPE_CHECK_MENU_ITEM);
-
-	if (GTK_IS_RADIO_MENU_ITEM (item))
-		group = g_slist_copy (gtk_radio_menu_item_get_group (GTK_RADIO_MENU_ITEM (item)));
-	else
-		group = g_slist_prepend (NULL, item);
-
-	for (l = group; l; l = l->next)
-	{
-		g_signal_handlers_block_matched (l->data, G_SIGNAL_MATCH_ID, sig_activate, 0, NULL, NULL, NULL);
-		g_signal_handlers_block_matched (l->data, G_SIGNAL_MATCH_ID, sig_toggled, 0, NULL, NULL, NULL);
-	}
-
-	gtk_check_menu_item_set_active (item, active);
-
-	for (l = group; l; l = l->next)
-	{
-		g_signal_handlers_unblock_matched (l->data, G_SIGNAL_MATCH_ID, sig_activate, 0, NULL, NULL, NULL);
-		g_signal_handlers_unblock_matched (l->data, G_SIGNAL_MATCH_ID, sig_toggled, 0, NULL, NULL, NULL);
-	}
-
-	g_slist_free (group);
+	nx_item_set_active_quiet (NX_ITEM (item), active);
 }
 
 static void
@@ -862,7 +789,7 @@ menu_setting_foreach (void (*callback) (session *), int id, guint state)
 			if (sess->gui->is_tab)
 				maindone = TRUE;
 			if (id != -1)
-				menu_check_item_set_active_quiet (GTK_CHECK_MENU_ITEM (sess->gui->menu_item[id]), state);
+				menu_check_item_set_active_quiet (sess->gui->menu_item[id], state);
 			if (callback)
 				callback (sess);
 		}
@@ -950,29 +877,30 @@ menu_middlemenu (session *sess, GdkEvent *event)
 
 	accel_group = gtk_accel_group_new ();
 	menu = menu_create_main (accel_group, FALSE, sess->server->is_away, !sess->gui->is_tab, NULL);
-	menu_popup (menu, event, accel_group);
+	/* TODO GTK4: the main menu model */
+	menu_popup (NX_MENU (menu), event, accel_group);
 }
 
 static void
-open_url_cb (GtkWidget *item, char *url)
+open_url_cb (nx_item *item, gpointer url)
 {
 	char buf[512];
 
 	/* pass this to /URL so it can handle irc:// */
-	g_snprintf (buf, sizeof (buf), "URL %s", url);
+	g_snprintf (buf, sizeof (buf), "URL %s", (char *) url);
 	handle_command (current_sess, buf, FALSE);
 }
 
 void
 menu_urlmenu (GdkEvent *event, char *url)
 {
-	GtkWidget *menu;
+	nx_menu *menu;
 	char *tmp, *chop;
 
 	g_free (str_copy);
 	str_copy = g_strdup (url);
 
-	menu = gtk_menu_new ();
+	menu = nx_menu_new ();
 	/* more than 51 chars? Chop it */
 	if (g_utf8_strlen (str_copy, -1) >= 52)
 	{
@@ -1002,49 +930,49 @@ menu_urlmenu (GdkEvent *event, char *url)
 }
 
 static void
-menu_chan_cycle (GtkWidget * menu, char *chan)
+menu_chan_cycle (nx_item *item, gpointer chan)
 {
 	char tbuf[256];
 
 	if (current_sess)
 	{
-		g_snprintf (tbuf, sizeof tbuf, "CYCLE %s", chan);
+		g_snprintf (tbuf, sizeof tbuf, "CYCLE %s", (char *) chan);
 		handle_command (current_sess, tbuf, FALSE);
 	}
 }
 
 static void
-menu_chan_part (GtkWidget * menu, char *chan)
+menu_chan_part (nx_item *item, gpointer chan)
 {
 	char tbuf[256];
 
 	if (current_sess)
 	{
-		g_snprintf (tbuf, sizeof tbuf, "part %s", chan);
+		g_snprintf (tbuf, sizeof tbuf, "part %s", (char *) chan);
 		handle_command (current_sess, tbuf, FALSE);
 	}
 }
 
 static void
-menu_chan_focus (GtkWidget * menu, char *chan)
+menu_chan_focus (nx_item *item, gpointer chan)
 {
 	char tbuf[256];
 
 	if (current_sess)
 	{
-		g_snprintf (tbuf, sizeof tbuf, "doat %s gui focus", chan);
+		g_snprintf (tbuf, sizeof tbuf, "doat %s gui focus", (char *) chan);
 		handle_command (current_sess, tbuf, FALSE);
 	}
 }
 
 static void
-menu_chan_join (GtkWidget * menu, char *chan)
+menu_chan_join (nx_item *item, gpointer chan)
 {
 	char tbuf[256];
 
 	if (current_sess)
 	{
-		g_snprintf (tbuf, sizeof tbuf, "join %s", chan);
+		g_snprintf (tbuf, sizeof tbuf, "join %s", (char *) chan);
 		handle_command (current_sess, tbuf, FALSE);
 	}
 }
@@ -1052,7 +980,7 @@ menu_chan_join (GtkWidget * menu, char *chan)
 void
 menu_chanmenu (struct session *sess, GdkEvent *event, char *chan)
 {
-	GtkWidget *menu;
+	nx_menu *menu;
 	int is_joined = FALSE;
 	session * chan_session;
 
@@ -1064,7 +992,7 @@ menu_chanmenu (struct session *sess, GdkEvent *event, char *chan)
 	g_free (str_copy);
 	str_copy = g_strdup (chan);
 
-	menu = gtk_menu_new ();
+	menu = nx_menu_new ();
 
 	menu_quick_item (0, chan, menu, XCMENU_SHADED, str_copy, 0);
 	menu_quick_item (0, 0, menu, XCMENU_SHADED, str_copy, 0);
@@ -1090,19 +1018,23 @@ menu_chanmenu (struct session *sess, GdkEvent *event, char *chan)
 }
 
 static void
-menu_delfav_cb (GtkWidget *item, server *serv)
+menu_delfav_cb (nx_item *item, gpointer data)
 {
+	server *serv = data;
+
 	servlist_autojoinedit (serv->network, str_copy, FALSE);
 }
 
 static void
-menu_addfav_cb (GtkWidget *item, server *serv)
+menu_addfav_cb (nx_item *item, gpointer data)
 {
+	server *serv = data;
+
 	servlist_autojoinedit (serv->network, str_copy, TRUE);
 }
 
 void
-menu_addfavoritemenu (server *serv, GtkWidget *menu, char *channel, gboolean istree)
+menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean istree)
 {
 	char *str;
 	
@@ -1131,21 +1063,25 @@ menu_addfavoritemenu (server *serv, GtkWidget *menu, char *channel, gboolean ist
 }
 
 static void
-menu_delautoconn_cb (GtkWidget *item, server *serv)
+menu_delautoconn_cb (nx_item *item, gpointer data)
 {
+	server *serv = data;
+
 	((ircnet*)serv->network)->flags &= ~FLAG_AUTO_CONNECT;
 	servlist_save ();
 }
 
 static void
-menu_addautoconn_cb (GtkWidget *item, server *serv)
+menu_addautoconn_cb (nx_item *item, gpointer data)
 {
+	server *serv = data;
+
 	((ircnet*)serv->network)->flags |= FLAG_AUTO_CONNECT;
 	servlist_save ();
 }
 
 void
-menu_addconnectmenu (server *serv, GtkWidget *menu)
+menu_addconnectmenu (server *serv, nx_menu *menu)
 {
 	if (!serv->network)
 		return;
@@ -1174,7 +1110,7 @@ menu_settings (GtkWidget * wid, gpointer none)
 }
 
 static void
-menu_usermenu (void)
+menu_usermenu (nx_item *item, gpointer unused)
 {
 	char buf[128];
 	g_snprintf(buf, sizeof(buf), _("User menu - %s"), _(DISPLAY_NAME));
@@ -1182,7 +1118,7 @@ menu_usermenu (void)
 }
 
 static void
-usermenu_create (GtkWidget *menu)
+usermenu_create (nx_menu *menu)
 {
 	menu_create (menu, usermenu_list, "", FALSE);
 	menu_quick_item (0, 0, menu, XCMENU_SHADED, 0, 0);	/* sep */
@@ -1190,14 +1126,9 @@ usermenu_create (GtkWidget *menu)
 }
 
 static void
-usermenu_destroy (GtkWidget * menu)
+usermenu_destroy (nx_menu *menu)
 {
-	GList *items = gtk_container_get_children (GTK_CONTAINER (menu));
-	GList *next;
-
-	for (next = items; next; next = next->next)
-		nx_widget_destroy (next->data);
-	g_list_free (items);
+	nx_menu_clear (menu);
 }
 
 void
@@ -1206,12 +1137,13 @@ usermenu_update (void)
 	int done_main = FALSE;
 	GSList *list = sess_list;
 	session *sess;
-	GtkWidget *menu;
+	nx_menu *menu;
 
 	while (list)
 	{
 		sess = list->data;
-		menu = sess->gui->menu_item[MENU_ID_USERMENU];
+		/* TODO GTK4: the main menu model; on GTK3 the GtkMenu is the nx_menu */
+		menu = NX_MENU (sess->gui->menu_item[MENU_ID_USERMENU]);
 		if (sess->gui->is_tab)
 		{
 			if (!done_main && menu)
@@ -1937,45 +1869,35 @@ menu_canacaccel (GtkWidget *widget, guint signal_id, gpointer user_data)
 
 /* === STUFF FOR /MENU === */
 
-static GtkMenuItem *
-menu_find_item (GtkWidget *menu, char *name)
+/* name NULL: the first separator */
+static nx_item *
+menu_find_item (nx_menu *menu, char *name)
 {
-	GList *children = gtk_container_get_children (GTK_CONTAINER (menu));
-	GList *items = children;
-	GtkMenuItem *item;
-	GtkWidget *child;
+	int i, n = nx_menu_get_n_items (menu);
+	nx_item *item;
 	const char *labeltext;
 
-	while (items)
+	for (i = 0; i < n; i++)
 	{
-		item = items->data;
-		child = gtkutil_menu_item_get_label (GTK_WIDGET (item));
-		if (child)	/* separators arn't labels, skip them */
+		item = nx_menu_get_item (menu, i);
+		if (!nx_item_is_separator (item))	/* separators arn't labels, skip them */
 		{
-			labeltext = g_object_get_data (G_OBJECT (item), "name");
+			labeltext = nx_item_get_data (item, "name");
 			if (!labeltext)
-				labeltext = gtk_label_get_text (GTK_LABEL (child));
-			if (!menu_streq (labeltext, name, 1))
-			{
-				g_list_free (children);
+				labeltext = nx_item_get_text (item);
+			if (labeltext && !menu_streq (labeltext, name, 1))
 				return item;
-			}
 		} else if (name == NULL)
-		{
-			g_list_free (children);
 			return item;
-		}
-		items = items->next;
 	}
 
-	g_list_free (children);
 	return NULL;
 }
 
-static GtkWidget *
-menu_find_path (GtkWidget *menu, char *path)
+static nx_menu *
+menu_find_path (nx_menu *menu, char *path)
 {
-	GtkMenuItem *item;
+	nx_item *item;
 	char *s;
 	char name[128];
 	int len;
@@ -1993,7 +1915,7 @@ menu_find_path (GtkWidget *menu, char *path)
 	if (!item)
 		return NULL;
 
-	menu = gtk_menu_item_get_submenu (item);
+	menu = nx_item_get_submenu (item);
 	if (!menu)
 		return NULL;
 
@@ -2004,20 +1926,20 @@ menu_find_path (GtkWidget *menu, char *path)
 	return menu_find_path (menu, path + 1);
 }
 
-static GtkWidget *
-menu_find (GtkWidget *menu, char *path, char *label)
+static nx_item *
+menu_find (nx_menu *menu, char *path, char *label)
 {
-	GtkWidget *item = NULL;
+	nx_item *item = NULL;
 
 	if (path[0] != 0)
 		menu = menu_find_path (menu, path);
 	if (menu)
-		item = (GtkWidget *)menu_find_item (menu, label);
+		item = menu_find_item (menu, label);
 	return item;
 }
 
 static void
-menu_foreach_gui (menu_entry *me, void (*callback) (GtkWidget *, menu_entry *, char *))
+menu_foreach_gui (menu_entry *me, void (*callback) (nx_menu *, menu_entry *, char *))
 {
 	GSList *list = sess_list;
 	int tabdone = FALSE;
@@ -2032,7 +1954,9 @@ menu_foreach_gui (menu_entry *me, void (*callback) (GtkWidget *, menu_entry *, c
 		/* do it only once for tab sessions, since they share a GUI */
 		if (!sess->gui->is_tab || !tabdone)
 		{
-			callback (sess->gui->menu, me, NULL);
+			/* the menu bar: a GtkMenuShell, so an nx_menu on GTK3.
+			   TODO GTK4: the main menu model */
+			callback (NX_MENU (sess->gui->menu), me, NULL);
 			if (sess->gui->is_tab)
 				tabdone = TRUE;
 		}
@@ -2041,26 +1965,27 @@ menu_foreach_gui (menu_entry *me, void (*callback) (GtkWidget *, menu_entry *, c
 }
 
 static void
-menu_update_cb (GtkWidget *menu, menu_entry *me, char *target)
+menu_update_cb (nx_menu *menu, menu_entry *me, char *target)
 {
-	GtkWidget *item;
+	nx_item *item;
 
 	item = menu_find (menu, me->path, me->label);
 	if (item)
 	{
-		gtk_widget_set_sensitive (item, me->enable);
-		/* must do it without triggering the callback */
-		if (GTK_IS_CHECK_MENU_ITEM (item))
-			menu_check_item_set_active_quiet (GTK_CHECK_MENU_ITEM (item), me->state);
+		nx_item_set_sensitive (item, me->enable);
+		/* must do it without triggering the callback (plain items: no-op) */
+		nx_item_set_active_quiet (item, me->state);
 	}
 }
 
 /* radio state changed via mouse click */
 static void
-menu_radio_cb (GtkCheckMenuItem *item, menu_entry *me)
+menu_radio_cb (nx_item *item, gpointer data)
 {
+	menu_entry *me = data;
+
 	me->state = 0;
-	if (gtk_check_menu_item_get_active (item))
+	if (nx_item_get_active (item))
 		me->state = 1;
 
 	/* update the state, incase this was changed via right-click. */
@@ -2073,10 +1998,12 @@ menu_radio_cb (GtkCheckMenuItem *item, menu_entry *me)
 
 /* toggle state changed via mouse click */
 static void
-menu_toggle_cb (GtkCheckMenuItem *item, menu_entry *me)
+menu_toggle_cb (nx_item *item, gpointer data)
 {
+	menu_entry *me = data;
+
 	me->state = 0;
-	if (gtk_check_menu_item_get_active (item))
+	if (nx_item_get_active (item))
 		me->state = 1;
 
 	/* update the state, incase this was changed via right-click. */
@@ -2089,96 +2016,71 @@ menu_toggle_cb (GtkCheckMenuItem *item, menu_entry *me)
 		handle_command (current_sess, me->ucmd, FALSE);
 }
 
-static GtkWidget *
-menu_radio_item (char *label, GtkWidget *menu, void *callback, void *userdata,
-						int state, char *groupname)
+/* where /MENU -p<pos> puts a new item: 0xffff (outbound.c's default) at the
+   end, negative counts from the end, as the old append-then-reorder did */
+static int
+menu_insert_pos (nx_menu *menu, int pos)
 {
-	GtkWidget *item;
-	GtkMenuItem *parent;
-	GSList *grouplist = NULL;
-
-	parent = menu_find_item (menu, groupname);
-	if (parent)
-		grouplist = gtk_radio_menu_item_get_group ((GtkRadioMenuItem *)parent);
-
-	item = gtk_radio_menu_item_new_with_label (grouplist, label);
-	gtk_check_menu_item_set_active ((GtkCheckMenuItem*)item, state);
-	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	g_signal_connect (G_OBJECT (item), "activate",
-							G_CALLBACK (callback), userdata);
-	gtk_widget_show (item);
-
-	return item;
-}
-
-static void
-menu_reorder (GtkMenu *menu, GtkWidget *item, int pos)
-{
-	if (pos == 0xffff)	/* outbound.c uses this default */
-		return;
-
-	if (pos < 0)	/* position offset from end/bottom */
+	if (pos == 0xffff)
+		return NX_MENU_APPEND;
+	if (pos < 0)
 	{
-		GList *children = gtk_container_get_children (GTK_CONTAINER (menu));
-		gtk_menu_reorder_child (menu, item, (g_list_length (children) + pos) - 1);
-		g_list_free (children);
+		pos += nx_menu_get_n_items (menu);
+		if (pos < 0)
+			return NX_MENU_APPEND;	/* GTK's "negative: to the end" */
 	}
-	else
-		gtk_menu_reorder_child (menu, item, pos);
+	return pos;
 }
 
-static GtkWidget *
-menu_add_radio (GtkWidget *menu, menu_entry *me)
+static nx_item *
+menu_add_radio (nx_menu *menu, menu_entry *me)
 {
-	GtkWidget *item = NULL;
+	nx_item *item = NULL;
 	char *path = me->path + me->root_offset;
 
 	if (path[0] != 0)
 		menu = menu_find_path (menu, path);
 	if (menu)
-	{
-		item = menu_radio_item (me->label, menu, menu_radio_cb, me, me->state, me->group);
-		menu_reorder (GTK_MENU (menu), item, me->pos);
-	}
+		/* the group is the item called me->group in the same menu */
+		item = nx_menu_add_radio (menu, menu_insert_pos (menu, me->pos), me->label, 0,
+										  menu_find_item (menu, me->group), me->state,
+										  menu_radio_cb, me);
 	return item;
 }
 
-static GtkWidget *
-menu_add_toggle (GtkWidget *menu, menu_entry *me)
+static nx_item *
+menu_add_toggle (nx_menu *menu, menu_entry *me)
 {
-	GtkWidget *item = NULL;
+	nx_item *item = NULL;
 	char *path = me->path + me->root_offset;
 
 	if (path[0] != 0)
 		menu = menu_find_path (menu, path);
 	if (menu)
-	{
-		item = menu_toggle_item (me->label, menu, menu_toggle_cb, me, me->state);
-		menu_reorder (GTK_MENU (menu), item, me->pos);
-	}
+		item = nx_menu_add_check (menu, menu_insert_pos (menu, me->pos), me->label,
+										  NX_ITEM_MNEMONIC, me->state, menu_toggle_cb, me);
 	return item;
 }
 
-static GtkWidget *
-menu_add_item (GtkWidget *menu, menu_entry *me, char *target)
+static nx_item *
+menu_add_item (nx_menu *menu, menu_entry *me, char *target)
 {
-	GtkWidget *item = NULL;
+	nx_item *item = NULL;
 	char *path = me->path + me->root_offset;
 
 	if (path[0] != 0)
 		menu = menu_find_path (menu, path);
 	if (menu)
-	{
-		item = menu_quick_item (me->cmd, me->label, menu, me->markup ? XCMENU_MARKUP|XCMENU_MNEMONIC : XCMENU_MNEMONIC, target, me->icon);
-		menu_reorder (GTK_MENU (menu), item, me->pos);
-	}
+		item = menu_quick_item_at (me->cmd, me->label, menu,
+											me->markup ? XCMENU_MARKUP|XCMENU_MNEMONIC : XCMENU_MNEMONIC,
+											target, me->icon, menu_insert_pos (menu, me->pos));
 	return item;
 }
 
-static GtkWidget *
-menu_add_sub (GtkWidget *menu, menu_entry *me)
+static nx_item *
+menu_add_sub (nx_menu *menu, menu_entry *me)
 {
-	GtkWidget *item = NULL;
+	nx_item *item = NULL;
 	char *path = me->path + me->root_offset;
 	int pos;
 
@@ -2188,29 +2090,24 @@ menu_add_sub (GtkWidget *menu, menu_entry *me)
 	{
 		pos = me->pos;
 		if (pos < 0)	/* position offset from end/bottom */
-		{
-			GList *children = gtk_container_get_children (GTK_CONTAINER (menu));
-			pos = g_list_length (children) + pos;
-			g_list_free (children);
-		}
+			pos = nx_menu_get_n_items (menu) + pos;
 		menu_quick_sub (me->label, menu, &item, me->markup ? XCMENU_MARKUP|XCMENU_MNEMONIC : XCMENU_MNEMONIC, pos);
 	}
 	return item;
 }
 
 static void
-menu_del_cb (GtkWidget *menu, menu_entry *me, char *target)
+menu_del_cb (nx_menu *menu, menu_entry *me, char *target)
 {
-	GtkWidget *item = menu_find (menu, me->path + me->root_offset, me->label);
+	nx_item *item = menu_find (menu, me->path + me->root_offset, me->label);
 	if (item)
-		nx_widget_destroy (item);
+		nx_item_remove (item);
 }
 
 static void
-menu_add_cb (GtkWidget *menu, menu_entry *me, char *target)
+menu_add_cb (nx_menu *menu, menu_entry *me, char *target)
 {
-	GtkWidget *item;
-	GtkAccelGroup *accel_group;
+	nx_item *item;
 
 	if (me->group)	/* have a group name? Must be a radio item */
 		item = menu_add_radio (menu, me);
@@ -2223,14 +2120,17 @@ menu_add_cb (GtkWidget *menu, menu_entry *me, char *target)
 
 	if (item)
 	{
-		gtk_widget_set_sensitive (item, me->enable);
+		nx_item_set_sensitive (item, me->enable);
+#if !GTK_CHECK_VERSION(4, 0, 0)
+		/* TODO GTK4: shortcuts come with the main menu bar */
 		if (me->key)
 		{
-			accel_group = g_object_get_data (G_OBJECT (menu), "accel");
+			GtkAccelGroup *accel_group = g_object_get_data (G_OBJECT (menu), "accel");
 			if (accel_group)	/* popup menus don't have them */
-				gtk_widget_add_accelerator (item, "activate", accel_group, me->key,
-													 me->modifier, GTK_ACCEL_VISIBLE);
+				gtk_widget_add_accelerator (NX_ITEM_WIDGET (item), "activate", accel_group,
+													 me->key, me->modifier, GTK_ACCEL_VISIBLE);
 		}
+#endif
 	}
 }
 
@@ -2282,7 +2182,7 @@ fe_menu_update (menu_entry *me)
 /* used to add custom menus to the right-click menu */
 
 static void
-menu_add_plugin_mainmenu_items (GtkWidget *menu)
+menu_add_plugin_mainmenu_items (nx_menu *menu)
 {
 	GSList *list;
 	menu_entry *me;
@@ -2298,7 +2198,7 @@ menu_add_plugin_mainmenu_items (GtkWidget *menu)
 }
 
 void
-menu_add_plugin_items (GtkWidget *menu, char *root, char *target)
+menu_add_plugin_items (nx_menu *menu, char *root, char *target)
 {
 	GSList *list;
 	menu_entry *me;
@@ -2573,7 +2473,7 @@ normalitem:
 			item = gtk_check_menu_item_new_with_mnemonic (_(mymenu[i].text));
 togitem:
 			/* must avoid callback for Radio buttons */
-			menu_check_item_set_active_quiet (GTK_CHECK_MENU_ITEM (item), mymenu[i].state);
+			menu_check_item_set_active_quiet (item, mymenu[i].state);
 			/*gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (item),
 													 mymenu[i].state);*/
 			if (mymenu[i].key != 0)
@@ -2623,10 +2523,10 @@ togitem:
 				if (menu)
 				{
 					gtk_menu_item_set_submenu (GTK_MENU_ITEM (menu_item), menu);
-					menu_add_plugin_mainmenu_items (menu_bar);
+					menu_add_plugin_mainmenu_items (NX_MENU (menu_bar));
 				}
 				if (usermenu)
-					usermenu_create (usermenu);
+					usermenu_create (NX_MENU (usermenu));
 				return (menu_bar);
 			}
 			submenu = NULL;

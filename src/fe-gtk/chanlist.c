@@ -565,30 +565,29 @@ chanlist_dclick_cb (GtkTreeView *view, GtkTreePath *path,
 }
 
 static void
-chanlist_menu_destroy (GtkWidget *menu, gpointer userdata)
+chanlist_join_item (nx_item *item, gpointer serv)
 {
-	nx_widget_destroy (menu);
-	g_object_unref (menu);
+	chanlist_join (NULL, serv);
 }
 
 static void
-chanlist_copychannel (GtkWidget *item, server *serv)
+chanlist_copychannel (nx_item *item, gpointer serv)
 {
 	char *chan = chanlist_get_selected (serv, FALSE);
 	if (chan)
 	{
-		gtkutil_copy_to_clipboard (item, chan);
+		gtkutil_copy_to_clipboard (((server *) serv)->gui->chanlist_window, chan);
 		g_free (chan);
 	}
 }
 
 static void
-chanlist_copytopic (GtkWidget *item, server *serv)
+chanlist_copytopic (nx_item *item, gpointer serv)
 {
 	char *topic = chanlist_get_selected (serv, TRUE);
 	if (topic)
 	{
-		gtkutil_copy_to_clipboard (item, topic);
+		gtkutil_copy_to_clipboard (((server *) serv)->gui->chanlist_window, topic);
 		g_free (topic);
 	}
 }
@@ -599,7 +598,7 @@ chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 {
 	server *serv = userdata;
 	GtkTreeView *tree = GTK_TREE_VIEW (w);
-	GtkWidget *menu;
+	nx_menu *menu;
 	GtkTreeSelection *sel;
 	GtkTreePath *path;
 	char *chan;
@@ -616,16 +615,9 @@ chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 	gtk_tree_selection_select_path (sel, path);
 	gtk_tree_path_free (path);
 
-	menu = gtk_menu_new ();
-	/* the menu opens on the clicked widget's screen */
-	gtk_menu_set_screen (GTK_MENU (menu), gtk_widget_get_screen (w));
-	g_object_ref (menu);
-	g_object_ref_sink (menu);
-	g_object_unref (menu);
-	g_signal_connect (G_OBJECT (menu), "selection-done",
-							G_CALLBACK (chanlist_menu_destroy), NULL);
+	menu = nx_menu_new ();
 	mg_create_icon_item (_("_Join Channel"), NX_STOCK_JUMP_TO, menu,
-								chanlist_join, serv);
+								chanlist_join_item, serv);
 	mg_create_icon_item (_("_Copy Channel Name"), NX_STOCK_COPY, menu,
 								chanlist_copychannel, serv);
 	mg_create_icon_item (_("Copy _Topic Text"), NX_STOCK_COPY, menu,
@@ -635,7 +627,8 @@ chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 	menu_addfavoritemenu (serv, menu, chan, FALSE);
 	g_free (chan);
 
-	gtk_menu_popup_at_pointer (GTK_MENU (menu), nx_current_event ());
+	/* (on the clicked widget's screen: the popup takes the event's) */
+	nx_menu_popup (menu, w, nx_current_event (), NULL, NULL);
 
 	return TRUE;
 }

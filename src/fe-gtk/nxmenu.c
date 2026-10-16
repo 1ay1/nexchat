@@ -53,6 +53,7 @@ struct _nx_item
 	entry_kind kind;
 	nx_menu *menu;			/* the menu it's in */
 	char *label;			/* as given */
+	char *text;				/* displayed text, made on demand */
 	int flags;
 	char *icon;
 	nx_item_cb cb;
@@ -76,7 +77,8 @@ struct _nx_menu
 	GDestroyNotify done;
 	gpointer done_data;
 	int next_id;
-	gboolean frozen;			/* model rebuild pending (root only) */
+	nx_menu_show_cb show_cb;
+	gpointer show_data;
 };
 
 static nx_menu *
@@ -124,6 +126,7 @@ item_free (nx_item *it)
 		g_object_unref (it->action);
 	g_datalist_clear (&it->data);
 	g_free (it->label);
+	g_free (it->text);
 	g_free (it->icon);
 	g_free (it->target);
 	g_free (it);
@@ -429,11 +432,51 @@ nx_menu_get_item (nx_menu *m, int index)
 }
 
 void
-nx_menu_remove (nx_menu *m, nx_item *it)
+nx_item_remove (nx_item *it)
 {
+	nx_menu *m = it->menu;
+
 	m->entries = g_list_remove (m->entries, it);
 	item_free (it);
 	changed (m);
+}
+
+void
+nx_menu_clear (nx_menu *m)
+{
+	while (m->entries)
+	{
+		nx_item *it = m->entries->data;
+		m->entries = g_list_remove (m->entries, it);
+		item_free (it);
+	}
+	changed (m);
+}
+
+void
+nx_menu_on_show (nx_menu *m, nx_menu_show_cb cb, gpointer userdata)
+{
+	m->show_cb = cb;
+	m->show_data = userdata;
+}
+
+void
+nx_menu_on_show_disconnect (nx_menu *m)
+{
+	m->show_cb = NULL;
+}
+
+/* the popup opens: every (sub)menu's on_show, depth first */
+static void
+run_show_hooks (nx_menu *m)
+{
+	GList *l;
+
+	if (m->show_cb)
+		m->show_cb (m, m->show_data);
+	for (l = m->entries; l; l = l->next)
+		if (((nx_item *) l->data)->submenu)
+			run_show_hooks (((nx_item *) l->data)->submenu);
 }
 
 void
@@ -501,6 +544,48 @@ const char *
 nx_item_get_label (nx_item *it)
 {
 	return it->kind == E_SEPARATOR ? NULL : it->label;
+}
+
+/* what GtkLabel would show: markup parsed, mnemonic underscore dropped */
+const char *
+nx_item_get_text (nx_item *it)
+{
+	char *text = NULL;
+
+	if (it->kind == E_SEPARATOR)
+		return NULL;
+	if (!it->text)
+	{
+		gboolean mnemonic = (it->flags & NX_ITEM_MNEMONIC) || it->icon;
+
+		if (it->flags & NX_ITEM_MARKUP)
+		{
+			if (!pango_parse_markup (it->label, -1, mnemonic ? '_' : 0, NULL, &text, NULL, NULL))
+				text = g_strdup (it->label);
+		}
+		else if (mnemonic)
+		{
+			GString *s = g_string_new (NULL);
+			const char *p;
+
+			/* "__" is a literal underscore, a single one marks the key */
+			for (p = it->label; *p; p++)
+			{
+				if (*p == '_')
+				{
+					if (p[1] != '_')
+						continue;
+					p++;
+				}
+				g_string_append_c (s, *p);
+			}
+			text = g_string_free (s, FALSE);
+		}
+		else
+			text = g_strdup (it->label);
+		it->text = text;
+	}
+	return it->text;
 }
 
 nx_menu *
@@ -603,6 +688,7 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	gtk_popover_set_pointing_to (GTK_POPOVER (p), &r);
 	gtk_popover_set_position (GTK_POPOVER (p), GTK_POS_BOTTOM);
 	g_signal_connect (p, "closed", G_CALLBACK (popup_closed), m);
+	run_show_hooks (m);
 	gtk_popover_popup (GTK_POPOVER (p));
 }
 
@@ -769,9 +855,44 @@ nx_menu_get_item (nx_menu *menu, int index)
 }
 
 void
-nx_menu_remove (nx_menu *menu, nx_item *item)
+nx_item_remove (nx_item *item)
 {
 	gtk_widget_destroy (NX_ITEM_WIDGET (item));
+}
+
+void
+nx_menu_clear (nx_menu *menu)
+{
+	GList *items = gtk_container_get_children (GTK_CONTAINER (menu)), *l;
+
+	for (l = items; l; l = l->next)
+		gtk_widget_destroy (l->data);
+	g_list_free (items);
+}
+
+static void
+menu_show_sig (GtkWidget *w, gpointer unused)
+{
+	nx_menu_show_cb cb = g_object_get_data (G_OBJECT (w), "nx-show-cb");
+
+	if (cb)
+		cb (NX_MENU (w), g_object_get_data (G_OBJECT (w), "nx-show-ud"));
+}
+
+void
+nx_menu_on_show (nx_menu *menu, nx_menu_show_cb cb, gpointer userdata)
+{
+	if (!g_object_get_data (G_OBJECT (menu), "nx-show-cb"))
+		g_signal_connect (menu, "show", G_CALLBACK (menu_show_sig), NULL);
+	g_object_set_data (G_OBJECT (menu), "nx-show-cb", cb);
+	g_object_set_data (G_OBJECT (menu), "nx-show-ud", userdata);
+}
+
+void
+nx_menu_on_show_disconnect (nx_menu *menu)
+{
+	g_signal_handlers_disconnect_by_func (menu, menu_show_sig, NULL);
+	g_object_set_data (G_OBJECT (menu), "nx-show-cb", NULL);
 }
 
 void
@@ -845,6 +966,17 @@ nx_item_get_label (nx_item *item)
 		return NULL;
 	lbl = gtkutil_menu_item_get_label (NX_ITEM_WIDGET (item));
 	return lbl ? gtk_label_get_label (GTK_LABEL (lbl)) : NULL;
+}
+
+const char *
+nx_item_get_text (nx_item *item)
+{
+	GtkWidget *lbl;
+
+	if (GTK_IS_SEPARATOR_MENU_ITEM (item))
+		return NULL;
+	lbl = gtkutil_menu_item_get_label (NX_ITEM_WIDGET (item));
+	return lbl ? gtk_label_get_text (GTK_LABEL (lbl)) : NULL;
 }
 
 nx_menu *
