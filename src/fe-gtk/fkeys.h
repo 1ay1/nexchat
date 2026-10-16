@@ -33,6 +33,16 @@ GdkModifierType key_primary_modifier (void);
 
 void key_init (void);
 void key_dialog_show (void);
+typedef enum
+{
+	KEY_NOT_HANDLED = 0,	/* pass to the entry (inserts the character) */
+	KEY_HANDLED,			/* consumed */
+	KEY_HANDLED_STOP		/* consumed, and stop other handlers seeing it */
+} key_result;
+
+/* toolkit-independent: keyval + modifier state in, result out */
+key_result key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess);
+/* GTK3 key_press_event adapter around key_handle() */
 int key_handle_key_press (GtkWidget * wid, GdkEventKey * evt, session *sess);
 int key_action_insert (GtkWidget * wid, GdkEventKey * evt, char *d1, char *d2,
 						 session *sess);

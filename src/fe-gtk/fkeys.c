@@ -321,12 +321,20 @@ key_modifier_get_valid (GdkModifierType mod)
 	return ret;
 }
 
-gboolean
-key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
+/* The whole key handling, independent of how the key arrived: GTK3's
+   key-press-event signal today, a GtkEventControllerKey in GTK4.
+   wid is the input box the key was typed into. Returns KEY_NOT_HANDLED
+   (let the entry insert it), KEY_HANDLED (we used it), or
+   KEY_HANDLED_STOP (we used it and nothing else may see it, which the
+   GTK3 wrapper does with g_signal_stop_emission). */
+key_result
+key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess)
 {
 	struct key_binding *kb;
 	int n;
 	GSList *list;
+	/* the actions don't look at the event; keep the old signature for them */
+	GdkEventKey *evt = NULL;
 
 	/* where did this event come from? */
 	list = sess_list;
@@ -342,25 +350,25 @@ key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
 		list = list->next;
 	}
 	if (!list)
-		return FALSE;
+		return KEY_NOT_HANDLED;
 	current_sess = sess;
 
-	if (plugin_emit_keypress (sess, evt->state, evt->keyval, gdk_keyval_to_unicode (evt->keyval)))
-		return 1;
+	if (plugin_emit_keypress (sess, state, keyval, gdk_keyval_to_unicode (keyval)))
+		return KEY_HANDLED;
 
 	/* maybe the plugin closed this tab? */
 	if (!is_session (sess))
-		return 1;
+		return KEY_HANDLED;
 
 	list = keybind_list;
 	while (list)
 	{
 		kb = (struct key_binding*)list->data;
 
-		if (kb->keyval == evt->keyval && kb->mod == key_modifier_get_valid (evt->state))
+		if (kb->keyval == keyval && kb->mod == key_modifier_get_valid (state))
 		{
 			if (kb->action < 0 || kb->action > KEY_MAX_ACTIONS)
-				return 0;
+				return KEY_NOT_HANDLED;
 
 			/* Run the function */
 			n = key_actions[kb->action].handler (wid, evt, kb->data1,
@@ -368,24 +376,38 @@ key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
 			switch (n)
 			{
 			case 0:
-				return 1;
+				return KEY_HANDLED;
 			case 2:
-				g_signal_stop_emission_by_name (G_OBJECT (wid),
-														"key_press_event");
-				return 1;
+				return KEY_HANDLED_STOP;
 			}
 		}
 		list = g_slist_next (list);
 	}
 
-	switch (evt->keyval)
+	switch (keyval)
 	{
 	case GDK_KEY_space:
 		key_action_tab_clean ();
 		break;
 	}
 
-	return 0;
+	return KEY_NOT_HANDLED;
+}
+
+/* GTK3 "key_press_event" handler on the input box */
+gboolean
+key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
+{
+	switch (key_handle (wid, evt->keyval, evt->state, sess))
+	{
+	case KEY_HANDLED_STOP:
+		g_signal_stop_emission_by_name (G_OBJECT (wid), "key_press_event");
+		return TRUE;
+	case KEY_HANDLED:
+		return TRUE;
+	default:
+		return FALSE;
+	}
 }
 
 
