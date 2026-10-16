@@ -98,10 +98,14 @@ menu_root (nx_menu *m)
 	return m;
 }
 
+static void
+menu_icons_init (void);
+
 nx_menu *
 nx_menu_new (void)
 {
 	nx_menu *m = g_new0 (nx_menu, 1);
+	menu_icons_init ();
 	m->model = g_menu_new ();
 	m->actions = g_simple_action_group_new ();
 	return m;
@@ -771,6 +775,46 @@ popup_fresh_key (GtkEventControllerKey *k, guint keyval, guint keycode,
 
 	g_object_set_data (G_OBJECT (p), "nx-fresh", NULL);
 	return fresh && (keyval == GDK_KEY_Down || keyval == GDK_KEY_KP_Down);
+}
+
+/* GtkModelButton hides its icon when it has a label; GTK3 menus showed
+   both, icon on the left. Fix each menu item as it maps. */
+static gboolean
+model_button_map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
+{
+	GtkWidget *b = g_value_get_object (&v[0]);
+	GtkWidget *c;
+
+	if (strcmp (G_OBJECT_TYPE_NAME (b), "GtkModelButton") != 0)
+		return TRUE;
+	for (c = gtk_widget_get_first_child (b); c; c = gtk_widget_get_next_sibling (c))
+	{
+		if (GTK_IS_IMAGE (c) && gtk_image_get_storage_type (GTK_IMAGE (c)) != GTK_IMAGE_EMPTY)
+		{
+			gtk_widget_set_visible (c, TRUE);
+			gtk_widget_set_hexpand (c, FALSE);
+			gtk_widget_add_css_class (c, "nx-menu-icon");
+		}
+		/* the main label takes the free width: accel and submenu arrow
+		   end up at the right edge */
+		else if (GTK_IS_LABEL (c) && !gtk_widget_has_css_class (c, "accelerator"))
+			gtk_widget_set_hexpand (c, TRUE);
+	}
+	return TRUE;
+}
+
+static void
+menu_icons_init (void)
+{
+	static gboolean done;
+
+	if (done)
+		return;
+	done = TRUE;
+	/* the signal only exists once the class does (a menu can come first) */
+	g_type_class_unref (g_type_class_ref (GTK_TYPE_WIDGET));
+	g_signal_add_emission_hook (g_signal_lookup ("map", GTK_TYPE_WIDGET), 0,
+										model_button_map_hook, NULL, NULL);
 }
 
 void

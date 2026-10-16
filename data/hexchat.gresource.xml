@@ -21,4 +21,22 @@
 		<file alias="tree_server.png" preprocess="to-pixdata">icons/tree_server.png</file>
 		<file alias="tree_util.png" preprocess="to-pixdata">icons/tree_util.png</file>
 	</gresource>
+	<!-- GTK3's own stock-only icons (gtk-ok, gtk-cancel, ...; LGPL, from
+	     GTK 3.24 gtk/icons). GTK4 dropped them; the GTK4 build adds this
+	     path to the icon theme so buttons keep their images. -->
+	<gresource prefix="/io/github/nexchat/icons">
+		<file alias="16x16/actions/gtk-connect.png">icons/gtk3-stock/16x16/actions/gtk-connect.png</file>
+		<file alias="16x16/actions/gtk-disconnect.png">icons/gtk3-stock/16x16/actions/gtk-disconnect.png</file>
+		<file alias="16x16/actions/gtk-index.png">icons/gtk3-stock/16x16/actions/gtk-index.png</file>
+		<file alias="16x16/actions/gtk-preferences.png">icons/gtk3-stock/16x16/actions/gtk-preferences.png</file>
+		<file alias="22x22/actions/gtk-apply.png">icons/gtk3-stock/22x22/actions/gtk-apply.png</file>
+		<file alias="22x22/actions/gtk-cancel.png">icons/gtk3-stock/22x22/actions/gtk-cancel.png</file>
+		<file alias="22x22/actions/gtk-no.png">icons/gtk3-stock/22x22/actions/gtk-no.png</file>
+		<file alias="22x22/actions/gtk-ok.png">icons/gtk3-stock/22x22/actions/gtk-ok.png</file>
+		<file alias="22x22/actions/gtk-yes.png">icons/gtk3-stock/22x22/actions/gtk-yes.png</file>
+		<file alias="24x24/actions/gtk-connect.png">icons/gtk3-stock/24x24/actions/gtk-connect.png</file>
+		<file alias="24x24/actions/gtk-disconnect.png">icons/gtk3-stock/24x24/actions/gtk-disconnect.png</file>
+		<file alias="24x24/actions/gtk-index.png">icons/gtk3-stock/24x24/actions/gtk-index.png</file>
+		<file alias="24x24/actions/gtk-preferences.png">icons/gtk3-stock/24x24/actions/gtk-preferences.png</file>
+	</gresource>
 </gresources>

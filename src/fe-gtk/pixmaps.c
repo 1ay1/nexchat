@@ -134,6 +134,12 @@ void
 pixmaps_init (void)
 {
 	hexchat_register_resource();
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK3's stock-only icons (gtk-ok, gtk-cancel, ...), gone in GTK4 */
+	if (gdk_display_get_default ())
+		gtk_icon_theme_add_resource_path (gtk_icon_theme_get_for_display (gdk_display_get_default ()),
+												"/io/github/nexchat/icons");
+#endif
 
 	pix_ulist_voice = load_pixmap ("ulist_voice");
 	pix_ulist_halfop = load_pixmap ("ulist_halfop");

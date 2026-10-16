@@ -80,7 +80,12 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 		nx_box_pack_start (container, child, TRUE, TRUE, 0);
 #if GTK_CHECK_VERSION(4, 0, 0)
 	else if (GTK_IS_WINDOW (container))
+	{
+		guint b = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (container), "nx-border"));
 		gtk_window_set_child (GTK_WINDOW (container), child);
+		if (b)	/* nx_set_border_width on the window before it had a child */
+			nx_set_border_width (child, b - 1);
+	}
 	else if (GTK_IS_FRAME (container))
 		gtk_frame_set_child (GTK_FRAME (container), child);
 	else if (GTK_IS_SCROLLED_WINDOW (container))
@@ -1225,6 +1230,10 @@ gtkutil_treeview_new (GtkWidget *box, GtkTreeModel *model,
 	char *title, *attr;
 
 	win = nx_scrolled_window_new ();
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK3's theme framed these; GTK4 needs it asked for */
+	nx_scrolled_window_set_shadow_in (win, TRUE);
+#endif
 	gtkutil_container_add (GTK_WIDGET (box), win);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);

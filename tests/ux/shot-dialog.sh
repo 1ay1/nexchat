@@ -24,8 +24,10 @@ fi
 app=$!
 sleep "${SHOT_WAIT:-5}"
 if [ -n "${KEYS:-}" ]; then
+	# pointer on the input box (window is 640x400), away from where menus
+	# drop down: a menu under the pointer takes the hover
 	# shellcheck disable=SC2086
-	DISPLAY=$disp python3 "$here/xkey.py" --delay 0.6 $KEYS
+	DISPLAY=$disp python3 "$here/xkey.py" --delay 0.6 --at 400,380 $KEYS
 	sleep 2
 fi
 DISPLAY=$disp "$xwd" -root -silent -out "$tmp/s.xwd"

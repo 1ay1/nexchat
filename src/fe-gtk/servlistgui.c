@@ -188,6 +188,31 @@ servlist_get_login_desc_index (int conf_value)
 	return 0;	/* make the compiler happy */
 }
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+static gboolean
+servlist_show_idle (gpointer data)
+{
+	GtkTreeView *tv = data;
+	GtkTreePath *path = g_object_get_data (G_OBJECT (tv), "nx-show-path");
+
+	if (path)
+	{
+		gtk_tree_view_set_cursor (tv, path, NULL, FALSE);
+		gtk_tree_view_scroll_to_cell (tv, path, NULL, TRUE, 0.5, 0.5);
+		g_object_set_data (G_OBJECT (tv), "nx-show-path", NULL);
+	}
+	g_object_unref (tv);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+servlist_show_on_map (GtkWidget *tv, gpointer unused)
+{
+	/* after the first allocation, so there's something to scroll */
+	g_idle_add (servlist_show_idle, g_object_ref (tv));
+}
+#endif
+
 static void
 servlist_select_and_show (GtkTreeView *treeview, GtkTreeIter *iter,
 								  GtkListStore *store)
@@ -203,6 +228,18 @@ servlist_select_and_show (GtkTreeView *treeview, GtkTreeIter *iter,
 	path = gtk_tree_model_get_path (GTK_TREE_MODEL (store), iter);
 	if (path)
 	{
+#if GTK_CHECK_VERSION(4, 0, 0)
+		/* GTK4 drops a cursor/scroll set before the view is mapped (the
+		   network list is filled before the window shows): redo it then */
+		if (!gtk_widget_get_mapped (GTK_WIDGET (treeview)))
+		{
+			g_object_set_data_full (G_OBJECT (treeview), "nx-show-path",
+										gtk_tree_path_copy (path), (GDestroyNotify) gtk_tree_path_free);
+			if (!g_object_get_data (G_OBJECT (treeview), "nx-show-tag"))
+				g_object_set_data (G_OBJECT (treeview), "nx-show-tag", GUINT_TO_POINTER (
+					g_signal_connect (treeview, "map", G_CALLBACK (servlist_show_on_map), NULL)));
+		}
+#endif
 		gtk_tree_view_scroll_to_cell (treeview, path, NULL, TRUE, 0.5, 0.5);
 		gtk_tree_view_set_cursor (treeview, path, NULL, FALSE);
 		gtk_tree_path_free (path);

@@ -29,6 +29,8 @@
 
 /* ---- GTK4 ---- */
 
+static inline void nx_button_box_child (GtkWidget *box, GtkWidget *child);
+
 /* GtkBox: pack_start(child, expand, fill, padding). GTK4 has no per-child
    expand/fill/padding: expand -> hexpand/vexpand along the box, fill ->
    align FILL else CENTER across... GTK2/3 'fill' was along the box axis,
@@ -81,16 +83,27 @@ nx_box_pack (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill,
 		}
 		gtk_box_insert_child_after (box, child, last_start);
 	}
+	if (g_object_get_data (G_OBJECT (box), "nx-bbox"))
+		nx_button_box_child (GTK_WIDGET (box), child);
 }
 #define nx_box_pack_start(box, child, expand, fill, pad) \
 	nx_box_pack (GTK_BOX (box), (child), (expand), (fill), (pad), FALSE)
 #define nx_box_pack_end(box, child, expand, fill, pad) \
 	nx_box_pack (GTK_BOX (box), (child), (expand), (fill), (pad), TRUE)
 
-/* gtk_container_set_border_width: margins on all four sides */
+/* gtk_container_set_border_width: margins on all four sides. A window
+   ignores its own margins, so there it's the child's (now or once set). */
 static inline void
 nx_set_border_width (GtkWidget *w, guint px)
 {
+	if (GTK_IS_WINDOW (w))
+	{
+		GtkWidget *c = gtk_window_get_child (GTK_WINDOW (w));
+		g_object_set_data (G_OBJECT (w), "nx-border", GUINT_TO_POINTER (px + 1));
+		if (!c)
+			return;
+		w = c;
+	}
 	gtk_widget_set_margin_start (w, px);
 	gtk_widget_set_margin_end (w, px);
 	gtk_widget_set_margin_top (w, px);
@@ -138,20 +151,54 @@ nx_widget_get_children (GtkWidget *w)
 #define nx_scrolled_window_set_shadow_etched(sw) \
 	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), TRUE)
 
-/* GtkButtonBox is gone. Our boxes are all horizontal rows of buttons with
-   a layout: SPREAD (equal gaps, homogeneous) or END (packed right).
-   A homogeneous GtkBox with the right halign gives the same placement. */
+/* GtkButtonBox is gone. Its layouts give every button the width of the
+   widest one (at least 85px, GTK3's default) and place them: SPREAD (equal
+   gaps around), EDGE (first and last at the edges), START, END. A box
+   gives each button an equal slot; nx_button_box_add sizes and places it. */
 typedef enum { NX_BUTTONBOX_SPREAD, NX_BUTTONBOX_END, NX_BUTTONBOX_START, NX_BUTTONBOX_EDGE } nx_buttonbox_layout;
 static inline GtkWidget *
 nx_button_box_new (GtkOrientation o, nx_buttonbox_layout layout)
 {
 	GtkWidget *box = gtk_box_new (o, 6);
+	GtkSizeGroup *sg = gtk_size_group_new (o == GTK_ORIENTATION_HORIZONTAL ?
+														GTK_SIZE_GROUP_HORIZONTAL : GTK_SIZE_GROUP_VERTICAL);
+
 	gtk_box_set_homogeneous (GTK_BOX (box), layout == NX_BUTTONBOX_SPREAD || layout == NX_BUTTONBOX_EDGE);
 	if (layout == NX_BUTTONBOX_END)
 		gtk_widget_set_halign (box, GTK_ALIGN_END);
 	else if (layout == NX_BUTTONBOX_START)
 		gtk_widget_set_halign (box, GTK_ALIGN_START);
+	g_object_set_data (G_OBJECT (box), "nx-bbox", GINT_TO_POINTER (layout + 1));
+	g_object_set_data_full (G_OBJECT (box), "nx-bbox-sg", sg, g_object_unref);
 	return box;
+}
+
+/* a child of a button box: same width as its siblings, GTK3's place */
+static inline void
+nx_button_box_child (GtkWidget *box, GtkWidget *child)
+{
+	int layout = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (box), "nx-bbox")) - 1;
+	GtkSizeGroup *sg = g_object_get_data (G_OBJECT (box), "nx-bbox-sg");
+	GtkWidget *c;
+
+	if (layout < 0 || !GTK_IS_BUTTON (child))
+		return;
+	gtk_size_group_add_widget (sg, child);
+	if (gtk_orientable_get_orientation (GTK_ORIENTABLE (box)) == GTK_ORIENTATION_HORIZONTAL)
+		gtk_widget_set_size_request (child, 85, -1);
+	gtk_widget_set_hexpand (child, FALSE);
+	if (layout != NX_BUTTONBOX_SPREAD && layout != NX_BUTTONBOX_EDGE)
+		return;
+	/* in equal slots: SPREAD centres each; EDGE puts the ends at the edges */
+	for (c = gtk_widget_get_first_child (box); c; c = gtk_widget_get_next_sibling (c))
+	{
+		GtkAlign a = GTK_ALIGN_CENTER;
+		if (layout == NX_BUTTONBOX_EDGE && !gtk_widget_get_prev_sibling (c))
+			a = GTK_ALIGN_START;
+		else if (layout == NX_BUTTONBOX_EDGE && !gtk_widget_get_next_sibling (c))
+			a = GTK_ALIGN_END;
+		gtk_widget_set_halign (c, a);
+	}
 }
 
 /* window placement hints: GTK4 leaves placement to the window manager */
@@ -245,6 +292,8 @@ nx_radio_button_new (GtkWidget *group, const char *mnemonic)
 	GtkWidget *b = gtk_check_button_new_with_mnemonic (mnemonic);
 	if (group)
 		gtk_check_button_set_group (GTK_CHECK_BUTTON (b), GTK_CHECK_BUTTON (group));
+	else
+		gtk_check_button_set_active (GTK_CHECK_BUTTON (b), TRUE);	/* GTK3 radios did */
 	return b;
 }
 

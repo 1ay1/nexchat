@@ -326,6 +326,16 @@ css_append_font (GString *css, const PangoFontDescription *fd)
 	}
 }
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+static void
+css_parsing_error (GtkCssProvider *p, GtkCssSection *section, GError *err, gpointer d)
+{
+	char *where = gtk_css_section_to_string (section);
+	g_warning ("nexchat css: %s: %s", where, err->message);
+	g_free (where);
+}
+#endif
+
 void
 fe_apply_css (void)
 {
@@ -354,6 +364,7 @@ fe_apply_css (void)
 	{
 		fe_css_provider = gtk_css_provider_new ();
 #if GTK_CHECK_VERSION(4, 0, 0)
+		g_signal_connect (fe_css_provider, "parsing-error", G_CALLBACK (css_parsing_error), NULL);
 		gtk_style_context_add_provider_for_display (screen,
 					GTK_STYLE_PROVIDER (fe_css_provider),
 					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -432,8 +443,45 @@ fe_apply_css (void)
 		"#hexchat-ulistinfo label { padding: 1px 2px; }\n");
 
 #if GTK_CHECK_VERSION(4, 0, 0)
-	/* GTK4 reports CSS errors through the provider's parsing-error signal
-	   and always loads what it can */
+	/* GTK4 popover menus: make them plain GTK3 menus. Square, 1px border, no
+	   shadow margin, 25px rows, items flush to the edge. */
+	g_string_append (css,
+		"popover.menu { padding: 0; margin: 0; box-shadow: none; }\n"
+		"popover.menu > contents { padding: 0; border-radius: 0;"
+		" border: 1px solid alpha(black, 0.23); box-shadow: none; }\n"
+		"popover.menu > arrow { min-width: 0; min-height: 0; border: none; }\n"
+		"popover.menu modelbutton { min-height: 17px; padding: 4px 8px 4px 30px;"
+		" border-radius: 0; }\n"
+		"popover.menu modelbutton:hover, popover.menu modelbutton:selected {"
+		" background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; }\n"
+		"popover.menu separator { margin: 0; }\n"
+		/* GTK3 menus drew a real box/circle for checks and radios */
+		"popover.menu check, popover.menu radio { min-width: 14px; min-height: 14px;"
+		" border: 1px solid alpha(currentColor, 0.45); background-color: @theme_base_color;"
+		" margin: 0 8px 0 -22px; }\n"
+		"popover.menu check { border-radius: 3px; }\n"
+		"popover.menu radio { border-radius: 100%; }\n"
+		"popover.menu modelbutton:selected check, popover.menu modelbutton:selected radio {"
+		" color: @theme_fg_color; }\n"
+		"popover.menu check:checked, popover.menu radio:checked {"
+		" background-color: @theme_selected_bg_color; border-color: @theme_selected_bg_color;"
+		" color: @theme_selected_fg_color; }\n"
+		"popover.menu box.inline-buttons { padding: 0; }\n"
+		"popover.menu modelbutton arrow { opacity: 1; }\n"
+		/* item icons sit in the left gutter, like GTK3's image menu items */
+		"popover.menu modelbutton image.nx-menu-icon { margin: 0 6px 0 -22px; min-width: 16px; }\n"
+		/* the menu bar's items: GTK3 sizes, square highlight */
+		"popovermenubar > item { padding: 4px 7px; border-radius: 0; }\n"
+		/* frames (the chat view's): GTK3 drew them square */
+		"frame, frame > border { border-radius: 0; }\n"
+		/* GTK3 lists showed focus with a dotted row, not a blue outline */
+		"scrolledwindow, treeview { outline: none; }\n"
+		/* entries and buttons: GTK3 Adwaita's 4px corners, not GTK4's 6px */
+		"entry, button { border-radius: 4px; }\n");
+#endif
+
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK4 loads what it can and reports errors through a signal */
 	gtk_css_provider_load_from_string (fe_css_provider, css->str);
 	(void) err;
 #else
