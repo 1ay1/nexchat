@@ -21,7 +21,7 @@ if get_option('gtk-frontend')
   endif
 
   desktop_conf = configuration_data()
-  if dbus_glib_dep.found()
+  if use_dbus
     desktop_conf.set('exec_command', 'nexchat --existing %U')
   else
     desktop_conf.set('exec_command', 'nexchat %U')

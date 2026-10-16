@@ -1,5 +1,5 @@
 dbus_deps = [
-  dbus_glib_dep
+  libgio_dep
 ]
 
 dbus_sources = [
@@ -37,16 +37,8 @@ configure_file(
   install_dir: dbus_service_dir
 )
 
-dbus_binding_tool = find_program('dbus-binding-tool')
-dbus_remote_object = custom_target('remote-object-glue',
-  input: 'remote-object.xml',
-  output: 'remote-object-glue.h',
-  command: [dbus_binding_tool, '--prefix=remote_object', '--mode=glib-server',
-            '--output=@OUTPUT@', '@INPUT@']
-)
-
 hexchat_dbus = static_library('hexchatdbus',
-  sources: [dbus_remote_object, marshal] + dbus_sources,
+  sources: dbus_sources,
   c_args: dbus_cargs,
   dependencies: common_deps + dbus_deps,
   include_directories: dbus_includes,

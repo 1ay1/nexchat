@@ -157,6 +157,11 @@ xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
 if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   # a GTK critical anywhere fails the test (the client aborts)
   gui_env = ['XVFB=' + xvfb.full_path(), 'G_DEBUG=fatal-criticals']
+  if use_dbus
+    test('dbus-remote', find_program('sh'),
+      args: [files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
+      env: gui_env + ['DISP=:89'], timeout: 90, is_parallel: false)
+  endif
   test('gtkcompat', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), gtkcompat_test],
     env: gui_env + ['DISP=:84'], timeout: 60)

@@ -245,6 +245,50 @@ nx_main_loop (void)
 	return loop;
 }
 
+static GtkApplication *app;
+
+GtkApplication *
+nx_app (void)
+{
+	return app;
+}
+
+/* every toplevel joins the app as it's created: the app id names the
+   window on Wayland (the dock/taskbar entry, its icon) */
+static void
+window_added (GListModel *toplevels, guint pos, guint removed, guint added, gpointer d)
+{
+	guint i;
+
+	for (i = pos; i < pos + added; i++)
+	{
+		GObject *w = g_list_model_get_item (toplevels, i);
+		if (GTK_IS_WINDOW (w) && !gtk_window_get_application (GTK_WINDOW (w)))
+			gtk_window_set_application (GTK_WINDOW (w), app);
+		g_object_unref (w);
+	}
+}
+
+void
+nx_app_init (void)
+{
+	GError *err = NULL;
+
+	gtk_init ();
+	/* we run our own main loop: register by hand, hold so the app
+	   doesn't quit when a window closes (fe_exit quits) */
+	app = gtk_application_new ("io.github.nexchat", G_APPLICATION_NON_UNIQUE);
+	if (!g_application_register (G_APPLICATION (app), NULL, &err))
+	{
+		g_warning ("application: %s", err->message);
+		g_error_free (err);
+		g_clear_object (&app);
+		return;
+	}
+	g_application_hold (G_APPLICATION (app));
+	g_signal_connect (gtk_window_get_toplevels (), "items-changed", G_CALLBACK (window_added), NULL);
+}
+
 static nx_window_state
 toplevel_state (GtkWindow *win)
 {

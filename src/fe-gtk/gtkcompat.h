@@ -416,9 +416,12 @@ nx_image_new_from_pixbuf (GdkPixbuf *pix)
 #define nx_window_iconify(w) gtk_window_minimize (GTK_WINDOW (w))
 #define nx_window_deiconify(w) gtk_window_unminimize (GTK_WINDOW (w))
 
-/* gtk_init / gtk_main without a GtkApplication (that comes later): GTK4's
-   gtk_init takes no arguments, the loop is a GMainLoop */
-#define nx_gtk_init(argc, argv) gtk_init ()
+/* GTK4: a GtkApplication with the desktop file's id, so Wayland docks
+   match windows to io.github.nexchat. Non-unique: a second nexchat starts
+   as before (-e/--existing is the D-Bus remote, not GApplication). */
+#define nx_gtk_init(argc, argv) nx_app_init ()
+void nx_app_init (void);
+GtkApplication *nx_app (void);
 GMainLoop *nx_main_loop (void);
 #define nx_main() g_main_loop_run (nx_main_loop ())
 #define nx_main_quit() g_main_loop_quit (nx_main_loop ())

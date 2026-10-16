@@ -78,7 +78,7 @@ if libssl_dep.found()
   common_deps += libssl_dep
 endif
 
-if dbus_glib_dep.found()
+if use_dbus
   subdir('dbus')
   common_deps += hexchat_dbus_dep
   common_includes += include_directories('dbus')

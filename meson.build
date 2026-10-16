@@ -18,7 +18,11 @@ libgmodule_dep = dependency('gmodule-2.0')
 
 libcanberra_dep = dependency('libcanberra', version: '>= 0.22',
                              required: get_option('libcanberra'))
-dbus_glib_dep = dependency('dbus-glib-1', required: get_option('dbus'))
+# the remote API and --existing are GDBus (gio); off on Windows
+use_dbus = get_option('dbus').allowed() and host_machine.system() != 'windows'
+if get_option('dbus').enabled() and not use_dbus
+  error('dbus: not supported on Windows')
+endif
 
 global_deps = []
 if cc.get_id() == 'msvc'
@@ -40,7 +44,7 @@ config_h.set10('ENABLE_NLS', true)
 # Optional features
 config_h.set('USE_OPENSSL', libssl_dep.found())
 config_h.set('USE_LIBCANBERRA', libcanberra_dep.found())
-config_h.set('USE_DBUS', dbus_glib_dep.found())
+config_h.set('USE_DBUS', use_dbus)
 config_h.set('USE_PLUGIN', get_option('plugin'))
 
 config_h.set('G_DISABLE_SINGLE_INCLUDES', true)
@@ -186,7 +190,7 @@ if meson.version().version_compare('>= 0.53.0')
   summary({
     'TLS (openssl)': libssl_dep.found(),
     'Plugin Support': get_option('plugin'),
-    'DBus Support': dbus_glib_dep.found(),
+    'DBus Support': use_dbus,
     'libcanberra': libcanberra_dep.found(),
   }, section: 'Features')
 

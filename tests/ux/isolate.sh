@@ -3,6 +3,8 @@
 # fonts: the tests click at fixed coordinates. DejaVu is what CI has.
 unset WAYLAND_DISPLAY
 export GDK_BACKEND=x11
+# no accessibility bus in a private test session (GTK4 asserts without it)
+export GTK_A11Y=none NO_AT_BRIDGE=1
 XDG_CONFIG_HOME=$(mktemp -d)
 export XDG_CONFIG_HOME
 unset GTK_THEME
@@ -31,5 +33,5 @@ export FONTCONFIG_FILE="$XDG_CONFIG_HOME/fontconfig/fonts.conf"
 start_xvfb() {
 	"$1" "$2" -screen 0 "${3:-1100}x${4:-720}x24" -nolisten tcp >/dev/null 2>&1 &
 	xv=$!
-	DISPLAY=$2 python3 "$(dirname "$0")/xkey.py" --wait-display
+	DISPLAY=$2 python3 "${NX_UX_DIR:-$(dirname "$0")}/xkey.py" --wait-display
 }
