@@ -12,7 +12,7 @@ tmp=$(mktemp -d)
 app=; ircd=; xv=
 cleanup() {
 	if [ -n "${KEEP:-}" ]; then
-		DISPLAY=$disp "${XWD:-/opt/X11/bin/xwd}" -root -silent -out "$tmp/s.xwd" 2>/dev/null || true
+		DISPLAY=$disp "${XWD:-$(command -v xwd || echo /opt/X11/bin/xwd)}" -root -silent -out "$tmp/s.xwd" 2>/dev/null || true
 		cp -r "$tmp" "$KEEP"
 	fi
 	kill $app $ircd $xv 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"; }

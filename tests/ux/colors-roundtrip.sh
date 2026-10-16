@@ -4,7 +4,7 @@
 set -eu
 bin=$1
 here=$(cd "$(dirname "$0")" && pwd)
-xvfb=${XVFB:-/opt/X11/bin/Xvfb}
+xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
 disp=${SHOT_DISPLAY:-:94}
 tmp=$(mktemp -d)
 trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT

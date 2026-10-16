@@ -6,8 +6,8 @@
 set -eu
 bin=$1; out=$2; cmd=$3; extra=${4:-}
 here=$(cd "$(dirname "$0")" && pwd)
-xvfb=${XVFB:-/opt/X11/bin/Xvfb}
-xwd=${XWD:-/opt/X11/bin/xwd}
+xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
+xwd=${XWD:-$(command -v xwd || echo /opt/X11/bin/xwd)}
 disp=${SHOT_DISPLAY:-:94}
 tmp=$(mktemp -d)
 trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT

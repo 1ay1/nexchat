@@ -83,7 +83,7 @@ if host_machine.system() == 'windows'
   hexchat_gtk_ldflags += '-Wl,-e,mainCRTStartup'
 endif
 
-executable('nexchat',
+hexchat_gtk = executable('nexchat',
   sources:  resources + hexchat_gtk_sources,
   dependencies: hexchat_gtk_deps,
   c_args: hexchat_gtk_cflags,
@@ -98,3 +98,19 @@ test('palette-roundtrip', executable('palette-roundtrip',
   sources: ['../../tests/palette-roundtrip.c', 'palette-c16.c'],
   dependencies: libgio_dep,
 ))
+
+# GUI tests: drive the real binary on a private Xvfb with XTest keys.
+# Need Xvfb + libXtst (+ xwd for colors); skipped (exit 77) where missing.
+xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
+if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
+  gui_env = ['XVFB=' + xvfb.full_path()]
+  test('gui-keys', find_program('sh'),
+    args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)
+  test('gui-menus', find_program('sh'),
+    args: [files('../../tests/ux/menus.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:82'], timeout: 180, is_parallel: false)
+  test('gui-colors-roundtrip', find_program('sh'),
+    args: [files('../../tests/ux/colors-roundtrip.sh'), hexchat_gtk],
+    env: gui_env + ['SHOT_DISPLAY=:83'], timeout: 120, is_parallel: false)
+endif
