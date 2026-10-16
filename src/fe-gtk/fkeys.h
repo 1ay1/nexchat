@@ -22,7 +22,11 @@
 
 /* These are cp'ed from history.c --AGL */
 #define STATE_SHIFT		GDK_SHIFT_MASK
+#if GTK_CHECK_VERSION(4, 0, 0)
+#define STATE_ALT		GDK_ALT_MASK
+#else
 #define STATE_ALT		GDK_MOD1_MASK
+#endif
 /* The "primary" shortcut modifier: Command (GDK_META_MASK) on native macOS
    (the Quartz backend), Control everywhere else. This used to be decided at
    compile time with __APPLE__, which made an X11 build on a Mac register
@@ -42,11 +46,9 @@ typedef enum
 
 /* toolkit-independent: keyval + modifier state in, result out */
 key_result key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess);
-/* GTK3 key_press_event adapter around key_handle() */
-int key_handle_key_press (GtkWidget * wid, GdkEventKey * evt, session *sess);
 /* nx_on_key adapter around key_handle() (GTK3 and GTK4) */
 gboolean key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer unused);
-int key_action_insert (GtkWidget * wid, GdkEventKey * evt, char *d1, char *d2,
+int key_action_insert (GtkWidget * wid, gpointer evt, char *d1, char *d2,
 						 session *sess);
 
 #endif

@@ -142,6 +142,8 @@ struct _GtkXText
 	cairo_t *cr;						/* drawing context on ->backing */
 	int backing_scale;				/* HiDPI scale ->backing was made for */
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
+	gpointer primary_content;		/* GTK4: the GdkContentProvider we put on PRIMARY */
+	gulong primary_tag;				/* GTK4: PRIMARY "changed" handler */
 
 	int pixel_offset;					/* amount of pixels the top line is chopped by */
 

@@ -175,6 +175,11 @@ nx_widget_make_default (GtkWidget *button)
 /* size of a realized widget (GTK3 read it off the GdkWindow) */
 #define nx_widget_get_width(w) gtk_widget_get_width (GTK_WIDGET (w))
 #define nx_widget_get_height(w) gtk_widget_get_height (GTK_WIDGET (w))
+#define nx_widget_get_allocated_width(w) gtk_widget_get_width (GTK_WIDGET (w))
+#define nx_widget_get_allocated_height(w) gtk_widget_get_height (GTK_WIDGET (w))
+
+/* the window holding w is the active one (has the keyboard) */
+#define nx_widget_window_is_active(w) gtk_window_is_active (GTK_WINDOW (gtk_widget_get_root (GTK_WIDGET (w))))
 
 /* pointer shape by CSS cursor name ("pointer", "w-resize"); NULL: default */
 #define nx_widget_set_cursor_name(w, name) \
@@ -228,6 +233,10 @@ nx_widget_make_default (GtkWidget *button)
 
 #define nx_widget_get_width(w) gdk_window_get_width (gtk_widget_get_window (GTK_WIDGET (w)))
 #define nx_widget_get_height(w) gdk_window_get_height (gtk_widget_get_window (GTK_WIDGET (w)))
+#define nx_widget_get_allocated_width(w) gtk_widget_get_allocated_width (GTK_WIDGET (w))
+#define nx_widget_get_allocated_height(w) gtk_widget_get_allocated_height (GTK_WIDGET (w))
+
+#define nx_widget_window_is_active(w) gtk_window_has_toplevel_focus (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (w))))
 
 /* GTK3: the old GdkCursorType for the two names we use, so the shapes
    don't change; anything else goes by name */
