@@ -112,6 +112,8 @@ void nx_col_set_min_width (nx_col *col, int width);
 void nx_col_set_fixed_width (nx_col *col, int width);
 /* header title alignment, 0.0 left .. 1.0 right */
 void nx_col_set_title_align (nx_col *col, float xalign);
+/* the cells' text alignment, 0.0 left .. 1.0 right */
+void nx_col_set_xalign (nx_col *col, float xalign);
 /* clicking the header sorts by value_col */
 void nx_col_set_sort_column (nx_col *col, int value_col);
 /* ... or with a compare function */

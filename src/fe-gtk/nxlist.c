@@ -486,6 +486,7 @@ struct _nx_col
 	float title_align;
 	gboolean expand_set;
 	int min_width;
+	float xalign;
 };
 
 /* GtkTreeView gave the last column the space left over unless some column
@@ -873,7 +874,7 @@ factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 			GtkEventController *k;
 
 			c->label = gtk_label_new (NULL);
-			gtk_label_set_xalign (GTK_LABEL (c->label), 0.0);
+			gtk_label_set_xalign (GTK_LABEL (c->label), col->xalign);
 			gtk_widget_set_hexpand (c->label, TRUE);
 			gtk_box_append (GTK_BOX (box), c->label);
 			if (col->editable || col->editable_col >= 0)
@@ -1181,6 +1182,12 @@ apply_title_align (GtkWidget *view)
 			}
 		}
 	}
+}
+
+void
+nx_col_set_xalign (nx_col *col, float xalign)
+{
+	col->xalign = xalign;
 }
 
 void
@@ -2372,6 +2379,12 @@ void
 nx_col_set_title_align (nx_col *col, float xalign)
 {
 	gtk_tree_view_column_set_alignment (col->col, xalign);
+}
+
+void
+nx_col_set_xalign (nx_col *col, float xalign)
+{
+	g_object_set (col->render, "xalign", xalign, NULL);
 }
 
 void

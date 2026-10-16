@@ -481,11 +481,10 @@ fe_apply_css (void)
 		"scrolledwindow, treeview { outline: none; }\n"
 		/* entries and buttons: GTK3 Adwaita's 4px corners, not GTK4's 6px */
 		"entry, button { border-radius: 4px; }\n"
-		/* GTK3 Adwaita: text buttons 16px each side; icon+text 8px, plus 8px
-		   round the label (GTK4 uses 10-12px) */
-		"button.text-button { padding-left: 16px; padding-right: 16px; }\n"
-		"button.nx-image-text { padding-left: 8px; padding-right: 8px; }\n"
-		"button.nx-image-text label { padding-left: 2px; padding-right: 6px; }\n"
+		/* GTK3 Adwaita: buttons 9px each side (GTK4: 10px), the image 2px
+		   from the label */
+		"button.text-button, button.nx-image-text { padding-left: 9px; padding-right: 9px; }\n"
+		"button.nx-image-text label { padding: 0; }\n"
 		/* check/radio buttons: GTK3's 23px rows (GTK4 Adwaita pads them to 26) */
 		"checkbutton { padding: 2px 2px; min-height: 0; }\n"
 		/* nxlist views: GTK3 tree view look. GTK3 rows were the text plus the

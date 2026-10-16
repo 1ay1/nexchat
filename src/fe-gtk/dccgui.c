@@ -34,6 +34,7 @@
 #include "../common/util.h"
 #include "../common/network.h"
 #include "gtkutil.h"
+#include "nxlist.h"
 #include "palette.h"
 #include "maingui.h"
 
@@ -71,8 +72,7 @@ struct dccwindow
 	GtkWidget *window;
 
 	GtkWidget *list;
-	GtkListStore *store;
-	GtkTreeSelection *sel;
+	nx_store *store;
 
 	GtkWidget *abort_button;
 	GtkWidget *accept_button;
@@ -152,8 +152,7 @@ fe_dcc_send_filereq (struct session *sess, char *nick, int maxcps, int passive)
 }
 
 static void
-dcc_prepare_row_chat (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
-							 gboolean update_only)
+dcc_prepare_row_chat (struct DCC *dcc, nx_row *row, gboolean update_only)
 {
 	static char pos[16], size[16];
 	char *date;
@@ -164,7 +163,7 @@ dcc_prepare_row_chat (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 	proper_unit (dcc->pos, pos, sizeof (pos));
 	proper_unit (dcc->size, size, sizeof (size));
 
-	gtk_list_store_set (store, iter,
+	nx_row_set (row,
 							  CCOL_STATUS, _(dccstat[dcc->dccstat].name),
 							  CCOL_NICK, dcc->nick,
 							  CCOL_RECV, pos,
@@ -179,8 +178,7 @@ dcc_prepare_row_chat (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 }
 
 static void
-dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
-							 gboolean update_only)
+dcc_prepare_row_send (struct DCC *dcc, nx_row *row, gboolean update_only)
 {
 	static char pos[16], size[16], kbs[14], perc[14], eta[14];
 	int to_go;
@@ -205,7 +203,7 @@ dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 		strcpy (eta, "--:--:--");
 
 	if (update_only)
-		gtk_list_store_set (store, iter,
+		nx_row_set (row,
 								  COL_STATUS, _(dccstat[dcc->dccstat].name),
 								  COL_POS, pos,
 								  COL_PERC, perc,
@@ -217,7 +215,7 @@ dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 									colors + dccstat[dcc->dccstat].color,
 									-1);
 	else
-		gtk_list_store_set (store, iter,
+		nx_row_set (row,
 								  COL_TYPE, pix_up,
 								  COL_STATUS, _(dccstat[dcc->dccstat].name),
 								  COL_FILE, file_part (dcc->file),
@@ -236,8 +234,7 @@ dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 }
 
 static void
-dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
-							 gboolean update_only)
+dcc_prepare_row_recv (struct DCC *dcc, nx_row *row, gboolean update_only)
 {
 	static char size[16], pos[16], kbs[16], perc[14], eta[16];
 	float per;
@@ -265,7 +262,7 @@ dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 		strcpy (eta, "--:--:--");
 
 	if (update_only)
-		gtk_list_store_set (store, iter,
+		nx_row_set (row,
 								  COL_STATUS, _(dccstat[dcc->dccstat].name),
 								  COL_POS, pos,
 								  COL_PERC, perc,
@@ -277,7 +274,7 @@ dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 									colors + dccstat[dcc->dccstat].color,
 									-1);
 	else
-		gtk_list_store_set (store, iter,
+		nx_row_set (row,
 								  COL_TYPE, pix_dn,
 								  COL_STATUS, _(dccstat[dcc->dccstat].name),
 								  COL_FILE, file_part (dcc->file),
@@ -295,65 +292,46 @@ dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 									-1);
 }
 
-static gboolean
-dcc_find_row (struct DCC *find_dcc, GtkTreeModel *model, GtkTreeIter *iter, int col)
-{
-	struct DCC *dcc;
-
-	if (gtk_tree_model_get_iter_first (model, iter))
-	{
-		do
-		{
-			gtk_tree_model_get (model, iter, col, &dcc, -1);
-			if (dcc == find_dcc)
-				return TRUE;
-		}
-		while (gtk_tree_model_iter_next (model, iter));
-	}
-
-	return FALSE;
-}
-
 static void
 dcc_update_recv (struct DCC *dcc)
 {
-	GtkTreeIter iter;
+	nx_row *row;
 
 	if (!dccfwin.window)
 		return;
 
-	if (!dcc_find_row (dcc, GTK_TREE_MODEL (dccfwin.store), &iter, COL_DCC))
+	if (!(row = nx_store_find_pointer (dccfwin.store, COL_DCC, dcc)))
 		return;
 
-	dcc_prepare_row_recv (dcc, dccfwin.store, &iter, TRUE);
+	dcc_prepare_row_recv (dcc, row, TRUE);
 }
 
 static void
 dcc_update_chat (struct DCC *dcc)
 {
-	GtkTreeIter iter;
+	nx_row *row;
 
 	if (!dcccwin.window)
 		return;
 
-	if (!dcc_find_row (dcc, GTK_TREE_MODEL (dcccwin.store), &iter, CCOL_DCC))
+	if (!(row = nx_store_find_pointer (dcccwin.store, CCOL_DCC, dcc)))
 		return;
 
-	dcc_prepare_row_chat (dcc, dcccwin.store, &iter, TRUE);
+	dcc_prepare_row_chat (dcc, row, TRUE);
 }
 
 static void
 dcc_update_send (struct DCC *dcc)
 {
-	GtkTreeIter iter;
+	nx_row *row;
 
 	if (!dccfwin.window)
 		return;
 
-	if (!dcc_find_row (dcc, GTK_TREE_MODEL (dccfwin.store), &iter, COL_DCC))
+	if (!(row = nx_store_find_pointer (dccfwin.store, COL_DCC, dcc)))
 		return;
 
-	dcc_prepare_row_send (dcc, dccfwin.store, &iter, TRUE);
+	dcc_prepare_row_send (dcc, row, TRUE);
 }
 
 static void
@@ -363,19 +341,14 @@ close_dcc_file_window (GtkWindow *win, gpointer data)
 }
 
 static void
-dcc_append (struct DCC *dcc, GtkListStore *store, gboolean prepend)
+dcc_append (struct DCC *dcc, nx_store *store, gboolean prepend)
 {
-	GtkTreeIter iter;
-
-	if (prepend)
-		gtk_list_store_prepend (store, &iter);
-	else
-		gtk_list_store_append (store, &iter);
+	nx_row *row = prepend ? nx_store_prepend (store, NULL) : nx_store_append (store, NULL);
 
 	if (dcc->type == TYPE_RECV)
-		dcc_prepare_row_recv (dcc, store, &iter, FALSE);
+		dcc_prepare_row_recv (dcc, row, FALSE);
 	else
-		dcc_prepare_row_send (dcc, store, &iter, FALSE);
+		dcc_prepare_row_send (dcc, row, FALSE);
 }
 
 /* Returns aborted and completed transfers. */
@@ -383,20 +356,14 @@ static GSList *
 dcc_get_completed (void)
 {
 	struct DCC *dcc;
-	GtkTreeIter iter;
-	GtkTreeModel *model;	
+	nx_row *row;
 	GSList *completed = NULL;
 
-	model = GTK_TREE_MODEL (dccfwin.store);
-	if (gtk_tree_model_get_iter_first (model, &iter))
+	for (row = nx_store_first (dccfwin.store); row; row = nx_row_next (row))
 	{
-		do
-		{
-			gtk_tree_model_get (model, &iter, COL_DCC, &dcc, -1);
-			if (is_dcc_completed (dcc))
-				completed = g_slist_prepend (completed, dcc);
-				
-		} while (gtk_tree_model_iter_next (model, &iter));
+		dcc = nx_row_get_pointer (row, COL_DCC);
+		if (is_dcc_completed (dcc))
+			completed = g_slist_prepend (completed, dcc);
 	}
 
 	return completed;
@@ -427,10 +394,9 @@ dcc_fill_window (int flags)
 {
 	struct DCC *dcc;
 	GSList *list;
-	GtkTreeIter iter;
 	int i = 0;
 
-	gtk_list_store_clear (GTK_LIST_STORE (dccfwin.store));
+	nx_store_clear (dccfwin.store);
 
 	if (flags & VIEW_UPLOAD)
 	{
@@ -464,10 +430,7 @@ dcc_fill_window (int flags)
 
 	/* if only one entry, select it (so Accept button can work) */
 	if (i == 1)
-	{
-		gtk_tree_model_get_iter_first (GTK_TREE_MODEL (dccfwin.store), &iter);
-		gtk_tree_selection_select_iter (dccfwin.sel, &iter);
-	}
+		nx_view_select (dccfwin.list, nx_store_first (dccfwin.store));
 	
 	update_clear_button_sensitivity ();
 }
@@ -475,24 +438,14 @@ dcc_fill_window (int flags)
 /* return list of selected DCCs */
 
 static GSList *
-treeview_get_selected (GtkTreeModel *model, GtkTreeSelection *sel, int column)
+treeview_get_selected (GtkWidget *view, int column)
 {
-	GtkTreeIter iter;
+	GList *rows = nx_view_get_selected_rows (view), *l;
 	GSList *list = NULL;
-	void *ptr;
 
-	if (gtk_tree_model_get_iter_first (model, &iter))
-	{
-		do
-		{
-			if (gtk_tree_selection_iter_is_selected (sel, &iter))
-			{
-				gtk_tree_model_get (model, &iter, column, &ptr, -1);
-				list = g_slist_prepend (list, ptr);
-			}
-		}
-		while (gtk_tree_model_iter_next (model, &iter));
-	}
+	for (l = rows; l; l = l->next)
+		list = g_slist_prepend (list, nx_row_get_pointer (l->data, column));
+	g_list_free (rows);
 
 	return g_slist_reverse (list);
 }
@@ -500,8 +453,7 @@ treeview_get_selected (GtkTreeModel *model, GtkTreeSelection *sel, int column)
 static GSList *
 dcc_get_selected (void)
 {
-	return treeview_get_selected (GTK_TREE_MODEL (dccfwin.store),
-											dccfwin.sel, COL_DCC);
+	return treeview_get_selected (dccfwin.list, COL_DCC);
 }
 
 static void
@@ -644,7 +596,7 @@ dcc_details_populate (struct DCC *dcc)
 }
 
 static void
-dcc_row_cb (GtkTreeSelection *sel, gpointer user_data)
+dcc_row_cb (GtkWidget *view, gpointer user_data)
 {
 	struct DCC *dcc;
 	GSList *list;
@@ -689,8 +641,7 @@ dcc_row_cb (GtkTreeSelection *sel, gpointer user_data)
 }
 
 static void
-dcc_dclick_cb (GtkTreeView *view, GtkTreePath *path,
-					GtkTreeViewColumn *column, gpointer data)
+dcc_dclick_cb (GtkWidget *view, nx_row *row, gpointer data)
 {
 	struct DCC *dcc;
 	GSList *list;
@@ -721,18 +672,16 @@ dcc_dclick_cb (GtkTreeView *view, GtkTreePath *path,
 	}
 }
 
-static void
-dcc_add_column (GtkWidget *tree, int textcol, int colorcol, char *title, gboolean right_justified)
+static nx_col *
+dcc_add_column (GtkWidget *view, int textcol, int colorcol, char *title, gboolean right_justified)
 {
-	GtkCellRenderer *renderer;
+	nx_col *col = nx_view_add_column (view, title, NX_COL_TEXT, textcol);
 
-	renderer = gtk_cell_renderer_text_new ();
+	nx_col_bind (col, NX_BIND_FOREGROUND, colorcol);
 	if (right_justified)
-		g_object_set (G_OBJECT (renderer), "xalign", (float) 1.0, NULL);
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (tree), -1, title, renderer,
-																"text", textcol, "foreground-rgba", colorcol,
-																NULL);
-	gtk_cell_renderer_text_set_fixed_height_from_font (GTK_CELL_RENDERER_TEXT (renderer), 1);
+		nx_col_set_xalign (col, 1.0);
+	nx_col_set_expand (col, FALSE);
+	return col;
 }
 
 static GtkWidget *
@@ -789,7 +738,6 @@ int
 fe_dcc_open_recv_win (int passive)
 {
 	GtkWidget *radio, *table, *vbox, *bbox, *view, *exp, *detailbox;
-	GtkListStore *store;
 	GtkWidget *group;
 	char buf[128];
 
@@ -806,40 +754,33 @@ fe_dcc_open_recv_win (int passive)
 	nx_set_border_width (dccfwin.window, 3);
 	gtk_box_set_spacing (GTK_BOX (vbox), 3);
 
-	store = gtk_list_store_new (N_COLUMNS, GDK_TYPE_PIXBUF, G_TYPE_STRING,
-										 G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-										 G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-										 G_TYPE_STRING, G_TYPE_POINTER, GDK_TYPE_RGBA);
-	view = gtkutil_treeview_new (vbox, GTK_TREE_MODEL (store), NULL, -1);
+	dccfwin.store = nx_store_new (FALSE, N_COLUMNS, GDK_TYPE_PIXBUF, G_TYPE_STRING,
+	                              G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+	                              G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+	                              G_TYPE_STRING, G_TYPE_POINTER, GDK_TYPE_RGBA);
+	view = nx_view_new_scrolled (vbox, dccfwin.store);
+	g_object_unref (dccfwin.store);	/* the view keeps it */
 	/* Up/Down Icon column */
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view), -1, NULL,
-																gtk_cell_renderer_pixbuf_new (),
-																"pixbuf", COL_TYPE, NULL);
+	nx_col_set_expand (nx_view_add_column (view, NULL, NX_COL_ICON, COL_TYPE), FALSE);
 	dcc_add_column (view, COL_STATUS, COL_COLOR, _("Status"), FALSE);
-	dcc_add_column (view, COL_FILE,   COL_COLOR, _("File"), FALSE);
+	nx_col_set_expand (dcc_add_column (view, COL_FILE,   COL_COLOR, _("File"), FALSE), TRUE);
 	dcc_add_column (view, COL_SIZE,   COL_COLOR, _("Size"), TRUE);
 	dcc_add_column (view, COL_POS,    COL_COLOR, _("Position"), TRUE);
 	dcc_add_column (view, COL_PERC,   COL_COLOR, "%", TRUE);
 	dcc_add_column (view, COL_SPEED,  COL_COLOR, "KB/s", TRUE);
 	dcc_add_column (view, COL_ETA,    COL_COLOR, _("ETA"), FALSE);
-	dcc_add_column (view, COL_NICK,   COL_COLOR, _("Nick"), FALSE);
-
-	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), COL_FILE), TRUE);
-	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), COL_NICK), TRUE);
+	nx_col_set_expand (dcc_add_column (view, COL_NICK,   COL_COLOR, _("Nick"), FALSE), TRUE);
 
 	dccfwin.list = view;
-	dccfwin.store = store;
-	dccfwin.sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (view));
 	view_mode = VIEW_BOTH;
-	gtk_tree_selection_set_mode (dccfwin.sel, GTK_SELECTION_MULTIPLE);
+	nx_view_set_select_mode (view, GTK_SELECTION_MULTIPLE);
+	nx_view_set_search_column (view, COL_STATUS);
 
 	if (!prefs.hex_gui_tab_utils)
 		nx_on_window_configure (dccfwin.window, dcc_configure_cb, 0);
-	g_signal_connect (G_OBJECT (dccfwin.sel), "changed",
-							G_CALLBACK (dcc_row_cb), NULL);
+	nx_view_on_select (view, dcc_row_cb, NULL);
 	/* double click */
-	g_signal_connect (G_OBJECT (view), "row-activated",
-							G_CALLBACK (dcc_dclick_cb), NULL);
+	nx_view_on_activate (view, dcc_dclick_cb, NULL);
 
 	table = gtk_grid_new ();
 	gtk_grid_set_column_spacing (GTK_GRID (table), 16);
@@ -906,8 +847,7 @@ fe_dcc_open_send_win (int passive)
 static GSList *
 dcc_chat_get_selected (void)
 {
-	return treeview_get_selected (GTK_TREE_MODEL (dcccwin.store),
-											dcccwin.sel, CCOL_DCC);
+	return treeview_get_selected (dcccwin.list, CCOL_DCC);
 }
 
 static void
@@ -947,16 +887,10 @@ dcc_chat_close_cb (void)
 }
 
 static void
-dcc_chat_append (struct DCC *dcc, GtkListStore *store, gboolean prepend)
+dcc_chat_append (struct DCC *dcc, nx_store *store, gboolean prepend)
 {
-	GtkTreeIter iter;
-
-	if (prepend)
-		gtk_list_store_prepend (store, &iter);
-	else
-		gtk_list_store_append (store, &iter);
-
-	dcc_prepare_row_chat (dcc, store, &iter, FALSE);
+	dcc_prepare_row_chat (dcc, prepend ? nx_store_prepend (store, NULL) : nx_store_append (store, NULL),
+								 FALSE);
 }
 
 static void
@@ -964,10 +898,9 @@ dcc_chat_fill_win (void)
 {
 	struct DCC *dcc;
 	GSList *list;
-	GtkTreeIter iter;
 	int i = 0;
 
-	gtk_list_store_clear (GTK_LIST_STORE (dcccwin.store));
+	nx_store_clear (dcccwin.store);
 
 	list = dcc_list;
 	while (list)
@@ -983,14 +916,11 @@ dcc_chat_fill_win (void)
 
 	/* if only one entry, select it (so Accept button can work) */
 	if (i == 1)
-	{
-		gtk_tree_model_get_iter_first (GTK_TREE_MODEL (dcccwin.store), &iter);
-		gtk_tree_selection_select_iter (dcccwin.sel, &iter);
-	}
+		nx_view_select (dcccwin.list, nx_store_first (dcccwin.store));
 }
 
 static void
-dcc_chat_row_cb (GtkTreeSelection *sel, gpointer user_data)
+dcc_chat_row_cb (GtkWidget *view, gpointer user_data)
 {
 	struct DCC *dcc;
 	GSList *list;
@@ -1021,8 +951,7 @@ dcc_chat_row_cb (GtkTreeSelection *sel, gpointer user_data)
 }
 
 static void
-dcc_chat_dclick_cb (GtkTreeView *view, GtkTreePath *path,
-						  GtkTreeViewColumn *column, gpointer data)
+dcc_chat_dclick_cb (GtkWidget *view, nx_row *row, gpointer data)
 {
 	accept_chat_clicked (0, 0);
 }
@@ -1031,7 +960,6 @@ int
 fe_dcc_open_chat_win (int passive)
 {
 	GtkWidget *view, *vbox, *bbox;
-	GtkListStore *store;
 	char buf[128];
 
 	if (dcccwin.window)
@@ -1049,29 +977,25 @@ fe_dcc_open_chat_win (int passive)
 	nx_set_border_width (dcccwin.window, 3);
 	gtk_box_set_spacing (GTK_BOX (vbox), 3);
 
-	store = gtk_list_store_new (CN_COLUMNS, G_TYPE_STRING, G_TYPE_STRING,
-										 G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
-										 G_TYPE_POINTER, GDK_TYPE_RGBA);
-	view = gtkutil_treeview_new (vbox, GTK_TREE_MODEL (store), NULL, -1);
+	dcccwin.store = nx_store_new (FALSE, CN_COLUMNS, G_TYPE_STRING, G_TYPE_STRING,
+	                              G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+	                              G_TYPE_POINTER, GDK_TYPE_RGBA);
+	view = nx_view_new_scrolled (vbox, dcccwin.store);
+	g_object_unref (dcccwin.store);
+	dcccwin.list = view;
 
 	dcc_add_column (view, CCOL_STATUS, CCOL_COLOR, _("Status"), FALSE);
-	dcc_add_column (view, CCOL_NICK,   CCOL_COLOR, _("Nick"), FALSE);
+	nx_col_set_expand (dcc_add_column (view, CCOL_NICK,   CCOL_COLOR, _("Nick"), FALSE), TRUE);
 	dcc_add_column (view, CCOL_RECV,   CCOL_COLOR, _("Recv"), TRUE);
 	dcc_add_column (view, CCOL_SENT,   CCOL_COLOR, _("Sent"), TRUE);
 	dcc_add_column (view, CCOL_START,  CCOL_COLOR, _("Start Time"), FALSE);
 
-	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), 1), TRUE);
+	nx_view_set_select_mode (view, GTK_SELECTION_MULTIPLE);
+	nx_view_set_search_column (view, CCOL_STATUS);
 
-	dcccwin.list = view;
-	dcccwin.store = store;
-	dcccwin.sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (view));
-	gtk_tree_selection_set_mode (dcccwin.sel, GTK_SELECTION_MULTIPLE);
-
-	g_signal_connect (G_OBJECT (dcccwin.sel), "changed",
-							G_CALLBACK (dcc_chat_row_cb), NULL);
+	nx_view_on_select (view, dcc_chat_row_cb, NULL);
 	/* double click */
-	g_signal_connect (G_OBJECT (view), "row-activated",
-							G_CALLBACK (dcc_chat_dclick_cb), NULL);
+	nx_view_on_activate (view, dcc_chat_dclick_cb, NULL);
 
 	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_box_pack_end (vbox, bbox, FALSE, FALSE, 2);
@@ -1132,7 +1056,7 @@ fe_dcc_update (struct DCC *dcc)
 void
 fe_dcc_remove (struct DCC *dcc)
 {
-	GtkTreeIter iter;
+	nx_row *row;
 
 	switch (dcc->type)
 	{
@@ -1140,16 +1064,16 @@ fe_dcc_remove (struct DCC *dcc)
 	case TYPE_RECV:
 		if (dccfwin.window)
 		{
-			if (dcc_find_row (dcc, GTK_TREE_MODEL (dccfwin.store), &iter, COL_DCC))
-				gtk_list_store_remove (dccfwin.store, &iter);
+			if ((row = nx_store_find_pointer (dccfwin.store, COL_DCC, dcc)))
+				nx_row_remove (row);
 		}
 		break;
 
 	default:	/* chat */
 		if (dcccwin.window)
 		{
-			if (dcc_find_row (dcc, GTK_TREE_MODEL (dcccwin.store), &iter, CCOL_DCC))
-				gtk_list_store_remove (dcccwin.store, &iter);
+			if ((row = nx_store_find_pointer (dcccwin.store, CCOL_DCC, dcc)))
+				nx_row_remove (row);
 		}
 		break;
 	}
