@@ -37,6 +37,7 @@ x11.XFlush.argtypes = [ctypes.c_void_p]
 x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
 xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
 xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
 x11.XSetInputFocus.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
 
 POINTER_ROOT = 1
@@ -50,6 +51,9 @@ def focus_at(dpy, x, y):
     xtst.XTestFakeMotionEvent(dpy, -1, x, y, 0)
     x11.XSetInputFocus(dpy, POINTER_ROOT, REVERT_TO_POINTER_ROOT, 0)
     x11.XSync(dpy, 0)
+    # the toolkit sees FocusIn asynchronously; keys sent before it lands are
+    # dropped (the first characters of --type went missing without this)
+    time.sleep(0.5)
 
 MODS = {"ctrl": "Control_L", "control": "Control_L", "alt": "Alt_L",
         "shift": "Shift_L", "super": "Super_L", "meta": "Meta_L"}
@@ -69,9 +73,11 @@ def press(dpy, combo):
     codes = [keycode(dpy, k) for k in combo.split("+")]
     for c in codes:
         xtst.XTestFakeKeyEvent(dpy, c, 1, 0)
+        x11.XSync(dpy, 0)
+    time.sleep(0.02)
     for c in reversed(codes):
         xtst.XTestFakeKeyEvent(dpy, c, 0, 0)
-    x11.XSync(dpy, 0)
+        x11.XSync(dpy, 0)
 
 
 def type_text(dpy, text, delay):
@@ -98,9 +104,12 @@ def main(argv):
     delay = 0.3
     at = (300, 200)
     text = None
+    clicks = []
     while argv[:1] and argv[0].startswith("--"):
         if argv[0] == "--type":
             text = argv[1]
+        if argv[0] == "--click":
+            clicks.append(tuple(int(v) for v in argv[1].split(",")))
         if argv[0] == "--delay":
             delay = float(argv[1])
         elif argv[0] == "--at":
@@ -110,8 +119,19 @@ def main(argv):
     if not dpy:
         raise SystemExit("cannot open display")
     focus_at(dpy, *at)
+    for cx, cy in clicks:
+        xtst.XTestFakeMotionEvent(dpy, -1, cx, cy, 0)
+        xtst.XTestFakeButtonEvent(dpy, 1, 1, 0)
+        xtst.XTestFakeButtonEvent(dpy, 1, 0, 0)
+        x11.XSync(dpy, 0)
+        time.sleep(delay)
+    if clicks:
+        # back to where keys should go
+        xtst.XTestFakeMotionEvent(dpy, -1, at[0], at[1], 0)
+        x11.XSync(dpy, 0)
+        time.sleep(0.3)
     if text is not None:
-        type_text(dpy, text, 0.05)
+        type_text(dpy, text, 0.03)
     for combo in argv:
         press(dpy, combo)
         time.sleep(delay)

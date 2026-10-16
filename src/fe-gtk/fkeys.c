@@ -44,6 +44,9 @@
 #include "../common/plugin.h"
 #include "../common/typedef.h"
 #include <gdk/gdkkeysyms.h>
+#ifdef GDK_WINDOWING_QUARTZ
+#include <gdk/gdkquartz.h>
+#endif
 #include "gtkutil.h"
 #include "menu.h"
 #include "xtext.h"
@@ -284,17 +287,36 @@ key_free (gpointer data)
 
  */
 
+GdkModifierType
+key_primary_modifier (void)
+{
+#ifdef GDK_WINDOWING_QUARTZ
+	static int is_quartz = -1;
+
+	if (is_quartz == -1)
+	{
+		GdkDisplay *display = gdk_display_get_default ();
+		/* before gtk_init there's no display; don't cache that answer */
+		if (!display)
+			return GDK_META_MASK;
+		is_quartz = GDK_IS_QUARTZ_DISPLAY (display) ? 1 : 0;
+	}
+	return is_quartz ? GDK_META_MASK : GDK_CONTROL_MASK;
+#else
+	return GDK_CONTROL_MASK;
+#endif
+}
+
 static inline GdkModifierType
 key_modifier_get_valid (GdkModifierType mod)
 {
 	GdkModifierType ret;
 
-#ifdef __APPLE__
-	ret = mod & (GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_MOD1_MASK | GDK_META_MASK);
-#else
-	/* These masks work on both Windows and Unix */
+	/* These masks work on Windows, X11 and Wayland; Meta (Command) only
+	   matters on native macOS */
 	ret = mod & (GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_MOD1_MASK);
-#endif
+	if (key_primary_modifier () == GDK_META_MASK)
+		ret |= mod & GDK_META_MASK;
 
 	return ret;
 }

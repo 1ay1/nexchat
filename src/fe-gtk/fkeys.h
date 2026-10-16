@@ -23,11 +23,13 @@
 /* These are cp'ed from history.c --AGL */
 #define STATE_SHIFT		GDK_SHIFT_MASK
 #define STATE_ALT		GDK_MOD1_MASK
-#ifdef __APPLE__
-#define STATE_CTRL		GDK_META_MASK
-#else
-#define STATE_CTRL		GDK_CONTROL_MASK
-#endif
+/* The "primary" shortcut modifier: Command (GDK_META_MASK) on native macOS
+   (the Quartz backend), Control everywhere else. This used to be decided at
+   compile time with __APPLE__, which made an X11 build on a Mac register
+   every Ctrl shortcut as <Meta>: X11 never reports Meta, so GTK matched
+   those accelerators on the bare key and typing 'q' quit the client. */
+GdkModifierType key_primary_modifier (void);
+#define STATE_CTRL		(key_primary_modifier ())
 
 void key_init (void);
 void key_dialog_show (void);
