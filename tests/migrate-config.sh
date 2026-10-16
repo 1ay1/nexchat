@@ -4,6 +4,10 @@
 # usage: tests/migrate-config.sh path/to/nexchat-text
 set -eu
 bin=$1
+# Windows migrates %APPDATA%\HexChat -> %APPDATA%\nexchat (get_old_xdir),
+# which XDG_CONFIG_HOME can't redirect, and MSYS can't make the symlink
+# fixture. 77 = skipped for meson.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) echo "migrate-config: skipped on Windows"; exit 77;; esac
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
