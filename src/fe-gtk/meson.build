@@ -11,6 +11,7 @@ hexchat_gtk_sources = [
   'gtkutil.c',
   'gtkevents.c',
   'gtkdnd.c',
+  'nxmenu.c',
   'ignoregui.c',
   'joind.c',
   'menu.c',
@@ -123,6 +124,16 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('gtkdnd', gtkdnd_test)
 endif
 
+# nxmenu.c: the same menu semantics on GTK3 (GtkMenu) and GTK4 (GMenu)
+nxmenu_test = executable('nxmenu-test',
+  sources: ['../../tests/nxmenu-test.c', 'nxmenu.c'],
+  include_directories: include_directories('.'),
+  dependencies: gtk_dep,
+)
+if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
+  test('nxmenu', nxmenu_test)
+endif
+
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.
 # Need Xvfb + libXtst (+ xwd for colors); skipped (exit 77) where missing.
 xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
@@ -134,6 +145,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gtkdnd', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), gtkdnd_test],
     env: gui_env + ['DISP=:86'], timeout: 60)
+  test('nxmenu', find_program('sh'),
+    args: [files('../../tests/ux/with-xvfb.sh'), nxmenu_test],
+    env: gui_env + ['DISP=:87'], timeout: 60)
   test('gui-keys', find_program('sh'),
     args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)

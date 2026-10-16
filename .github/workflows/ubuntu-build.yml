@@ -33,6 +33,8 @@ jobs:
           sudo apt-get install -y libgtk-4-dev
           cc $(pkg-config --cflags gtk4) -I src/fe-gtk -o gtkcompat4 tests/gtkcompat-test.c $(pkg-config --libs gtk4)
           xvfb-run -a ./gtkcompat4
+          cc $(pkg-config --cflags gtk4) -I src/fe-gtk -o nxmenu4 tests/nxmenu-test.c src/fe-gtk/nxmenu.c $(pkg-config --libs gtk4)
+          xvfb-run -a ./nxmenu4
 
       # the files whose GTK4 branches are written (input, drag and drop, the
       # chat view) must keep compiling against GTK4 until the switch
