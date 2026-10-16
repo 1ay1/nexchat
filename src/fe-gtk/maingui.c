@@ -161,7 +161,7 @@ static PangoAttrList *newmsg_list;
 static PangoAttrList *plain_list = NULL;
 
 static PangoAttrList *
-mg_attr_list_create (GdkColor *col, int size)
+mg_attr_list_create (GdkRGBA *col, int size)
 {
 	PangoAttribute *attr;
 	PangoAttrList *list;
@@ -170,7 +170,7 @@ mg_attr_list_create (GdkColor *col, int size)
 
 	if (col)
 	{
-		attr = pango_attr_foreground_new (col->red, col->green, col->blue);
+		attr = pango_attr_foreground_new (C16R (*col), C16G (*col), C16B (*col));
 		attr->start_index = 0;
 		attr->end_index = 0xffff;
 		pango_attr_list_insert (list, attr);
@@ -1524,7 +1524,7 @@ mg_create_color_menu (GtkWidget *menu, session *sess)
 	{
 		sprintf (buf, "<tt><sup>%02d</sup> <span background=\"#%02x%02x%02x\">"
 					"   </span></tt>",
-				i, colors[i].red >> 8, colors[i].green >> 8, colors[i].blue >> 8);
+				i, C8R (colors[i]), C8G (colors[i]), C8B (colors[i]));
 		mg_markup_item (subsubmenu, buf, i);
 	}
 
@@ -1534,7 +1534,7 @@ mg_create_color_menu (GtkWidget *menu, session *sess)
 	{
 		sprintf (buf, "<tt><sup>%02d</sup> <span background=\"#%02x%02x%02x\">"
 					"   </span></tt>",
-				i, colors[i].red >> 8, colors[i].green >> 8, colors[i].blue >> 8);
+				i, C8R (colors[i]), C8G (colors[i]), C8B (colors[i]));
 		mg_markup_item (subsubmenu, buf, i);
 	}
 }

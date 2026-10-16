@@ -80,8 +80,8 @@ typedef enum marker_reset_reason_e {
 /* what a GdkGC used to carry for us: a foreground and a background colour */
 typedef struct
 {
-	GdkColor fg;
-	GdkColor bg;
+	GdkRGBA fg;
+	GdkRGBA bg;
 } xtext_gc;
 
 typedef struct {
@@ -157,7 +157,7 @@ struct _GtkXText
 	xtext_gc dark_gc;
 	xtext_gc thin_gc;
 	xtext_gc marker_gc;
-	GdkColor palette[XTEXT_COLS];
+	GdkRGBA palette[XTEXT_COLS];
 
 	gint io_tag;					  /* for delayed refresh events */
 	gint add_io_tag;				  /* "" when adding new text */
@@ -257,7 +257,7 @@ struct _GtkXTextClass
 	void (*word_click) (GtkXText * xtext, char *word, GdkEventButton * event);
 };
 
-GtkWidget *gtk_xtext_new (GdkColor palette[], int separator);
+GtkWidget *gtk_xtext_new (GdkRGBA palette[], int separator);
 void gtk_xtext_append (xtext_buffer *buf, unsigned char *text, int len, time_t stamp);
 void gtk_xtext_append_indent (xtext_buffer *buf,
 										unsigned char *left_text, int left_len,
@@ -265,7 +265,7 @@ void gtk_xtext_append_indent (xtext_buffer *buf,
 										time_t stamp);
 int gtk_xtext_set_font (GtkXText *xtext, char *name);
 void gtk_xtext_set_background (GtkXText * xtext, GdkPixbuf * pixbuf);
-void gtk_xtext_set_palette (GtkXText * xtext, GdkColor palette[]);
+void gtk_xtext_set_palette (GtkXText * xtext, GdkRGBA palette[]);
 void gtk_xtext_clear (xtext_buffer *buf, int lines);
 void gtk_xtext_save (GtkXText * xtext, int fh);
 void gtk_xtext_refresh (GtkXText * xtext);

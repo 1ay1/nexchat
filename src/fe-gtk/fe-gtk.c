@@ -264,10 +264,7 @@ create_input_style (GtkStyle *style)
 		style->font_desc = pango_font_description_from_string ("sans 11");
 	}
 
-	style->bg[GTK_STATE_NORMAL] = colors[COL_FG];
-	style->base[GTK_STATE_NORMAL] = colors[COL_BG];
-	style->text[GTK_STATE_NORMAL] = colors[COL_FG];
-
+	/* colours: see fe_apply_css(); GTK3 ignores GtkStyle colours */
 	return style;
 }
 
@@ -283,10 +280,9 @@ create_input_style (GtkStyle *style)
 static GtkCssProvider *fe_css_provider;
 
 static void
-css_append_color (GString *css, const char *prop, const GdkColor *c)
+css_append_color (GString *css, const char *prop, const GdkRGBA *c)
 {
-	g_string_append_printf (css, "%s: rgb(%d,%d,%d);", prop,
-									c->red >> 8, c->green >> 8, c->blue >> 8);
+	g_string_append_printf (css, "%s: rgb(%d,%d,%d);", prop, C8R (*c), C8G (*c), C8B (*c));
 }
 
 static void

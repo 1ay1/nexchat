@@ -351,7 +351,7 @@ insert_underline_error (SexySpellEntry *entry, guint start, guint end)
 	PangoAttribute *ucolor;
 	PangoAttribute *unline;
 
-	ucolor = pango_attr_underline_color_new (colors[COL_SPELL].red, colors[COL_SPELL].green, colors[COL_SPELL].blue);
+	ucolor = pango_attr_underline_color_new (C16R (colors[COL_SPELL]), C16G (colors[COL_SPELL]), C16B (colors[COL_SPELL]));
 	unline = pango_attr_underline_new (PANGO_UNDERLINE_ERROR);
 
 	ucolor->start_index = start;
@@ -417,19 +417,19 @@ insert_color (SexySpellEntry *entry, guint start, int fgcolor, int bgcolor)
 
 	if (fgcolor < 0 || fgcolor > MAX_COL)
 	{
-		fgattr = pango_attr_foreground_new (colors[COL_FG].red, colors[COL_FG].green, colors[COL_FG].blue);
-		ulattr = pango_attr_underline_color_new (colors[COL_FG].red, colors[COL_FG].green, colors[COL_FG].blue);
+		fgattr = pango_attr_foreground_new (C16R (colors[COL_FG]), C16G (colors[COL_FG]), C16B (colors[COL_FG]));
+		ulattr = pango_attr_underline_color_new (C16R (colors[COL_FG]), C16G (colors[COL_FG]), C16B (colors[COL_FG]));
 	}
 	else
 	{
-		fgattr = pango_attr_foreground_new (colors[fgcolor].red, colors[fgcolor].green, colors[fgcolor].blue);
-		ulattr = pango_attr_underline_color_new (colors[fgcolor].red, colors[fgcolor].green, colors[fgcolor].blue);
+		fgattr = pango_attr_foreground_new (C16R (colors[fgcolor]), C16G (colors[fgcolor]), C16B (colors[fgcolor]));
+		ulattr = pango_attr_underline_color_new (C16R (colors[fgcolor]), C16G (colors[fgcolor]), C16B (colors[fgcolor]));
 	}
 
 	if (bgcolor < 0 || bgcolor > MAX_COL)
-		bgattr = pango_attr_background_new (colors[COL_BG].red, colors[COL_BG].green, colors[COL_BG].blue);
+		bgattr = pango_attr_background_new (C16R (colors[COL_BG]), C16G (colors[COL_BG]), C16B (colors[COL_BG]));
 	else
-		bgattr = pango_attr_background_new (colors[bgcolor].red, colors[bgcolor].green, colors[bgcolor].blue);
+		bgattr = pango_attr_background_new (C16R (colors[bgcolor]), C16G (colors[bgcolor]), C16B (colors[bgcolor]));
 
 	fgattr->start_index = start;
 	fgattr->end_index = PANGO_ATTR_INDEX_TO_TEXT_END;

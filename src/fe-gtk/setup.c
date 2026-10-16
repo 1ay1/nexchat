@@ -1404,7 +1404,7 @@ setup_create_page (const setting *set)
 /* GTK2 tinted each palette button with a GtkStyle bg; GTK3 ignores that.
    Give the button its own provider so only that button changes. */
 static void
-setup_color_button_paint (GtkWidget *button, const GdkColor *col)
+setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 {
 	GtkCssProvider *prov = g_object_get_data (G_OBJECT (button), "hexchat-color-css");
 	char css[256];
@@ -1422,15 +1422,19 @@ setup_color_button_paint (GtkWidget *button, const GdkColor *col)
 				   made the 16-wide palette rows ~990px. */
 				"button { background-image: none; background-color: rgb(%d,%d,%d);"
 				" padding: 0; min-width: 18px; min-height: 18px; border-radius: 0; }",
-				col->red >> 8, col->green >> 8, col->blue >> 8);
+				C8R (*col), C8G (*col), C8B (*col));
 	gtk_css_provider_load_from_data (prov, css, -1, NULL);
 }
 
+/* GtkColorSelectionDialog is GTK2's picker (deprecated in GTK3, gone in
+   GTK4) and HexChat users know it. GtkColorChooserDialog is the GTK3 one;
+   phase 3 decides between them. Until then keep the old dialog, converting
+   at the edge. */
 static void
 setup_color_ok_cb (GtkWidget *button, GtkWidget *dialog)
 {
 	GtkColorSelectionDialog *cdialog = GTK_COLOR_SELECTION_DIALOG (dialog);
-	GdkColor *col;
+	GdkRGBA *col;
 
 	col = g_object_get_data (G_OBJECT (button), "c");
 
@@ -1444,7 +1448,8 @@ setup_color_ok_cb (GtkWidget *button, GtkWidget *dialog)
 
 	color_change = TRUE;
 
-	gtk_color_selection_get_current_color (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), col);
+	gtk_color_selection_get_current_rgba (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), col);
+	col->alpha = 1.0;	/* the palette has no transparency */
 
 	setup_color_button_paint (button, col);
 
@@ -1456,7 +1461,7 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 {
 	GtkWidget *dialog, *cancel_button, *ok_button, *help_button;
 	GtkColorSelectionDialog *cdialog;
-	GdkColor *color;
+	GdkRGBA *color;
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
 
@@ -1475,7 +1480,7 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 	g_object_set_data (G_OBJECT (ok_button), "c", color);
 	g_object_set_data (G_OBJECT (ok_button), "b", button);
 	gtk_widget_set_sensitive (help_button, FALSE);
-	gtk_color_selection_set_current_color (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), color);
+	gtk_color_selection_set_current_rgba (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), color);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (setup_window));
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 	gtk_widget_show (dialog);

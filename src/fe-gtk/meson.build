@@ -15,6 +15,7 @@ hexchat_gtk_sources = [
   'maingui.c',
   'notifygui.c',
   'palette.c',
+  'palette-c16.c',
   'pixmaps.c',
   'plugin-tray.c',
   'plugin-notification.c',
@@ -90,3 +91,9 @@ executable('nexchat',
   install: true,
   gui_app: true,
 )
+
+# colors.conf values must survive GdkRGBA unchanged (no GTK needed)
+test('palette-roundtrip', executable('palette-roundtrip',
+  sources: ['../../tests/palette-roundtrip.c', 'palette-c16.c'],
+  dependencies: libgio_dep,
+))

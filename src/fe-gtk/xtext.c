@@ -162,14 +162,13 @@ xtext_damage (GtkXText *xtext)
 }
 
 static void
-xtext_source_color (cairo_t *cr, const GdkColor *col)
+xtext_source_color (cairo_t *cr, const GdkRGBA *col)
 {
-	cairo_set_source_rgb (cr, col->red / 65535.0, col->green / 65535.0,
-								 col->blue / 65535.0);
+	cairo_set_source_rgb (cr, col->red, col->green, col->blue);
 }
 
 static void
-xtext_fill_rect (GtkXText *xtext, const GdkColor *col, int x, int y, int w, int h)
+xtext_fill_rect (GtkXText *xtext, const GdkRGBA *col, int x, int y, int w, int h)
 {
 	if (!xtext->cr || w <= 0 || h <= 0)
 		return;
@@ -181,7 +180,7 @@ xtext_fill_rect (GtkXText *xtext, const GdkColor *col, int x, int y, int w, int 
 
 /* gdk_draw_line() with a 1px GC, for the horizontal/vertical lines we use */
 static void
-xtext_draw_line (GtkXText *xtext, const GdkColor *col, int x1, int y1, int x2, int y2)
+xtext_draw_line (GtkXText *xtext, const GdkRGBA *col, int x1, int y1, int x2, int y2)
 {
 	if (x1 > x2) { int t = x1; x1 = x2; x2 = t; }
 	if (y1 > y2) { int t = y1; y1 = y2; y2 = t; }
@@ -534,10 +533,15 @@ gtk_xtext_init (GtkXText * xtext)
 
 	gtk_widget_set_has_window (GTK_WIDGET (xtext), TRUE);
 
-	/* separator bar colours, these never change */
-	xtext->light_gc.fg.red = 0xffff; xtext->light_gc.fg.green = 0xffff; xtext->light_gc.fg.blue = 0xffff;
-	xtext->dark_gc.fg.red = 0x1111; xtext->dark_gc.fg.green = 0x1111; xtext->dark_gc.fg.blue = 0x1111;
-	xtext->thin_gc.fg.red = 0x8e38; xtext->thin_gc.fg.green = 0x8e38; xtext->thin_gc.fg.blue = 0x9f38;
+	/* separator bar colours, these never change (16-bit values from GTK2) */
+	{
+		static const GdkRGBA light = { 0xffff / 65535.0, 0xffff / 65535.0, 0xffff / 65535.0, 1 };
+		static const GdkRGBA dark  = { 0x1111 / 65535.0, 0x1111 / 65535.0, 0x1111 / 65535.0, 1 };
+		static const GdkRGBA thin  = { 0x8e38 / 65535.0, 0x8e38 / 65535.0, 0x9f38 / 65535.0, 1 };
+		xtext->light_gc.fg = light;
+		xtext->dark_gc.fg = dark;
+		xtext->thin_gc.fg = thin;
+	}
 
 	{
 		static const GtkTargetEntry targets[] = {
@@ -650,7 +654,7 @@ gtk_xtext_adjustment_changed (GtkAdjustment * adj, GtkXText * xtext)
 }
 
 GtkWidget *
-gtk_xtext_new (GdkColor palette[], int separator)
+gtk_xtext_new (GdkRGBA palette[], int separator)
 {
 	GtkXText *xtext;
 
@@ -998,7 +1002,7 @@ static void
 gtk_xtext_draw_sep (GtkXText * xtext, int y)
 {
 	int x, height;
-	const GdkColor *light, *dark;
+	const GdkRGBA *light, *dark;
 
 	if (y == -1)
 	{
@@ -3429,7 +3433,7 @@ gtk_xtext_render_line (GtkXText * xtext, textentry * ent, int line,
 }
 
 void
-gtk_xtext_set_palette (GtkXText * xtext, GdkColor palette[])
+gtk_xtext_set_palette (GtkXText * xtext, GdkRGBA palette[])
 {
 	int i;
 

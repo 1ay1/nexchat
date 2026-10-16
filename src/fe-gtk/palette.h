@@ -20,7 +20,18 @@
 #ifndef HEXCHAT_PALETTE_H
 #define HEXCHAT_PALETTE_H
 
-extern GdkColor colors[];
+extern GdkRGBA colors[];
+
+/* colors[] used to be GdkColor (16-bit channels). colors.conf, Pango
+   attributes and a few printf("#%02x...") sites still want integers; these
+   give back exactly the old numbers. */
+guint16 palette_c16 (double channel);
+#define C16R(c) palette_c16 ((c).red)
+#define C16G(c) palette_c16 ((c).green)
+#define C16B(c) palette_c16 ((c).blue)
+#define C8R(c) (C16R (c) >> 8)
+#define C8G(c) (C16G (c) >> 8)
+#define C8B(c) (C16B (c) >> 8)
 
 #define COL_MARK_FG 32
 #define COL_MARK_BG 33
