@@ -21,7 +21,7 @@ mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ninput_tray_priv = 1\ninput_tray_chans = 0\n' > "$tmp/cfg/hexchat.conf"
 DISPLAY=$disp NEXCHAT_TRAY_MENU_DUMP="$tmp/dump" "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
-sleep 4
+wait_window "$disp"
 
 x() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.6 --at 450,580 "$@"; }
 x --type "/traymenu-dump" Return

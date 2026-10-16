@@ -27,7 +27,8 @@ i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 
 NEXCHAT_MENU_DUMP="$tmp/dump" DISPLAY=$disp "$bin" -a -n -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
-sleep 4
+wait_window "$disp"
+wait_for test -s "$tmp/dump"
 cp "$tmp/dump" "$tmp/1-startup"
 
 k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.5 --at 450,580 "$@"; }

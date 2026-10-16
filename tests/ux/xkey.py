@@ -17,7 +17,11 @@ import time
 
 
 def load(name, fallbacks):
-    for path in [ctypes.util.find_library(name)] + fallbacks:
+    # the plain sonames first: ctypes.util.find_library runs ldconfig/gcc
+    # and cost ~0.8s on every call
+    for path in fallbacks + [None]:
+        if path is None:
+            path = ctypes.util.find_library(name)
         if path:
             try:
                 return ctypes.CDLL(path)
@@ -26,8 +30,8 @@ def load(name, fallbacks):
     raise SystemExit(f"cannot load lib{name}")
 
 
-x11 = load("X11", ["/opt/X11/lib/libX11.6.dylib", "libX11.so.6"])
-xtst = load("Xtst", ["/opt/X11/lib/libXtst.6.dylib", "libXtst.so.6"])
+x11 = load("X11", ["libX11.so.6", "/opt/X11/lib/libX11.6.dylib"])
+xtst = load("Xtst", ["libXtst.so.6", "/opt/X11/lib/libXtst.6.dylib"])
 
 x11.XOpenDisplay.restype = ctypes.c_void_p
 x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
@@ -106,6 +110,64 @@ def type_text(dpy, text, delay):
 
 
 def main(argv):
+    if argv[:1] == ["--steal-focus"]:
+        # a plain window named nx-focus-thief, kept open for argv[1] seconds
+        # (a WM gives it focus when activated)
+        dpy = x11.XOpenDisplay(os.environ.get("DISPLAY", "").encode() or None)
+        x11.XDefaultRootWindow.restype = ctypes.c_ulong
+        x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        x11.XCreateSimpleWindow.restype = ctypes.c_ulong
+        x11.XCreateSimpleWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong] + [ctypes.c_int] * 4 + \
+            [ctypes.c_uint, ctypes.c_ulong, ctypes.c_ulong]
+        x11.XMapWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        x11.XStoreName.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_char_p]
+        w = x11.XCreateSimpleWindow(dpy, x11.XDefaultRootWindow(dpy), 700, 450, 200, 100, 1, 0, 0xffffff)
+        x11.XStoreName(dpy, w, b"nx-focus-thief")
+        x11.XMapWindow(dpy, w)
+        x11.XFlush(dpy)
+        time.sleep(float(argv[1]) if len(argv) > 1 else 30)
+        return
+    if argv[:1] == ["--wait-window"]:
+        # exit 0 once a top-level window is mapped (the app is up), 20s max
+        dpy = None
+        for _ in range(100):
+            dpy = x11.XOpenDisplay(os.environ.get("DISPLAY", "").encode() or None)
+            if dpy:
+                break
+            time.sleep(0.1)
+        if not dpy:
+            raise SystemExit("cannot open display")
+        x11.XDefaultRootWindow.restype = ctypes.c_ulong
+        x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        x11.XQueryTree.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong),
+                                   ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.POINTER(ctypes.c_ulong)),
+                                   ctypes.POINTER(ctypes.c_uint)]
+
+        class Attrs(ctypes.Structure):
+            _fields_ = [("x", ctypes.c_int), ("y", ctypes.c_int), ("width", ctypes.c_int),
+                        ("height", ctypes.c_int), ("border_width", ctypes.c_int), ("depth", ctypes.c_int),
+                        ("visual", ctypes.c_void_p), ("root", ctypes.c_ulong), ("class_", ctypes.c_int),
+                        ("bit_gravity", ctypes.c_int), ("win_gravity", ctypes.c_int),
+                        ("backing_store", ctypes.c_int), ("backing_planes", ctypes.c_ulong),
+                        ("backing_pixel", ctypes.c_ulong), ("save_under", ctypes.c_int),
+                        ("colormap", ctypes.c_ulong), ("map_installed", ctypes.c_int),
+                        ("map_state", ctypes.c_int), ("all_event_masks", ctypes.c_long),
+                        ("your_event_mask", ctypes.c_long), ("do_not_propagate_mask", ctypes.c_long),
+                        ("override_redirect", ctypes.c_int), ("screen", ctypes.c_void_p)]
+        x11.XGetWindowAttributes.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(Attrs)]
+        root = x11.XDefaultRootWindow(dpy)
+        for _ in range(200):
+            r, p = ctypes.c_ulong(), ctypes.c_ulong()
+            kids, n = ctypes.POINTER(ctypes.c_ulong)(), ctypes.c_uint()
+            x11.XQueryTree(dpy, root, ctypes.byref(r), ctypes.byref(p), ctypes.byref(kids), ctypes.byref(n))
+            for i in range(n.value):
+                a = Attrs()
+                # IsViewable, and bigger than GTK's 1x1/10x10 helper windows
+                if x11.XGetWindowAttributes(dpy, kids[i], ctypes.byref(a)) and \
+                        a.map_state == 2 and a.width > 50 and a.height > 50:
+                    return
+            time.sleep(0.1)
+        raise SystemExit("no window came up")
     if argv[:1] == ["--wait-display"]:
         # exit 0 once the display takes connections (Xvfb is up)
         for _ in range(100):

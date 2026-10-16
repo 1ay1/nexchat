@@ -644,7 +644,7 @@ userlist_create (GtkWidget *box)
 												GTK_POLICY_AUTOMATIC :
 												GTK_POLICY_NEVER,
 											  GTK_POLICY_AUTOMATIC);
-	nx_box_pack_start (box, sw, TRUE, TRUE, 0);
+	nx_box_pack_start (box, mg_drop_overlay (sw), TRUE, TRUE, 0);
 	gtk_widget_show (sw);
 
 	treeview = gtk_tree_view_new ();

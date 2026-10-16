@@ -55,6 +55,9 @@ void mg_create_icon_item (char *label, char *stock, nx_menu *menu, nx_item_cb ca
 nx_menu *mg_submenu (nx_menu *menu, char *text);
 /* DND */
 void mg_layout_drop_dest (GtkWidget *widget, guint kinds);
+/* GTK4: wrap a layout drop target so its drop outline can be drawn over
+   it; returns what to pack in its place (GTK3: child itself) */
+GtkWidget *mg_drop_overlay (GtkWidget *child);
 /* search */
 void mg_search_toggle(session *sess);
 void mg_search_handle_previous(GtkWidget *wid, session *sess);

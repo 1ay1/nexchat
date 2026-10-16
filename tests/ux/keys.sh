@@ -30,14 +30,14 @@ i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 # "NETWORK" window in HexChat too, and pointer-focus typing lands there.
 DISPLAY=$disp "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
-sleep 4
+wait_window "$disp"
 
 k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.4 --at 450,580 "$@"; }
 t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.4 --at 450,580 --type "$1"; }
 
 t "/server irc://127.0.0.1:-$(cat "$tmp/port")/#nexchat"; k Return
 i=0; while ! grep -q '^JOIN' "$tmp/server.log" 2>/dev/null && [ $i -lt 150 ]; do sleep 0.1; i=$((i+1)); done
-sleep 3
+sleep 1.5
 
 t "first line"; k Return
 t "second line"; k Return

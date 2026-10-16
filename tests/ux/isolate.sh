@@ -35,3 +35,19 @@ start_xvfb() {
 	xv=$!
 	DISPLAY=$2 python3 "${NX_UX_DIR:-$(dirname "$0")}/xkey.py" --wait-display
 }
+
+# wait_window DISPLAY: until the app has a mapped window, then a short
+# settle for the first frame (replaces fixed startup sleeps)
+wait_window() {
+	DISPLAY=$1 python3 "${NX_UX_DIR:-$(dirname "$0")}/xkey.py" --wait-window
+	sleep 0.5
+}
+
+# wait_for CMD...: poll CMD every 0.1s until it succeeds, at most 15s
+wait_for() {
+	_i=0
+	while ! "$@" >/dev/null 2>&1; do
+		_i=$((_i+1)); [ $_i -ge 150 ] && return 1
+		sleep 0.1
+	done
+}

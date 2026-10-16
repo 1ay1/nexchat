@@ -3762,15 +3762,15 @@ mg_drag_drop_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer user_da
 #define MG_DROP_HALF "mg-drop-half"	/* 0 = none, 1 = top, 2 = bottom */
 #define MG_DROP_COL "mg-drop-col"
 
-static gboolean
-mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
+static void
+mg_drag_highlight_paint (GtkWidget *widget, cairo_t *cr)
 {
 	int which = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (widget), MG_DROP_HALF));
 	GdkRGBA *col = g_object_get_data (G_OBJECT (widget), MG_DROP_COL);
 	int width, height, half, y;
 
 	if (!which || !col)
-		return FALSE;
+		return;
 
 	width = gtk_widget_get_allocated_width (widget);
 	height = gtk_widget_get_allocated_height (widget);
@@ -3793,9 +3793,67 @@ mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
 	}
 	cairo_stroke (cr);
 	cairo_restore (cr);
+}
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+/* GTK4 has no ::draw on someone else's widget. The outline goes in a
+   GtkDrawingArea laid over the drop target (same size, input-transparent,
+   inside a GtkOverlay that wraps it) and draws with the same cairo code. */
+static void
+mg_drag_overlay_draw (GtkDrawingArea *da, cairo_t *cr, int w, int h, gpointer target)
+{
+	mg_drag_highlight_paint (target, cr);
+}
+
+static void
+mg_drag_overlay_attach (GtkWidget *widget)
+{
+	GtkWidget *parent = gtk_widget_get_parent (widget), *ov, *da;
+	GtkWidget *outer = widget;
+
+	if (g_object_get_data (G_OBJECT (widget), "mg-drop-da"))
+		return;
+	/* a tree view is drawn by its scrolled window: outline that */
+	if (parent && GTK_IS_VIEWPORT (parent))
+		parent = gtk_widget_get_parent (outer = parent);
+	if (parent && GTK_IS_SCROLLED_WINDOW (parent))
+		outer = parent;
+	ov = gtk_widget_get_parent (outer);
+	if (!GTK_IS_OVERLAY (ov))
+		return;	/* not wrapped (see mg_drop_overlay): no outline */
+	da = gtk_drawing_area_new ();
+	gtk_widget_set_can_target (da, FALSE);
+	gtk_drawing_area_set_draw_func (GTK_DRAWING_AREA (da), mg_drag_overlay_draw, widget, NULL);
+	gtk_overlay_add_overlay (GTK_OVERLAY (ov), da);
+	g_object_set_data (G_OBJECT (widget), "mg-drop-da", da);
+}
+
+/* wrap child in an overlay so a drop outline can be drawn over it; returns
+   what to pack in its place */
+GtkWidget *
+mg_drop_overlay (GtkWidget *child)
+{
+	GtkWidget *ov = gtk_overlay_new ();
+
+	gtk_overlay_set_child (GTK_OVERLAY (ov), child);
+	gtk_widget_set_hexpand (ov, gtk_widget_get_hexpand (child));
+	gtk_widget_set_vexpand (ov, gtk_widget_get_vexpand (child));
+	return ov;
+}
+#else
+GtkWidget *
+mg_drop_overlay (GtkWidget *child)
+{
+	return child;
+}
+
+static gboolean
+mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
+{
+	mg_drag_highlight_paint (widget, cr);
 	return FALSE;
 }
+#endif
 
 static void
 mg_drag_highlight_clear_cb (GtkWidget *widget, gpointer userdata)
@@ -3804,6 +3862,10 @@ mg_drag_highlight_clear_cb (GtkWidget *widget, gpointer userdata)
 	{
 		g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, NULL);
 		gtk_widget_queue_draw (widget);
+#if GTK_CHECK_VERSION(4, 0, 0)
+		if (g_object_get_data (G_OBJECT (widget), "mg-drop-da"))
+			gtk_widget_queue_draw (g_object_get_data (G_OBJECT (widget), "mg-drop-da"));
+#endif
 	}
 }
 
@@ -3813,8 +3875,9 @@ mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unuse
 	GdkRGBA *col;
 	int which;
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	/* TODO GTK4: no ::draw to paint the outline from */
+#if GTK_CHECK_VERSION(4, 0, 0)
+	mg_drag_overlay_attach (widget);
+#else
 	/* hook up the painter the first time this widget is a drop target */
 	if (!g_object_get_data (G_OBJECT (widget), MG_DROP_COL))
 		g_signal_connect_after (G_OBJECT (widget), "draw",
@@ -3834,6 +3897,10 @@ mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unuse
 	which = (y < gtk_widget_get_allocated_height (widget) / 2) ? 1 : 2;
 	g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, GINT_TO_POINTER (which));
 	gtk_widget_queue_draw (widget);
+#if GTK_CHECK_VERSION(4, 0, 0)
+	if (g_object_get_data (G_OBJECT (widget), "mg-drop-da"))
+		gtk_widget_queue_draw (g_object_get_data (G_OBJECT (widget), "mg-drop-da"));
+#endif
 }
 
 /* the channel tree and user list take each other's layout drags (and the

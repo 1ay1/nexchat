@@ -27,8 +27,10 @@ mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ntext_spell_langs = en_US\ngui_input_spell = 1\n' > "$tmp/cfg/hexchat.conf"
 DISPLAY=$disp G_MESSAGES_DEBUG=all "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
-sleep 5
-if ! grep -q "tag en_US" "$tmp/log"; then
+wait_window "$disp"
+hasdict() { grep -q "tag en_US" "$tmp/log"; }
+wait_for hasdict || true
+if ! hasdict; then
 	echo "spell: no enchant en_US dictionary, skipped"; exit 77
 fi
 

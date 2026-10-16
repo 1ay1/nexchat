@@ -32,6 +32,8 @@
 
 #if defined(GDK_WINDOWING_X11) && !GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/gdkx.h>
+#elif defined(GDK_WINDOWING_X11)
+#include <gdk/x11/gdkx.h>
 #endif
 #ifdef GDK_WINDOWING_WAYLAND
 #if GTK_CHECK_VERSION(4, 0, 0)
@@ -194,12 +196,77 @@ gtkutil_window_can_position (GtkWindow *win)
 	return TRUE;
 }
 
+#if GTK_CHECK_VERSION(4, 0, 0) && defined(GDK_WINDOWING_X11)
+/* GTK4 has no window position or urgency API; on X11 do what GTK3 did
+   with Xlib on the toplevel's own X window */
+static Window
+x11_xid (GtkWindow *win)
+{
+	GdkSurface *s;
+
+	if (!GDK_IS_X11_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return None;
+	s = gtk_native_get_surface (GTK_NATIVE (win));
+	return s ? gdk_x11_surface_get_xid (s) : None;
+}
+
+static Display *
+x11_dpy (GtkWindow *win)
+{
+	return gdk_x11_display_get_xdisplay (gtk_widget_get_display (GTK_WIDGET (win)));
+}
+
+static void
+x11_move_now (GtkWindow *win, int x, int y)
+{
+	Window xid = x11_xid (win);
+	XSizeHints *h;
+	long supplied;
+
+	if (!xid)
+		return;
+	/* USPosition: the user asked for this place, WMs honour it */
+	h = XAllocSizeHints ();
+	XGetWMNormalHints (x11_dpy (win), xid, h, &supplied);
+	h->flags |= USPosition | PPosition;
+	h->x = x;
+	h->y = y;
+	XSetWMNormalHints (x11_dpy (win), xid, h);
+	XFree (h);
+	XMoveWindow (x11_dpy (win), xid, x, y);
+}
+
+/* a move asked for before the window has an X window: done at realize */
+static void
+x11_move_on_realize (GtkWidget *w, gpointer unused)
+{
+	int x = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-x"));
+	int y = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-y"));
+
+	x11_move_now (GTK_WINDOW (w), x, y);
+}
+#endif
+
 void
 gtkutil_window_move (GtkWindow *win, int x, int y)
 {
 #if GTK_CHECK_VERSION(4, 0, 0)
-	/* GTK4 can't place windows; the WM does (see ROADMAP, window position) */
+#ifdef GDK_WINDOWING_X11
+	if (!GDK_IS_X11_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return;		/* Wayland: the compositor places windows */
+	if (gtk_widget_get_realized (GTK_WIDGET (win)))
+		x11_move_now (win, x, y);
+	else
+	{
+		g_object_set_data (G_OBJECT (win), "nx-move-x", GINT_TO_POINTER (x));
+		g_object_set_data (G_OBJECT (win), "nx-move-y", GINT_TO_POINTER (y));
+		if (!g_object_get_data (G_OBJECT (win), "nx-move-tag"))
+			g_object_set_data (G_OBJECT (win), "nx-move-tag", GUINT_TO_POINTER (
+				g_signal_connect_after (win, "realize", G_CALLBACK (x11_move_on_realize), NULL)));
+	}
+#else
 	(void) win; (void) x; (void) y;
+#endif
 #else
 	if (gtkutil_window_can_position (win))
 		gtk_window_move (win, x, y);
@@ -210,7 +277,18 @@ gboolean
 gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 {
 #if GTK_CHECK_VERSION(4, 0, 0)
+#ifdef GDK_WINDOWING_X11
+	Window xid = x11_xid (win), child;
+	XWindowAttributes a;
+
+	/* where the window is on screen, as gtk_window_get_position gave it */
+	if (!xid || !XGetWindowAttributes (x11_dpy (win), xid, &a))
+		return FALSE;
+	XTranslateCoordinates (x11_dpy (win), xid, a.root, 0, 0, x, y, &child);
+	return TRUE;
+#else
 	return FALSE;
+#endif
 #else
 	if (!gtkutil_window_can_position (win))
 		return FALSE;
@@ -223,7 +301,24 @@ void
 gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 {
 #if GTK_CHECK_VERSION(4, 0, 0)
-	/* TODO GTK4: no urgency hint API; X11/Win32 backends need their own */
+#ifdef GDK_WINDOWING_X11
+	Window xid = x11_xid (win);
+	XWMHints *h;
+
+	if (xid)
+	{
+		h = XGetWMHints (x11_dpy (win), xid);
+		if (!h)
+			h = XAllocWMHints ();
+		if (urgent)
+			h->flags |= XUrgencyHint;
+		else
+			h->flags &= ~XUrgencyHint;
+		XSetWMHints (x11_dpy (win), xid, h);
+		XFree (h);
+		return;
+	}
+#endif
 	(void) win; (void) urgent;
 #else
 	gtk_window_set_urgency_hint (win, urgent);

@@ -148,20 +148,25 @@ endif
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/smoke-gui.sh'), hexchat_gtk],
-    timeout: 60, is_parallel: false)
+    timeout: 60)
 endif
 
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.
 # Need Xvfb + libXtst (+ xwd for colors); skipped (exit 77) where missing.
 xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
 if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
-  # a GTK critical anywhere fails the test (the client aborts)
+  # a GTK critical anywhere fails the test (the client aborts). Each test
+  # has its own display, config dir, ircd port and (dbus-remote) bus, so
+  # they run in parallel.
   gui_env = ['XVFB=' + xvfb.full_path(), 'G_DEBUG=fatal-criticals']
   if use_dbus
     test('dbus-remote', find_program('sh'),
       args: [files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
-      env: gui_env + ['DISP=:89'], timeout: 90, is_parallel: false)
+      env: gui_env + ['DISP=:89'], timeout: 90)
   endif
+  test('gui-wm', find_program('sh'),
+    args: [files('../../tests/ux/wm.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:79'], timeout: 90)
   test('gtkcompat', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), gtkcompat_test],
     env: gui_env + ['DISP=:84'], timeout: 60)
@@ -174,23 +179,23 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), find_program('sh').full_path(),
            files('../../tests/smoke-gui.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:73'], timeout: 60, is_parallel: false)
+    env: gui_env + ['DISP=:73'], timeout: 60)
   test('gui-keys', find_program('sh'),
     args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)
+    env: gui_env + ['DISP=:81'], timeout: 120)
   test('gui-mouse', find_program('sh'),
     args: [files('../../tests/ux/mouse.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:85'], timeout: 120, is_parallel: false)
+    env: gui_env + ['DISP=:85'], timeout: 120)
   test('gui-tray', find_program('sh'),
     args: [files('../../tests/ux/tray.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:74'], timeout: 60, is_parallel: false)
+    env: gui_env + ['DISP=:74'], timeout: 60)
   test('gui-spell', find_program('sh'),
     args: [files('../../tests/ux/spell.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:76'], timeout: 90, is_parallel: false)
+    env: gui_env + ['DISP=:76'], timeout: 90)
   test('gui-menus', find_program('sh'),
     args: [files('../../tests/ux/menus.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:82'], timeout: 180, is_parallel: false)
+    env: gui_env + ['DISP=:82'], timeout: 180)
   test('gui-colors-roundtrip', find_program('sh'),
     args: [files('../../tests/ux/colors-roundtrip.sh'), hexchat_gtk],
-    env: gui_env + ['SHOT_DISPLAY=:83'], timeout: 120, is_parallel: false)
+    env: gui_env + ['SHOT_DISPLAY=:83'], timeout: 120)
 endif

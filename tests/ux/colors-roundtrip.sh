@@ -31,7 +31,7 @@ echo "# not-from-nexchat" >> "$tmp/cfg/colors.conf"
 
 DISPLAY=$disp "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
-sleep 5
+wait_window "$disp"
 DISPLAY=$disp python3 "$here/xkey.py" --delay 0.8 --at 400,380 alt+e p
 # wait for the Preferences window (a second mapped top-level) before OK
 tops() {

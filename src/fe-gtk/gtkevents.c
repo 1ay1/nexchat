@@ -9,6 +9,9 @@
 
 #include "gtkevents.h"
 #include "gtkcompat.h"
+#if GTK_CHECK_VERSION(4, 0, 0) && defined(GDK_WINDOWING_X11)
+#include <gdk/x11/gdkx.h>
+#endif
 
 typedef struct
 {
@@ -169,10 +172,30 @@ focus_enter (GtkEventControllerFocus *f, hook *h)
 	((nx_focus_cb) h->cb) (gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (f)), h->userdata);
 }
 
+/* a window gets focus when it becomes active: a focus controller only
+   sees focus move between its children, not the window coming back */
+static void
+window_active (GtkWindow *w, GParamSpec *ps, hook *h)
+{
+	if (gtk_window_is_active (w))
+		((nx_focus_cb) h->cb) (GTK_WIDGET (w), h->userdata);
+}
+
 void
 nx_on_focus_in (GtkWidget *w, nx_focus_cb cb, gpointer userdata)
 {
-	GtkEventController *f = gtk_event_controller_focus_new ();
+	GtkEventController *f;
+
+	if (GTK_IS_WINDOW (w))
+	{
+		/* GTK3's focus-in-event on a window: the window becoming active (keyboard
+		   focus stays inside a GTK4 window across activations, so a focus
+		   controller only sees the first one) */
+		g_signal_connect_data (w, "notify::is-active", G_CALLBACK (window_active),
+									  hook_new (cb, userdata), hook_free, 0);
+		return;
+	}
+	f = gtk_event_controller_focus_new ();
 	g_signal_connect_data (f, "enter", G_CALLBACK (focus_enter),
 								  hook_new (cb, userdata), hook_free, 0);
 	gtk_widget_add_controller (w, f);
@@ -335,12 +358,34 @@ nx_on_window_state (GtkWidget *win, nx_window_state_cb cb, gpointer ud)
 	g_signal_connect_data (win, "realize", G_CALLBACK (window_state_realize), h, hook_free, 0);
 }
 
-/* GTK4 reports no moves (the WM owns positions); a size change is all */
+/* GTK4 reports no moves (the WM owns positions); a size change is all.
+   On X11 a ConfigureNotify on the window's own X window is a move too, as
+   GTK3's configure-event was. */
 static void
 window_size_notify (GtkWidget *w, GParamSpec *ps, hook *h)
 {
 	((nx_window_configure_cb) h->cb) (GTK_WINDOW (w), h->userdata);
 }
+
+#ifdef GDK_WINDOWING_X11
+static gboolean
+x11_configure (GdkDisplay *d, const XEvent *xev, hook *h)
+{
+	GtkWidget *w = h->userdata2;
+	GdkSurface *s = gtk_native_get_surface (GTK_NATIVE (w));
+
+	if ((xev->type == ConfigureNotify || xev->type == ReparentNotify) && s &&
+		 xev->xany.window == gdk_x11_surface_get_xid (s))
+		((nx_window_configure_cb) h->cb) (GTK_WINDOW (w), h->userdata);
+	return FALSE;		/* GDK handles it as usual */
+}
+
+static void
+x11_configure_unhook (GtkWidget *w, hook *h)
+{
+	g_signal_handlers_disconnect_by_func (gtk_widget_get_display (w), x11_configure, h);
+}
+#endif
 
 void
 nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud)
@@ -350,6 +395,14 @@ nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud)
 	g_signal_connect (win, "notify::default-width", G_CALLBACK (window_size_notify), h);
 	g_signal_connect_data (win, "notify::default-height", G_CALLBACK (window_size_notify), h,
 								  hook_free, 0);
+#ifdef GDK_WINDOWING_X11
+	if (GDK_IS_X11_DISPLAY (gtk_widget_get_display (win)))
+	{
+		h->userdata2 = win;
+		g_signal_connect (gtk_widget_get_display (win), "xevent", G_CALLBACK (x11_configure), h);
+		g_signal_connect (win, "destroy", G_CALLBACK (x11_configure_unhook), h);
+	}
+#endif
 }
 
 

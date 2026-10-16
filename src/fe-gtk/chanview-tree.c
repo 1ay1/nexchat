@@ -105,7 +105,7 @@ cv_tree_init (chanview *cv)
 	nx_scrolled_window_set_shadow_in (win, TRUE);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-	gtkutil_container_add (cv->box, win);
+	gtkutil_container_add (cv->box, mg_drop_overlay (win));
 	gtk_widget_show (win);
 
 	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (cv->store));
@@ -324,8 +324,12 @@ static void
 cv_tree_cleanup (chanview *cv)
 {
 	if (cv->box)
-		/* kill the scrolled window */
-		nx_widget_destroy (((treeview *)cv)->scrollw);
+	{
+		/* kill the scrolled window (and its drop overlay, GTK4) */
+		GtkWidget *sw = ((treeview *)cv)->scrollw;
+		GtkWidget *p = gtk_widget_get_parent (sw);
+		nx_widget_destroy (p && p != cv->box ? p : sw);
+	}
 }
 
 static void
