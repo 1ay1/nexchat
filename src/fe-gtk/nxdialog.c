@@ -97,6 +97,12 @@ nx_dialog_get_content_area (NxDialog *d)
 	return d->content;
 }
 
+GtkWidget *
+nx_dialog_get_action_area (NxDialog *d)
+{
+	return d->action;
+}
+
 static void
 button_clicked (GtkWidget *b, NxDialog *d)
 {

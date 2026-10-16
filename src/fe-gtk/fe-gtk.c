@@ -478,6 +478,10 @@ fe_apply_css (void)
 		"scrolledwindow, treeview { outline: none; }\n"
 		/* entries and buttons: GTK3 Adwaita's 4px corners, not GTK4's 6px */
 		"entry, button { border-radius: 4px; }\n"
+		/* check/radio buttons: GTK3's 23px rows (GTK4 Adwaita pads them to 26) */
+		"checkbutton { padding: 2px 2px; min-height: 0; }\n"
+		/* the About license text: GTK3 showed it a size smaller */
+		"textview.nx-about-license, textview.nx-about-license > text { font-size: 9pt; }\n"
 		/* the charset picker: a drop-down showing only its arrow */
 		"dropdown.nx-combo-arrow > button > box > stack { min-width: 0; }\n"
 		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"

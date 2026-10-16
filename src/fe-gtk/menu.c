@@ -1664,12 +1664,139 @@ menu_metres_both (nx_item *item, gpointer none)
 }
 
 #if GTK_CHECK_VERSION(4, 0, 0)
-/* GTK4's about dialog is a plain window: it has no response signal */
-static gboolean
-about_dialog_close_request (GtkWindow *dialog, gpointer data)
+/* GTK4's GtkAboutDialog puts the pages in a header bar switcher; this is
+   GTK3's layout: logo, name, version, comments, link, copyright, and
+   Credits/License toggles at the bottom left with Close on the right. */
+static void
+about_license_toggled (GtkToggleButton *b, GtkWidget *stack)
 {
-	gtk_window_destroy (dialog);
+	gtk_stack_set_visible_child_name (GTK_STACK (stack),
+		gtk_toggle_button_get_active (b) ? "license" : "about");
+}
+
+static void
+about_response (NxDialog *d, int response, gpointer data)
+{
+	gtk_window_destroy (GTK_WINDOW (d));
+}
+
+static gboolean
+about_link (GtkLabel *label, char *uri, gpointer data)
+{
+	fe_open_url (uri);
 	return TRUE;
+}
+
+static GtkWidget *
+about_label (const char *markup, const char *css)
+{
+	GtkWidget *l = gtk_label_new (NULL);
+
+	gtk_label_set_markup (GTK_LABEL (l), markup);
+	gtk_label_set_justify (GTK_LABEL (l), GTK_JUSTIFY_CENTER);
+	gtk_label_set_selectable (GTK_LABEL (l), TRUE);
+	gtk_widget_set_focusable (l, FALSE);
+	if (css)
+		gtk_widget_add_css_class (l, css);
+	return l;
+}
+
+static void
+about_dialog_show (GtkWindow *parent, const char *comment, const char *license,
+						 const char *copyright)
+{
+	NxDialog *d = NX_DIALOG (nx_dialog_new (NULL, parent, FALSE));
+	GtkWidget *content = nx_dialog_get_content_area (d);
+	GtkWidget *box, *stack, *page, *l, *img, *sw, *tv, *b, *credits;
+	GdkTexture *logo;
+	char *s;
+
+	s = g_strdup_printf (_("About %s"), _(DISPLAY_NAME));
+	gtk_window_set_title (GTK_WINDOW (d), s);
+	g_free (s);
+	gtk_window_set_resizable (GTK_WINDOW (d), FALSE);
+	gtk_widget_add_css_class (GTK_WIDGET (d), "aboutdialog");
+
+	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
+	gtk_widget_set_margin_start (box, 5);
+	gtk_widget_set_margin_end (box, 5);
+	gtk_widget_set_margin_top (box, 5);
+	gtk_box_append (GTK_BOX (content), box);
+
+	logo = nx_texture_new_for_pixbuf (pix_hexchat);
+	img = gtk_image_new_from_paintable (GDK_PAINTABLE (logo));
+	g_object_unref (logo);
+	gtk_image_set_pixel_size (GTK_IMAGE (img), gdk_pixbuf_get_width (pix_hexchat));
+	gtk_box_append (GTK_BOX (box), img);
+
+	s = g_markup_printf_escaped ("<span weight=\"bold\">%s</span>", _(DISPLAY_NAME));
+	gtk_box_append (GTK_BOX (box), about_label (s, NULL));
+	g_free (s);
+
+	stack = gtk_stack_new ();
+	/* GTK3 sizes the dialog for its biggest page, the license */
+	gtk_widget_set_margin_top (stack, 5);
+	gtk_box_append (GTK_BOX (box), stack);
+
+	page = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
+	gtk_box_append (GTK_BOX (page), about_label (PACKAGE_VERSION, NULL));
+	s = g_markup_escape_text (comment, -1);
+	l = about_label (s, NULL);
+	g_free (s);
+	gtk_label_set_wrap (GTK_LABEL (l), TRUE);
+	gtk_label_set_max_width_chars (GTK_LABEL (l), 60);
+	gtk_box_append (GTK_BOX (page), l);
+	l = about_label ("<a href=\"https://github.com/1ay1/nexchat\">Website</a>", NULL);
+	g_signal_connect (l, "activate-link", G_CALLBACK (about_link), NULL);
+	gtk_box_append (GTK_BOX (page), l);
+	s = g_markup_printf_escaped ("<span size=\"small\">%s</span>", copyright);
+	gtk_box_append (GTK_BOX (page), about_label (s, NULL));
+	g_free (s);
+	gtk_stack_add_named (GTK_STACK (stack), page, "about");
+
+	/* license: a framed, scrolled text view, as GTK3 */
+	sw = gtk_scrolled_window_new ();
+	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), TRUE);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_widget_set_vexpand (sw, TRUE);
+	/* GTK3's license area; a text view reports no width before layout */
+	gtk_widget_set_size_request (sw, 410, 116);
+	tv = gtk_text_view_new ();
+	gtk_text_view_set_editable (GTK_TEXT_VIEW (tv), FALSE);
+	gtk_text_view_set_cursor_visible (GTK_TEXT_VIEW (tv), FALSE);
+	gtk_text_view_set_wrap_mode (GTK_TEXT_VIEW (tv), GTK_WRAP_WORD);
+	gtk_widget_add_css_class (tv, "nx-about-license");
+	gtk_text_view_set_left_margin (GTK_TEXT_VIEW (tv), 8);
+	gtk_text_view_set_right_margin (GTK_TEXT_VIEW (tv), 8);
+	gtk_text_view_set_top_margin (GTK_TEXT_VIEW (tv), 4);
+	gtk_text_view_set_bottom_margin (GTK_TEXT_VIEW (tv), 4);
+	gtk_text_buffer_set_text (gtk_text_view_get_buffer (GTK_TEXT_VIEW (tv)), license, -1);
+	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), tv);
+	gtk_stack_add_named (GTK_STACK (stack), sw, "license");
+	gtk_stack_set_visible_child_name (GTK_STACK (stack), "about");
+
+	/* Credits (no authors are set, so it does nothing, as in GTK3) and
+	   License at the start of the button row, in a group */
+	credits = gtk_toggle_button_new_with_mnemonic (g_dgettext ("gtk30", "C_redits"));
+	b = gtk_toggle_button_new_with_mnemonic (g_dgettext ("gtk30", "_License"));
+	gtk_widget_set_size_request (credits, 85, -1);
+	gtk_widget_set_size_request (b, 85, -1);
+	g_signal_connect (b, "toggled", G_CALLBACK (about_license_toggled), stack);
+	{
+		GtkWidget *action = nx_dialog_get_action_area (d);
+		gtk_widget_set_halign (action, GTK_ALIGN_FILL);
+		gtk_box_append (GTK_BOX (action), credits);
+		gtk_box_append (GTK_BOX (action), b);
+		l = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+		gtk_widget_set_hexpand (l, TRUE);
+		gtk_box_append (GTK_BOX (action), l);
+	}
+	b = nx_dialog_add_button (d, g_dgettext ("gtk30", "_Close"), GTK_RESPONSE_CLOSE);
+	nx_dialog_set_default_response (d, GTK_RESPONSE_CLOSE);
+	g_signal_connect (d, "response", G_CALLBACK (about_response), NULL);
+
+	gtk_window_present (GTK_WINDOW (d));
+	gtk_widget_grab_focus (b);
 }
 #else
 static void
@@ -1677,7 +1804,6 @@ about_dialog_close (GtkWidget *dialog, int response, gpointer data)
 {
 	nx_widget_destroy (GTK_WIDGET(dialog));
 }
-#endif
 
 static gboolean
 about_dialog_openurl (GtkAboutDialog *dialog, char *uri, gpointer data)
@@ -1685,11 +1811,14 @@ about_dialog_openurl (GtkAboutDialog *dialog, char *uri, gpointer data)
 	fe_open_url (uri);
 	return TRUE;
 }
+#endif
 
 static void
 menu_about (GtkWidget *wid, gpointer sess)
 {
+#if !GTK_CHECK_VERSION(4, 0, 0)
 	GtkAboutDialog *dialog = GTK_ABOUT_DIALOG(gtk_about_dialog_new());
+#endif
 	char comment[512];
 	char *license = "This program is free software; you can redistribute it and/or modify\n" \
 					"it under the terms of the GNU General Public License as published by\n" \
@@ -1713,32 +1842,25 @@ menu_about (GtkWidget *wid, gpointer sess)
 #endif
 				get_sys_str (0));
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+	about_dialog_show (GTK_WINDOW (parent_window), comment, license,
+		"\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
+#else
 	gtk_about_dialog_set_program_name (dialog, _(DISPLAY_NAME));
 	gtk_about_dialog_set_version (dialog, PACKAGE_VERSION);
 	gtk_about_dialog_set_license (dialog, license); /* gtk3 can use GTK_LICENSE_GPL_2_0 */
 	gtk_about_dialog_set_website (dialog, "https://github.com/1ay1/nexchat");
 	gtk_about_dialog_set_website_label (dialog, "Website");
-#if GTK_CHECK_VERSION(4, 0, 0)
-	{
-		GdkTexture *logo = nx_texture_new_for_pixbuf (pix_hexchat);
-		gtk_about_dialog_set_logo (dialog, GDK_PAINTABLE (logo));
-		g_object_unref (logo);
-	}
-#else
 	gtk_about_dialog_set_logo (dialog, pix_hexchat);
-#endif
 	gtk_about_dialog_set_copyright (dialog, "\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
 	gtk_about_dialog_set_comments (dialog, comment);
 
 	gtk_window_set_transient_for (GTK_WINDOW(dialog), GTK_WINDOW(parent_window));
-#if GTK_CHECK_VERSION(4, 0, 0)
-	g_signal_connect (G_OBJECT(dialog), "close-request", G_CALLBACK(about_dialog_close_request), NULL);
-#else
 	g_signal_connect (G_OBJECT(dialog), "response", G_CALLBACK(about_dialog_close), NULL);
-#endif
 	g_signal_connect (G_OBJECT(dialog), "activate-link", G_CALLBACK(about_dialog_openurl), NULL);
 	
 	nx_widget_show_all (GTK_WIDGET(dialog));
+#endif
 }
 
 static struct mymenu mymenu[] = {

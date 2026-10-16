@@ -898,6 +898,7 @@ setup_create_hscale (GtkWidget *table, int row, const setting *set)
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, LABEL_INDENT, 0);
 
 	wid = gtk_scale_new_with_range (GTK_ORIENTATION_HORIZONTAL, 0., 255., 1.);
+	gtk_scale_set_draw_value (GTK_SCALE (wid), TRUE);
 	gtk_scale_set_value_pos (GTK_SCALE (wid), GTK_POS_RIGHT);
 	gtk_range_set_value (GTK_RANGE (wid), setup_get_int (&setup_prefs, set));
 	g_signal_connect (G_OBJECT(wid), "value_changed",

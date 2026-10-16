@@ -42,21 +42,22 @@ nx_box_pack (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill,
 {
 	gboolean horiz = gtk_orientable_get_orientation (GTK_ORIENTABLE (box)) == GTK_ORIENTATION_HORIZONTAL;
 
+	/* GTK3's padding came on top of the child's own border/margins */
 	if (horiz)
 	{
 		gtk_widget_set_hexpand (child, expand);
 		if (expand && !fill)
 			gtk_widget_set_halign (child, GTK_ALIGN_CENTER);
-		gtk_widget_set_margin_start (child, padding);
-		gtk_widget_set_margin_end (child, padding);
+		gtk_widget_set_margin_start (child, gtk_widget_get_margin_start (child) + padding);
+		gtk_widget_set_margin_end (child, gtk_widget_get_margin_end (child) + padding);
 	}
 	else
 	{
 		gtk_widget_set_vexpand (child, expand);
 		if (expand && !fill)
 			gtk_widget_set_valign (child, GTK_ALIGN_CENTER);
-		gtk_widget_set_margin_top (child, padding);
-		gtk_widget_set_margin_bottom (child, padding);
+		gtk_widget_set_margin_top (child, gtk_widget_get_margin_top (child) + padding);
+		gtk_widget_set_margin_bottom (child, gtk_widget_get_margin_bottom (child) + padding);
 	}
 	if (at_end)
 	{

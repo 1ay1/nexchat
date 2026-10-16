@@ -28,6 +28,7 @@ G_DECLARE_FINAL_TYPE (NxDialog, nx_dialog, NX, DIALOG, GtkWindow)
 
 GtkWidget *nx_dialog_new (const char *title, GtkWindow *parent, gboolean modal);
 GtkWidget *nx_dialog_get_content_area (NxDialog *d);
+GtkWidget *nx_dialog_get_action_area (NxDialog *d);
 /* add a button that answers response_id; returns it */
 GtkWidget *nx_dialog_add_button (NxDialog *d, const char *mnemonic_label, int response_id);
 void nx_dialog_add_action_widget (NxDialog *d, GtkWidget *child, int response_id);
