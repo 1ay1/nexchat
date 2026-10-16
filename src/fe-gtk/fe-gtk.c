@@ -757,7 +757,14 @@ fe_input_add (int sok, int flags, void *func, void *data)
 
 #ifdef WIN32
 	if (flags & FIA_FD)
+	{
 		channel = g_io_channel_win32_new_fd (sok);
+		/* read a byte at a time by waitline2 (the server child's pipe): raw
+		   and unbuffered from the start. Switching later asserts once a read
+		   has filled GLib's buffer. */
+		g_io_channel_set_encoding (channel, NULL, NULL);
+		g_io_channel_set_buffered (channel, FALSE);
+	}
 	else
 		channel = g_io_channel_win32_new_socket (sok);
 #else

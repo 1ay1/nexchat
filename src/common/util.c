@@ -214,13 +214,12 @@ waitline2 (GIOChannel *source, char *buf, int bufsize)
 	gsize len;
 	GError *error = NULL;
 
+	/* the channel is raw and unbuffered (fe_input_add, FIA_FD) */
 	while (1)
 	{
-		g_io_channel_set_buffered (source, FALSE);
-		g_io_channel_set_encoding (source, NULL, &error);
-
 		if (g_io_channel_read_chars (source, &buf[i], 1, &len, &error) != G_IO_STATUS_NORMAL)
 		{
+			g_clear_error (&error);
 			return -1;
 		}
 		if (buf[i] == '\n' || bufsize == i + 1)
