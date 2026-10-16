@@ -100,6 +100,15 @@ try:
                             send(l)
             elif cmd == "MODE" and len(parts) == 2 and parts[1].startswith("#"):
                 send(f":fake 324 {nick} {parts[1]} +nt")
+            elif cmd == "LIST":
+                send(f":fake 321 {nick} Channel :Users  Name")
+                if a.demo:
+                    for chan, users, topic in [("#nexchat", 16, "Welcome to #nexchat | be nice"),
+                                               ("#help", 42, "Ask your question, then wait"),
+                                               ("#linux", 1203, "Linux support | no distro wars"),
+                                               ("#offtopic", 7, "")]:
+                        send(f":fake 322 {nick} {chan} {users} :{topic}")
+                send(f":fake 323 {nick} :End of /LIST")
             elif cmd == "PRIVMSG" and not a.demo:
                 target = parts[1]
                 send(f":bob!b@h PRIVMSG {target} :pong-reply")

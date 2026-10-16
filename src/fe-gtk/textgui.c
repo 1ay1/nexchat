@@ -458,6 +458,16 @@ pevent_dialog_show ()
 
 	pevent_dialog_hlist = pevent_hlist_treeview_new (pane);
 
+	/* GTK2's treeview selected the cursor row when it took focus, so the
+	   dialog opened with the first event selected and its $-number list and
+	   preview filled in. GTK3 only moves the cursor; select it ourselves. */
+	{
+		GtkTreeIter first;
+		GtkTreeModel *model = gtk_tree_view_get_model (GTK_TREE_VIEW (pevent_dialog_list));
+		if (gtk_tree_model_get_iter_first (model, &first))
+			gtk_tree_selection_select_iter (gtk_tree_view_get_selection (GTK_TREE_VIEW (pevent_dialog_list)), &first);
+	}
+
 	wid = gtk_scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (wid), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 	gtk_box_pack_start (GTK_BOX (vbox), wid, FALSE, TRUE, 0);

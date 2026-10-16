@@ -74,10 +74,33 @@ def press(dpy, combo):
     x11.XSync(dpy, 0)
 
 
+def type_text(dpy, text, delay):
+    """Type literal text (ASCII), shifting for capitals and the usual symbols."""
+    shifted = {"!": "exclam", "@": "at", "#": "numbersign", "$": "dollar",
+               "%": "percent", "^": "asciicircum", "&": "ampersand", "*": "asterisk",
+               "(": "parenleft", ")": "parenright", "_": "underscore", "+": "plus",
+               ":": "colon", "?": "question", "<": "less", ">": "greater", "~": "asciitilde"}
+    names = {" ": "space", "/": "slash", ".": "period", ",": "comma", "-": "minus",
+             "=": "equal", ";": "semicolon", "'": "apostrophe"}
+    for ch in text:
+        if ch in names:
+            press(dpy, names[ch])
+        elif ch in shifted:
+            press(dpy, "shift+" + shifted[ch])
+        elif ch.isupper():
+            press(dpy, "shift+" + ch.lower())
+        else:
+            press(dpy, ch)
+        time.sleep(delay)
+
+
 def main(argv):
     delay = 0.3
     at = (300, 200)
+    text = None
     while argv[:1] and argv[0].startswith("--"):
+        if argv[0] == "--type":
+            text = argv[1]
         if argv[0] == "--delay":
             delay = float(argv[1])
         elif argv[0] == "--at":
@@ -87,6 +110,8 @@ def main(argv):
     if not dpy:
         raise SystemExit("cannot open display")
     focus_at(dpy, *at)
+    if text is not None:
+        type_text(dpy, text, 0.05)
     for combo in argv:
         press(dpy, combo)
         time.sleep(delay)
