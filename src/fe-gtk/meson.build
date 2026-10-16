@@ -34,8 +34,13 @@ hexchat_gtk_sources = [
 
 if get_option('gtk') == '4'
   gtk_dep = dependency('gtk4', version: '>= 4.14.0')
-  # no GtkStatusIcon in GTK4; the StatusNotifierItem backend is still to come
-  hexchat_gtk_sources += 'tray-backend-none.c'
+  # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
+  # desktops; Windows/macOS have no tray on GTK4 yet
+  if host_machine.system() in ['windows', 'darwin']
+    hexchat_gtk_sources += 'tray-backend-none.c'
+  else
+    hexchat_gtk_sources += 'tray-backend-sni.c'
+  endif
 else
   gtk_dep = dependency('gtk+-3.0', version: '>= 3.22.0')
   hexchat_gtk_sources += 'tray-backend-statusicon.c'
@@ -163,6 +168,11 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     test('dbus-remote', find_program('sh'),
       args: [files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
       env: gui_env + ['DISP=:89'], timeout: 90)
+    if get_option('gtk') == '4'
+      test('gui-sni', find_program('sh'),
+        args: [files('../../tests/sni.sh'), hexchat_gtk],
+        env: gui_env + ['DISP=:72'], timeout: 60)
+    endif
   endif
   test('gui-wm', find_program('sh'),
     args: [files('../../tests/ux/wm.sh'), hexchat_gtk],
