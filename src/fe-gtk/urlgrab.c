@@ -73,7 +73,7 @@ url_treeview_url_clicked_cb (GtkWidget *view, guint button, int n_press,
 				fe_open_url (url);
 			break;
 		case 3:
-			menu_urlmenu ((GdkEventButton *) nx_current_event (), url);
+			menu_urlmenu (nx_current_event (), url);
 			break;
 		default:
 			break;
@@ -127,7 +127,7 @@ url_button_copy (GtkWidget *widget, gpointer data)
 
 	if (gtkutil_treeview_get_selected (view, &iter, URL_COLUMN, &url, -1))
 	{
-		gtkutil_copy_to_clipboard (GTK_WIDGET (view), NULL, url);
+		gtkutil_copy_to_clipboard (GTK_WIDGET (view), url);
 		g_free (url);
 	}
 }

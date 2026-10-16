@@ -577,7 +577,7 @@ chanlist_copychannel (GtkWidget *item, server *serv)
 	char *chan = chanlist_get_selected (serv, FALSE);
 	if (chan)
 	{
-		gtkutil_copy_to_clipboard (item, NULL, chan);
+		gtkutil_copy_to_clipboard (item, chan);
 		g_free (chan);
 	}
 }
@@ -588,7 +588,7 @@ chanlist_copytopic (GtkWidget *item, server *serv)
 	char *topic = chanlist_get_selected (serv, TRUE);
 	if (topic)
 	{
-		gtkutil_copy_to_clipboard (item, NULL, topic);
+		gtkutil_copy_to_clipboard (item, topic);
 		g_free (topic);
 	}
 }

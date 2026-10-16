@@ -25,12 +25,12 @@ GtkWidget *menu_create_main (void *accel_group, int bar, int away, int toplevel,
    accelerators, toggle/radio state, sensitivity) to path as text. Used by
    tests/ux/menus.sh to catch menu regressions; does nothing otherwise. */
 void menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group);
-void menu_urlmenu (GdkEventButton * event, char *url);
-void menu_chanmenu (session *sess, GdkEventButton * event, char *chan);
+void menu_urlmenu (GdkEvent *event, char *url);
+void menu_chanmenu (session *sess, GdkEvent *event, char *chan);
 void menu_addfavoritemenu (server *serv, GtkWidget *menu, char *channel, gboolean istree);
 void menu_addconnectmenu (server *serv, GtkWidget *menu);
-void menu_nickmenu (session *sess, GdkEventButton * event, char *nick, int num_sel);
-void menu_middlemenu (session *sess, GdkEventButton *event);
+void menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel);
+void menu_middlemenu (session *sess, GdkEvent *event);
 void userlist_button_cb (GtkWidget * button, char *cmd);
 void nick_command_parse (session *sess, char *cmd, char *nick, char *allnick);
 void usermenu_update (void);

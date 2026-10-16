@@ -560,17 +560,14 @@ menu_destroy (GtkWidget *menu, gpointer objtounref)
 }
 
 static void
-menu_popup (GtkWidget *menu, GdkEventButton *event, gpointer objtounref)
+menu_popup (GtkWidget *menu, GdkEvent *event, gpointer objtounref)
 {
-	if (event && event->window)
-		gtk_menu_set_screen (GTK_MENU (menu), gdk_window_get_screen (event->window));
-
 	g_object_ref (menu);
 	g_object_ref_sink (menu);
 	g_object_unref (menu);
 	g_signal_connect (G_OBJECT (menu), "selection-done",
 							G_CALLBACK (menu_destroy), objtounref);
-	gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
+	nx_menu_popup_at_pointer (menu, event);
 }
 
 static void
@@ -591,7 +588,7 @@ menu_nickinfo_cb (GtkWidget *menu, session *sess)
 static void
 copy_to_clipboard_cb (GtkWidget *item, char *url)
 {
-	gtkutil_copy_to_clipboard (item, NULL, url);
+	gtkutil_copy_to_clipboard (item, url);
 }
 
 /* returns boolean: Some data is missing */
@@ -713,7 +710,7 @@ fe_userlist_update (session *sess, struct User *user)
 }
 
 void
-menu_nickmenu (session *sess, GdkEventButton *event, char *nick, int num_sel)
+menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel)
 {
 	char buf[512];
 	struct User *user;
@@ -946,7 +943,7 @@ menu_fullscreen_toggle (GtkWidget *wid, gpointer ud)
 }
 
 void
-menu_middlemenu (session *sess, GdkEventButton *event)
+menu_middlemenu (session *sess, GdkEvent *event)
 {
 	GtkWidget *menu;
 	GtkAccelGroup *accel_group;
@@ -967,7 +964,7 @@ open_url_cb (GtkWidget *item, char *url)
 }
 
 void
-menu_urlmenu (GdkEventButton *event, char *url)
+menu_urlmenu (GdkEvent *event, char *url)
 {
 	GtkWidget *menu;
 	char *tmp, *chop;
@@ -1053,7 +1050,7 @@ menu_chan_join (GtkWidget * menu, char *chan)
 }
 
 void
-menu_chanmenu (struct session *sess, GdkEventButton * event, char *chan)
+menu_chanmenu (struct session *sess, GdkEvent *event, char *chan)
 {
 	GtkWidget *menu;
 	int is_joined = FALSE;

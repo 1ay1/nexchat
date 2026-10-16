@@ -546,9 +546,7 @@ tab_click_cb (GtkWidget *wid, guint button, int n_press, double x, double y,
 				  GdkModifierType state, gpointer userdata)
 {
 	chan *ch = userdata;
-	/* the context-menu callback positions its popup from the event */
-	return ch->cv->cb_contextmenu (ch->cv, ch, ch->tag, ch->userdata,
-											 (GdkEventButton *) nx_current_event ());
+	return ch->cv->cb_contextmenu (ch->cv, ch, ch->tag, ch->userdata, button, n_press);
 }
 
 static void *

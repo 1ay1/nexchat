@@ -29,7 +29,7 @@ chanview *chanview_new (int type, int trunc_len, gboolean sort, gboolean use_ico
 void chanview_set_callbacks (chanview *cv,
 	void (*cb_focus) (chanview *, chan *, int tag, void *userdata),
 	void (*cb_xbutton) (chanview *, chan *, int tag, void *userdata),
-	gboolean (*cb_contextmenu) (chanview *, chan *, int tag, void *userdata, GdkEventButton *),
+	gboolean (*cb_contextmenu) (chanview *, chan *, int tag, void *userdata, guint button, int n_press),
 	int (*cb_compare) (void *a, void *b));
 void chanview_set_impl (chanview *cv, int type);
 chan *chanview_add (chanview *cv, char *name, void *family, void *userdata, gboolean allow_closure, int tag, GdkPixbuf *icon);

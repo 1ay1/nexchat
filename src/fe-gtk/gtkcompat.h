@@ -238,6 +238,18 @@ nx_widget_make_default (GtkWidget *button)
 
 #define nx_widget_window_is_active(w) gtk_window_has_toplevel_focus (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (w))))
 
+/* pop a GtkMenu up at the pointer of `event` (NULL: the current pointer),
+   on that event's screen */
+static inline void
+nx_menu_popup_at_pointer (GtkWidget *menu, GdkEvent *event)
+{
+	GdkWindow *win = event ? gdk_event_get_window (event) : NULL;
+
+	if (win)
+		gtk_menu_set_screen (GTK_MENU (menu), gdk_window_get_screen (win));
+	gtk_menu_popup_at_pointer (GTK_MENU (menu), event);
+}
+
 /* GTK3: the old GdkCursorType for the two names we use, so the shapes
    don't change; anything else goes by name */
 static inline void

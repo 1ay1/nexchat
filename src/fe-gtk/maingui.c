@@ -1625,7 +1625,7 @@ mg_create_alertmenu (session *sess, GtkWidget *menu)
 }
 
 static void
-mg_create_tabmenu (session *sess, GdkEventButton *event, chan *ch)
+mg_create_tabmenu (session *sess, GdkEvent *event, chan *ch)
 {
 	GtkWidget *menu, *item;
 	char buf[256];
@@ -1670,34 +1670,32 @@ mg_create_tabmenu (session *sess, GdkEventButton *event, chan *ch)
 	if (sess)
 		menu_add_plugin_items (menu, "\x4$TAB", sess->channel);
 
-	if (event->window)
-		gtk_menu_set_screen (GTK_MENU (menu), gdk_window_get_screen (event->window));
 	g_object_ref (menu);
 	g_object_ref_sink (menu);
 	g_object_unref (menu);
 	g_signal_connect (G_OBJECT (menu), "selection-done",
 							G_CALLBACK (mg_menu_destroy), NULL);
-	gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
+	nx_menu_popup_at_pointer (menu, event);
 }
 
 static gboolean
-mg_tab_contextmenu_cb (chanview *cv, chan *ch, int tag, gpointer ud, GdkEventButton *event)
+mg_tab_contextmenu_cb (chanview *cv, chan *ch, int tag, gpointer ud, guint button, int n_press)
 {
 	/* middle-click to close a tab */
-	if (((prefs.hex_gui_tab_middleclose && event->button == 2))
-		&& event->type == GDK_BUTTON_PRESS)
+	if (((prefs.hex_gui_tab_middleclose && button == 2))
+		&& n_press == 1)
 	{
 		mg_xbutton_cb (cv, ch, tag, ud);
 		return TRUE;
 	}
 
-	if (event->button != 3)
+	if (button != 3)
 		return FALSE;
 
 	if (tag == TAG_IRC)
-		mg_create_tabmenu (ud, event, ch);
+		mg_create_tabmenu (ud, nx_current_event (), ch);
 	else
-		mg_create_tabmenu (NULL, event, ch);
+		mg_create_tabmenu (NULL, nx_current_event (), ch);
 
 	return TRUE;
 }
@@ -2271,7 +2269,7 @@ mg_word_clicked (GtkWidget *xtext, char *word, GtkXTextClick *click)
 {
 	session *sess = current_sess;
 	/* menus still position from the event being handled */
-	GdkEventButton *even = (GdkEventButton *) nx_current_event ();
+	GdkEvent *even = nx_current_event ();
 	int word_type = 0, start, end;
 	char *tmp;
 

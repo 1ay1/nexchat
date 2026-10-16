@@ -358,7 +358,7 @@ banlist_copyentry (GtkWidget *menuitem, GtkTreeView *view)
 								g_value_get_string (&date), g_value_get_string (&from));
 
 		if (str[0] != 0)
-			gtkutil_copy_to_clipboard (menuitem, NULL, str);
+			gtkutil_copy_to_clipboard (menuitem, str);
 			
 		g_value_unset (&mask);
 		g_value_unset (&from);

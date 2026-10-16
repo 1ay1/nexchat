@@ -69,8 +69,7 @@ cv_tree_click_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 		if (gtk_tree_model_get_iter (GTK_TREE_MODEL (cv->store), &iter, path))
 		{
 			gtk_tree_model_get (GTK_TREE_MODEL (cv->store), &iter, COL_CHAN, &ch, -1);
-			ret = cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata,
-											  (GdkEventButton *) nx_current_event ());
+			ret = cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata, button, n_press);
 		}
 		gtk_tree_path_free (path);
 	}

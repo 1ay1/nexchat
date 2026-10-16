@@ -6,7 +6,7 @@ XQuartz's Xvfb). Each argument is a key combo like "ctrl+s", "alt+e", "p",
 "Return", "Escape"; names are X keysym names.
 
 usage: DISPLAY=:94 xkey.py [--delay 0.3] ctrl+s Escape
-       --click/--rclick/--dblclick/--wheel-up/--wheel-down X,Y
+       --click/--rclick/--mclick/--dblclick/--wheel-up/--wheel-down X,Y
        --drag X1,Y1:X2,Y2   (left button)
 """
 import ctypes
@@ -112,8 +112,8 @@ def main(argv):
     while argv[:1] and argv[0].startswith("--"):
         if argv[0] == "--type":
             text = argv[1]
-        if argv[0] in ("--click", "--rclick", "--dblclick", "--wheel-up", "--wheel-down"):
-            kind = {"--click": (1, 1), "--rclick": (3, 1), "--dblclick": (1, 2),
+        if argv[0] in ("--click", "--rclick", "--mclick", "--dblclick", "--wheel-up", "--wheel-down"):
+            kind = {"--click": (1, 1), "--rclick": (3, 1), "--mclick": (2, 1), "--dblclick": (1, 2),
                     "--wheel-up": (4, 1), "--wheel-down": (5, 1)}[argv[0]]
             clicks.append(tuple(int(v) for v in argv[1].split(",")) + kind)
         if argv[0] == "--drag":

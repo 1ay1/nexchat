@@ -545,7 +545,7 @@ userlist_click_cb (GtkWidget *widget, guint button, int n_press, double x, doubl
 	GtkTreeSelection *sel;
 	GtkTreePath *path;
 	/* the nick menu positions its popup from the event */
-	GdkEventButton *event = (GdkEventButton *) nx_current_event ();
+	GdkEvent *event = nx_current_event ();
 
 	if (!(state & STATE_CTRL) &&
 		n_press == 2 && prefs.hex_gui_ulist_doubleclick[0])

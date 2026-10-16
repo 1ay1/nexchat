@@ -112,6 +112,28 @@ sleep 1
 grep -q '^gui_tab_pos = 4$' "$tmp/cfg/hexchat.conf" && ok "drag channel tree to right-bottom" \
 	|| bad "drag channel tree: $(grep '^gui_tab_pos' "$tmp/cfg/hexchat.conf")"
 
+# 7. right-click a URL in the chat view: the URL menu; "Copy Selected Link"
+#    (Open, then Copy: Down Down) puts it on the clipboard; paste and send
+x --rclick 470,264
+sleep 0.8
+x Down Down Return
+sleep 0.5
+x --click 450,580
+x ctrl+v Return
+sleep 1
+grep -qa '^PRIVMSG #nexchat :https://hexchat.github.io$' "$tmp/server.log" && ok "chat view URL menu copies the link" \
+	|| bad "chat view URL menu copy"
+
+# 8. middle-click a tab closes it (gui_tab_middleclose=1): heidi's query
+#    goes, so the line we send next goes to #nexchat
+x --mclick 870,94
+sleep 1
+x --click 450,580
+x --type "mclicktest" Return
+sleep 1
+grep -qa '^PRIVMSG #nexchat :mclicktest' "$tmp/server.log" && ok "middle-click closes a tab" \
+	|| bad "middle-click tab close"
+
 if [ -n "${KEEP:-}" ]; then /opt/X11/bin/xwd -root -display "$disp" > "$tmp/end.xwd" 2>/dev/null || xwd -root -display "$disp" > "$tmp/end.xwd" || true; fi
 if grep -qiE 'critical' "$tmp/log"; then echo "--- criticals:"; grep -iE 'critical' "$tmp/log" | sort | uniq -c | head; fail=1; fi
 [ $fail -eq 0 ] && echo "mouse: ok" || { echo "--- server.log"; grep -a PRIVMSG "$tmp/server.log" | tail; exit 1; }
