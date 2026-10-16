@@ -55,6 +55,24 @@
 #define SEXY_ICON_REMOVE "list-remove"
 #define SEXY_ICON_SPELL_CHECK "tools-check-spelling"
 
+/* GtkImageMenuItem is deprecated; same look: [16px icon][6px][label].
+   Plain (non-mnemonic) label, like gtk_image_menu_item_new_with_label. */
+static GtkWidget *
+sexy_image_menu_item (const char *label, const char *icon_name)
+{
+	GtkWidget *item = gtk_menu_item_new ();
+	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+	GtkWidget *img = gtk_image_new_from_icon_name (icon_name, GTK_ICON_SIZE_MENU);
+	GtkWidget *lbl = gtk_label_new (label);
+
+	gtk_widget_set_size_request (img, 16, -1);
+	gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
+	gtk_box_pack_start (GTK_BOX (box), img, FALSE, FALSE, 0);
+	gtk_box_pack_start (GTK_BOX (box), lbl, TRUE, TRUE, 0);
+	gtk_container_add (GTK_CONTAINER (item), box);
+	return item;
+}
+
 /*
  * Bunch of poop to make enchant into a runtime dependency rather than a
  * compile-time dependency.  This makes it so I don't have to hear the
@@ -680,10 +698,8 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 
 	/* + Add to Dictionary */
 	label = g_strdup_printf(_("Add \"%s\" to Dictionary"), word);
-	mi = gtk_image_menu_item_new_with_label(label);
+	mi = sexy_image_menu_item (label, SEXY_ICON_ADD);
 	g_free(label);
-
-	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_icon_name (SEXY_ICON_ADD, GTK_ICON_SIZE_MENU));
 
 	if (g_slist_length(entry->priv->dict_list) == 1) {
 		dict = (struct EnchantDict *) entry->priv->dict_list->data;
@@ -724,8 +740,7 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
 
 	/* - Ignore All */
-	mi = gtk_image_menu_item_new_with_label(_("Ignore All"));
-	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_icon_name (SEXY_ICON_REMOVE, GTK_ICON_SIZE_MENU));
+	mi = sexy_image_menu_item (_("Ignore All"), SEXY_ICON_REMOVE);
 	g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(ignore_all), entry);
 	gtk_widget_show_all(mi);
 	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
@@ -736,7 +751,7 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 static void
 sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer data)
 {
-	GtkWidget *icon, *mi;
+	GtkWidget *mi;
 	gint start, end;
 	gchar *word;
 
@@ -758,9 +773,7 @@ sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer d
 	gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
 
 	/* Above the separator, show the suggestions menu */
-	icon = gtk_image_new_from_icon_name (SEXY_ICON_SPELL_CHECK, GTK_ICON_SIZE_MENU);
-	mi = gtk_image_menu_item_new_with_label(_("Spelling Suggestions"));
-	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), icon);
+	mi = sexy_image_menu_item (_("Spelling Suggestions"), SEXY_ICON_SPELL_CHECK);
 
 	word = gtk_editable_get_chars(GTK_EDITABLE(entry), start, end);
 	g_assert(word != NULL);

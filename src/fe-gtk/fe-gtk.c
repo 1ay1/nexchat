@@ -247,25 +247,21 @@ fe_args (int argc, char *argv[])
 	return -1;
 }
 
-GtkStyle *
-create_input_style (GtkStyle *style)
+/* GTK2 kept the text box font in a GtkStyle that the input box and user
+   list used. GTK3 styles them from CSS (fe_apply_css), so all that's left
+   is the user-visible part: complain once if the font doesn't load. */
+void
+fe_check_font (void)
 {
 	char buf[256];
+	PangoFontDescription *fd = pango_font_description_from_string (prefs.hex_text_font);
 
-	pango_font_description_free (style->font_desc);
-	style->font_desc = pango_font_description_from_string (prefs.hex_text_font);
-
-	/* fall back */
-	if (pango_font_description_get_size (style->font_desc) == 0)
+	if (pango_font_description_get_size (fd) == 0)
 	{
 		g_snprintf (buf, sizeof (buf), _("Failed to open font:\n\n%s"), prefs.hex_text_font);
 		fe_message (buf, FE_MSG_ERROR);
-		pango_font_description_free (style->font_desc);
-		style->font_desc = pango_font_description_from_string ("sans 11");
 	}
-
-	/* colours: see fe_apply_css(); GTK3 ignores GtkStyle colours */
-	return style;
+	pango_font_description_free (fd);
 }
 
 /* ---- per-widget CSS ----
@@ -339,8 +335,7 @@ fe_apply_css (void)
 		return;
 	css = g_string_new (NULL);
 
-	/* same font + fallback create_input_style() uses; GTK3's GtkStyle is a
-	   compatibility shim whose fields can't be trusted, so don't read it */
+	/* same font + fallback fe_check_font() uses */
 	fd = pango_font_description_from_string (prefs.hex_text_font);
 	if (pango_font_description_get_size (fd) == 0)
 	{
@@ -438,7 +433,7 @@ fe_init (void)
 	gtkosx_application_set_dock_icon_pixbuf (osx_app, pix_hexchat);
 #endif
 	channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
-	input_style = create_input_style (gtk_style_new ());
+	fe_check_font ();
 	fe_apply_css ();
 }
 
@@ -813,7 +808,7 @@ fe_beep (session *sess)
 
 	if (ca_context_play (ca_con, 0, CA_PROP_EVENT_ID, "message-new-instant", NULL) != 0)
 #endif
-	gdk_beep ();
+	gdk_display_beep (gdk_display_get_default ());
 #endif
 }
 

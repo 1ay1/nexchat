@@ -20,8 +20,9 @@
 #ifndef HEXCHAT_MAINGUI_H
 #define HEXCHAT_MAINGUI_H
 
-extern GtkStyle *input_style;
 extern GtkWidget *parent_window;
+
+void fe_check_font (void);
 
 void fe_apply_css (void);
 

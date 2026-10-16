@@ -152,7 +152,6 @@ static const char chan_flags[] = { 'c', 'n', 't', 'i', 'm', 'l', 'k' };
 static chan *active_tab = NULL;	/* active tab */
 GtkWidget *parent_window = NULL;			/* the master window */
 
-GtkStyle *input_style;
 
 static PangoAttrList *away_list;
 static PangoAttrList *newdata_list;
@@ -1648,9 +1647,9 @@ mg_create_tabmenu (session *sess, GdkEventButton *event, chan *ch)
 			menu_addconnectmenu (sess->server, menu);
 	}
 
-	mg_create_icon_item (_("_Detach"), GTK_STOCK_REDO, menu,
+	mg_create_icon_item (_("_Detach"), NX_STOCK_REDO, menu,
 								mg_detach_tab_cb, ch);
-	mg_create_icon_item (_("_Close"), GTK_STOCK_CLOSE, menu,
+	mg_create_icon_item (_("_Close"), NX_STOCK_CLOSE, menu,
 								mg_destroy_tab_cb, ch);
 	if (sess && tabmenu_list)
 		menu_create (menu, tabmenu_list, sess->channel, FALSE);
@@ -2146,11 +2145,11 @@ mg_create_chanmodebuttons (session_gui *gui, GtkWidget *box)
 /*static void
 mg_create_link_buttons (GtkWidget *box, gpointer userdata)
 {
-	gtkutil_button (box, GTK_STOCK_CLOSE, _("Close this tab/window"),
+	gtkutil_button (box, NX_STOCK_CLOSE, _("Close this tab/window"),
 						 mg_x_click_cb, userdata, 0);
 
 	if (!userdata)
-	gtkutil_button (box, GTK_STOCK_REDO, _("Attach/Detach this tab"),
+	gtkutil_button (box, NX_STOCK_REDO, _("Attach/Detach this tab"),
 						 mg_link_cb, userdata, 0);
 }*/
 
@@ -2846,7 +2845,7 @@ search_handle_event(int search_type, session *sess)
 
 	if (err)
 	{
-		gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NX_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _(err->message));
 		g_error_free (err);
 	}
@@ -2862,7 +2861,7 @@ search_handle_event(int search_type, session *sess)
 			last = gtk_xtext_search (GTK_XTEXT (sess->gui->xtext), text, flags, &err);
 			if (!last) /* Not found error */
 			{
-				gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
+				gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NX_STOCK_DIALOG_ERROR));
 				gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _("No results found."));
 			}
 		}
@@ -2943,7 +2942,7 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), gui->shbox, FALSE, FALSE, 0);
 
 	close = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (close), gtkutil_image_new_from_stock (GTK_STOCK_CLOSE, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (close), gtkutil_image_new_from_stock (NX_STOCK_CLOSE, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(close), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (close, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), close, FALSE, FALSE, 0);
@@ -2962,14 +2961,14 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _("Search hit end or not found."));
 
 	previous = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (previous), gtkutil_image_new_from_stock (GTK_STOCK_GO_BACK, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (previous), gtkutil_image_new_from_stock (NX_STOCK_GO_BACK, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(previous), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (previous, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), previous, FALSE, FALSE, 0);
 	g_signal_connect(G_OBJECT(previous), "clicked", G_CALLBACK(mg_search_handle_previous), sess);
 
 	next = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (next), gtkutil_image_new_from_stock (GTK_STOCK_GO_FORWARD, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (next), gtkutil_image_new_from_stock (NX_STOCK_GO_FORWARD, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(next), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (next, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), next, FALSE, FALSE, 0);
@@ -3097,7 +3096,7 @@ mg_create_tabs (session_gui *gui)
 
 	gui->chanview = chanview_new (prefs.hex_gui_tab_layout, prefs.hex_gui_tab_trunc,
 											prefs.hex_gui_tab_sort, use_icons,
-											prefs.hex_gui_ulist_style ? input_style : NULL);
+											prefs.hex_gui_ulist_style);
 	chanview_set_callbacks (gui->chanview, mg_switch_tab_cb, mg_xbutton_cb,
 									mg_tab_contextmenu_cb, (void *)mg_tabs_compare);
 	mg_place_userlist_and_chanview (gui);

@@ -480,13 +480,13 @@ pevent_dialog_show ()
 	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 4);
-	gtkutil_button (hbox, GTK_STOCK_SAVE_AS, NULL, pevent_save_cb,
+	gtkutil_button (hbox, NX_STOCK_SAVE_AS, NULL, pevent_save_cb,
 						 (void *) 1, _("Save As..."));
-	gtkutil_button (hbox, GTK_STOCK_OPEN, NULL, pevent_load_cb,
+	gtkutil_button (hbox, NX_STOCK_OPEN, NULL, pevent_load_cb,
 						 NULL, _("Load From..."));
 	gtkutil_button (hbox, NULL, NULL, pevent_test_cb,
 						pevent_dialog_twid, _("Test All"));
-	gtkutil_button (hbox, GTK_STOCK_OK, NULL, pevent_ok_cb,
+	gtkutil_button (hbox, NX_STOCK_OK, NULL, pevent_ok_cb,
 						NULL, _("OK"));
 
 	gtk_widget_show_all (pevent_dialog);

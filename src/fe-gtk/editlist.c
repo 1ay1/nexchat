@@ -353,13 +353,13 @@ editlist_gui_open (char *title1, char *title2, GSList *list, char *title, char *
 	gtk_container_set_border_width (GTK_CONTAINER (box), 5);
 	gtk_widget_show (box);
 
-	gtkutil_button (box, GTK_STOCK_NEW, 0, editlist_add,
+	gtkutil_button (box, NX_STOCK_NEW, 0, editlist_add,
 					NULL, _("Add"));
-	gtkutil_button (box, GTK_STOCK_DELETE, 0, editlist_delete,
+	gtkutil_button (box, NX_STOCK_DELETE, 0, editlist_delete,
 					NULL, _("Delete"));
-	gtkutil_button (box, GTK_STOCK_CANCEL, 0, editlist_close,
+	gtkutil_button (box, NX_STOCK_CANCEL, 0, editlist_close,
 					NULL, _("Cancel"));
-	gtkutil_button (box, GTK_STOCK_SAVE, 0, editlist_save,
+	gtkutil_button (box, NX_STOCK_SAVE, 0, editlist_save,
 					file, _("Save"));
 
 	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view)));

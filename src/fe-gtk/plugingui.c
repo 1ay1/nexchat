@@ -251,13 +251,13 @@ plugingui_open (void)
 	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
 	gtk_box_pack_end (GTK_BOX (vbox), hbox, 0, 0, 0);
 
-	gtkutil_button (hbox, GTK_STOCK_REVERT_TO_SAVED, NULL,
+	gtkutil_button (hbox, NX_STOCK_REVERT_TO_SAVED, NULL,
 	                plugingui_loadbutton_cb, NULL, _("_Load..."));
 
-	gtkutil_button (hbox, GTK_STOCK_DELETE, NULL,
+	gtkutil_button (hbox, NX_STOCK_DELETE, NULL,
 	                plugingui_unload, NULL, _("_Unload"));
 
-	gtkutil_button (hbox, GTK_STOCK_REFRESH, NULL,
+	gtkutil_button (hbox, NX_STOCK_REFRESH, NULL,
 	                plugingui_reloadbutton_cb, view, _("_Reload"));
 
 	fe_pluginlist_update ();

@@ -1563,7 +1563,7 @@ servlist_username_changed_cb (GtkEntry *entry, gpointer userdata)
 
 	if (gtk_entry_get_text (entry)[0] == 0)
 	{
-		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NX_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 										_("User name cannot be left blank."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
@@ -1585,14 +1585,14 @@ servlist_nick_changed_cb (GtkEntry *entry, gpointer userdata)
 	if (!nick1[0] || !nick2[0])
 	{
 		entry = GTK_ENTRY(!nick1[0] ? entry_nick1 : entry_nick2);
-		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NX_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 		                                 _("You cannot have an empty nick name."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
 	}
 	else if (!rfc_casecmp (nick1, nick2))
 	{
-		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NX_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 										_("You must have two unique nick names."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
@@ -2209,7 +2209,7 @@ servlist_open_networks (void)
 	gtkutil_container_add (GTK_WIDGET (hbuttonbox1), button_close);
 	gtk_widget_set_can_default (button_close, TRUE);
 
-	button_connect = gtkutil_button (hbuttonbox1, GTK_STOCK_CONNECT, NULL,
+	button_connect = gtkutil_button (hbuttonbox1, NX_STOCK_CONNECT, NULL,
 												servlist_connect_cb, NULL, _("C_onnect"));
 	gtk_widget_set_can_default (button_connect, TRUE);
 

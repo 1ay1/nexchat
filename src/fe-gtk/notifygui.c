@@ -344,8 +344,8 @@ fe_notify_ask (char *nick, char *networks)
 	char buf[256];
 
 	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	if (parent_window)
 		gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
@@ -420,11 +420,11 @@ notify_opengui (void)
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 0);
 	gtk_widget_show (bbox);
 
-	gtkutil_button (bbox, GTK_STOCK_NEW, 0, notify_add_clicked, 0,
+	gtkutil_button (bbox, NX_STOCK_NEW, 0, notify_add_clicked, 0,
 	                _("Add..."));
 
 	notify_button_remove =
-	gtkutil_button (bbox, GTK_STOCK_DELETE, 0, notify_remove_clicked, 0,
+	gtkutil_button (bbox, NX_STOCK_DELETE, 0, notify_remove_clicked, 0,
 	                _("Remove"));
 
 	notify_button_opendialog =

@@ -825,13 +825,13 @@ key_dialog_show ()
 	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
 	gtk_container_set_border_width (GTK_CONTAINER (box), 5);
 
-	gtkutil_button (box, GTK_STOCK_NEW, NULL, key_dialog_add,
+	gtkutil_button (box, NX_STOCK_NEW, NULL, key_dialog_add,
 					NULL, _("Add"));
-	gtkutil_button (box, GTK_STOCK_DELETE, NULL, key_dialog_delete,
+	gtkutil_button (box, NX_STOCK_DELETE, NULL, key_dialog_delete,
 					NULL, _("Delete"));
-	gtkutil_button (box, GTK_STOCK_CANCEL, NULL, key_dialog_close,
+	gtkutil_button (box, NX_STOCK_CANCEL, NULL, key_dialog_close,
 					NULL, _("Cancel"));
-	gtkutil_button (box, GTK_STOCK_SAVE, NULL, key_dialog_save,
+	gtkutil_button (box, NX_STOCK_SAVE, NULL, key_dialog_save,
 					NULL, _("Save"));
 
 	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view)));

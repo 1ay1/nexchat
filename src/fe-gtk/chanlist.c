@@ -621,11 +621,11 @@ chanlist_button_cb (GtkTreeView *tree, GdkEventButton *event, server *serv)
 	g_object_unref (menu);
 	g_signal_connect (G_OBJECT (menu), "selection-done",
 							G_CALLBACK (chanlist_menu_destroy), NULL);
-	mg_create_icon_item (_("_Join Channel"), GTK_STOCK_JUMP_TO, menu,
+	mg_create_icon_item (_("_Join Channel"), NX_STOCK_JUMP_TO, menu,
 								chanlist_join, serv);
-	mg_create_icon_item (_("_Copy Channel Name"), GTK_STOCK_COPY, menu,
+	mg_create_icon_item (_("_Copy Channel Name"), NX_STOCK_COPY, menu,
 								chanlist_copychannel, serv);
-	mg_create_icon_item (_("Copy _Topic Text"), GTK_STOCK_COPY, menu,
+	mg_create_icon_item (_("Copy _Topic Text"), NX_STOCK_COPY, menu,
 								chanlist_copytopic, serv);
 
 	chan = chanlist_get_selected (serv, FALSE);
@@ -789,25 +789,25 @@ chanlist_opengui (server *serv, int do_refresh)
 	gtk_box_pack_start (GTK_BOX (vbox), table, 0, 1, 0);
 	gtk_widget_show (table);
 
-	wid = gtkutil_button (NULL, GTK_STOCK_FIND, 0, chanlist_search_pressed, serv,
+	wid = gtkutil_button (NULL, NX_STOCK_FIND, 0, chanlist_search_pressed, serv,
 								 _("_Search"));
 	serv->gui->chanlist_search = wid;
 	gtkutil_grid_attach (table, wid, 3, 4, 3, 4,
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, 0, 0);
 
-	wid = gtkutil_button (NULL, GTK_STOCK_REFRESH, 0, chanlist_refresh, serv,
+	wid = gtkutil_button (NULL, NX_STOCK_REFRESH, 0, chanlist_refresh, serv,
 								 _("_Download List"));
 	serv->gui->chanlist_refresh = wid;
 	gtkutil_grid_attach (table, wid, 3, 4, 2, 3,
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, 0, 0);
 
-	wid = gtkutil_button (NULL, GTK_STOCK_SAVE_AS, 0, chanlist_save, serv,
+	wid = gtkutil_button (NULL, NX_STOCK_SAVE_AS, 0, chanlist_save, serv,
 								 _("Save _List..."));
 	serv->gui->chanlist_savelist = wid;
 	gtkutil_grid_attach (table, wid, 3, 4, 1, 2,
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, 0, 0);
 
-	wid = gtkutil_button (NULL, GTK_STOCK_JUMP_TO, 0, chanlist_join, serv,
+	wid = gtkutil_button (NULL, NX_STOCK_JUMP_TO, 0, chanlist_join, serv,
 						 _("_Join Channel"));
 	serv->gui->chanlist_join = wid;
 	gtkutil_grid_attach (table, wid, 3, 4, 0, 1,

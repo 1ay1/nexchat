@@ -75,6 +75,48 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 		gtk_container_add (GTK_CONTAINER (container), child);
 }
 
+GtkWidget *
+gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image)
+{
+	GtkWidget *item = gtk_menu_item_new ();
+	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+	/* an accel label, like GtkMenuItem's own child, so the item's shortcut
+	   (gtk_widget_add_accelerator) is drawn on the right: Ctrl+S, Ctrl+Q... */
+	GtkWidget *lbl = gtk_accel_label_new ("");
+
+	if (is_markup)
+		gtk_label_set_markup_with_mnemonic (GTK_LABEL (lbl), label);
+	else
+		gtk_label_set_text_with_mnemonic (GTK_LABEL (lbl), label);
+	gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
+	gtk_label_set_mnemonic_widget (GTK_LABEL (lbl), item);
+	gtk_accel_label_set_accel_widget (GTK_ACCEL_LABEL (lbl), item);
+
+	/* keep a 16px icon column even without an image, like GtkImageMenuItem */
+	if (!image)
+		image = gtk_image_new ();
+	gtk_widget_set_size_request (image, 16, -1);
+	gtk_box_pack_start (GTK_BOX (box), image, FALSE, FALSE, 0);
+	gtk_box_pack_start (GTK_BOX (box), lbl, TRUE, TRUE, 0);
+	gtk_container_add (GTK_CONTAINER (item), box);
+	g_object_set_data (G_OBJECT (item), "nx-label", lbl);
+	gtk_widget_show_all (box);
+	return item;
+}
+
+/* the GtkLabel of a menu item: ours (box), or a plain GtkMenuItem's child */
+GtkWidget *
+gtkutil_menu_item_get_label (GtkWidget *item)
+{
+	GtkWidget *lbl = g_object_get_data (G_OBJECT (item), "nx-label");
+	GtkWidget *child;
+
+	if (lbl)
+		return lbl;
+	child = gtk_bin_get_child (GTK_BIN (item));
+	return (child && GTK_IS_LABEL (child)) ? child : NULL;
+}
+
 /* Every GtkButton / GtkImageMenuItem keeps its image visible. A hook on
    GtkWidget::realize catches all of them: our own gtk_button_set_image
    calls, gtk_button_new_from_stock, dialog buttons and plugins' menu items,
@@ -90,11 +132,7 @@ gtkutil_realize_hook (GSignalInvocationHint *ihint, guint n_params,
 		if (!gtk_button_get_always_show_image (GTK_BUTTON (obj)))
 			gtk_button_set_always_show_image (GTK_BUTTON (obj), TRUE);
 	}
-	else if (GTK_IS_IMAGE_MENU_ITEM (obj))
-	{
-		if (!gtk_image_menu_item_get_always_show_image (GTK_IMAGE_MENU_ITEM (obj)))
-			gtk_image_menu_item_set_always_show_image (GTK_IMAGE_MENU_ITEM (obj), TRUE);
-	}
+	/* menu items: gtkutil_menu_item_new_with_image() always shows its icon */
 	return TRUE;	/* stay connected */
 }
 
@@ -402,8 +440,8 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_SAVE,
 												NULL, NULL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
 
 		if (!(flags & FRF_NOASKOVERWRITE))
 			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
@@ -413,8 +451,8 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_OPEN,
 												NULL, NULL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	}
 
 	if (filter && filter[0] && (flags & FRF_FILTERISINITIAL))
@@ -555,8 +593,8 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
@@ -649,8 +687,8 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
@@ -687,8 +725,8 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = gtk_dialog_new_with_buttons (title, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_NO, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_YES, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_NO, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_YES, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));

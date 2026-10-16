@@ -23,7 +23,9 @@
 typedef struct _chanview chanview;
 typedef struct _chan chan;
 
-chanview *chanview_new (int type, int trunc_len, gboolean sort, gboolean use_icons, GtkStyle *style);
+/* use_text_font: the channel tree follows the text box font (styled by
+   fe_apply_css when gui_ulist_style is on; kept for API symmetry) */
+chanview *chanview_new (int type, int trunc_len, gboolean sort, gboolean use_icons, gboolean use_text_font);
 void chanview_set_callbacks (chanview *cv,
 	void (*cb_focus) (chanview *, chan *, int tag, void *userdata),
 	void (*cb_xbutton) (chanview *, chan *, int tag, void *userdata),

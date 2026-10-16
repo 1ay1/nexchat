@@ -30,6 +30,13 @@ GtkWidget *gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, in
 /* gtk_container_add with GTK2 semantics for boxes (expand + fill) */
 void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
 
+/* GtkImageMenuItem (deprecated in GTK3, gone in GTK4): a GtkMenuItem whose
+   child is [image][label] laid out like GtkImageMenuItem did (16px icon
+   column, 6px gap). image may be NULL; label is a mnemonic, or markup if
+   is_markup. Use gtkutil_menu_item_get_label() to reach the label. */
+GtkWidget *gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image);
+GtkWidget *gtkutil_menu_item_get_label (GtkWidget *item);
+
 /* GTK3 hides images on buttons and menu items unless the theme/setting
    asks for them (gtk-button-images / gtk-menu-images default to FALSE);
    HexChat on GTK2 showed them everywhere. Call once at startup. */
@@ -39,47 +46,46 @@ void gtkutil_force_images (void);
    GTK_STOCK_* id (or "gtk-*" string) and use the icon name GTK3's own stock
    table maps it to (gtk/deprecated/gtkiconfactory.c), so every icon is the
    same image it was. Unknown ids pass through unchanged as icon names. */
-/* GTK's GTK_STOCK_* macros carry deprecation attributes; ours are plain
-   strings with the same values, so call sites read the same. */
-#ifdef GTK_DISABLE_DEPRECATED
-#define GTK_STOCK_ABOUT "gtk-about"
-#define GTK_STOCK_ADD "gtk-add"
-#define GTK_STOCK_APPLY "gtk-apply"
-#define GTK_STOCK_CANCEL "gtk-cancel"
-#define GTK_STOCK_CLEAR "gtk-clear"
-#define GTK_STOCK_CLOSE "gtk-close"
-#define GTK_STOCK_CONNECT "gtk-connect"
-#define GTK_STOCK_COPY "gtk-copy"
-#define GTK_STOCK_DELETE "gtk-delete"
-#define GTK_STOCK_DIALOG_ERROR "gtk-dialog-error"
-#define GTK_STOCK_DIALOG_WARNING "gtk-dialog-warning"
-#define GTK_STOCK_DISCONNECT "gtk-disconnect"
-#define GTK_STOCK_FIND "gtk-find"
-#define GTK_STOCK_GO_BACK "gtk-go-back"
-#define GTK_STOCK_GO_DOWN "gtk-go-down"
-#define GTK_STOCK_GO_FORWARD "gtk-go-forward"
-#define GTK_STOCK_GO_UP "gtk-go-up"
-#define GTK_STOCK_HELP "gtk-help"
-#define GTK_STOCK_INDEX "gtk-index"
-#define GTK_STOCK_JUMP_TO "gtk-jump-to"
-#define GTK_STOCK_JUSTIFY_LEFT "gtk-justify-left"
-#define GTK_STOCK_MEDIA_PLAY "gtk-media-play"
-#define GTK_STOCK_NETWORK "gtk-network"
-#define GTK_STOCK_NEW "gtk-new"
-#define GTK_STOCK_NO "gtk-no"
-#define GTK_STOCK_OK "gtk-ok"
-#define GTK_STOCK_OPEN "gtk-open"
-#define GTK_STOCK_PREFERENCES "gtk-preferences"
-#define GTK_STOCK_QUIT "gtk-quit"
-#define GTK_STOCK_REDO "gtk-redo"
-#define GTK_STOCK_REFRESH "gtk-refresh"
-#define GTK_STOCK_REMOVE "gtk-remove"
-#define GTK_STOCK_REVERT_TO_SAVED "gtk-revert-to-saved"
-#define GTK_STOCK_SAVE "gtk-save"
-#define GTK_STOCK_SAVE_AS "gtk-save-as"
-#define GTK_STOCK_SPELL_CHECK "gtk-spell-check"
-#define GTK_STOCK_YES "gtk-yes"
-#endif
+/* GTK's GTK_STOCK_* macros carry deprecation attributes and are gone in
+   GTK4; ours are plain strings with the same values. */
+#define NX_STOCK_ABOUT "gtk-about"
+#define NX_STOCK_ADD "gtk-add"
+#define NX_STOCK_APPLY "gtk-apply"
+#define NX_STOCK_CANCEL "gtk-cancel"
+#define NX_STOCK_CLEAR "gtk-clear"
+#define NX_STOCK_CLOSE "gtk-close"
+#define NX_STOCK_CONNECT "gtk-connect"
+#define NX_STOCK_COPY "gtk-copy"
+#define NX_STOCK_DELETE "gtk-delete"
+#define NX_STOCK_DIALOG_ERROR "gtk-dialog-error"
+#define NX_STOCK_DIALOG_WARNING "gtk-dialog-warning"
+#define NX_STOCK_DISCONNECT "gtk-disconnect"
+#define NX_STOCK_FIND "gtk-find"
+#define NX_STOCK_GO_BACK "gtk-go-back"
+#define NX_STOCK_GO_DOWN "gtk-go-down"
+#define NX_STOCK_GO_FORWARD "gtk-go-forward"
+#define NX_STOCK_GO_UP "gtk-go-up"
+#define NX_STOCK_HELP "gtk-help"
+#define NX_STOCK_INDEX "gtk-index"
+#define NX_STOCK_JUMP_TO "gtk-jump-to"
+#define NX_STOCK_JUSTIFY_LEFT "gtk-justify-left"
+#define NX_STOCK_MEDIA_PLAY "gtk-media-play"
+#define NX_STOCK_NETWORK "gtk-network"
+#define NX_STOCK_NEW "gtk-new"
+#define NX_STOCK_NO "gtk-no"
+#define NX_STOCK_OK "gtk-ok"
+#define NX_STOCK_OPEN "gtk-open"
+#define NX_STOCK_PREFERENCES "gtk-preferences"
+#define NX_STOCK_QUIT "gtk-quit"
+#define NX_STOCK_REDO "gtk-redo"
+#define NX_STOCK_REFRESH "gtk-refresh"
+#define NX_STOCK_REMOVE "gtk-remove"
+#define NX_STOCK_REVERT_TO_SAVED "gtk-revert-to-saved"
+#define NX_STOCK_SAVE "gtk-save"
+#define NX_STOCK_SAVE_AS "gtk-save-as"
+#define NX_STOCK_SPELL_CHECK "gtk-spell-check"
+#define NX_STOCK_YES "gtk-yes"
+
 const char *gtkutil_stock_icon_name (const char *stock_id);
 GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size);
 /* label + mnemonic GTK used for a stock button (_OK, _Cancel, ...), translated */

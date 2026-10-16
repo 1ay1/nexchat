@@ -129,10 +129,10 @@ open_rawlog (struct server *serv)
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 4);
 
-	gtkutil_button (bbox, GTK_STOCK_CLEAR, NULL, rawlog_clearbutton,
+	gtkutil_button (bbox, NX_STOCK_CLEAR, NULL, rawlog_clearbutton,
 						 serv, _("Clear Raw Log"));
 
-	gtkutil_button (bbox, GTK_STOCK_SAVE_AS, NULL, rawlog_savebutton,
+	gtkutil_button (bbox, NX_STOCK_SAVE_AS, NULL, rawlog_savebutton,
 						 serv, _("Save As..."));
 
 	/* Copy selection to clipboard when Ctrl+Shift+C is pressed AND text auto-copy is disabled */

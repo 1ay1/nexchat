@@ -44,7 +44,6 @@
 #endif
 #include "sexy-spell-entry.h"
 
-GtkStyle *create_input_style (GtkStyle *);
 
 #define LABEL_INDENT 12
 
@@ -1110,32 +1109,28 @@ setup_browsefile_cb (GtkWidget *button, GtkWidget *entry)
 					entry, NULL, filter, filter_type|FRF_RECENTLYUSED|FRF_MODAL);
 }
 
+/* GtkFontSelectionDialog is GTK2's picker and is gone in GTK4. The
+   chooser looks different (a searchable list with a preview instead of
+   three columns), but it returns the same Pango font string that goes into
+   text_font, so nothing stored changes. Listed in ROADMAP section 9. */
 static void
-setup_fontsel_destroy (GtkWidget *button, GtkFontSelectionDialog *dialog)
+setup_fontsel_response (GtkDialog *dialog, int response, GtkWidget *entry)
 {
-	font_dialog = NULL;
+	if (response == GTK_RESPONSE_OK)
+	{
+		char *font_name = gtk_font_chooser_get_font (GTK_FONT_CHOOSER (dialog));
+		if (font_name)
+		{
+			gtk_entry_set_text (GTK_ENTRY (entry), font_name);
+			g_free (font_name);
+		}
+	}
+	gtk_widget_destroy (GTK_WIDGET (dialog));
 }
 
 static void
-setup_fontsel_cb (GtkWidget *button, GtkFontSelectionDialog *dialog)
+setup_fontsel_destroy (GtkWidget *dialog, gpointer unused)
 {
-	GtkWidget *entry;
-	char *font_name;
-
-	entry = g_object_get_data (G_OBJECT (button), "e");
-	font_name = gtk_font_selection_dialog_get_font_name (dialog);
-
-	gtk_entry_set_text (GTK_ENTRY (entry), font_name);
-
-	g_free (font_name);
-	gtk_widget_destroy (GTK_WIDGET (dialog));
-	font_dialog = NULL;
-}
-
-static void
-setup_fontsel_cancel (GtkWidget *button, GtkFontSelectionDialog *dialog)
-{
-	gtk_widget_destroy (GTK_WIDGET (dialog));
 	font_dialog = NULL;
 }
 
@@ -1148,32 +1143,21 @@ setup_browsefolder_cb (GtkWidget *button, GtkEntry *entry)
 static void
 setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
-	GtkFontSelection *sel;
-	GtkFontSelectionDialog *dialog;
-	GtkWidget *ok_button;
+	GtkWidget *dialog;
 
-	dialog = (GtkFontSelectionDialog *) gtk_font_selection_dialog_new (_("Select font"));
-	font_dialog = (GtkWidget *)dialog;	/* global var */
-
-	gtk_window_set_transient_for (GTK_WINDOW (font_dialog), GTK_WINDOW (setup_window));
-	gtk_window_set_modal (GTK_WINDOW (font_dialog), TRUE);
-
-	sel = (GtkFontSelection *) gtk_font_selection_dialog_get_font_selection (dialog);
+	dialog = gtk_font_chooser_dialog_new (_("Select font"), GTK_WINDOW (setup_window));
+	font_dialog = dialog;	/* global var */
+	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 
 	if (gtk_entry_get_text (GTK_ENTRY (entry))[0])
-		gtk_font_selection_set_font_name (sel, gtk_entry_get_text (GTK_ENTRY (entry)));
-
-	ok_button = gtk_font_selection_dialog_get_ok_button (dialog);
-	g_object_set_data (G_OBJECT (ok_button), "e", entry);
+		gtk_font_chooser_set_font (GTK_FONT_CHOOSER (dialog), gtk_entry_get_text (GTK_ENTRY (entry)));
 
 	g_signal_connect (G_OBJECT (dialog), "destroy",
-							G_CALLBACK (setup_fontsel_destroy), dialog);
-	g_signal_connect (G_OBJECT (ok_button), "clicked",
-							G_CALLBACK (setup_fontsel_cb), dialog);
-	g_signal_connect (G_OBJECT (gtk_font_selection_dialog_get_cancel_button (dialog)), "clicked",
-							G_CALLBACK (setup_fontsel_cancel), dialog);
+							G_CALLBACK (setup_fontsel_destroy), NULL);
+	g_signal_connect (G_OBJECT (dialog), "response",
+							G_CALLBACK (setup_fontsel_response), entry);
 
-	gtk_widget_show (GTK_WIDGET (dialog));
+	gtk_widget_show (dialog);
 }
 
 static void
@@ -1425,68 +1409,43 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 	gtk_css_provider_load_from_data (prov, css, -1, NULL);
 }
 
-/* GtkColorSelectionDialog is GTK2's picker (deprecated in GTK3, gone in
-   GTK4) and HexChat users know it. GtkColorChooserDialog is the GTK3 one;
-   phase 3 decides between them. Until then keep the old dialog, converting
-   at the edge. */
+/* GtkColorSelectionDialog (GTK2's triangle picker) is deprecated in GTK3 and
+   gone in GTK4; GtkColorChooserDialog is its replacement. It opens straight
+   in the custom editor (hue/saturation plane + hex entry) so any colour can
+   be picked, and returns the same RGB, so colors.conf is unaffected.
+   Visual difference listed in ROADMAP section 9. */
 static void
-setup_color_ok_cb (GtkWidget *button, GtkWidget *dialog)
+setup_color_response (GtkDialog *dialog, int response, GtkWidget *button)
 {
-	GtkColorSelectionDialog *cdialog = GTK_COLOR_SELECTION_DIALOG (dialog);
-	GdkRGBA *col;
+	GdkRGBA *col = g_object_get_data (G_OBJECT (dialog), "c");
 
-	col = g_object_get_data (G_OBJECT (button), "c");
-
-	button = g_object_get_data (G_OBJECT (button), "b");
-
-	if (!GTK_IS_WIDGET (button))
+	if (response == GTK_RESPONSE_OK && GTK_IS_WIDGET (button) && col)
 	{
-		gtk_widget_destroy (dialog);
-		return;
+		color_change = TRUE;
+		gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (dialog), col);
+		col->alpha = 1.0;	/* the palette has no transparency */
+		setup_color_button_paint (button, col);
 	}
-
-	color_change = TRUE;
-
-	gtk_color_selection_get_current_rgba (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), col);
-	col->alpha = 1.0;	/* the palette has no transparency */
-
-	setup_color_button_paint (button, col);
-
-	gtk_widget_destroy (dialog);
+	gtk_widget_destroy (GTK_WIDGET (dialog));
 }
 
 static void
 setup_color_cb (GtkWidget *button, gpointer userdata)
 {
-	GtkWidget *dialog, *cancel_button, *ok_button, *help_button;
-	GtkColorSelectionDialog *cdialog;
+	GtkWidget *dialog;
 	GdkRGBA *color;
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
 
-	dialog = gtk_color_selection_dialog_new (_("Select color"));
-	cdialog = GTK_COLOR_SELECTION_DIALOG (dialog);
-
-	g_object_get (G_OBJECT(cdialog), "cancel-button", &cancel_button,
-									"ok-button", &ok_button,
-									"help-button", &help_button, NULL);
-
-	gtk_widget_hide (help_button);
-	g_signal_connect (G_OBJECT (ok_button), "clicked",
-							G_CALLBACK (setup_color_ok_cb), dialog);
-	g_signal_connect (G_OBJECT (cancel_button), "clicked",
-							G_CALLBACK (gtkutil_destroy), dialog);
-	g_object_set_data (G_OBJECT (ok_button), "c", color);
-	g_object_set_data (G_OBJECT (ok_button), "b", button);
-	gtk_widget_set_sensitive (help_button, FALSE);
-	gtk_color_selection_set_current_rgba (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), color);
-	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (setup_window));
+	dialog = gtk_color_chooser_dialog_new (_("Select color"), GTK_WINDOW (setup_window));
+	gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (dialog), FALSE);
+	gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (dialog), color);
+	g_object_set (G_OBJECT (dialog), "show-editor", TRUE, NULL);
+	g_object_set_data (G_OBJECT (dialog), "c", color);
+	g_signal_connect (G_OBJECT (dialog), "response",
+							G_CALLBACK (setup_color_response), button);
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 	gtk_widget_show (dialog);
-
-	g_object_unref (cancel_button);
-	g_object_unref (ok_button);
-	g_object_unref (help_button);
 }
 
 static void
@@ -1838,8 +1797,8 @@ setup_create_sound_page (void)
 							(GU_FILL),
 							(0), 0, 0);
 
-#ifdef GTK_STOCK_MEDIA_PLAY
-	sound_play = gtkutil_button_new_from_stock (GTK_STOCK_MEDIA_PLAY);
+#ifdef NX_STOCK_MEDIA_PLAY
+	sound_play = gtkutil_button_new_from_stock (NX_STOCK_MEDIA_PLAY);
 #else
 	sound_play = gtk_button_new_with_mnemonic (_("_Play"));
 #endif
@@ -2105,7 +2064,7 @@ setup_apply_real (int new_pix, int do_ulist, int do_layout, int do_identd)
 		channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
 	}
 
-	input_style = create_input_style (input_style);
+	fe_check_font ();
 	fe_apply_css ();
 
 	list = sess_list;
@@ -2302,12 +2261,12 @@ setup_window_open (void)
 	gtk_box_set_spacing (GTK_BOX (hbbox), 4);
 	gtk_box_pack_end (GTK_BOX (vbox), hbbox, FALSE, FALSE, 0);
 
-	cancel_button = wid = gtkutil_button_new_from_stock (GTK_STOCK_CANCEL);
+	cancel_button = wid = gtkutil_button_new_from_stock (NX_STOCK_CANCEL);
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (gtkutil_destroy), win);
 	gtk_box_pack_start (GTK_BOX (hbbox), wid, FALSE, FALSE, 0);
 
-	wid = gtkutil_button_new_from_stock (GTK_STOCK_OK);
+	wid = gtkutil_button_new_from_stock (NX_STOCK_OK);
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (setup_ok_cb), win);
 	gtk_box_pack_start (GTK_BOX (hbbox), wid, FALSE, FALSE, 0);

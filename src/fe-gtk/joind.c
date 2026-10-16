@@ -149,7 +149,7 @@ joind_show_dialog (server *serv)
 	gtk_widget_show (hbox1);
 	gtk_box_pack_start (GTK_BOX (vbox1), hbox1, TRUE, TRUE, 0);
 
-	image1 = gtkutil_image_new_from_stock (GTK_STOCK_NETWORK, GTK_ICON_SIZE_LARGE_TOOLBAR);
+	image1 = gtkutil_image_new_from_stock (NX_STOCK_NETWORK, GTK_ICON_SIZE_LARGE_TOOLBAR);
 	gtk_widget_show (image1);
 	gtk_box_pack_start (GTK_BOX (hbox1), image1, FALSE, TRUE, 24);
 	/* was gtk_misc_set_alignment (0.5, 0.06): centred, pinned near the top */
