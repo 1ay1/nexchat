@@ -32,6 +32,7 @@
 #include "menu.h"
 #include "maingui.h"
 #include "urlgrab.h"
+#include "nxlist.h"
 
 /* model for the URL treeview */
 enum
@@ -47,24 +48,17 @@ static gboolean
 url_treeview_url_clicked_cb (GtkWidget *view, guint button, int n_press,
                              double x, double y, GdkModifierType state, gpointer data)
 {
-	GtkTreeIter iter;
 	gchar *url;
-	GtkTreeSelection *sel;
-	GtkTreePath *path;
-	GtkTreeView *tree = GTK_TREE_VIEW (view);
+	nx_row *row = nx_view_row_at (view, x, y);
 
-	if (!gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
+	if (!row)
 		return FALSE;
 
 	/* select what they right-clicked on */
-	sel = gtk_tree_view_get_selection (tree); 
-	gtk_tree_selection_unselect_all (sel);
-	gtk_tree_selection_select_path (sel, path);
-	gtk_tree_path_free (path); 
+	nx_view_unselect_all (view);
+	nx_view_select (view, row);
 
-	if (!gtkutil_treeview_get_selected (GTK_TREE_VIEW (view), &iter,
-	                                    URL_COLUMN, &url, -1))
-		return FALSE;
+	nx_row_get (row, URL_COLUMN, &url, -1);
 	
 	switch (button)
 	{
@@ -86,17 +80,17 @@ url_treeview_url_clicked_cb (GtkWidget *view, guint button, int n_press,
 static GtkWidget *
 url_treeview_new (GtkWidget *box)
 {
-	GtkListStore *store;
+	nx_store *store;
 	GtkWidget *view;
 
-	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING);
-	g_return_val_if_fail (store != NULL, NULL);
-
-	view = gtkutil_treeview_new (box, GTK_TREE_MODEL (store), NULL,
-	                             URL_COLUMN, _("URL"), -1);
+	store = nx_store_new (FALSE, N_COLUMNS, G_TYPE_STRING);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
+	nx_view_add_column (view, _("URL"), NX_COL_TEXT, URL_COLUMN);
+	nx_view_set_search_column (view, URL_COLUMN);
 	nx_on_click (view, url_treeview_url_clicked_cb, NULL);
 	/* don't want column headers */
-	gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
+	nx_view_set_headers_visible (view, FALSE);
 	nx_widget_show (view);
 	return view;
 }
@@ -110,24 +104,21 @@ url_closegui (GtkWidget *wid, gpointer userdata)
 static void
 url_button_clear (void)
 {
-	GtkListStore *store;
-	
 	url_clear ();
-	store = GTK_LIST_STORE (g_object_get_data (G_OBJECT (urlgrabberwindow),
-	                                           "model"));
-	gtk_list_store_clear (store);
+	nx_store_clear (g_object_get_data (G_OBJECT (urlgrabberwindow), "model"));
 }
 
 static void
 url_button_copy (GtkWidget *widget, gpointer data)
 {
-	GtkTreeView *view = GTK_TREE_VIEW (data);
-	GtkTreeIter iter;
+	GtkWidget *view = data;
+	nx_row *row = nx_view_get_selected (view);
 	gchar *url = NULL;
 
-	if (gtkutil_treeview_get_selected (view, &iter, URL_COLUMN, &url, -1))
+	if (row)
 	{
-		gtkutil_copy_to_clipboard (GTK_WIDGET (view), url);
+		nx_row_get (row, URL_COLUMN, &url, -1);
+		gtkutil_copy_to_clipboard (view, url);
 		g_free (url);
 	}
 }
@@ -151,26 +142,19 @@ url_button_save (void)
 void
 fe_url_add (const char *urltext)
 {
-	GtkListStore *store;
-	GtkTreeIter iter;
-	gboolean valid;
+	nx_store *store;
+	nx_row *row;
 	
 	if (urlgrabberwindow)
 	{
-		store = GTK_LIST_STORE (g_object_get_data (G_OBJECT (urlgrabberwindow),
-		                                           "model"));
-		gtk_list_store_prepend (store, &iter);
-		gtk_list_store_set (store, &iter,
-		                    URL_COLUMN, urltext,
-		                    -1);
+		store = g_object_get_data (G_OBJECT (urlgrabberwindow), "model");
+		nx_row_set (nx_store_prepend (store, NULL), URL_COLUMN, urltext, -1);
 
 		/* remove any overflow */
 		if (prefs.hex_url_grabber_limit > 0)
 		{
-			valid = gtk_tree_model_iter_nth_child (
-				GTK_TREE_MODEL (store), &iter, NULL, prefs.hex_url_grabber_limit);
-			while (valid)
-				valid = gtk_list_store_remove (store, &iter);
+			while ((row = nx_store_nth (store, NULL, prefs.hex_url_grabber_limit)))
+				nx_row_remove (row);
 		}
 	}
 }
@@ -197,11 +181,10 @@ url_opengui ()
 	g_snprintf(buf, sizeof(buf), _("URL Grabber - %s"), _(DISPLAY_NAME));
 	urlgrabberwindow =
 		mg_create_generic_tab ("UrlGrabber", buf, FALSE, TRUE, url_closegui, NULL,
-							 400, 256, &vbox, 0);
+								 400, 256, &vbox, 0);
 	gtkutil_destroy_on_esc (urlgrabberwindow);
 	view = url_treeview_new (vbox);
-	g_object_set_data (G_OBJECT (urlgrabberwindow), "model",
-	                   gtk_tree_view_get_model (GTK_TREE_VIEW (view)));
+	g_object_set_data (G_OBJECT (urlgrabberwindow), "model", nx_view_get_store (view));
 
 	hbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_set_border_width (hbox, 5);
@@ -221,7 +204,7 @@ url_opengui ()
 		tree_foreach (url_tree, (tree_traverse_func *)populate_cb, NULL);
 	else
 	{
-		gtk_list_store_clear (GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view))));
+		nx_store_clear (nx_view_get_store (view));
 		fe_url_add ("URL Grabber is disabled.");
 	}
 }

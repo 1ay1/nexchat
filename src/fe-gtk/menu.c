@@ -2379,6 +2379,52 @@ menu_debug_dump (nx_menu *menu_bar)
 	menu_debug_dump_to (menu_bar, g_getenv ("NEXCHAT_MENU_DUMP"));
 }
 
+/* tests only: NEXCHAT_MENU_ACTIVATE="Window/Friends List" chooses that
+   item once the main window is up, as a click would (screenshot tests
+   used to type the menu's keys, which landed differently per build) */
+static gboolean
+menu_debug_activate_idle (gpointer data)
+{
+	nx_menu *m = data;
+	char **parts = g_strsplit (g_getenv ("NEXCHAT_MENU_ACTIVATE"), "/", -1);
+	int i, j;
+
+	for (i = 0; parts[i] && m; i++)
+	{
+		nx_item *found = NULL;
+		for (j = 0; j < nx_menu_get_n_items (m); j++)
+		{
+			nx_item *it = nx_menu_get_item (m, j);
+			const char *t = nx_item_get_text (it);
+			if (t && !strcmp (t, parts[i]))
+			{
+				found = it;
+				break;
+			}
+		}
+		if (!found)
+			break;
+		if (parts[i + 1])
+			m = nx_item_get_submenu (found);
+		else
+			nx_item_activate (found);
+	}
+	g_strfreev (parts);
+	return G_SOURCE_REMOVE;
+}
+
+void
+menu_debug_activate (nx_menu *menu_bar)
+{
+	static gboolean done;
+	const char *path = g_getenv ("NEXCHAT_MENU_ACTIVATE");
+
+	if (done || !path || !*path || !menu_bar)
+		return;
+	done = TRUE;
+	g_timeout_add (1500, menu_debug_activate_idle, menu_bar);
+}
+
 void
 menu_debug_dump_to (nx_menu *menu_bar, const char *path)
 {

@@ -16,6 +16,8 @@ trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT
 start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\n%s\n' "$extra" > "$tmp/cfg/hexchat.conf"
+# SHOT_FILES=dir: more config files (notify.conf, ...) copied in
+if [ -n "${SHOT_FILES:-}" ]; then cp "$SHOT_FILES"/* "$tmp/cfg/"; fi
 if [ -n "$cmd" ]; then
 	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" -c "$cmd" >"$tmp/log" 2>&1 &
 else

@@ -36,6 +36,7 @@
 #include "maingui.h"
 #include "palette.h"
 #include "notifygui.h"
+#include "nxlist.h"
 
 
 /* model for the notify treeview */
@@ -63,34 +64,15 @@ notify_closegui (void)
 	notify_save ();
 }
 
-/* Need this to be able to set the foreground colour property of a row
- * from a GdkRGBA * in the model  -Vince
- */
 static void
-notify_treecell_property_mapper (GtkTreeViewColumn *col, GtkCellRenderer *cell,
-                                 GtkTreeModel *model, GtkTreeIter *iter,
-                                 gpointer data)
+notify_row_cb (GtkWidget *view, gpointer data)
 {
-	gchar *text;
-	GdkRGBA *colour;
-	int model_column = GPOINTER_TO_INT (data);
-
-	gtk_tree_model_get (GTK_TREE_MODEL (model), iter, 
-	                    COLOUR_COLUMN, &colour,
-	                    model_column, &text, -1);
-	g_object_set (G_OBJECT (cell), "text", text, NULL);
-	g_object_set (G_OBJECT (cell), "foreground-rgba", colour, NULL);
-	g_free (text);
-}
-
-static void
-notify_row_cb (GtkTreeSelection *sel, GtkTreeView *view)
-{
-	GtkTreeIter iter;
+	nx_row *row = nx_view_get_selected (view);
 	struct notify_per_server *servnot;
 
-	if (gtkutil_treeview_get_selected (view, &iter, NPS_COLUMN, &servnot, -1))
+	if (row)
 	{
+		servnot = nx_row_get_pointer (row, NPS_COLUMN);
 		gtk_widget_set_sensitive (notify_button_opendialog, servnot ? servnot->ison : 0);
 		gtk_widget_set_sensitive (notify_button_remove, TRUE);
 		return;
@@ -103,35 +85,33 @@ notify_row_cb (GtkTreeSelection *sel, GtkTreeView *view)
 static GtkWidget *
 notify_treeview_new (GtkWidget *box)
 {
-	GtkListStore *store;
+	nx_store *store;
 	GtkWidget *view;
-	GtkTreeViewColumn *col;
-	int col_id;
+	nx_col *col;
+	static const char *const titles[] = { N_("Name"), N_("Status"), N_("Network"), N_("Last Seen") };
+	int i;
 
-	store = gtk_list_store_new (N_COLUMNS,
-	                            G_TYPE_STRING,
-	                            G_TYPE_STRING,
-	                            G_TYPE_STRING,
-	                            G_TYPE_STRING,
-	                            G_TYPE_POINTER,	/* can't specify colour! */
-										 G_TYPE_POINTER
-	                           );
-	g_return_val_if_fail (store != NULL, NULL);
+	store = nx_store_new (FALSE, N_COLUMNS,
+	                      G_TYPE_STRING,
+	                      G_TYPE_STRING,
+	                      G_TYPE_STRING,
+	                      G_TYPE_STRING,
+	                      GDK_TYPE_RGBA,
+	                      G_TYPE_POINTER);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
 
-	view = gtkutil_treeview_new (box, GTK_TREE_MODEL (store),
-	                             notify_treecell_property_mapper,
-	                             USER_COLUMN, _("Name"),
-	                             STATUS_COLUMN, _("Status"),
-	                             SERVER_COLUMN, _("Network"),
-	                             SEEN_COLUMN, _("Last Seen"), -1);
-	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), 0), TRUE);
-
-	for (col_id=0; (col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), col_id));
-	     col_id++)
-			gtk_tree_view_column_set_alignment (col, 0.5);
-
-	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW (view))),
-							"changed", G_CALLBACK (notify_row_cb), view);
+	for (i = 0; i < 4; i++)
+	{
+		col = nx_view_add_column (view, _(titles[i]), NX_COL_TEXT, i);
+		/* each row's colour: online or offline */
+		nx_col_bind (col, NX_BIND_FOREGROUND, COLOUR_COLUMN);
+		nx_col_set_title_align (col, 0.5);
+		if (i == 0)
+			nx_col_set_expand (col, TRUE);
+	}
+	nx_view_set_search_column (view, USER_COLUMN);
+	nx_view_on_select (view, notify_row_cb, NULL);
 
 	nx_widget_show (view);
 	return view;
@@ -149,17 +129,16 @@ notify_gui_update (void)
 	time_t lastseen;
 	char agobuf[128];
 
-	GtkListStore *store;
-	GtkTreeView *view;
-	GtkTreeIter iter;
-	gboolean valid;	/* true if we don't need to append a new tree row */
+	nx_store *store;
+	GtkWidget *view;
+	nx_row *row;	/* the next row to reuse; NULL: append */
 
 	if (!notify_window)
 		return;
 
 	view = g_object_get_data (G_OBJECT (notify_window), "view");
-	store = GTK_LIST_STORE (gtk_tree_view_get_model (view));
-	valid = gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter);
+	store = nx_view_get_store (view);
+	row = nx_store_first (store);
 
 	while (list)
 	{
@@ -197,12 +176,10 @@ notify_gui_update (void)
 					g_snprintf (agobuf, sizeof (agobuf), _("%d hours ago"), lastseenminutes / 60);
 				seen = agobuf;
 			}
-			if (!valid)	/* create new tree row if required */
-				gtk_list_store_append (store, &iter);
-			gtk_list_store_set (store, &iter, 0, name, 1, status,
-			                    2, server, 3, seen, 4, &colors[4], 5, NULL, -1);
-			if (valid)
-				valid = gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter);
+			nx_row_set (row ? row : nx_store_append (store, NULL), 0, name, 1, status,
+			            2, server, 3, seen, 4, &colors[4], 5, NULL, -1);
+			if (row)
+				row = nx_row_next (row);
 
 		} else
 		{
@@ -222,12 +199,10 @@ notify_gui_update (void)
 					g_snprintf (agobuf, sizeof (agobuf), _("%d minutes ago"), (int)(time (0) - lastseen) / 60);
 					seen = agobuf;
 
-					if (!valid)	/* create new tree row if required */
-						gtk_list_store_append (store, &iter);
-					gtk_list_store_set (store, &iter, 0, name, 1, status,
-					                    2, server, 3, seen, 4, &colors[3], 5, servnot, -1);
-					if (valid)
-						valid = gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter);
+					nx_row_set (row ? row : nx_store_append (store, NULL), 0, name, 1, status,
+					            2, server, 3, seen, 4, &colors[3], 5, servnot, -1);
+					if (row)
+						row = nx_row_next (row);
 
 					servcount++;
 				}
@@ -238,28 +213,28 @@ notify_gui_update (void)
 		list = list->next;
 	}
 
-	while (valid)
+	while (row)
 	{
-		GtkTreeIter old = iter;
-		/* get next iter now because removing invalidates old one */
-		valid = gtk_tree_model_iter_next (GTK_TREE_MODEL (store),
-                                      &iter);
-		gtk_list_store_remove (store, &old);
+		nx_row *old = row;
+		row = nx_row_next (row);
+		nx_row_remove (old);
 	}
 
-	notify_row_cb (gtk_tree_view_get_selection (view), view);
+	notify_row_cb (view, NULL);
 }
 
 static void
 notify_opendialog_clicked (GtkWidget * igad)
 {
-	GtkTreeView *view;
-	GtkTreeIter iter;
+	GtkWidget *view;
+	nx_row *row;
 	struct notify_per_server *servnot;
 
 	view = g_object_get_data (G_OBJECT (notify_window), "view");
-	if (gtkutil_treeview_get_selected (view, &iter, NPS_COLUMN, &servnot, -1))
+	row = nx_view_get_selected (view);
+	if (row)
 	{
+		servnot = nx_row_get_pointer (row, NPS_COLUMN);
 		if (servnot)
 			open_query (servnot->server, servnot->notify->name, TRUE);
 	}
@@ -268,40 +243,34 @@ notify_opendialog_clicked (GtkWidget * igad)
 static void
 notify_remove_clicked (GtkWidget * igad)
 {
-	GtkTreeView *view;
-	GtkTreeModel *model;
-	GtkTreeIter iter;
-	GtkTreePath *path = NULL;
+	GtkWidget *view;
+	nx_row *row;
 	gboolean found = FALSE;
 	char *name;
 
 	view = g_object_get_data (G_OBJECT (notify_window), "view");
-	if (gtkutil_treeview_get_selected (view, &iter, USER_COLUMN, &name, -1))
+	row = nx_view_get_selected (view);
+	if (row)
 	{
-		model = gtk_tree_view_get_model (view);
+		nx_row_get (row, USER_COLUMN, &name, -1);
 		found = (*name != 0);
 		while (!found)	/* the real nick is some previous node */
 		{
 			g_free (name); /* it's useless to us */
-			if (!path)
-				path = gtk_tree_model_get_path (model, &iter);
-			if (!gtk_tree_path_prev (path))	/* arrgh! no previous node! */
+			row = nx_row_prev (row);
+			if (!row)	/* arrgh! no previous node! */
 			{
 				g_warning ("notify list state is invalid\n");
 				break;
 			}
-			if (!gtk_tree_model_get_iter (model, &iter, path))
-				break;
-			gtk_tree_model_get (model, &iter, USER_COLUMN, &name, -1);
+			nx_row_get (row, USER_COLUMN, &name, -1);
 			found = (*name != 0);
 		}
-		if (path)
-			gtk_tree_path_free (path);
 		if (!found)
 			return;
 
 		/* ok, now we can remove it */
-		gtk_list_store_remove (GTK_LIST_STORE (model), &iter);
+		nx_row_remove (row);
 		notify_deluser (name);
 		g_free (name);
 	}

@@ -462,6 +462,7 @@ typedef struct
 	gboolean compact;
 	gboolean in_select;		/* our own selection changes */
 	gboolean reorderable;
+	gboolean had_cursor;		/* got focus once */
 	GString *typeahead;
 	gint64 typeahead_time;
 } view_priv;
@@ -623,6 +624,7 @@ typedef struct
 	nx_col *col;
 	nx_row *row;
 	gulong changed_id;
+	gboolean selected;
 	GtkWidget *icon, *label, *check, *entry, *expander;
 } cell;
 
@@ -687,7 +689,7 @@ cell_refresh (cell *c)
 
 		if (col->attrs_col >= 0 && nx_row_get_pointer (r, col->attrs_col))
 			attrs = pango_attr_list_copy (nx_row_get_pointer (r, col->attrs_col));
-		if (col->fg_col >= 0 && nx_row_get_pointer (r, col->fg_col))
+		if (col->fg_col >= 0 && nx_row_get_pointer (r, col->fg_col) && !c->selected)
 		{
 			GdkRGBA *rgba = nx_row_get_pointer (r, col->fg_col);
 			if (!attrs)
@@ -815,6 +817,21 @@ label_pressed (GtkGestureClick *g, int n, double x, double y, cell *c)
 							 GINT_TO_POINTER (c->row && nx_view_is_selected (c->col->view, c->row)));
 }
 
+/* GTK3 drew a selected row's text in the selection colour, whatever
+   foreground the row asked for */
+static void
+item_selected_changed (GtkListItem *li, GParamSpec *ps, cell *c)
+{
+	gboolean sel = gtk_list_item_get_selected (li);
+
+	if (sel != c->selected)
+	{
+		c->selected = sel;
+		if (c->col->fg_col >= 0)
+			cell_refresh (c);
+	}
+}
+
 static void
 factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 {
@@ -879,6 +896,8 @@ factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 	}
 	g_object_set_data_full (G_OBJECT (li), "nx-cell", c, cell_free);
 	g_object_set_data (G_OBJECT (top), "nx-cell", c);
+	if (col->fg_col >= 0)
+		g_signal_connect (li, "notify::selected", G_CALLBACK (item_selected_changed), c);
 	gtk_list_item_set_child (li, top);
 }
 
@@ -892,6 +911,7 @@ factory_bind (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 	if (c->expander)
 		gtk_tree_expander_set_list_row (GTK_TREE_EXPANDER (c->expander), item);
 	c->changed_id = g_signal_connect (c->row, "changed", G_CALLBACK (cell_row_changed), c);
+	c->selected = gtk_list_item_get_selected (li);
 	cell_refresh (c);
 }
 
@@ -953,6 +973,24 @@ view_key (GtkEventControllerKey *k, guint keyval, guint code, GdkModifierType st
 	return TRUE;
 }
 
+/* GtkTreeView put its cursor on the first row when it got focus with no
+   cursor yet, and in single/browse mode that selected it */
+static void
+view_focus_in (GtkEventControllerFocus *f, GtkWidget *view)
+{
+	view_priv *p = vp (view);
+	nx_row *r;
+
+	if (p->had_cursor || p->mode == GTK_SELECTION_NONE)
+		return;
+	p->had_cursor = TRUE;
+	if (nx_view_count_selected (view))
+		return;
+	r = pos_row (p, 0);
+	if (r && (!p->filter || p->filter (r, p->filter_ud)) && p->mode != GTK_SELECTION_MULTIPLE)
+		nx_view_select (view, r);
+}
+
 static void
 view_destroy (GtkWidget *view, gpointer data)
 {
@@ -987,6 +1025,9 @@ nx_view_new (nx_store *store)
 	g_signal_connect (cv, "destroy", G_CALLBACK (view_destroy), NULL);
 	k = gtk_event_controller_key_new ();
 	g_signal_connect (k, "key-pressed", G_CALLBACK (view_key), cv);
+	gtk_widget_add_controller (cv, k);
+	k = gtk_event_controller_focus_new ();
+	g_signal_connect (k, "enter", G_CALLBACK (view_focus_in), cv);
 	gtk_widget_add_controller (cv, k);
 	return cv;
 }
@@ -1109,13 +1150,48 @@ nx_col_set_fixed_width (nx_col *col, int width)
 	gtk_column_view_column_set_fixed_width (col->col, width);
 }
 
+/* GtkColumnView has no title alignment: set it on the header buttons'
+   labels once they exist (columns map to header buttons in order) */
+static void
+apply_title_align (GtkWidget *view)
+{
+	view_priv *p = vp (view);
+	GtkWidget *h, *b;
+	GList *l;
+
+	for (h = gtk_widget_get_first_child (view); h; h = gtk_widget_get_next_sibling (h))
+		if (!strcmp (gtk_widget_get_css_name (h), "header"))
+			break;
+	if (!h)
+		return;
+	for (b = gtk_widget_get_first_child (h), l = p->cols; b && l; b = gtk_widget_get_next_sibling (b), l = l->next)
+	{
+		nx_col *col = l->data;
+		GtkWidget *w;
+		/* button > box > label (+ sort arrow) */
+		for (w = gtk_widget_get_first_child (b); w; w = gtk_widget_get_first_child (w))
+		{
+			gtk_widget_set_hexpand (w, TRUE);
+			if (GTK_IS_LABEL (w))
+			{
+				gtk_label_set_xalign (GTK_LABEL (w), col->title_align);
+				break;
+			}
+		}
+	}
+}
+
 void
 nx_col_set_title_align (nx_col *col, float xalign)
 {
 	col->title_align = xalign;
-	/* the header is internal; a class picks the alignment in CSS */
-	if (xalign >= 0.4 && xalign <= 0.6)
-		gtk_column_view_column_set_id (col->col, "nx-center");
+	if (!g_object_get_data (G_OBJECT (col->view), "nx-align-hooked"))
+	{
+		g_object_set_data (G_OBJECT (col->view), "nx-align-hooked", GINT_TO_POINTER (1));
+		g_signal_connect (col->view, "map", G_CALLBACK (apply_title_align), NULL);
+	}
+	if (gtk_widget_get_mapped (col->view))
+		apply_title_align (col->view);
 }
 
 static int

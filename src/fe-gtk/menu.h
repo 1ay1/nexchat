@@ -27,6 +27,8 @@ nx_menu *menu_create_main (GtkWidget *window, int bar, int away, int toplevel, n
 void menu_debug_dump (nx_menu *menu_bar);
 /* the same, to path (NULL/empty: nothing) */
 void menu_debug_dump_to (nx_menu *menu, const char *path);
+/* tests: NEXCHAT_MENU_ACTIVATE="Window/Friends List" chooses that item */
+void menu_debug_activate (nx_menu *menu_bar);
 void menu_urlmenu (GdkEvent *event, char *url);
 void menu_chanmenu (session *sess, GdkEvent *event, char *chan);
 void menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean istree);

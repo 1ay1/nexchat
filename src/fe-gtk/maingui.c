@@ -3088,6 +3088,7 @@ mg_create_menu (session_gui *gui, GtkWidget *table, int away_state)
 												  !gui->is_tab, gui->menu_item);
 	gui->menu = nx_menu_bar_get_widget (gui->main_menu);
 	menu_debug_dump (gui->main_menu);
+	menu_debug_activate (gui->main_menu);
 	mg_grid_attach (table, gui->menu, 0, 3, 0, 1,
 						 GU_EXPAND | GU_FILL, GU_SHRINK | GU_FILL);
 }

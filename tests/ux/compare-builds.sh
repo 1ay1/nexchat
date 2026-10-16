@@ -7,31 +7,38 @@ old=$1; new=$2; out=$3
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$out/old" "$out/new"
 
-# name|keys (xkey.py, through the menus)|extra conf
+# name|menu item (Menu/Item, chosen through NEXCHAT_MENU_ACTIVATE) or keys
+# (xkey.py; for menus left open)|extra conf
 cat > "$out/cases" <<'EOF'
 main||
-netlist|ctrl+s|
-prefs|alt+e p|
-keys|alt+e Down Down Down Down Down Down Return|
-dcc|alt+w t|
-ignore|alt+w Down Down Down Down Down Down Return|
-urlgrab|alt+w u|
-plugins|alt+w p|
-rawlog|alt+w r|
-chanchart|alt+w Down Down Return|
-friends|alt+w Down Down Down Down Down Return|
-about|alt+h a|
-menu-file|alt+x|
-menu-view|alt+v|
-menu-window|alt+w|
+netlist|nexchat/Network List|
+prefs|Settings/Preferences|
+keys|Settings/Keyboard Shortcuts|
+textevents|Settings/Text Events|
+autoreplace|Settings/Auto Replace|
+dcc|Window/File Transfers|
+ignore|Window/Ignore List|
+urlgrab|Window/URL Grabber|
+plugins|Window/Plugins and Scripts|
+rawlog|Window/Raw Log|
+chanchart|Window/Character Chart|
+friends|Window/Friends List|
+banlist|Window/Ban List|
+chanlist|Server/Channel List|
+about|Help/About|
+menu-file|keys:alt+x|
+menu-view|keys:alt+v|
+menu-window|keys:alt+w|
 EOF
 
 n=0
-while IFS='|' read -r name keys conf; do
+while IFS='|' read -r name what conf; do
 	[ -n "$name" ] || continue
 	n=$((n + 1))
-	KEYS="$keys" SHOT_DISPLAY=":$((60 + 2 * n))" sh "$here/shot-dialog.sh" "$old" "$out/old/$name.png" "" "$conf" >/dev/null 2>&1 &
-	KEYS="$keys" SHOT_DISPLAY=":$((61 + 2 * n))" sh "$here/shot-dialog.sh" "$new" "$out/new/$name.png" "" "$conf" >/dev/null 2>&1 &
+	keys=; item=
+	case $what in keys:*) keys=${what#keys:};; *) item=$what;; esac
+	NEXCHAT_MENU_ACTIVATE="$item" KEYS="$keys" SHOT_DISPLAY=":$((60 + 2 * n))" sh "$here/shot-dialog.sh" "$old" "$out/old/$name.png" "" "$conf" >/dev/null 2>&1 &
+	NEXCHAT_MENU_ACTIVATE="$item" KEYS="$keys" SHOT_DISPLAY=":$((61 + 2 * n))" sh "$here/shot-dialog.sh" "$new" "$out/new/$name.png" "" "$conf" >/dev/null 2>&1 &
 	wait
 done < "$out/cases"
 

@@ -480,12 +480,12 @@ fe_apply_css (void)
 		"entry, button { border-radius: 4px; }\n"
 		/* check/radio buttons: GTK3's 23px rows (GTK4 Adwaita pads them to 26) */
 		"checkbutton { padding: 2px 2px; min-height: 0; }\n"
-		/* nxlist views: GTK3 tree view look. 23px rows (text + 2px cell
-		   padding top and bottom), no row separators, square selection,
-		   headers like GTK3's buttons */
+		/* nxlist views: GTK3 tree view look. GTK3 rows were the text plus the
+		   renderer's 2px ypad and half the view's 4px vertical-separator,
+		   top and bottom; no row separators, square selection */
 		"columnview.nx-list > listview > row { padding: 0; min-height: 0; border-radius: 0; }\n"
-		"columnview.nx-list > listview > row > cell { padding: 2px 4px; min-height: 0; }\n"
-		"columnview.nx-list.nx-compact > listview > row > cell { padding-top: 0; padding-bottom: 0; }\n"
+		"columnview.nx-list > listview > row > cell { padding: 4px 4px 3px 4px; min-height: 0; }\n"
+		"columnview.nx-list.nx-compact > listview > row > cell { padding-top: 2px; padding-bottom: 1px; }\n"
 		"columnview.nx-list > listview > row:not(:selected) { background: none; }\n"
 		"columnview.nx-list > header { box-shadow: inset 0 -1px #d7d2ce; padding: 0; margin: 0; }\n"
 		"columnview.nx-list > header > button { padding: 4px 6px 5px 6px; min-height: 0; border-radius: 0;"
