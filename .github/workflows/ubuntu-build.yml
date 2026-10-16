@@ -68,7 +68,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y meson libdbus-glib-1-dev libglib2.0-dev libgtk-4-dev libssl-dev python3 desktop-file-utils gettext xvfb
+          sudo apt-get install -y meson libdbus-glib-1-dev libglib2.0-dev libgtk-4-dev libssl-dev python3 desktop-file-utils gettext xvfb x11-apps libxtst6 libenchant-2-2 hunspell-en-us fonts-dejavu-core
 
       - name: Configure
         run: meson build4 -Dgtk=4 -Dtext-frontend=false -Dwith-perl=false -Dwith-python=false -Dwith-lua=false -Dlibcanberra=disabled
@@ -77,4 +77,4 @@ jobs:
         run: ninja -C build4
 
       - name: Test
-        run: meson test -C build4 --print-errorlogs smoke-gui nxmenu gtkcompat
+        run: meson test -C build4 --print-errorlogs

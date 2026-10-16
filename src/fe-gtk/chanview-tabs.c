@@ -602,7 +602,7 @@ tab_group_for_each_tab (chanview *cv,
 	int i;
 
 	innerbox = (GtkBox *) ((tabview *)cv)->inner;
-	boxes = nx_widget_get_children (innerbox);
+	boxes = nx_widget_get_children (GTK_WIDGET (innerbox));
 	i = 0;
 	while (boxes)
 	{

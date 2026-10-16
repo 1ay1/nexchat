@@ -5,6 +5,7 @@
 # the prefs. Baseline: tray.expected.
 # usage: tests/ux/tray.sh BIN [--update]   (needs Xvfb + XTest)
 set -eu
+. "$(dirname "$0")/isolate.sh"
 bin=$1; update=${2:-}
 here=$(cd "$(dirname "$0")" && pwd)
 base="$here/tray.expected"
@@ -15,9 +16,7 @@ app=; xv=
 cleanup() { kill $app $xv 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 
-"$xvfb" "$disp" -screen 0 1100x720x24 -nolisten tcp >/dev/null 2>&1 &
-xv=$!
-sleep 1.5
+start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ninput_tray_priv = 1\ninput_tray_chans = 0\n' > "$tmp/cfg/hexchat.conf"
 DISPLAY=$disp NEXCHAT_TRAY_MENU_DUMP="$tmp/dump" "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &

@@ -2,6 +2,7 @@
 # colors.conf must come out of a load + Preferences>OK save byte-identical.
 # usage: tests/ux/colors-roundtrip.sh path/to/nexchat   (needs Xvfb + XTest)
 set -eu
+. "$(dirname "$0")/isolate.sh"
 bin=$1
 here=$(cd "$(dirname "$0")" && pwd)
 xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
@@ -9,9 +10,7 @@ disp=${SHOT_DISPLAY:-:94}
 tmp=$(mktemp -d)
 trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-"$xvfb" "$disp" -screen 0 1100x720x24 -nolisten tcp >/dev/null 2>&1 &
-xv=$!
-sleep 1.5
+start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\n' > "$tmp/cfg/hexchat.conf"
 
@@ -34,6 +33,12 @@ DISPLAY=$disp "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
 sleep 5
 DISPLAY=$disp python3 "$here/xkey.py" --delay 0.8 --at 400,380 alt+e p
+# wait for the Preferences window (a second mapped top-level) before OK
+tops() {
+	DISPLAY=$disp xwininfo -root -children 2>/dev/null | awk '/^ *0x/ {print $1}' |
+	while read -r id; do DISPLAY=$disp xwininfo -id "$id" 2>/dev/null; done | grep -c IsViewable || true
+}
+i=0; while [ "$(tops)" -lt 2 ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 sleep 1
 # OK writes colors.conf (palette_save) even if nothing changed
 DISPLAY=$disp python3 "$here/xkey.py" --delay 0.8 --at 400,380 alt+o

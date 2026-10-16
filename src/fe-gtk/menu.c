@@ -1665,11 +1665,21 @@ menu_metres_both (nx_item *item, gpointer none)
 	}
 }
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+/* GTK4's about dialog is a plain window: it has no response signal */
+static gboolean
+about_dialog_close_request (GtkWindow *dialog, gpointer data)
+{
+	gtk_window_destroy (dialog);
+	return TRUE;
+}
+#else
 static void
 about_dialog_close (GtkDialog *dialog, int response, gpointer data)
 {
 	nx_widget_destroy (GTK_WIDGET(dialog));
 }
+#endif
 
 static gboolean
 about_dialog_openurl (GtkAboutDialog *dialog, char *uri, gpointer data)
@@ -1710,12 +1720,24 @@ menu_about (GtkWidget *wid, gpointer sess)
 	gtk_about_dialog_set_license (dialog, license); /* gtk3 can use GTK_LICENSE_GPL_2_0 */
 	gtk_about_dialog_set_website (dialog, "https://github.com/1ay1/nexchat");
 	gtk_about_dialog_set_website_label (dialog, "Website");
+#if GTK_CHECK_VERSION(4, 0, 0)
+	{
+		GdkTexture *logo = nx_texture_new_for_pixbuf (pix_hexchat);
+		gtk_about_dialog_set_logo (dialog, GDK_PAINTABLE (logo));
+		g_object_unref (logo);
+	}
+#else
 	gtk_about_dialog_set_logo (dialog, pix_hexchat);
+#endif
 	gtk_about_dialog_set_copyright (dialog, "\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
 	gtk_about_dialog_set_comments (dialog, comment);
 
 	gtk_window_set_transient_for (GTK_WINDOW(dialog), GTK_WINDOW(parent_window));
+#if GTK_CHECK_VERSION(4, 0, 0)
+	g_signal_connect (G_OBJECT(dialog), "close-request", G_CALLBACK(about_dialog_close_request), NULL);
+#else
 	g_signal_connect (G_OBJECT(dialog), "response", G_CALLBACK(about_dialog_close), NULL);
+#endif
 	g_signal_connect (G_OBJECT(dialog), "activate-link", G_CALLBACK(about_dialog_openurl), NULL);
 	
 	nx_widget_show_all (GTK_WIDGET(dialog));
@@ -2205,9 +2227,17 @@ menu_dump_level (FILE *f, nx_menu *menu, int depth)
 		nx_item_get_accel (item, &key, &mods);
 		if (key)
 		{
-			char *name = gtk_accelerator_name (key, mods);
-			g_strlcpy (accel, name, sizeof accel);
-			g_free (name);
+			/* not gtk_accelerator_name: GTK3 and GTK4 spell it differently */
+#if GTK_CHECK_VERSION(4, 0, 0)
+			const GdkModifierType alt = GDK_ALT_MASK;
+#else
+			const GdkModifierType alt = GDK_MOD1_MASK;
+#endif
+			g_snprintf (accel, sizeof accel, "%s%s%s%s",
+							(mods & GDK_CONTROL_MASK) ? "<Primary>" : "",
+							(mods & GDK_SHIFT_MASK) ? "<Shift>" : "",
+							(mods & alt) ? "<Alt>" : "",
+							gdk_keyval_name (gdk_keyval_to_lower (key)));
 		}
 
 		fprintf (f, "%*s%s \"%s\"%s%s%s%s\n", depth * 2, "", kind, text ? text : "",

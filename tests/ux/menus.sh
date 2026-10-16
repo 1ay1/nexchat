@@ -7,6 +7,7 @@
 #      updates one, and deletes another (the plugin-facing API)
 # usage: tests/ux/menus.sh BIN [--update]   (needs Xvfb + XTest)
 set -eu
+. "$(dirname "$0")/isolate.sh"
 bin=$1; update=${2:-}
 here=$(cd "$(dirname "$0")" && pwd)
 base="$here/menus.expected"
@@ -17,9 +18,7 @@ app=; ircd=; xv=
 cleanup() { kill $app $ircd $xv 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 
-"$xvfb" "$disp" -screen 0 1100x720x24 -nolisten tcp >/dev/null 2>&1 &
-xv=$!
-sleep 1.5
+start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\n' > "$tmp/cfg/hexchat.conf"
 python3 "$here/../fake_ircd.py" --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &

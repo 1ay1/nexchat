@@ -30,11 +30,15 @@
 #include <pango/pangocairo.h>
 #endif
 
-#ifdef GDK_WINDOWING_X11
+#if defined(GDK_WINDOWING_X11) && !GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/gdkx.h>
 #endif
 #ifdef GDK_WINDOWING_WAYLAND
+#if GTK_CHECK_VERSION(4, 0, 0)
+#include <gdk/wayland/gdkwayland.h>
+#else
 #include <gdk/gdkwayland.h>
+#endif
 #endif
 
 #include "../common/hexchat.h"
@@ -1314,7 +1318,8 @@ gtkutil_treeview_get_selected (GtkTreeView *view, GtkTreeIter *iter_ret, ...)
 gboolean
 gtkutil_tray_icon_supported (GtkWindow *window)
 {
-#ifndef GDK_WINDOWING_X11
+#if !defined(GDK_WINDOWING_X11) || GTK_CHECK_VERSION(4, 0, 0)
+	(void) window;
 	return TRUE;
 #else
 	GdkScreen *screen = gtk_window_get_screen (window);

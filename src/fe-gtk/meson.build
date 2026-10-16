@@ -155,7 +155,8 @@ endif
 # Need Xvfb + libXtst (+ xwd for colors); skipped (exit 77) where missing.
 xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
 if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
-  gui_env = ['XVFB=' + xvfb.full_path()]
+  # a GTK critical anywhere fails the test (the client aborts)
+  gui_env = ['XVFB=' + xvfb.full_path(), 'G_DEBUG=fatal-criticals']
   test('gtkcompat', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), gtkcompat_test],
     env: gui_env + ['DISP=:84'], timeout: 60)

@@ -4,6 +4,7 @@
 #        KEYS="ctrl+s" to press keys (tests/ux/xkey.py) after startup
 # Opens the dialog with -c and/or KEYS, waits, grabs the root window.
 set -eu
+. "$(dirname "$0")/isolate.sh"
 bin=$1; out=$2; cmd=$3; extra=${4:-}
 here=$(cd "$(dirname "$0")" && pwd)
 xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
@@ -12,9 +13,7 @@ disp=${SHOT_DISPLAY:-:94}
 tmp=$(mktemp -d)
 trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-"$xvfb" "$disp" -screen 0 1100x720x24 -nolisten tcp >/dev/null 2>&1 &
-xv=$!
-sleep 1.5
+start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\n%s\n' "$extra" > "$tmp/cfg/hexchat.conf"
 if [ -n "$cmd" ]; then

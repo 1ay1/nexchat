@@ -223,17 +223,17 @@ main (int argc, char **argv)
 		GString *d = g_string_new (NULL);
 		const char *want =
 			"[\n"
-			"  First -> nx.i4\n"
-			"  _Plain -> nx.i0\n"
-			"  X -> nx.i8\n"
-			"  Check -> nx.i1\n"
+			"  First -> nxp.i4\n"
+			"  _Plain -> nxp.i0\n"
+			"  X -> nxp.i8\n"
+			"  Check -> nxp.i1\n"
 			"]\n"
 			"[\n"
-			"  R1 -> nx.i2('0')\n"
-			"  R_3 -> nx.i2('2')\n"
+			"  R1 -> nxp.i2('0')\n"
+			"  R_3 -> nxp.i2('2')\n"
 			"  _Sub\n"
 			"    [\n"
-			"      a__b -> nx.i3\n"
+			"      a__b -> nxp.i3\n"
 			"    ]\n"
 			"]\n";
 

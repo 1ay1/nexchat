@@ -30,6 +30,7 @@ x11 = load("X11", ["/opt/X11/lib/libX11.6.dylib", "libX11.so.6"])
 xtst = load("Xtst", ["/opt/X11/lib/libXtst.6.dylib", "libXtst.so.6"])
 
 x11.XOpenDisplay.restype = ctypes.c_void_p
+x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
 x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
 x11.XStringToKeysym.restype = ctypes.c_ulong
 x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
@@ -105,6 +106,15 @@ def type_text(dpy, text, delay):
 
 
 def main(argv):
+    if argv[:1] == ["--wait-display"]:
+        # exit 0 once the display takes connections (Xvfb is up)
+        for _ in range(100):
+            dpy = x11.XOpenDisplay(os.environ.get("DISPLAY", "").encode() or None)
+            if dpy:
+                x11.XCloseDisplay(dpy)
+                return
+            time.sleep(0.1)
+        raise SystemExit("display did not come up")
     delay = 0.3
     at = (300, 200)
     text = None
@@ -141,7 +151,12 @@ def main(argv):
                 xtst.XTestFakeMotionEvent(dpy, -1, cx + (to[0] - cx) * i // 10,
                                           cy + (to[1] - cy) * i // 10, 0)
                 x11.XSync(dpy, 0)
+            # hover at the target (one more motion, then wait) before the
+            # release: GTK4's XDND handshake needs a position at the drop site
             time.sleep(0.1)
+            xtst.XTestFakeMotionEvent(dpy, -1, to[0], to[1] + 1, 0)
+            x11.XSync(dpy, 0)
+            time.sleep(0.4)
             xtst.XTestFakeButtonEvent(dpy, button, 0, 0)
             x11.XSync(dpy, 0)
             time.sleep(delay)

@@ -257,6 +257,13 @@ model_label (nx_item *it)
 	return g_string_free (s, FALSE);
 }
 
+/* popups get their own prefix: the bar's shortcuts label "nx.iN" window-wide */
+static const char *
+menu_prefix (nx_menu *m)
+{
+	return menu_root (m)->is_bar ? "nx" : "nxp";
+}
+
 static GMenuItem *
 model_item (nx_item *it)
 {
@@ -268,7 +275,8 @@ model_item (nx_item *it)
 		mi = g_menu_item_new_submenu (label, G_MENU_MODEL (it->submenu->model));
 	else
 	{
-		g_snprintf (name, sizeof name, "nx.%s", g_action_get_name (G_ACTION (it->action)));
+		g_snprintf (name, sizeof name, "%s.%s", menu_prefix (it->menu),
+						g_action_get_name (G_ACTION (it->action)));
 		mi = g_menu_item_new (label, NULL);
 		if (it->kind == E_RADIO)
 			g_menu_item_set_action_and_target_value (mi, name, g_variant_new_string (it->target));
@@ -752,33 +760,54 @@ popup_closed (GtkPopover *p, nx_menu *m)
 	g_idle_add (popup_free_idle, m);
 }
 
+/* GTK4 focuses the first item on popup; GTK3 had nothing selected and the
+   first Down picked it. Eat that first Down. */
+static gboolean
+popup_fresh_key (GtkEventControllerKey *k, guint keyval, guint keycode,
+					  GdkModifierType state, gpointer data)
+{
+	GtkWidget *p = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (k));
+	gboolean fresh = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (p), "nx-fresh"));
+
+	g_object_set_data (G_OBJECT (p), "nx-fresh", NULL);
+	return fresh && (keyval == GDK_KEY_Down || keyval == GDK_KEY_KP_Down);
+}
+
 void
 nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 					GDestroyNotify done, gpointer done_data)
 {
-	GtkWidget *p;
+	GtkWidget *p, *anchor = widget;
+	GtkEventController *k;
 	double x = 0, y = 0;
 	GdkRectangle r;
+
+	/* a popover added after a tree view's header buttons trips a css node
+	   critical; hang it off the parent */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+	while (GTK_IS_TREE_VIEW (anchor) && gtk_widget_get_parent (anchor))
+		anchor = gtk_widget_get_parent (anchor);
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 	sync_models (m);
 	p = gtk_popover_menu_new_from_model_full (G_MENU_MODEL (m->model), GTK_POPOVER_MENU_NESTED);
 	m->popover = p;
 	m->done = done;
 	m->done_data = done_data;
-	gtk_widget_insert_action_group (p, "nx", G_ACTION_GROUP (m->actions));
-	gtk_widget_set_parent (p, widget);
+	gtk_widget_insert_action_group (p, "nxp", G_ACTION_GROUP (m->actions));
+	gtk_widget_set_parent (p, anchor);
 	gtk_popover_set_has_arrow (GTK_POPOVER (p), FALSE);
 	gtk_widget_set_halign (p, GTK_ALIGN_START);
-	/* at the pointer: the event's position in widget coordinates */
+	/* at the pointer: the event's position in anchor coordinates */
 	if (event && gdk_event_get_position (event, &x, &y))
 	{
-		GtkNative *n = gtk_widget_get_native (widget);
+		GtkNative *n = gtk_widget_get_native (anchor);
 		graphene_point_t in, out;
 		double nx, ny;
 
 		gtk_native_get_surface_transform (n, &nx, &ny);
 		in = GRAPHENE_POINT_INIT ((float) (x - nx), (float) (y - ny));
-		if (gtk_widget_compute_point (GTK_WIDGET (n), widget, &in, &out))
+		if (gtk_widget_compute_point (GTK_WIDGET (n), anchor, &in, &out))
 		{
 			x = out.x;
 			y = out.y;
@@ -792,6 +821,11 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	g_signal_connect (p, "closed", G_CALLBACK (popup_closed), m);
 	run_show_hooks (m);
 	gtk_popover_popup (GTK_POPOVER (p));
+	g_object_set_data (G_OBJECT (p), "nx-fresh", GINT_TO_POINTER (1));
+	k = gtk_event_controller_key_new ();
+	gtk_event_controller_set_propagation_phase (k, GTK_PHASE_CAPTURE);
+	g_signal_connect (k, "key-pressed", G_CALLBACK (popup_fresh_key), NULL);
+	gtk_widget_add_controller (p, k);
 }
 
 nx_menu *

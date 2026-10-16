@@ -68,7 +68,7 @@ static void gtk_xtext_crossing (GtkWidget *, gboolean, gpointer);
 #include <gdk/gdkwin32.h>
 #else
 #include <unistd.h>
-#ifdef GDK_WINDOWING_X11
+#if defined(GDK_WINDOWING_X11) && !GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/gdkx.h>
 #endif
 #endif
@@ -342,7 +342,27 @@ backend_init (GtkXText *xtext)
 {
 	if (xtext->layout == NULL)
 	{
+#if GTK_CHECK_VERSION(4, 0, 0)
+		/* GTK4's default context measures unhinted: wider cells and gaps
+		   between runs. Use GTK3's hinted metrics. */
+		PangoContext *wctx = gtk_widget_get_pango_context (GTK_WIDGET (xtext));
+		PangoContext *ctx = pango_font_map_create_context (pango_context_get_font_map (wctx));
+		cairo_font_options_t *fo = cairo_font_options_create ();
+
+		pango_context_set_language (ctx, pango_context_get_language (wctx));
+		pango_context_set_base_dir (ctx, pango_context_get_base_dir (wctx));
+		pango_cairo_context_set_resolution (ctx, pango_cairo_context_get_resolution (wctx));
+		cairo_font_options_set_hint_metrics (fo, CAIRO_HINT_METRICS_ON);
+		cairo_font_options_set_hint_style (fo, CAIRO_HINT_STYLE_SLIGHT);
+		cairo_font_options_set_antialias (fo, CAIRO_ANTIALIAS_GRAY);
+		pango_cairo_context_set_font_options (ctx, fo);
+		pango_context_set_round_glyph_positions (ctx, TRUE);
+		cairo_font_options_destroy (fo);
+		xtext->layout = pango_layout_new (ctx);
+		g_object_unref (ctx);
+#else
 		xtext->layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), 0); 
+#endif
 		if (xtext->font)
 			pango_layout_set_font_description (xtext->layout, xtext->font->font);
 	}
@@ -395,7 +415,7 @@ backend_font_open (GtkXText *xtext, char *name)
 	xtext_pango_init (xtext);
 
 	/* vte does it this way */
-	context = gtk_widget_get_pango_context (GTK_WIDGET (xtext));
+	context = pango_layout_get_context (xtext->layout);
 	lang = pango_context_get_language (context);
 	metrics = pango_context_get_metrics (context, xtext->font->font, lang);
 	xtext->font->ascent = pango_font_metrics_get_ascent (metrics) / PANGO_SCALE;

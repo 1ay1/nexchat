@@ -1925,6 +1925,9 @@ setup_tree_cb (GtkTreeView *treeview, GtkWidget *book)
 	GtkTreeModel *model;
 	int page;
 
+	/* GTK4 emits this once more while the dialog is destroyed */
+	if (!selection)
+		return;
 	if (gtk_tree_selection_get_selected (selection, &model, &iter))
 	{
 		gtk_tree_model_get (model, &iter, 1, &page, -1);
