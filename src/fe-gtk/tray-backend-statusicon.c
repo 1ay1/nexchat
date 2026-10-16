@@ -107,10 +107,79 @@ tray_backend_is_embedded (tray_backend *tb)
 	return gtk_status_icon_is_embedded (tb->icon);
 }
 
-void
-tray_backend_popup_menu (tray_backend *tb, GtkMenu *menu, guint button, guint32 time)
+/* the menu open now, if any: a new right-click closes it first */
+static GtkWidget *open_menu;
+
+#ifdef G_OS_WIN32
+/* GtkMenu from a tray icon on Windows doesn't go away when the pointer
+   leaves it: close it after 2s outside (what plugin-tray.c always did) */
+static guint menu_timer;
+static gint64 menu_inactivetime;
+
+static gboolean
+menu_enter_cb (GtkWidget *menu)
 {
+	menu_inactivetime = 0;
+	return FALSE;
+}
+
+static gboolean
+menu_left_cb (GtkWidget *menu)
+{
+	menu_inactivetime = g_get_real_time ();
+	return FALSE;
+}
+#endif
+
+static void
+menu_destroy (GtkWidget *menu, gpointer userdata)
+{
+	if (open_menu == menu)
+		open_menu = NULL;
+	gtk_widget_destroy (menu);
+	g_object_unref (menu);
+#ifdef G_OS_WIN32
+	if (menu_timer)
+		g_source_remove (menu_timer);
+	menu_timer = 0;
+#endif
+}
+
+#ifdef G_OS_WIN32
+static gboolean
+menu_check_hide (GtkWidget *menu)
+{
+	if (menu_inactivetime && g_get_real_time () - menu_inactivetime >= 2000000)
+	{
+		menu_timer = 0;	/* this source ends by returning REMOVE */
+		menu_destroy (menu, NULL);
+		return G_SOURCE_REMOVE;
+	}
+	return G_SOURCE_CONTINUE;
+}
+#endif
+
+void
+tray_backend_show_menu (tray_backend *tb, nx_menu *nxmenu, guint button, guint32 time)
+{
+	/* GTK3: an nx_menu is the GtkMenu */
+	GtkWidget *menu = (GtkWidget *) nxmenu;
+
+	if (open_menu)
+		menu_destroy (open_menu, NULL);
+	open_menu = menu;
+
+	g_object_ref (menu);
+	g_object_ref_sink (menu);
+	g_object_unref (menu);
+	g_signal_connect (G_OBJECT (menu), "selection-done", G_CALLBACK (menu_destroy), NULL);
+#ifdef G_OS_WIN32
+	menu_inactivetime = 0;
+	g_signal_connect (G_OBJECT (menu), "leave-notify-event", G_CALLBACK (menu_left_cb), NULL);
+	g_signal_connect (G_OBJECT (menu), "enter-notify-event", G_CALLBACK (menu_enter_cb), NULL);
+	menu_timer = g_timeout_add (500, (GSourceFunc) menu_check_hide, menu);
+#endif
 	/* plugin-tray.c always passed a NULL position function, i.e. the menu
 	   opens at the pointer; keep that */
-	gtk_menu_popup (menu, NULL, NULL, NULL, NULL, button, time);
+	gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, button, time);
 }

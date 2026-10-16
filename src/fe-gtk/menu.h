@@ -25,6 +25,8 @@ nx_menu *menu_create_main (GtkWidget *window, int bar, int away, int toplevel, n
    accelerators, toggle/radio state, sensitivity) to path as text. Used by
    tests/ux/menus.sh to catch menu regressions; does nothing otherwise. */
 void menu_debug_dump (nx_menu *menu_bar);
+/* the same, to path (NULL/empty: nothing) */
+void menu_debug_dump_to (nx_menu *menu, const char *path);
 void menu_urlmenu (GdkEvent *event, char *url);
 void menu_chanmenu (session *sess, GdkEvent *event, char *chan);
 void menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean istree);

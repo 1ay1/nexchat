@@ -18,6 +18,7 @@
 #define NEXCHAT_TRAY_BACKEND_H
 
 #include <gtk/gtk.h>
+#include "nxmenu.h"
 
 typedef struct _tray_backend tray_backend;
 
@@ -42,8 +43,9 @@ void tray_backend_set_icon (tray_backend *tb, GdkPixbuf *icon);
 GdkPixbuf *tray_backend_get_icon (tray_backend *tb);
 void tray_backend_set_tooltip (tray_backend *tb, const char *text);
 gboolean tray_backend_is_embedded (tray_backend *tb);
-/* pop up a GtkMenu for the tray, positioned the way the backend's panel
-   expects (GtkStatusIcon: next to the icon) */
-void tray_backend_popup_menu (tray_backend *tb, GtkMenu *menu, guint button, guint32 time);
+/* show the tray menu, positioned the way the backend's panel expects
+   (GtkStatusIcon: at the pointer). The backend owns menu from here and
+   frees it once it's closed. */
+void tray_backend_show_menu (tray_backend *tb, nx_menu *menu, guint button, guint32 time);
 
 #endif

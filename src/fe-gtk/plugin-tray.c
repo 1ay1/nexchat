@@ -66,8 +66,6 @@ static tray_backend *sticon;
 static gint flash_tag;
 static TrayStatus tray_status;
 #ifdef WIN32
-static guint tray_menu_timer;
-static gint64 tray_menu_inactivetime;
 #endif
 static hexchat_plugin *ph;
 
@@ -320,7 +318,9 @@ gboolean
 tray_toggle_visibility (gboolean force_hide)
 {
 	static int x, y;
+#if !GTK_CHECK_VERSION(4, 0, 0)
 	static GdkScreen *screen;
+#endif
 	static int maximized;
 	static int fullscreen;
 	GtkWindow *win;
@@ -344,7 +344,9 @@ tray_toggle_visibility (gboolean force_hide)
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV AWAY");
 		gtkutil_window_get_position (win, &x, &y);
+#if !GTK_CHECK_VERSION(4, 0, 0)
 		screen = gtk_window_get_screen (win);
+#endif
 		maximized = prefs.hex_gui_win_state;
 		fullscreen = prefs.hex_gui_win_fullscreen;
 		gtk_widget_hide (GTK_WIDGET (win));
@@ -353,14 +355,17 @@ tray_toggle_visibility (gboolean force_hide)
 	{
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV BACK");
+#if !GTK_CHECK_VERSION(4, 0, 0)
+		/* (GTK4: one display per window, nothing to restore) */
 		gtk_window_set_screen (win, screen);
+#endif
 		gtkutil_window_move (win, x, y);
 		if (maximized)
 			gtk_window_maximize (win);
 		if (fullscreen)
 			gtk_window_fullscreen (win);
 		gtk_widget_show (GTK_WIDGET (win));
-		gtk_window_deiconify (win);
+		nx_window_deiconify (win);
 		gtk_window_present (win);
 	}
 
@@ -479,43 +484,6 @@ blink_item (unsigned int *setting, nx_menu *menu, char *label)
 }
 #endif
 
-static void
-tray_menu_destroy (GtkWidget *menu, gpointer userdata)
-{
-	nx_widget_destroy (menu);
-	g_object_unref (menu);
-#ifdef WIN32
-	g_source_remove (tray_menu_timer);
-#endif
-}
-
-#ifdef WIN32
-static gboolean
-tray_menu_enter_cb (GtkWidget *menu)
-{
-	tray_menu_inactivetime = 0;
-	return FALSE;
-}
-
-static gboolean
-tray_menu_left_cb (GtkWidget *menu)
-{
-	tray_menu_inactivetime = g_get_real_time ();
-	return FALSE;
-}
-
-static gboolean
-tray_check_hide (GtkWidget *menu)
-{
-	if (tray_menu_inactivetime && g_get_real_time () - tray_menu_inactivetime  >= 2000000)
-	{
-		tray_menu_destroy (menu, NULL);
-		return G_SOURCE_REMOVE;
-	}
-
-	return G_SOURCE_CONTINUE;
-}
-#endif
 
 static void
 tray_menu_settings (nx_item *item, gpointer none)
@@ -533,7 +501,7 @@ tray_menu_quit_item (nx_item *item, gpointer none)
 static void
 tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 {
-	static GtkWidget *menu;
+	nx_menu *menu;
 	nx_menu *submenu;
 	nx_item *item;
 	int away_status;
@@ -541,31 +509,24 @@ tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 	/* ph may have an invalid context now */
 	hexchat_set_context (ph, hexchat_find_context (ph, NULL, NULL));
 
-	/* close any old menu */
-	if (G_IS_OBJECT (menu))
-	{
-		tray_menu_destroy (menu, NULL);
-	}
-
-	/* GtkStatusIcon is GTK3 only, so this stays a GtkMenu (= an nx_menu) */
-	menu = NX_MENU_WIDGET (nx_menu_new ());
+	menu = nx_menu_new ();
 
 	if (tray_get_window_status () == WS_HIDDEN)
-		tray_make_item (NX_MENU (menu), _("_Restore Window"), tray_menu_restore_item, NULL);
+		tray_make_item (menu, _("_Restore Window"), tray_menu_restore_item, NULL);
 	else
-		tray_make_item (NX_MENU (menu), _("_Hide Window"), tray_menu_restore_item, NULL);
-	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
+		tray_make_item (menu, _("_Hide Window"), tray_menu_restore_item, NULL);
+	tray_make_item (menu, NULL, NULL, NULL);
 
 #ifndef WIN32 /* submenus are buggy on win32 */
-	submenu = mg_submenu (NX_MENU (menu), _("_Blink on"));
+	submenu = mg_submenu (menu, _("_Blink on"));
 	blink_item (&prefs.hex_input_tray_chans, submenu, _("Channel Message"));
 	blink_item (&prefs.hex_input_tray_priv, submenu, _("Private Message"));
 	blink_item (&prefs.hex_input_tray_hilight, submenu, _("Highlighted Message"));
 	/*blink_item (BIT_FILEOFFER, submenu, _("File Offer"));*/
 
-	submenu = mg_submenu (NX_MENU (menu), _("_Change status"));
+	submenu = mg_submenu (menu, _("_Change status"));
 #else /* so show away/back in main tray menu */
-	submenu = NX_MENU (menu);
+	submenu = menu;
 #endif
 
 	away_status = tray_find_away_status ();
@@ -576,28 +537,38 @@ tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 	if (away_status == 2)
 		nx_item_set_sensitive (item, FALSE);
 
-	menu_add_plugin_items (NX_MENU (menu), "\x5$TRAY", NULL);
+	menu_add_plugin_items (menu, "\x5$TRAY", NULL);
 
-	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
-	mg_create_icon_item (_("_Preferences"), NX_STOCK_PREFERENCES, NX_MENU (menu), tray_menu_settings, NULL);
-	tray_make_item (NX_MENU (menu), NULL, NULL, NULL);
-	mg_create_icon_item (_("_Quit"), NX_STOCK_QUIT, NX_MENU (menu), tray_menu_quit_item, NULL);
+	tray_make_item (menu, NULL, NULL, NULL);
+	mg_create_icon_item (_("_Preferences"), NX_STOCK_PREFERENCES, menu, tray_menu_settings, NULL);
+	tray_make_item (menu, NULL, NULL, NULL);
+	mg_create_icon_item (_("_Quit"), NX_STOCK_QUIT, menu, tray_menu_quit_item, NULL);
 
-	g_object_ref (menu);
-	g_object_ref_sink (menu);
-	g_object_unref (menu);
-	g_signal_connect (G_OBJECT (menu), "selection-done",
-							G_CALLBACK (tray_menu_destroy), NULL);
-#ifdef WIN32
-	g_signal_connect (G_OBJECT (menu), "leave-notify-event",
-							G_CALLBACK (tray_menu_left_cb), NULL);
-	g_signal_connect (G_OBJECT (menu), "enter-notify-event",
-							G_CALLBACK (tray_menu_enter_cb), NULL);
-
-	tray_menu_timer = g_timeout_add (500, (GSourceFunc)tray_check_hide, menu);
+	/* NEXCHAT_TRAY_MENU_DUMP=path: for tests/ux/tray.sh (headless servers
+	   have no tray to click): write the menu, don't show it */
+	if (g_getenv ("NEXCHAT_TRAY_MENU_DUMP"))
+	{
+		menu_debug_dump_to (menu, g_getenv ("NEXCHAT_TRAY_MENU_DUMP"));
+#if GTK_CHECK_VERSION(4, 0, 0)
+		nx_menu_free (menu);
+#else
+		g_object_ref_sink (menu);
+		gtk_widget_destroy (NX_MENU_WIDGET (menu));
+		g_object_unref (menu);
 #endif
+		return;
+	}
 
-	tray_backend_popup_menu (tb, GTK_MENU (menu), button, time);
+	/* the backend shows it and frees it (closing any menu still open) */
+	tray_backend_show_menu (tb, menu, button, time);
+}
+
+/* /TRAYMENU-DUMP: build the tray menu as a right-click would (tests) */
+static int
+tray_menu_dump_cmd (char *word[], char *word_eol[], void *userdata)
+{
+	tray_menu_cb (sticon, 3, 0, NULL);
+	return HEXCHAT_EAT_ALL;
 }
 
 static void
@@ -801,6 +772,10 @@ tray_plugin_init (hexchat_plugin *plugin_handle, char **plugin_name,
 	hexchat_hook_print (ph, "DCC Offer", -1, tray_dcc_cb, NULL);
 
 	hexchat_hook_print (ph, "Focus Window", -1, tray_focus_cb, NULL);
+
+	/* tests only: never there for users */
+	if (g_getenv ("NEXCHAT_TRAY_MENU_DUMP"))
+		hexchat_hook_command (ph, "TRAYMENU-DUMP", HEXCHAT_PRI_NORM, tray_menu_dump_cmd, NULL, NULL);
 
 	GtkWindow *window = GTK_WINDOW(hexchat_get_info (ph, "gtkwin_ptr"));
 	if (prefs.hex_gui_tray && gtkutil_tray_icon_supported (window))

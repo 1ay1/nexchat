@@ -1,0 +1,33 @@
+item "_Hide Window"
+---
+item "_Blink on"
+  check "Channel Message"
+    = off
+  check "Private Message"
+    = on
+  check "Highlighted Message"
+    = on
+item "_Change status"
+  item "_Away"
+  item "_Back" insensitive
+---
+item "_Preferences"
+---
+item "_Quit"
+## after input_tray_chans 1
+item "_Hide Window"
+---
+item "_Blink on"
+  check "Channel Message"
+    = on
+  check "Private Message"
+    = on
+  check "Highlighted Message"
+    = on
+item "_Change status"
+  item "_Away"
+  item "_Back" insensitive
+---
+item "_Preferences"
+---
+item "_Quit"

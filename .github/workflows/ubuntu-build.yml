@@ -40,7 +40,7 @@ jobs:
       # not ported yet (listed here; the list only shrinks)
       - name: GTK4 branches compile
         run: |
-          todo="plugin-tray.c sexy-iso-codes.c tray-backend-statusicon.c chanview-tabs.c chanview-tree.c"
+          todo="sexy-iso-codes.c tray-backend-statusicon.c chanview-tabs.c chanview-tree.c"
           for p in src/fe-gtk/*.c; do
             f=$(basename $p)
             case " $todo " in *" $f "*) continue;; esac

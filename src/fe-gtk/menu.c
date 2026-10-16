@@ -2226,7 +2226,12 @@ menu_dump_level (FILE *f, nx_menu *menu, int depth)
 void
 menu_debug_dump (nx_menu *menu_bar)
 {
-	const char *path = g_getenv ("NEXCHAT_MENU_DUMP");
+	menu_debug_dump_to (menu_bar, g_getenv ("NEXCHAT_MENU_DUMP"));
+}
+
+void
+menu_debug_dump_to (nx_menu *menu_bar, const char *path)
+{
 	FILE *f;
 
 	if (!path || !*path || !menu_bar)
