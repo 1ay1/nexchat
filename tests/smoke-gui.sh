@@ -21,7 +21,10 @@ port=$(cat "$tmp/port")
 
 mkdir -p "$tmp/cfg"
 printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_width = 900\ngui_win_height = 600\n' > "$tmp/cfg/hexchat.conf"
-G_DEBUG=fatal-criticals NEXCHAT_SHOT="$tmp/shot.png:6" \
+# the app is a native Windows exe on MSYS2: it needs a C:/... path
+shot=$tmp/shot.png
+command -v cygpath >/dev/null 2>&1 && shot=$(cygpath -m "$shot")
+G_DEBUG=fatal-criticals NEXCHAT_SHOT="$shot:6" \
 	"$bin" -a -d "$tmp/cfg" "irc://127.0.0.1:-$port/#smoke" >"$tmp/log" 2>&1 &
 app=$!
 
