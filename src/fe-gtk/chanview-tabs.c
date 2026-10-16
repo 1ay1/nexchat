@@ -80,12 +80,12 @@ cv_tabs_sizealloc (GtkWidget *widget, GtkAllocation *allocation, chanview *cv)
 
 	if (gtk_adjustment_get_upper (adj) <= viewport_size)
 	{
-		gtk_widget_hide (((tabview *)cv)->b1);
-		gtk_widget_hide (((tabview *)cv)->b2);
+		nx_widget_hide (((tabview *)cv)->b1);
+		nx_widget_hide (((tabview *)cv)->b2);
 	} else
 	{
-		gtk_widget_show (((tabview *)cv)->b1);
-		gtk_widget_show (((tabview *)cv)->b2);
+		nx_widget_show (((tabview *)cv)->b1);
+		nx_widget_show (((tabview *)cv)->b2);
 	}
 }
 
@@ -97,7 +97,7 @@ tab_search_offset (GtkWidget *inner, gint start_offset,
 	GList *tabs;
 	GtkWidget *box;
 	GtkWidget *button;
-	GtkAllocation allocation;
+	int bx, by;
 	gint found;
 
 	boxes = nx_widget_get_children (inner);
@@ -121,8 +121,8 @@ tab_search_offset (GtkWidget *inner, gint start_offset,
 			if (!GTK_IS_TOGGLE_BUTTON (button))
 				continue;
 
-			gtk_widget_get_allocation (button, &allocation);
-			found = (vertical ? allocation.y : allocation.x);
+			nx_widget_get_position_in (button, inner, &bx, &by);
+			found = (vertical ? by : bx);
 			if ((forward && found > start_offset) ||
 				(!forward && found < start_offset))
 				return found;
@@ -268,7 +268,7 @@ make_sbutton (const char *icon_name, void *click_cb, void *userdata)
 	g_signal_connect (G_OBJECT (button), "clicked",
 							G_CALLBACK (click_cb), userdata);
 	nx_on_scroll (button, tab_scroll_cb, userdata);
-	gtk_widget_show (arrow);
+	nx_widget_show (arrow);
 
 	return button;
 }
@@ -289,7 +289,7 @@ cv_tabs_init (chanview *cv)
 	g_signal_connect (G_OBJECT (outer), "size_allocate",
 							G_CALLBACK (cv_tabs_sizealloc), cv);
 /*	nx_set_border_width (outer, 2);*/
-	gtk_widget_show (outer);
+	nx_widget_show (outer);
 
 	viewport = gtk_viewport_new (0, 0);
 	nx_viewport_set_no_shadow (viewport);
@@ -297,7 +297,7 @@ cv_tabs_init (chanview *cv)
 							G_CALLBACK (cv_tabs_sizerequest), cv);
 	nx_on_scroll (viewport, tab_scroll_cb, cv);
 	nx_box_pack_start (outer, viewport, 1, 1, 0);
-	gtk_widget_show (viewport);
+	nx_widget_show (viewport);
 
 	if (cv->vertical)
 		box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
@@ -305,14 +305,14 @@ cv_tabs_init (chanview *cv)
 		box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	((tabview *)cv)->inner = box;
 	gtkutil_container_add (GTK_WIDGET (viewport), box);
-	gtk_widget_show (box);
+	nx_widget_show (box);
 
 	/* if vertical, the buttons can be side by side */
 	if (cv->vertical)
 	{
 		hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 		nx_box_pack_start (outer, hbox, 0, 0, 0);
-		gtk_widget_show (hbox);
+		nx_widget_show (hbox);
 	}
 
 	/* make the Scroll buttons */
@@ -360,7 +360,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 	if (!cv->sorted)
 	{
 		nx_box_pack_start (box, tab, 0, 0, 0);
-		gtk_widget_show (tab);
+		nx_widget_show (tab);
 		return;
 	}
 
@@ -382,7 +382,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 			{
 				nx_box_pack_start (box, tab, 0, 0, 0);
 				nx_box_reorder_child (box, tab, ++i);
-				gtk_widget_show (tab);
+				nx_widget_show (tab);
 				return;
 			}
 		}
@@ -393,7 +393,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 	/* append */
 	nx_box_pack_start (box, tab, 0, 0, 0);
 	nx_box_reorder_child (box, tab, i);
-	gtk_widget_show (tab);
+	nx_widget_show (tab);
 }
 
 /* remove empty boxes and separators */
@@ -488,12 +488,12 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 	}
 
 	nx_box_pack_end (box, sep, 0, 0, 4);
-	gtk_widget_show (sep);
+	nx_widget_show (sep);
 	nx_box_pack_start (inner, box, 0, 0, 0);
 	g_object_set_data (G_OBJECT (box), "f", ch->family);
 	nx_box_pack_start (box, tab, 0, 0, 0);
-	gtk_widget_show (tab);
-	gtk_widget_show (box);
+	nx_widget_show (tab);
+	nx_widget_show (box);
 	gtk_widget_queue_resize (gtk_widget_get_parent(inner));
 }
 

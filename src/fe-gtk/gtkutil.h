@@ -23,6 +23,7 @@
 #include <gtk/gtk.h>
 #include "gtkcompat.h"
 #include "gtkevents.h"
+#include "nxdialog.h"
 #include "../common/fe.h"
 
 typedef void (*filereqcallback) (void *, char *file);
@@ -36,7 +37,7 @@ void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
    nested main loop until it responds or is destroyed, return the response
    id (GTK_RESPONSE_NONE if destroyed). Only for the few callers that must
    block - startup messages before the main loop, and FE_MSG_WAIT. */
-int gtkutil_dialog_run_blocking (GtkDialog *dialog);
+int gtkutil_dialog_run_blocking (NxDialog *dialog);
 
 /* Window position and attention. On X11 and Windows these do what HexChat
    always did. Wayland doesn't let clients place windows or read their
@@ -112,7 +113,7 @@ const char *gtkutil_stock_label (const char *stock_id);
 GtkWidget *gtkutil_button_new_from_stock (const char *stock_id);
 /* gtk_dialog_add_button (dialog, GTK_STOCK_X, resp) without GtkStock: same
    label and icon the stock button had */
-GtkWidget *gtkutil_dialog_add_stock_button (GtkDialog *dialog, const char *stock_id, int response);
+GtkWidget *gtkutil_dialog_add_stock_button (NxDialog *dialog, const char *stock_id, int response);
 /* gtk_widget_render_icon (w, stock, size, NULL): a new pixbuf, from the theme */
 GdkPixbuf *gtkutil_render_icon (GtkWidget *widget, const char *stock_id, nx_icon_size size, const char *unused);
 

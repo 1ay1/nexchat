@@ -56,8 +56,14 @@ config_h.set('GTK_DISABLE_DEPRECATED', true)
 config_h.set('GDK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
-config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')
-config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
+# GTK4 needs GLib 2.76 itself (GTK 4.14), so its build may use what 2.76 has
+if get_option('gtk') == '4'
+  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_76')
+  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_76')
+else
+  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')
+  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
+endif
 
 # Detected features
 config_h.set('HAVE_MEMRCHR', cc.has_function('memrchr'))

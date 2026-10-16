@@ -196,7 +196,7 @@ ignore_treeview_new (GtkWidget *box)
 		g_list_free (list);
 	}
 	
-	gtk_widget_show (view);
+	nx_widget_show (view);
 	return view;
 }
 
@@ -257,7 +257,7 @@ ignore_store_new (int cancel, char *mask, gpointer data)
 }
 
 static void
-ignore_clear_cb (GtkDialog *dialog, gint response)
+ignore_clear_cb (GtkWidget *dialog, gint response)
 {
 	GtkListStore *store = GTK_LIST_STORE (get_store ());
 	GtkTreeIter iter;
@@ -287,13 +287,12 @@ ignore_clear_entry_clicked (GtkWidget * wid)
 {
 	GtkWidget *dialog;
 
-	dialog = gtk_message_dialog_new (NULL, 0,
-								GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
+	dialog = nx_message_dialog_new (NULL, FALSE, NX_MSG_QUESTION, NX_BUTTONS_OK_CANCEL, FALSE,
 					_("Are you sure you want to remove all ignores?"));
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (ignore_clear_cb), NULL);
 	nx_window_set_position_mouse (dialog);
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 }
 
 static void
@@ -361,12 +360,12 @@ ignore_gui_open ()
 	g_object_set_data (G_OBJECT (ignorewin), "view", view);
 	
 	frame = gtk_frame_new (_("Ignore Stats:"));
-	gtk_widget_show (frame);
+	nx_widget_show (frame);
 
 	stat_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
 	nx_set_border_width (stat_box, 6);
 	gtkutil_container_add (GTK_WIDGET (frame), stat_box);
-	gtk_widget_show (stat_box);
+	nx_widget_show (stat_box);
 
 	num_chan = ignore_stats_entry (stat_box, _("Channel:"), ignored_chan);
 	num_priv = ignore_stats_entry (stat_box, _("Private:"), ignored_priv);
@@ -379,7 +378,7 @@ ignore_gui_open ()
 	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
 	nx_set_border_width (box, 5);
-	gtk_widget_show (box);
+	nx_widget_show (box);
 
 	gtkutil_button (box, NX_STOCK_NEW, 0, ignore_new_entry_clicked, 0,
 						 _("Add..."));
@@ -417,7 +416,7 @@ ignore_gui_open ()
 		
 		temp = temp->next;
 	}
-	gtk_widget_show (ignorewin);
+	nx_widget_show (ignorewin);
 }
 
 void

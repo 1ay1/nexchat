@@ -760,11 +760,11 @@ dcc_exp_cb (GtkWidget *exp, GtkWidget *box)
 {
 	if (gtk_widget_get_visible (box))
 	{
-		gtk_widget_hide (box);
+		nx_widget_hide (box);
 	}
 	else
 	{
-		gtk_widget_show (box);
+		nx_widget_show (box);
 	}
 }
 
@@ -888,7 +888,7 @@ fe_dcc_open_recv_win (int passive)
 
 	dcc_fill_window (3);
 	nx_widget_show_all (dccfwin.window);
-	gtk_widget_hide (detailbox);
+	nx_widget_hide (detailbox);
 
 	return FALSE;
 }

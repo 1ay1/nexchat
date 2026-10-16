@@ -25,6 +25,8 @@
 	     GTK 3.24 gtk/icons). GTK4 dropped them; the GTK4 build adds this
 	     path to the icon theme so buttons keep their images. -->
 	<gresource prefix="/io/github/nexchat/icons">
+		<!-- the window icon, found even when nexchat isn't installed -->
+		<file alias="48x48/apps/io.github.nexchat.png">icons/nexchat.png</file>
 		<file alias="16x16/actions/gtk-connect.png">icons/gtk3-stock/16x16/actions/gtk-connect.png</file>
 		<file alias="16x16/actions/gtk-disconnect.png">icons/gtk3-stock/16x16/actions/gtk-disconnect.png</file>
 		<file alias="16x16/actions/gtk-index.png">icons/gtk3-stock/16x16/actions/gtk-index.png</file>

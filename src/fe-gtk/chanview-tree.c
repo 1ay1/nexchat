@@ -106,7 +106,7 @@ cv_tree_init (chanview *cv)
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtkutil_container_add (cv->box, mg_drop_overlay (win));
-	gtk_widget_show (win);
+	nx_widget_show (win);
 
 	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (cv->store));
 	gtk_widget_set_name (view, "hexchat-tree");	/* font/colours come from fe_apply_css() */
@@ -159,7 +159,7 @@ cv_tree_init (chanview *cv)
 
 	((treeview *)cv)->tree = GTK_TREE_VIEW (view);
 	((treeview *)cv)->scrollw = win;
-	gtk_widget_show (view);
+	nx_widget_show (view);
 }
 
 static void

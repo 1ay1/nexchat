@@ -645,7 +645,7 @@ userlist_create (GtkWidget *box)
 												GTK_POLICY_NEVER,
 											  GTK_POLICY_AUTOMATIC);
 	nx_box_pack_start (box, mg_drop_overlay (sw), TRUE, TRUE, 0);
-	gtk_widget_show (sw);
+	nx_widget_show (sw);
 
 	treeview = gtk_tree_view_new ();
 	gtk_widget_set_name (treeview, "hexchat-userlist");
@@ -667,7 +667,7 @@ userlist_create (GtkWidget *box)
 	userlist_add_columns (GTK_TREE_VIEW (treeview));
 
 	gtkutil_container_add (GTK_WIDGET (sw), treeview);
-	gtk_widget_show (treeview);
+	nx_widget_show (treeview);
 
 	return treeview;
 }

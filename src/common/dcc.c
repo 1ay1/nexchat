@@ -134,8 +134,11 @@ dcc_calc_cps (struct DCC *dcc)
 	gint64 *cpssum;
 	int glob_limit;
 	goffset pos, posdiff;
+	gint64 real = g_get_real_time ();
 
-	g_get_current_time (&now);
+	/* g_get_current_time is deprecated; same value */
+	now.tv_sec = real / G_USEC_PER_SEC;
+	now.tv_usec = real % G_USEC_PER_SEC;
 
 	/* the pos we use for sends is an average
 		between pos and ack */

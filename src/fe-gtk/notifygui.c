@@ -133,7 +133,7 @@ notify_treeview_new (GtkWidget *box)
 	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW (view))),
 							"changed", G_CALLBACK (notify_row_cb), view);
 
-	gtk_widget_show (view);
+	nx_widget_show (view);
 	return view;
 }
 
@@ -308,7 +308,7 @@ notify_remove_clicked (GtkWidget * igad)
 }
 
 static void
-notifygui_add_cb (GtkDialog *dialog, gint response, gpointer entry)
+notifygui_add_cb (GtkWidget *dialog, gint response, gpointer entry)
 {
 	char *networks;
 	char *text;
@@ -329,7 +329,7 @@ notifygui_add_cb (GtkDialog *dialog, gint response, gpointer entry)
 static void
 notifygui_add_enter (GtkWidget *entry, GtkWidget *dialog)
 {
-	gtk_dialog_response (GTK_DIALOG (dialog), GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
 }
 
 void
@@ -343,9 +343,9 @@ fe_notify_ask (char *nick, char *networks)
 	char *msg = _("Enter nickname to add:");
 	char buf[256];
 
-	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	dialog = nx_dialog_new (msg, NULL, FALSE);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	if (parent_window)
 		gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	nx_window_set_position_mouse (dialog);
@@ -354,7 +354,7 @@ fe_notify_ask (char *nick, char *networks)
 	nx_set_border_width (table, 12);
 	gtk_grid_set_row_spacing (GTK_GRID (table), 3);
 	gtk_grid_set_column_spacing (GTK_GRID (table), 8);
-	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), table);
+	gtkutil_container_add (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog)), table);
 
 	label = gtk_label_new (msg);
 	gtkutil_grid_attach (table, label, 0, 1, 0, 1, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
@@ -417,7 +417,7 @@ notify_opengui (void)
 	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_set_border_width (bbox, 5);
 	nx_box_pack_end (vbox, bbox, 0, 0, 0);
-	gtk_widget_show (bbox);
+	nx_widget_show (bbox);
 
 	gtkutil_button (bbox, NX_STOCK_NEW, 0, notify_add_clicked, 0,
 	                _("Add..."));
@@ -435,5 +435,5 @@ notify_opengui (void)
 
 	notify_gui_update ();
 
-	gtk_widget_show (notify_window);
+	nx_widget_show (notify_window);
 }

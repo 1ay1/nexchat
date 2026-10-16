@@ -348,7 +348,7 @@ editlist_gui_open (char *title1, char *title2, GSList *list, char *title, char *
 	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
 	nx_set_border_width (box, 5);
-	gtk_widget_show (box);
+	nx_widget_show (box);
 
 	gtkutil_button (box, NX_STOCK_NEW, 0, editlist_add,
 					NULL, _("Add"));
@@ -362,5 +362,5 @@ editlist_gui_open (char *title1, char *title2, GSList *list, char *title, char *
 	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view)));
 	editlist_load (store, list);
 
-	gtk_widget_show (editlist_win);
+	nx_widget_show (editlist_win);
 }

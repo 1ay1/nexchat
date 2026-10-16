@@ -12,6 +12,7 @@ hexchat_gtk_sources = [
   'gtkevents.c',
   'gtkdnd.c',
   'nxmenu.c',
+  'nxdialog.c',
   'ignoregui.c',
   'joind.c',
   'menu.c',

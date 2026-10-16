@@ -349,7 +349,7 @@ tray_toggle_visibility (gboolean force_hide)
 #endif
 		maximized = prefs.hex_gui_win_state;
 		fullscreen = prefs.hex_gui_win_fullscreen;
-		gtk_widget_hide (GTK_WIDGET (win));
+		nx_widget_hide (GTK_WIDGET (win));
 	}
 	else
 	{
@@ -364,7 +364,7 @@ tray_toggle_visibility (gboolean force_hide)
 			gtk_window_maximize (win);
 		if (fullscreen)
 			gtk_window_fullscreen (win);
-		gtk_widget_show (GTK_WIDGET (win));
+		nx_widget_show (GTK_WIDGET (win));
 		nx_window_deiconify (win);
 		gtk_window_present (win);
 	}

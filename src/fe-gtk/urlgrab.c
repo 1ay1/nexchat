@@ -97,7 +97,7 @@ url_treeview_new (GtkWidget *box)
 	nx_on_click (view, url_treeview_url_clicked_cb, NULL);
 	/* don't want column headers */
 	gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
-	gtk_widget_show (view);
+	nx_widget_show (view);
 	return view;
 }
 
@@ -206,7 +206,7 @@ url_opengui ()
 	hbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_set_border_width (hbox, 5);
 	nx_box_pack_end (vbox, hbox, 0, 0, 0);
-	gtk_widget_show (hbox);
+	nx_widget_show (hbox);
 
 	gtkutil_button (hbox, NX_STOCK_CLEAR,
 						 _("Clear list"), url_button_clear, 0, _("Clear"));
@@ -215,7 +215,7 @@ url_opengui ()
 	gtkutil_button (hbox, NX_STOCK_SAVE_AS,
 						 _("Save list to a file"), url_button_save, 0, _("Save As..."));
 
-	gtk_widget_show (urlgrabberwindow);
+	nx_widget_show (urlgrabberwindow);
 
 	if (prefs.hex_url_grabber)
 		tree_foreach (url_tree, (tree_traverse_func *)populate_cb, NULL);

@@ -1012,8 +1012,8 @@ make_ping_time (void)
 	struct timeval timev;
 	gettimeofday (&timev, 0);
 #else
-	GTimeVal timev;
-	g_get_current_time (&timev);
+	gint64 real = g_get_real_time ();
+	struct { glong tv_sec, tv_usec; } timev = { real / G_USEC_PER_SEC, real % G_USEC_PER_SEC };
 #endif
 	return (timev.tv_sec - 50000) * 1000 + timev.tv_usec/1000;
 }

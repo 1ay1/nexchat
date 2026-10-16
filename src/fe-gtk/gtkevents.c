@@ -368,6 +368,7 @@ window_size_notify (GtkWidget *w, GParamSpec *ps, hook *h)
 }
 
 #ifdef GDK_WINDOWING_X11
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS	/* GTK 4.18: X11 getters, no replacement */
 static gboolean
 x11_configure (GdkDisplay *d, const XEvent *xev, hook *h)
 {
@@ -379,6 +380,7 @@ x11_configure (GdkDisplay *d, const XEvent *xev, hook *h)
 		((nx_window_configure_cb) h->cb) (GTK_WINDOW (w), h->userdata);
 	return FALSE;		/* GDK handles it as usual */
 }
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 static void
 x11_configure_unhook (GtkWidget *w, hook *h)

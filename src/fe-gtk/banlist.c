@@ -548,7 +548,7 @@ banlist_unban (GtkWidget * wid, banlist_info *banl)
 }
 
 static void
-banlist_clear_cb (GtkDialog *dialog, gint response, gpointer data)
+banlist_clear_cb (GtkWidget *dialog, gint response, gpointer data)
 {
 	banlist_info *banl = data;
 	GtkTreeSelection *sel;
@@ -567,15 +567,16 @@ static void
 banlist_clear (GtkWidget * wid, banlist_info *banl)
 {
 	GtkWidget *dialog;
+	char *q = g_strdup_printf (_("Are you sure you want to remove all listed items in %s?"),
+									  banl->sess->channel);
 
-	dialog = gtk_message_dialog_new (NULL, 0,
-								GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
-					_("Are you sure you want to remove all listed items in %s?"), banl->sess->channel);
+	dialog = nx_message_dialog_new (NULL, FALSE, NX_MSG_QUESTION, NX_BUTTONS_OK_CANCEL, FALSE, q);
+	g_free (q);
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (banlist_clear_cb), banl);
 	nx_window_set_position_mouse (dialog);
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 }
 
 static void
@@ -761,7 +762,7 @@ banlist_treeview_new (GtkWidget *box, banlist_info *banl)
 	g_signal_connect (G_OBJECT (select), "changed", G_CALLBACK (banlist_select_changed), banl);
 	gtk_tree_selection_set_mode (select, GTK_SELECTION_MULTIPLE);
 
-	gtk_widget_show (view);
+	nx_widget_show (view);
 	return view;
 }
 
@@ -841,7 +842,7 @@ banlist_opengui (struct session *sess)
 	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_set_border_width (bbox, 5);
 	nx_box_pack_end (vbox, bbox, 0, 0, 0);
-	gtk_widget_show (bbox);
+	nx_widget_show (bbox);
 
 	banl->but_remove = gtkutil_button (bbox, NX_STOCK_REMOVE, 0, banlist_unban, banl,
 	                _("Remove"));

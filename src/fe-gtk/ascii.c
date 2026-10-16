@@ -140,7 +140,7 @@ ascii_open (void)
 			table_pos++;
 			hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 			gtkutil_container_add (GTK_WIDGET (vbox), hbox);
-			gtk_widget_show (hbox);
+			nx_widget_show (hbox);
 			i++;
 			continue;
 		}
@@ -157,7 +157,7 @@ ascii_open (void)
 								G_CALLBACK (ascii_click), NULL);
 		nx_on_crossing (but, ascii_enter, label);
 		nx_box_pack_start (hbox, but, 0, 0, 0);
-		gtk_widget_show (but);
+		nx_widget_show (but);
 
 		table_pos += len;
 	}
@@ -165,8 +165,8 @@ ascii_open (void)
 	frame = gtk_frame_new ("");
 	gtkutil_container_add (GTK_WIDGET (hbox), frame);
 	gtkutil_container_add (GTK_WIDGET (frame), label);
-	gtk_widget_show (label);
-	gtk_widget_show (frame);
+	nx_widget_show (label);
+	nx_widget_show (frame);
 
-	gtk_widget_show (win);
+	nx_widget_show (win);
 }

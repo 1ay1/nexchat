@@ -123,7 +123,7 @@ typedef struct
 } run_info;
 
 static void
-run_response_cb (GtkDialog *dialog, int response, run_info *ri)
+run_response_cb (GtkWidget *dialog, int response, run_info *ri)
 {
 	ri->response = response;
 	if (g_main_loop_is_running (ri->loop))
@@ -155,7 +155,7 @@ run_delete_cb (GtkWidget *dialog, GdkEvent *ev, run_info *ri)
 }
 
 int
-gtkutil_dialog_run_blocking (GtkDialog *dialog)
+gtkutil_dialog_run_blocking (NxDialog *dialog)
 {
 	run_info ri = { NULL, GTK_RESPONSE_NONE, FALSE };
 	gulong h1, h2, h3;
@@ -170,7 +170,7 @@ gtkutil_dialog_run_blocking (GtkDialog *dialog)
 #endif
 
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-	gtk_widget_show (GTK_WIDGET (dialog));
+	nx_widget_show (GTK_WIDGET (dialog));
 
 	ri.loop = g_main_loop_new (NULL, FALSE);
 	g_main_loop_run (ri.loop);
@@ -198,7 +198,9 @@ gtkutil_window_can_position (GtkWindow *win)
 
 #if GTK_CHECK_VERSION(4, 0, 0) && defined(GDK_WINDOWING_X11)
 /* GTK4 has no window position or urgency API; on X11 do what GTK3 did
-   with Xlib on the toplevel's own X window */
+   with Xlib on the toplevel's own X window. GTK 4.18 deprecated the X11
+   backend's getters with no replacement. */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 static Window
 x11_xid (GtkWindow *win)
 {
@@ -215,6 +217,7 @@ x11_dpy (GtkWindow *win)
 {
 	return gdk_x11_display_get_xdisplay (gtk_widget_get_display (GTK_WIDGET (win)));
 }
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 static void
 x11_move_now (GtkWindow *win, int x, int y)
@@ -506,15 +509,15 @@ gtkutil_button_new_from_stock (const char *stock_id)
 }
 
 GtkWidget *
-gtkutil_dialog_add_stock_button (GtkDialog *dialog, const char *stock_id, int response)
+gtkutil_dialog_add_stock_button (NxDialog *dialog, const char *stock_id, int response)
 {
 	GtkWidget *button = gtkutil_button_new_from_stock (stock_id);
 
 #if !GTK_CHECK_VERSION(4, 0, 0)
 	gtk_widget_set_can_default (button, TRUE);	/* GTK4: any button can be */
 #endif
-	gtk_widget_show (button);
-	gtk_dialog_add_action_widget (dialog, button, response);
+	nx_widget_show (button);
+	nx_dialog_add_action_widget (dialog, button, response);
 	return button;
 }
 
@@ -858,8 +861,8 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_SAVE,
 												NULL, NULL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
+		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
 
 		if (!(flags & FRF_NOASKOVERWRITE))
 			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
@@ -869,8 +872,8 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_OPEN,
 												NULL, NULL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	}
 
 	if (filter && filter[0] && (flags & FRF_FILTERISINITIAL))
@@ -934,7 +937,7 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 		gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 	}
 
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 }
 #endif
 
@@ -981,7 +984,7 @@ gtkutil_destroy (GtkWidget * igad, GtkWidget * dgad)
 }
 
 static void
-gtkutil_get_str_response (GtkDialog *dialog, gint arg1, gpointer entry)
+gtkutil_get_str_response (GtkWidget *dialog, gint arg1, gpointer entry)
 {
 	void (*callback) (int cancel, char *text, void *user_data);
 	char *text;
@@ -1007,7 +1010,7 @@ gtkutil_get_str_response (GtkDialog *dialog, gint arg1, gpointer entry)
 static void
 gtkutil_str_enter (GtkWidget *entry, GtkWidget *dialog)
 {
-	gtk_dialog_response (GTK_DIALOG (dialog), GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
 }
 
 void
@@ -1019,12 +1022,12 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	GtkWidget *label;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	dialog = nx_dialog_new (msg, NULL, FALSE);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
-	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
+	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 
 	if (userdata == (void *)1)	/* nick box is usually on the very bottom, make it centered */
 	{
@@ -1052,13 +1055,13 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_str_response), entry);
 
-	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
+	gtkutil_container_add (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog)), hbox);
 
 	nx_widget_show_all (dialog);
 }
 
 static void
-gtkutil_get_number_response (GtkDialog *dialog, gint arg1, gpointer spin)
+gtkutil_get_number_response (GtkWidget *dialog, gint arg1, gpointer spin)
 {
 	void (*callback) (int cancel, int value, void *user_data);
 	int num;
@@ -1082,7 +1085,7 @@ gtkutil_get_number_response (GtkDialog *dialog, gint arg1, gpointer spin)
 }
 
 static void
-gtkutil_get_bool_response (GtkDialog *dialog, gint arg1, gpointer spin)
+gtkutil_get_bool_response (GtkWidget *dialog, gint arg1, gpointer spin)
 {
 	void (*callback) (int value, void *user_data);
 	void *user_data;
@@ -1113,10 +1116,10 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	GtkAdjustment *adj;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
-	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
+	dialog = nx_dialog_new (msg, NULL, FALSE);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 
@@ -1139,7 +1142,7 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_number_response), spin);
 
-	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
+	gtkutil_container_add (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog)), hbox);
 
 	nx_widget_show_all (dialog);
 }
@@ -1151,10 +1154,10 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	GtkWidget *prompt_label;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (title, NULL, 0, NULL, NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_NO, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_YES, GTK_RESPONSE_ACCEPT);
-	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
+	dialog = nx_dialog_new (title, NULL, FALSE);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_NO, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_YES, GTK_RESPONSE_ACCEPT);
+	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 
@@ -1167,7 +1170,7 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 		G_CALLBACK (gtkutil_get_bool_response), NULL);
 
-	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), prompt_label);
+	gtkutil_container_add (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog)), prompt_label);
 
 	nx_widget_show_all (dialog);
 }
@@ -1192,17 +1195,17 @@ gtkutil_button (GtkWidget *box, char *stock, char *tip, void *callback,
 	{
 		bbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 		gtkutil_container_add (GTK_WIDGET (wid), bbox);
-		gtk_widget_show (bbox);
+		nx_widget_show (bbox);
 
 		img = gtkutil_image_new_from_stock (stock, NX_ICON_MENU);
 		gtkutil_container_add (GTK_WIDGET (bbox), img);
-		gtk_widget_show (img);
+		nx_widget_show (img);
 		nx_box_pack_start (box, wid, 0, 0, 0);
 	}
 
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (callback), userdata);
-	gtk_widget_show (wid);
+	nx_widget_show (wid);
 	if (tip)
 		gtk_widget_set_tooltip_text (wid, tip);
 
@@ -1214,7 +1217,7 @@ gtkutil_label_new (char *text, GtkWidget * box)
 {
 	GtkWidget *label = gtk_label_new (text);
 	gtkutil_container_add (GTK_WIDGET (box), label);
-	gtk_widget_show (label);
+	nx_widget_show (label);
 }
 
 GtkWidget *
@@ -1227,7 +1230,7 @@ gtkutil_entry_new (int max, GtkWidget * box, void *callback,
 	if (callback)
 		g_signal_connect (G_OBJECT (entry), "changed",
 								G_CALLBACK (callback), userdata);
-	gtk_widget_show (entry);
+	nx_widget_show (entry);
 	return entry;
 }
 
@@ -1235,7 +1238,7 @@ void
 show_and_unfocus (GtkWidget * wid)
 {
 	gtk_widget_set_can_focus (wid, FALSE);
-	gtk_widget_show (wid);
+	nx_widget_show (wid);
 }
 
 void
@@ -1332,7 +1335,7 @@ gtkutil_treeview_new (GtkWidget *box, GtkTreeModel *model,
 	gtkutil_container_add (GTK_WIDGET (box), win);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_widget_show (win);
+	nx_widget_show (win);
 
 	view = gtk_tree_view_new_with_model (model);
 	/* the view now has a ref on the model, we can unref it */

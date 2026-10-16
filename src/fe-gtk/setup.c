@@ -917,9 +917,10 @@ static GtkWidget *proxy_user; 	/* username GtkEntry */
 static GtkWidget *proxy_pass; 	/* password GtkEntry */
 
 static void
-setup_menu_cb (GtkWidget *cbox, const setting *set)
+setup_menu_cb (GtkWidget *cbox, gpointer data)
 {
-	int n = gtk_combo_box_get_active (GTK_COMBO_BOX (cbox));
+	const setting *set = data;
+	int n = nx_combo_get_active (cbox);
 
 	/* set the prefs.<field> */
 	setup_set_int (&setup_prefs, set, n + set->extra);
@@ -1037,7 +1038,7 @@ setup_create_id_menu (GtkWidget *table, char *label, int row, char *dest)
 		item = gtk_menu_item_new_with_label (_(text[i]));
 		g_object_set_data (G_OBJECT (item), "n", GINT_TO_POINTER (i));
 
-		gtk_widget_show (item);
+		nx_widget_show (item);
 		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 		g_signal_connect (G_OBJECT (item), "activate",
 								G_CALLBACK (setup_id_menu_cb), dest);
@@ -1058,22 +1059,23 @@ setup_create_menu (GtkWidget *table, int row, const setting *set)
 {
 	GtkWidget *wid, *cbox, *box;
 	const char **text = (const char **)set->list;
-	int i;
+	int i, n;
+	const char **tr;
 
 	wid = gtk_label_new (_(set->label));
 	gtk_label_set_xalign (GTK_LABEL (wid), 0.0); gtk_label_set_yalign (GTK_LABEL (wid), 0.5);
 	gtkutil_grid_attach (table, wid, 2, 3, row, row + 1,
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, LABEL_INDENT, 0);
 
-	cbox = gtk_combo_box_text_new ();
+	for (n = 0; text[n]; n++);
+	tr = g_new0 (const char *, n + 1);
+	for (i = 0; i < n; i++)
+		tr[i] = _(text[i]);
+	cbox = nx_combo_new (tr);
+	g_free (tr);
 
-	for (i = 0; text[i]; i++)
-		gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (cbox), _(text[i]));
-
-	gtk_combo_box_set_active (GTK_COMBO_BOX (cbox),
-									  setup_get_int (&setup_prefs, set) - set->extra);
-	g_signal_connect (G_OBJECT (cbox), "changed",
-							G_CALLBACK (setup_menu_cb), (gpointer)set);
+	nx_combo_set_active (cbox, setup_get_int (&setup_prefs, set) - set->extra);
+	nx_combo_on_changed (cbox, setup_menu_cb, (gpointer)set);
 
 	box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	nx_box_pack_start (box, cbox, 0, 0, 0);
@@ -1114,11 +1116,13 @@ setup_browsefile_cb (GtkWidget *button, GtkWidget *entry)
    three columns), but it returns the same Pango font string that goes into
    text_font, so nothing stored changes. Listed in ROADMAP section 9. */
 static void
-setup_fontsel_response (GtkDialog *dialog, int response, GtkWidget *entry)
+setup_fontsel_response (GtkWidget *dialog, int response, GtkWidget *entry)
 {
 	if (response == GTK_RESPONSE_OK)
 	{
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 		char *font_name = gtk_font_chooser_get_font (GTK_FONT_CHOOSER (dialog));
+G_GNUC_END_IGNORE_DEPRECATIONS
 		if (font_name)
 		{
 			nx_entry_set_text (entry, font_name);
@@ -1145,19 +1149,23 @@ setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
 	GtkWidget *dialog;
 
+	/* GtkFontDialog makes this same dialog underneath; kept for the
+	   synchronous response flow (deprecation known, ROADMAP step 22) */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 	dialog = gtk_font_chooser_dialog_new (_("Select font"), GTK_WINDOW (setup_window));
 	font_dialog = dialog;	/* global var */
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 
 	if (nx_entry_get_text (entry)[0])
 		gtk_font_chooser_set_font (GTK_FONT_CHOOSER (dialog), nx_entry_get_text (entry));
+G_GNUC_END_IGNORE_DEPRECATIONS
 
 	g_signal_connect (G_OBJECT (dialog), "destroy",
 							G_CALLBACK (setup_fontsel_destroy), NULL);
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (setup_fontsel_response), entry);
 
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 }
 
 static void
@@ -1389,6 +1397,43 @@ setup_create_page (const setting *set)
 static void
 setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 {
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* per-widget providers are deprecated: one display-wide provider holds
+	   a rule per swatch, each button carries its own class */
+	static GtkCssProvider *prov;
+	static GHashTable *rules;	/* class -> rule */
+	char *cls = g_object_get_data (G_OBJECT (button), "hexchat-color-class");
+	GString *all;
+	GHashTableIter it;
+	gpointer v;
+
+	if (!prov)
+	{
+		prov = gtk_css_provider_new ();
+		rules = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+		gtk_style_context_add_provider_for_display (gtk_widget_get_display (button),
+				GTK_STYLE_PROVIDER (prov), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	}
+	if (!cls)
+	{
+		static int n;
+		cls = g_strdup_printf ("nx-swatch-%d", n++);
+		g_object_set_data_full (G_OBJECT (button), "hexchat-color-class", cls, g_free);
+		gtk_widget_add_css_class (button, cls);
+	}
+	g_hash_table_insert (rules, g_strdup (cls), g_strdup_printf (
+		"button.%s { background-image: none; background-color: rgb(%d,%d,%d);"
+		" color: %s; padding: 0; min-width: 18px; min-height: 18px; border-radius: 0; }\n",
+		cls, C8R (*col), C8G (*col), C8B (*col),
+		/* GTK3's theme: white digits on everything but near-white swatches */
+		(0.299 * col->red + 0.587 * col->green + 0.114 * col->blue) < 0.85 ? "white" : "black"));
+	all = g_string_new (NULL);
+	g_hash_table_iter_init (&it, rules);
+	while (g_hash_table_iter_next (&it, NULL, &v))
+		g_string_append (all, v);
+	nx_css_provider_load (prov, all->str);
+	g_string_free (all, TRUE);
+#else
 	GtkCssProvider *prov = g_object_get_data (G_OBJECT (button), "hexchat-color-css");
 	char css[256];
 
@@ -1407,6 +1452,7 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 				" padding: 0; min-width: 18px; min-height: 18px; border-radius: 0; }",
 				C8R (*col), C8G (*col), C8B (*col));
 	nx_css_provider_load (prov, css);
+#endif
 }
 
 /* GtkColorSelectionDialog (GTK2's triangle picker) is deprecated in GTK3 and
@@ -1415,14 +1461,16 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
    be picked, and returns the same RGB, so colors.conf is unaffected.
    Visual difference listed in ROADMAP section 9. */
 static void
-setup_color_response (GtkDialog *dialog, int response, GtkWidget *button)
+setup_color_response (GtkWidget *dialog, int response, GtkWidget *button)
 {
 	GdkRGBA *col = g_object_get_data (G_OBJECT (dialog), "c");
 
 	if (response == GTK_RESPONSE_OK && GTK_IS_WIDGET (button) && col)
 	{
 		color_change = TRUE;
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 		gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (dialog), col);
+G_GNUC_END_IGNORE_DEPRECATIONS
 		col->alpha = 1.0;	/* the palette has no transparency */
 		setup_color_button_paint (button, col);
 	}
@@ -1437,15 +1485,19 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
 
+	/* GtkColorDialog makes this same dialog but can't open it in the editor,
+	   which is how this always opened (deprecation known, ROADMAP step 22) */
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 	dialog = gtk_color_chooser_dialog_new (_("Select color"), GTK_WINDOW (setup_window));
 	gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (dialog), FALSE);
 	gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (dialog), color);
+G_GNUC_END_IGNORE_DEPRECATIONS
 	g_object_set (G_OBJECT (dialog), "show-editor", TRUE, NULL);
 	g_object_set_data (G_OBJECT (dialog), "c", color);
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (setup_color_response), button);
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 }
 
 static void
@@ -1744,14 +1796,14 @@ setup_create_sound_page (void)
 
 	vbox1 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	nx_set_border_width (vbox1, 6);
-	gtk_widget_show (vbox1);
+	nx_widget_show (vbox1);
 
 	vbox2 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-	gtk_widget_show (vbox2);
+	nx_widget_show (vbox2);
 	gtkutil_container_add (GTK_WIDGET (vbox1), vbox2);
 
 	scrolledwindow1 = nx_scrolled_window_new ();
-	gtk_widget_show (scrolledwindow1);
+	nx_widget_show (scrolledwindow1);
 	gtkutil_container_add (GTK_WIDGET (vbox2), scrolledwindow1);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolledwindow1),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
@@ -1764,17 +1816,17 @@ setup_create_sound_page (void)
 	setup_snd_populate (GTK_TREE_VIEW (sound_tree));
 	g_signal_connect (G_OBJECT (sel), "changed",
 							G_CALLBACK (setup_snd_row_cb), NULL);
-	gtk_widget_show (sound_tree);
+	nx_widget_show (sound_tree);
 	gtkutil_container_add (GTK_WIDGET (scrolledwindow1), sound_tree);
 
 	table1 = gtk_grid_new ();
-	gtk_widget_show (table1);
+	nx_widget_show (table1);
 	nx_box_pack_start (vbox2, table1, FALSE, TRUE, 8);
 	gtk_grid_set_row_spacing (GTK_GRID (table1), 2);
 	gtk_grid_set_column_spacing (GTK_GRID (table1), 4);
 
 	sound_label = gtk_label_new_with_mnemonic (_("Sound file:"));
-	gtk_widget_show (sound_label);
+	nx_widget_show (sound_label);
 	gtkutil_grid_attach (table1, sound_label, 0, 1, 0, 1,
 							(GU_FILL),
 							(0), 0, 0);
@@ -1783,7 +1835,7 @@ setup_create_sound_page (void)
 	sndfile_entry = gtk_entry_new ();
 	g_signal_connect (G_OBJECT (sndfile_entry), "changed",
 							G_CALLBACK (setup_snd_changed_cb), sound_tree);
-	gtk_widget_show (sndfile_entry);
+	nx_widget_show (sndfile_entry);
 	gtkutil_grid_attach (table1, sndfile_entry, 0, 1, 1, 2,
 							(GU_EXPAND | GU_FILL),
 							(0), 0, 0);
@@ -1791,7 +1843,7 @@ setup_create_sound_page (void)
 	sound_browse = gtk_button_new_with_mnemonic (_("_Browse..."));
 	g_signal_connect (G_OBJECT (sound_browse), "clicked",
 							G_CALLBACK (setup_snd_browse_cb), sndfile_entry);
-	gtk_widget_show (sound_browse);
+	nx_widget_show (sound_browse);
 	gtkutil_grid_attach (table1, sound_browse, 1, 2, 1, 2,
 							(GU_FILL),
 							(0), 0, 0);
@@ -1803,7 +1855,7 @@ setup_create_sound_page (void)
 #endif
 	g_signal_connect (G_OBJECT (sound_play), "clicked",
 							G_CALLBACK (setup_snd_play_cb), sndfile_entry);
-	gtk_widget_show (sound_play);
+	nx_widget_show (sound_play);
 	gtkutil_grid_attach (table1, sound_play, 2, 3, 1, 2,
 							(GU_FILL),
 							(0), 0, 0);
@@ -2018,9 +2070,9 @@ setup_apply_to_sess (session_gui *gui)
 	mg_update_xtext (gui->xtext);
 
 	if (prefs.hex_gui_ulist_buttons)
-		gtk_widget_show (gui->button_box);
+		nx_widget_show (gui->button_box);
 	else
-		gtk_widget_hide (gui->button_box);
+		nx_widget_hide (gui->button_box);
 
 	/* update active languages */
 	sexy_spell_entry_deactivate_language((SexySpellEntry *)gui->input_box,NULL);

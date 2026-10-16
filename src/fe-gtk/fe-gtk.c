@@ -100,7 +100,7 @@ create_msg_dialog (gchar *title, gchar *message)
 {
 	GtkWidget *dialog;
 
-	dialog = gtk_message_dialog_new (NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE, "%s", message);
+	dialog = nx_message_dialog_new (NULL, TRUE, NX_MSG_INFO, NX_BUTTONS_CLOSE, FALSE, message);
 	gtk_window_set_title (GTK_WINDOW (dialog), title);
 
 /* On Win32 we automatically have the icon. If we try to load it explicitly, it will look ugly for some reason. */
@@ -109,7 +109,7 @@ create_msg_dialog (gchar *title, gchar *message)
 	gtk_window_set_icon (GTK_WINDOW (dialog), pix_hexchat);
 #endif
 
-	gtkutil_dialog_run_blocking (GTK_DIALOG (dialog));
+	gtkutil_dialog_run_blocking (NX_DIALOG_CAST (dialog));
 	nx_widget_destroy (dialog);
 }
 #endif
@@ -477,7 +477,12 @@ fe_apply_css (void)
 		/* GTK3 lists showed focus with a dotted row, not a blue outline */
 		"scrolledwindow, treeview { outline: none; }\n"
 		/* entries and buttons: GTK3 Adwaita's 4px corners, not GTK4's 6px */
-		"entry, button { border-radius: 4px; }\n");
+		"entry, button { border-radius: 4px; }\n"
+		/* the charset picker: a drop-down showing only its arrow */
+		"dropdown.nx-combo-arrow > button > box > stack { min-width: 0; }\n"
+		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"
+		/* NxDialog message dialogs: GTK3's full-width buttons */
+		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n");
 #endif
 
 #if GTK_CHECK_VERSION(4, 0, 0)
@@ -725,25 +730,23 @@ void
 fe_message (char *msg, int flags)
 {
 	GtkWidget *dialog;
-	int type = GTK_MESSAGE_WARNING;
+	nx_msg_type type = NX_MSG_WARNING;
 
 	if (flags & FE_MSG_ERROR)
-		type = GTK_MESSAGE_ERROR;
+		type = NX_MSG_ERROR;
 	if (flags & FE_MSG_INFO)
-		type = GTK_MESSAGE_INFO;
+		type = NX_MSG_INFO;
 
-	dialog = gtk_message_dialog_new (GTK_WINDOW (parent_window), 0, type,
-												GTK_BUTTONS_OK, "%s", msg);
-	if (flags & FE_MSG_MARKUP)
-		gtk_message_dialog_set_markup (GTK_MESSAGE_DIALOG (dialog), msg);
+	dialog = nx_message_dialog_new (GTK_WINDOW (parent_window), FALSE, type,
+											  NX_BUTTONS_OK, (flags & FE_MSG_MARKUP) != 0, msg);
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (fe_message_response), 0);
 	gtk_window_set_resizable (GTK_WINDOW (dialog), FALSE);
 	nx_window_set_position_mouse (dialog);
-	gtk_widget_show (dialog);
+	nx_widget_show (dialog);
 
 	if (flags & FE_MSG_WAIT)
-		gtkutil_dialog_run_blocking (GTK_DIALOG (dialog));
+		gtkutil_dialog_run_blocking (NX_DIALOG_CAST (dialog));
 }
 
 void
@@ -1121,9 +1124,9 @@ fe_ctrl_gui (session *sess, fe_gui_action action, int arg)
 	switch (action)
 	{
 	case FE_GUI_HIDE:
-		gtk_widget_hide (sess->gui->window); break;
+		nx_widget_hide (sess->gui->window); break;
 	case FE_GUI_SHOW:
-		gtk_widget_show (sess->gui->window);
+		nx_widget_show (sess->gui->window);
 		gtk_window_present (GTK_WINDOW (sess->gui->window));
 		break;
 	case FE_GUI_FOCUS:
@@ -1379,7 +1382,12 @@ fe_open_url_inner (const char *url)
 	char *escaped_url = maybe_escape_uri (url);
 	g_debug ("Opening URL \"%s\" (%s)", escaped_url, url);
 #if GTK_CHECK_VERSION(4, 0, 0)
-	gtk_show_uri (NULL, escaped_url, GDK_CURRENT_TIME);
+	{
+		/* gtk_show_uri's replacement; the portal on sandboxed systems */
+		GtkUriLauncher *l = gtk_uri_launcher_new (escaped_url);
+		gtk_uri_launcher_launch (l, NULL, NULL, NULL, NULL);
+		g_object_unref (l);
+	}
 #else
 	gtk_show_uri (NULL, escaped_url, GDK_CURRENT_TIME, NULL);
 #endif

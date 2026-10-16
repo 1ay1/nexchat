@@ -1064,7 +1064,7 @@ nx_menu_add_check (nx_menu *menu, int pos, const char *label, int flags,
 	connect_cb (item, cb, userdata);
 	if (flags & NX_ITEM_INSENSITIVE)
 		gtk_widget_set_sensitive (item, FALSE);
-	gtk_widget_show (item);
+	nx_widget_show (item);
 	return NX_ITEM (item);
 }
 
@@ -1081,7 +1081,7 @@ nx_menu_add_radio (nx_menu *menu, int pos, const char *label, int flags,
 	connect_cb (item, cb, userdata);
 	if (flags & NX_ITEM_INSENSITIVE)
 		gtk_widget_set_sensitive (item, FALSE);
-	gtk_widget_show (item);
+	nx_widget_show (item);
 	return NX_ITEM (item);
 }
 
@@ -1091,7 +1091,7 @@ nx_menu_add_separator (nx_menu *menu, int pos)
 	GtkWidget *item = gtk_separator_menu_item_new ();
 
 	place (menu, item, pos);
-	gtk_widget_show (item);
+	nx_widget_show (item);
 	return NX_ITEM (item);
 }
 
@@ -1102,7 +1102,7 @@ nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int flags, nx_it
 	GtkWidget *item = label_item (label, flags);
 
 	place (menu, item, pos);
-	gtk_widget_show (item);
+	nx_widget_show (item);
 	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), sub);
 	if (flags & NX_ITEM_INSENSITIVE)
 		gtk_widget_set_sensitive (item, FALSE);

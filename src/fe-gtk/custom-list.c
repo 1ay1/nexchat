@@ -719,12 +719,17 @@ custom_list_resort (CustomList * custom_list)
 	if (custom_list->num_rows < 2)
 		return;
 
-	/* resort */
+	/* resort (g_qsort_with_data is deprecated from GLib 2.82) */
+#if GLIB_CHECK_VERSION(2, 82, 0)
+	g_sort_array (custom_list->rows, custom_list->num_rows, sizeof (chanlistrow *),
+					  (GCompareDataFunc) custom_list_qsort_compare_func, custom_list);
+#else
 	g_qsort_with_data (custom_list->rows,
 							 custom_list->num_rows,
 							 sizeof (chanlistrow *),
 							 (GCompareDataFunc) custom_list_qsort_compare_func,
 							 custom_list);
+#endif
 
 	/* let other objects know about the new order */
 	neworder = g_new (gint, custom_list->num_rows);

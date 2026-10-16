@@ -112,6 +112,10 @@ nx_set_border_width (GtkWidget *w, guint px)
 
 /* widgets are visible by default in GTK4; show_all is gone */
 #define nx_widget_show_all(w) gtk_widget_set_visible (GTK_WIDGET (w), TRUE)
+/* gtk_widget_show/hide are deprecated. Not gtk_window_present for windows:
+   that also activates them, which gtk_widget_show never did */
+#define nx_widget_show(w) gtk_widget_set_visible (GTK_WIDGET (w), TRUE)
+#define nx_widget_hide(w) gtk_widget_set_visible (GTK_WIDGET (w), FALSE)
 
 /* entry text: GtkEditable in GTK4 */
 #define nx_entry_get_text(e) gtk_editable_get_text (GTK_EDITABLE (e))
@@ -227,6 +231,21 @@ nx_widget_make_default (GtkWidget *button)
 #define nx_widget_get_height(w) gtk_widget_get_height (GTK_WIDGET (w))
 #define nx_widget_get_allocated_width(w) gtk_widget_get_width (GTK_WIDGET (w))
 #define nx_widget_get_allocated_height(w) gtk_widget_get_height (GTK_WIDGET (w))
+/* where w is inside ancestor (GTK3: its allocation, which was relative to
+   the nearest GdkWindow; for the tab strip that's the strip itself) */
+static inline void
+nx_widget_get_position_in (GtkWidget *w, GtkWidget *ancestor, int *x, int *y)
+{
+	graphene_point_t in = GRAPHENE_POINT_INIT (0, 0), out;
+
+	if (gtk_widget_compute_point (w, ancestor, &in, &out))
+	{
+		*x = (int) out.x;
+		*y = (int) out.y;
+	}
+	else
+		*x = *y = 0;
+}
 
 /* the window holding w is the active one (has the keyboard) */
 #define nx_widget_window_is_active(w) gtk_window_is_active (GTK_WINDOW (gtk_widget_get_root (GTK_WIDGET (w))))
@@ -500,6 +519,39 @@ nx_image_new_from_icon_name (const char *name, nx_icon_size size)
 	return img;
 }
 
+/* a choice of strings: GtkComboBoxText is deprecated, GtkDropDown on a
+   GtkStringList. "changed" is notify::selected; the callback gets the
+   widget, as GtkComboBox's "changed" did */
+static inline GtkWidget *
+nx_combo_new (const char * const *items)
+{
+	return gtk_drop_down_new_from_strings (items);
+}
+#define nx_combo_get_active(c) ((int) gtk_drop_down_get_selected (GTK_DROP_DOWN (c)))
+#define nx_combo_set_active(c, i) \
+	gtk_drop_down_set_selected (GTK_DROP_DOWN (c), (i) < 0 ? GTK_INVALID_LIST_POSITION : (guint) (i))
+typedef void (*nx_combo_cb) (GtkWidget *combo, gpointer userdata);
+typedef struct { nx_combo_cb cb; gpointer ud; } nx_combo_hook;
+static void
+nx_combo_selected_ (GObject *o, GParamSpec *ps, nx_combo_hook *h)
+{
+	h->cb (GTK_WIDGET (o), h->ud);
+}
+static void
+nx_combo_hook_free_ (gpointer h, GClosure *c)
+{
+	g_free (h);
+}
+static inline void
+nx_combo_on_changed (GtkWidget *c, nx_combo_cb cb, gpointer ud)
+{
+	nx_combo_hook *h = g_new (nx_combo_hook, 1);
+	h->cb = cb;
+	h->ud = ud;
+	g_signal_connect_data (c, "notify::selected", G_CALLBACK (nx_combo_selected_), h,
+								  nx_combo_hook_free_, 0);
+}
+
 #else
 
 /* ---- GTK3: exactly the old calls ---- */
@@ -511,6 +563,8 @@ nx_image_new_from_icon_name (const char *name, nx_icon_size size)
 #define nx_set_border_width(w, px) \
 	gtk_container_set_border_width (GTK_CONTAINER (w), (px))
 #define nx_widget_show_all(w) gtk_widget_show_all (GTK_WIDGET (w))
+#define nx_widget_show(w) gtk_widget_show (GTK_WIDGET (w))
+#define nx_widget_hide(w) gtk_widget_hide (GTK_WIDGET (w))
 #define nx_entry_get_text(e) gtk_entry_get_text (GTK_ENTRY (e))
 #define nx_entry_set_text(e, t) gtk_entry_set_text (GTK_ENTRY (e), (t))
 #define nx_widget_destroy(w) gtk_widget_destroy (GTK_WIDGET (w))
@@ -552,6 +606,16 @@ nx_widget_make_default (GtkWidget *button)
 #define nx_widget_get_height(w) gdk_window_get_height (gtk_widget_get_window (GTK_WIDGET (w)))
 #define nx_widget_get_allocated_width(w) gtk_widget_get_allocated_width (GTK_WIDGET (w))
 #define nx_widget_get_allocated_height(w) gtk_widget_get_allocated_height (GTK_WIDGET (w))
+static inline void
+nx_widget_get_position_in (GtkWidget *w, GtkWidget *ancestor, int *x, int *y)
+{
+	GtkAllocation a;
+
+	(void) ancestor;	/* GTK3: the allocation already was */
+	gtk_widget_get_allocation (w, &a);
+	*x = a.x;
+	*y = a.y;
+}
 
 #define nx_widget_window_is_active(w) gtk_window_has_toplevel_focus (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (w))))
 
@@ -683,6 +747,20 @@ void nx_on_close_request (GtkWidget *win, nx_close_request_cb cb, gpointer ud);
 #define nx_css_provider_load(prov, css) gtk_css_provider_load_from_data ((prov), (css), -1, NULL)
 #define nx_entry_set_width_chars(e, n) gtk_entry_set_width_chars (GTK_ENTRY (e), (n))
 #define nx_widget_forward_key(entry, ev) gtk_widget_event ((entry), (ev))
+
+static inline GtkWidget *
+nx_combo_new (const char * const *items)
+{
+	GtkWidget *c = gtk_combo_box_text_new ();
+	for (; items && *items; items++)
+		gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (c), *items);
+	return c;
+}
+#define nx_combo_get_active(c) gtk_combo_box_get_active (GTK_COMBO_BOX (c))
+#define nx_combo_set_active(c, i) gtk_combo_box_set_active (GTK_COMBO_BOX (c), (i))
+typedef void (*nx_combo_cb) (GtkWidget *combo, gpointer userdata);
+#define nx_combo_on_changed(c, cb, ud) \
+	g_signal_connect (G_OBJECT (c), "changed", G_CALLBACK (cb), (ud))
 
 /* the GtkIconSize values themselves */
 typedef enum { NX_ICON_MENU = GTK_ICON_SIZE_MENU, NX_ICON_BUTTON = GTK_ICON_SIZE_BUTTON,

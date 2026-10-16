@@ -718,18 +718,18 @@ static void
 menu_showhide_cb (session *sess)
 {
 	if (prefs.hex_gui_hide_menu)
-		gtk_widget_hide (sess->gui->menu);
+		nx_widget_hide (sess->gui->menu);
 	else
-		gtk_widget_show (sess->gui->menu);
+		nx_widget_show (sess->gui->menu);
 }
 
 static void
 menu_topic_showhide_cb (session *sess)
 {
 	if (prefs.hex_gui_topicbar)
-		gtk_widget_show (sess->gui->topic_bar);
+		nx_widget_show (sess->gui->topic_bar);
 	else
-		gtk_widget_hide (sess->gui->topic_bar);
+		nx_widget_hide (sess->gui->topic_bar);
 }
 
 static void
@@ -742,9 +742,9 @@ static void
 menu_ulbuttons_showhide_cb (session *sess)
 {
 	if (prefs.hex_gui_ulist_buttons)
-		gtk_widget_show (sess->gui->button_box);
+		nx_widget_show (sess->gui->button_box);
 	else
-		gtk_widget_hide (sess->gui->button_box);
+		nx_widget_hide (sess->gui->button_box);
 }
 
 static void
@@ -754,12 +754,12 @@ menu_cmbuttons_showhide_cb (session *sess)
 	{
 	case SESS_CHANNEL:
 		if (prefs.hex_gui_mode_buttons)
-			gtk_widget_show (sess->gui->topicbutton_box);
+			nx_widget_show (sess->gui->topicbutton_box);
 		else
-			gtk_widget_hide (sess->gui->topicbutton_box);
+			nx_widget_hide (sess->gui->topicbutton_box);
 		break;
 	default:
-		gtk_widget_hide (sess->gui->topicbutton_box);
+		nx_widget_hide (sess->gui->topicbutton_box);
 	}
 }
 
@@ -1349,9 +1349,9 @@ menu_join_cb (GtkWidget *dialog, gint response, GtkEntry *entry)
 }
 
 static void
-menu_join_entry_cb (GtkWidget *entry, GtkDialog *dialog)
+menu_join_entry_cb (GtkWidget *entry, GtkWidget *dialog)
 {
-	gtk_dialog_response (dialog, GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
 }
 
 static void
@@ -1359,13 +1359,11 @@ menu_join (GtkWidget * wid, gpointer none)
 {
 	GtkWidget *hbox, *dialog, *entry, *label;
 
-	dialog = gtk_dialog_new_with_buttons (_("Join Channel"),
-									GTK_WINDOW (parent_window), 0,
-									_("Retrieve channel list"), GTK_RESPONSE_HELP,
-									NULL);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
-	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
+	dialog = nx_dialog_new (_("Join Channel"), GTK_WINDOW (parent_window), FALSE);
+	nx_dialog_add_button (NX_DIALOG_CAST (dialog), _("Retrieve channel list"), GTK_RESPONSE_HELP);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
 
@@ -1382,7 +1380,7 @@ menu_join (GtkWidget * wid, gpointer none)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (menu_join_cb), entry);
 
-	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
+	gtkutil_container_add (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog)), hbox);
 
 	nx_widget_show_all (dialog);
 
@@ -1675,7 +1673,7 @@ about_dialog_close_request (GtkWindow *dialog, gpointer data)
 }
 #else
 static void
-about_dialog_close (GtkDialog *dialog, int response, gpointer data)
+about_dialog_close (GtkWidget *dialog, int response, gpointer data)
 {
 	nx_widget_destroy (GTK_WIDGET(dialog));
 }
