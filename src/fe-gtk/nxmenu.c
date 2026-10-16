@@ -22,7 +22,7 @@
 /* from gtkutil.c (not its header, which drags in the whole client) */
 const char *gtkutil_stock_icon_name (const char *stock_id);
 #if !GTK_CHECK_VERSION(4, 0, 0)
-GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size);
+GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, nx_icon_size size);
 GtkWidget *gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image);
 GtkWidget *gtkutil_menu_item_get_label (GtkWidget *item);
 #endif
@@ -948,7 +948,7 @@ nx_menu_add_item (nx_menu *menu, int pos, const char *label, int flags,
 		if (icon_is_file (icon))
 			img = gtk_image_new_from_file (icon);
 		else
-			img = gtkutil_image_new_from_stock (icon, GTK_ICON_SIZE_MENU);
+			img = gtkutil_image_new_from_stock (icon, NX_ICON_MENU);
 		item = gtkutil_menu_item_new_with_image (label, (flags & NX_ITEM_MARKUP) != 0, img);
 	}
 	else
@@ -1025,7 +1025,7 @@ nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
 								  const char *icon, nx_item **item_ret)
 {
 	GtkWidget *sub = gtk_menu_new ();
-	GtkWidget *img = icon ? gtkutil_image_new_from_stock (icon, GTK_ICON_SIZE_MENU) : NULL;
+	GtkWidget *img = icon ? gtkutil_image_new_from_stock (icon, NX_ICON_MENU) : NULL;
 	GtkWidget *item = gtkutil_menu_item_new_with_image (label, FALSE, img);
 
 	place (menu, item, pos);

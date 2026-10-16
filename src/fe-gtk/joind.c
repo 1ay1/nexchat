@@ -123,7 +123,6 @@ joind_show_dialog (server *serv)
 	GtkWidget *radiobutton1;
 	GtkWidget *radiobutton2;
 	GtkWidget *radiobutton3;
-	GSList *radiobutton1_group;
 	GtkWidget *hbox2;
 	GtkWidget *entry1;
 	GtkWidget *checkbutton1;
@@ -134,7 +133,7 @@ joind_show_dialog (server *serv)
 	serv->gui->joind_win = dialog1 = gtk_dialog_new ();
 	g_snprintf(buf, sizeof(buf), _("Connection Complete - %s"), _(DISPLAY_NAME));
 	gtk_window_set_title (GTK_WINDOW (dialog1), buf);
-	gtk_window_set_type_hint (GTK_WINDOW (dialog1), GDK_WINDOW_TYPE_HINT_DIALOG);
+	nx_window_set_dialog_hint (dialog1);
 	nx_window_set_position_center (dialog1);
 	gtk_window_set_transient_for (GTK_WINDOW(dialog1), GTK_WINDOW(serv->front_session->gui->window));
 	gtk_window_set_modal (GTK_WINDOW (dialog1), TRUE);
@@ -151,7 +150,7 @@ joind_show_dialog (server *serv)
 	gtk_widget_show (hbox1);
 	nx_box_pack_start (vbox1, hbox1, TRUE, TRUE, 0);
 
-	image1 = gtkutil_image_new_from_stock (NX_STOCK_NETWORK, GTK_ICON_SIZE_LARGE_TOOLBAR);
+	image1 = gtkutil_image_new_from_stock (NX_STOCK_NETWORK, NX_ICON_LARGE_TOOLBAR);
 	gtk_widget_show (image1);
 	nx_box_pack_start (hbox1, image1, FALSE, TRUE, 24);
 	/* was gtk_misc_set_alignment (0.5, 0.06): centred, pinned near the top */
@@ -175,7 +174,7 @@ joind_show_dialog (server *serv)
 	label = gtk_label_new (_("In the server list window, no channel (chat room) has been entered to be automatically joined for this network."));
 	gtk_widget_show (label);
 	nx_box_pack_start (vbox2, label, FALSE, FALSE, 0);
-	gtk_label_set_line_wrap (GTK_LABEL (label), TRUE);
+	nx_label_set_wrap (label, TRUE);
 	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 
 	label = gtk_label_new (_("What would you like to do next?"));
@@ -183,20 +182,17 @@ joind_show_dialog (server *serv)
 	nx_box_pack_start (vbox2, label, FALSE, FALSE, 0);
 	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 
-	serv->gui->joind_radio1 = radiobutton1 = gtk_radio_button_new_with_mnemonic (NULL, _("_Nothing, I'll join a channel later."));
+	serv->gui->joind_radio1 = radiobutton1 = nx_radio_button_new (NULL, _("_Nothing, I'll join a channel later."));
 	gtk_widget_show (radiobutton1);
 	nx_box_pack_start (vbox2, radiobutton1, FALSE, FALSE, 0);
-	radiobutton1_group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (radiobutton1));
 
 	hbox2 = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	gtk_widget_show (hbox2);
 	nx_box_pack_start (vbox2, hbox2, FALSE, FALSE, 0);
 
-	serv->gui->joind_radio2 = radiobutton2 = gtk_radio_button_new_with_mnemonic (NULL, _("_Join this channel:"));
+	serv->gui->joind_radio2 = radiobutton2 = nx_radio_button_new (radiobutton1, _("_Join this channel:"));
 	gtk_widget_show (radiobutton2);
 	nx_box_pack_start (hbox2, radiobutton2, FALSE, FALSE, 0);
-	gtk_radio_button_set_group (GTK_RADIO_BUTTON (radiobutton2), radiobutton1_group);
-	radiobutton1_group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (radiobutton2));
 
 	serv->gui->joind_entry = entry1 = gtk_entry_new ();
 	nx_entry_set_text (entry1, "#");
@@ -211,10 +207,9 @@ joind_show_dialog (server *serv)
 	gtk_label_set_use_markup (GTK_LABEL (label), TRUE);
 	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 
-	radiobutton3 = gtk_radio_button_new_with_mnemonic (NULL, _("O_pen the channel list."));
+	radiobutton3 = nx_radio_button_new (radiobutton1, _("O_pen the channel list."));
 	gtk_widget_show (radiobutton3);
 	nx_box_pack_start (vbox2, radiobutton3, FALSE, FALSE, 0);
-	gtk_radio_button_set_group (GTK_RADIO_BUTTON (radiobutton3), radiobutton1_group);
 
 	g_snprintf (buf, sizeof (buf), "<small>     %s</small>",
 				 _("Retrieving the channel list may take a minute or two."));

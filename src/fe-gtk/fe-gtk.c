@@ -132,7 +132,10 @@ fe_args (int argc, char *argv[])
 	g_option_context_set_help_enabled (context, FALSE);	/* disable stdout help as stdout is unavailable for subsystem:windows */
 #endif
 	g_option_context_add_main_entries (context, gopt_entries, GETTEXT_PACKAGE);
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK4 takes no command-line options (--display is GDK_DISPLAY) */
 	g_option_context_add_group (context, gtk_get_option_group (FALSE));
+#endif
 	g_option_context_parse (context, &argc, &argv, &error);
 
 #ifdef WIN32
@@ -238,7 +241,7 @@ fe_args (int argc, char *argv[])
 	}
 #endif
 
-	gtk_init (&argc, &argv);
+	nx_gtk_init (&argc, &argv);
 
 #ifdef HAVE_GTK_MAC
 	osx_app = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
@@ -327,7 +330,11 @@ void
 fe_apply_css (void)
 {
 	GString *css;
+#if GTK_CHECK_VERSION(4, 0, 0)
+	GdkDisplay *screen = gdk_display_get_default ();
+#else
 	GdkScreen *screen = gdk_screen_get_default ();
+#endif
 	GError *err = NULL;
 	PangoFontDescription *fd;
 
@@ -346,9 +353,15 @@ fe_apply_css (void)
 	if (!fe_css_provider)
 	{
 		fe_css_provider = gtk_css_provider_new ();
+#if GTK_CHECK_VERSION(4, 0, 0)
+		gtk_style_context_add_provider_for_display (screen,
+					GTK_STYLE_PROVIDER (fe_css_provider),
+					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+#else
 		gtk_style_context_add_provider_for_screen (screen,
 					GTK_STYLE_PROVIDER (fe_css_provider),
 					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+#endif
 	}
 
 	if (prefs.hex_gui_input_style)
@@ -391,11 +404,15 @@ fe_apply_css (void)
 
 	/* the chat view scrollbar: GTK3 themes make it a thin overlay-looking
 	   slider; GTK2 had a full-width trough with stepper arrows. The arrows
-	   are a style property, set below; this keeps the slider full width. */
+	   are a style property, set below; this keeps the slider full width.
+	   (GTK4 scrollbars have no steppers.) */
 	g_string_append (css,
-		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n"
+		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n");
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	g_string_append (css,
 		"#hexchat-scrollbar { -GtkScrollbar-has-backward-stepper: true;"
 		" -GtkScrollbar-has-forward-stepper: true; }\n");
+#endif
 
 	/* Channel tabs, the nick button and the "3 ops, 16 total" box: GTK2
 	   buttons were text + a few px; GTK3 themes pad buttons to ~32px tall,
@@ -414,11 +431,18 @@ fe_apply_css (void)
 		"#hexchat-charbutton { padding: 0; min-width: 0; min-height: 23px; border-radius: 0; }\n"
 		"#hexchat-ulistinfo label { padding: 1px 2px; }\n");
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK4 reports CSS errors through the provider's parsing-error signal
+	   and always loads what it can */
+	gtk_css_provider_load_from_string (fe_css_provider, css->str);
+	(void) err;
+#else
 	if (!gtk_css_provider_load_from_data (fe_css_provider, css->str, -1, &err))
 	{
 		g_warning ("nexchat css: %s\n%s", err->message, css->str);
 		g_error_free (err);
 	}
+#endif
 	g_string_free (css, TRUE);
 	pango_font_description_free (fd);
 }
@@ -456,7 +480,7 @@ fe_main (void)
 					G_CALLBACK(gtkosx_application_terminate), NULL);
 #endif
 
-	gtk_main ();
+	nx_main ();
 
 	/* sleep for 2 seconds so any QUIT messages are not lost. The  */
 	/* GUI is closed at this point, so the user doesn't even know! */
@@ -474,7 +498,7 @@ fe_cleanup (void)
 void
 fe_exit (void)
 {
-	gtk_main_quit ();
+	nx_main_quit ();
 }
 
 int
@@ -531,7 +555,7 @@ fe_idle (gpointer data)
 	plugin_add (sess, NULL, NULL, tray_plugin_init, tray_plugin_deinit, NULL, FALSE);
 
 	if (arg_minimize == 1)
-		gtk_window_iconify (GTK_WINDOW (sess->gui->window));
+		nx_window_iconify (sess->gui->window);
 	else if (arg_minimize == 2)
 		tray_toggle_visibility (FALSE);
 
@@ -574,6 +598,12 @@ fe_new_server (struct server *serv)
 	serv->gui = g_new0 (struct server_gui, 1);
 }
 
+static void
+fe_message_response (GtkWidget *dialog, int response, gpointer unused)
+{
+	nx_widget_destroy (dialog);
+}
+
 void
 fe_message (char *msg, int flags)
 {
@@ -590,7 +620,7 @@ fe_message (char *msg, int flags)
 	if (flags & FE_MSG_MARKUP)
 		gtk_message_dialog_set_markup (GTK_MESSAGE_DIALOG (dialog), msg);
 	g_signal_connect (G_OBJECT (dialog), "response",
-							G_CALLBACK (gtk_widget_destroy), 0);
+							G_CALLBACK (fe_message_response), 0);
 	gtk_window_set_resizable (GTK_WINDOW (dialog), FALSE);
 	nx_window_set_position_mouse (dialog);
 	gtk_widget_show (dialog);
@@ -979,7 +1009,7 @@ fe_ctrl_gui (session *sess, fe_gui_action action, int arg)
 	case FE_GUI_COLOR:
 		fe_set_tab_color (sess, arg); break;
 	case FE_GUI_ICONIFY:
-		gtk_window_iconify (GTK_WINDOW (sess->gui->window)); break;
+		nx_window_iconify (sess->gui->window); break;
 	case FE_GUI_MENU:
 		menu_bar_toggle ();	/* toggle menubar on/off */
 		break;

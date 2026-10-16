@@ -36,14 +36,18 @@ jobs:
           cc $(pkg-config --cflags gtk4) -I src/fe-gtk -o nxmenu4 tests/nxmenu-test.c src/fe-gtk/nxmenu.c $(pkg-config --libs gtk4)
           xvfb-run -a ./nxmenu4
 
-      # the files whose GTK4 branches are written (input, drag and drop, the
-      # chat view) must keep compiling against GTK4 until the switch
+      # every frontend file must keep compiling against GTK4 except the ones
+      # not ported yet (listed here; the list only shrinks)
       - name: GTK4 branches compile
         run: |
-          for f in gtkevents.c gtkdnd.c xtext.c; do
-            cc -fsyntax-only -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
+          todo="plugin-tray.c sexy-iso-codes.c sexy-spell-entry.c tray-backend-statusicon.c chanview-tabs.c chanview-tree.c"
+          for p in src/fe-gtk/*.c; do
+            f=$(basename $p)
+            case " $todo " in *" $f "*) continue;; esac
+            echo "$f"
+            cc -fsyntax-only -w -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -Werror=int-conversion \
               -DGTK_DISABLE_DEPRECATED -DGDK_DISABLE_DEPRECATED \
-              -I build -I build/src/fe-gtk -I src/common -I src/fe-gtk -I src $(pkg-config --cflags gtk4 openssl) src/fe-gtk/$f
+              -I build -I build/src/fe-gtk -I build/src/common -I src/common -I src/fe-gtk -I src $(pkg-config --cflags gtk4 openssl) $p
           done
 
       - name: Test

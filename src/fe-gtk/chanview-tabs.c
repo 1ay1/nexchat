@@ -62,22 +62,20 @@ cv_tabs_sizerequest (GtkWidget *viewport, GtkRequisition *requisition, chanview 
 static void
 cv_tabs_sizealloc (GtkWidget *widget, GtkAllocation *allocation, chanview *cv)
 {
-	GdkWindow *parent_win;
 	GtkAdjustment *adj;
 	GtkWidget *inner;
 	gint viewport_size;
 
 	inner = ((tabview *)cv)->inner;
-	parent_win = gtk_widget_get_window (gtk_widget_get_parent (inner));
 
 	if (cv->vertical)
 	{
 		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
+		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
 	} else
 	{
 		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
+		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
 	}
 
 	if (gtk_adjustment_get_upper (adj) <= viewport_size)
@@ -141,20 +139,18 @@ tab_scroll_left_up_clicked (GtkWidget *widget, chanview *cv)
 	gint viewport_size;
 	gfloat new_value;
 	GtkWidget *inner;
-	GdkWindow *parent_win;
 	gdouble i;
 
 	inner = ((tabview *)cv)->inner;
-	parent_win = gtk_widget_get_window (gtk_widget_get_parent (inner));
 
 	if (cv->vertical)
 	{
 		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
+		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
 	} else
 	{
 		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
+		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
 	}
 
 	new_value = tab_search_offset (inner, gtk_adjustment_get_value (adj), 0, cv->vertical);
@@ -190,20 +186,18 @@ tab_scroll_right_down_clicked (GtkWidget *widget, chanview *cv)
 	gint viewport_size;
 	gfloat new_value;
 	GtkWidget *inner;
-	GdkWindow *parent_win;
 	gdouble i;
 
 	inner = ((tabview *)cv)->inner;
-	parent_win = gtk_widget_get_window (gtk_widget_get_parent (inner));
 
 	if (cv->vertical)
 	{
 		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
+		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
 	} else
 	{
 		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
+		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
 	}
 
 	new_value = tab_search_offset (inner, gtk_adjustment_get_value (adj), 1, cv->vertical);
@@ -268,9 +262,9 @@ make_sbutton (const char *icon_name, void *click_cb, void *userdata)
 	GtkWidget *button, *arrow;
 
 	button = gtk_button_new ();
-	arrow = gtk_image_new_from_icon_name (icon_name, GTK_ICON_SIZE_MENU);
+	arrow = nx_image_new_from_icon_name (icon_name, NX_ICON_MENU);
 	gtkutil_container_add (GTK_WIDGET (button), arrow);
-	gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
+	nx_button_set_flat (button);
 	g_signal_connect (G_OBJECT (button), "clicked",
 							G_CALLBACK (click_cb), userdata);
 	nx_on_scroll (button, tab_scroll_cb, userdata);
@@ -298,7 +292,7 @@ cv_tabs_init (chanview *cv)
 	gtk_widget_show (outer);
 
 	viewport = gtk_viewport_new (0, 0);
-	gtk_viewport_set_shadow_type (GTK_VIEWPORT (viewport), GTK_SHADOW_NONE);
+	nx_viewport_set_no_shadow (viewport);
 	g_signal_connect (G_OBJECT (viewport), "size_request",
 							G_CALLBACK (cv_tabs_sizerequest), cv);
 	nx_on_scroll (viewport, tab_scroll_cb, cv);
@@ -344,7 +338,7 @@ cv_tabs_init (chanview *cv)
 
 	button = gtkutil_button (outer, NX_STOCK_CLOSE, NULL, cv_tabs_xclick_cb,
 									 cv, 0);
-	gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
+	nx_button_set_flat (button);
 	gtk_widget_set_can_focus (button, FALSE);
 
 	gtkutil_container_add (cv->box, outer);
@@ -387,7 +381,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 			if (ch->tag == 0 && cv->cb_compare (a, b) > 0)
 			{
 				nx_box_pack_start (box, tab, 0, 0, 0);
-				gtk_box_reorder_child (GTK_BOX (box), tab, ++i);
+				nx_box_reorder_child (box, tab, ++i);
 				gtk_widget_show (tab);
 				return;
 			}
@@ -398,7 +392,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 
 	/* append */
 	nx_box_pack_start (box, tab, 0, 0, 0);
-	gtk_box_reorder_child (GTK_BOX (box), tab, i);
+	nx_box_reorder_child (box, tab, i);
 	gtk_widget_show (tab);
 }
 
@@ -733,13 +727,13 @@ cv_tabs_move (chan *ch, int delta)
 
 		/* keep separator at end to not throw off our count */
 		if (GTK_IS_SEPARATOR (child_entry))
-			gtk_box_reorder_child (GTK_BOX (parent), child_entry, -1);
+			nx_box_reorder_child (parent, child_entry, -1);
 		else
 			i++;
 	}
 
 	pos = (pos - delta) % i;
-	gtk_box_reorder_child (GTK_BOX (parent), ch->impl, pos);
+	nx_box_reorder_child (parent, ch->impl, pos);
 }
 
 static void
@@ -767,7 +761,7 @@ cv_tabs_move_family (chan *ch, int delta)
 	}
 
 	pos = (pos - delta) % i;
-	gtk_box_reorder_child (GTK_BOX (gtk_widget_get_parent(box)), box, pos);
+	nx_box_reorder_child (gtk_widget_get_parent(box), box, pos);
 }
 
 static void

@@ -907,7 +907,7 @@ setup_create_hscale (GtkWidget *table, int row, const setting *set)
 
 #ifndef WIN32 /* Windows always supports this */
 	/* Only used for transparency currently */
-	if (!gdk_screen_is_composited (gtk_widget_get_screen (current_sess->gui->window)))
+	if (!nx_widget_is_composited (current_sess->gui->window))
 		gtk_widget_set_sensitive (wid, FALSE);
 #endif
 }
@@ -949,7 +949,7 @@ setup_create_radio (GtkWidget *table, int row, const setting *set)
 	GtkWidget *wid, *hbox;
 	int i;
 	const char **text = (const char **)set->list;
-	GSList *group;
+	GtkWidget *group;
 
 	wid = gtk_label_new (_(set->label));
 	gtk_label_set_xalign (GTK_LABEL (wid), 0.0); gtk_label_set_yalign (GTK_LABEL (wid), 0.5);
@@ -966,10 +966,10 @@ setup_create_radio (GtkWidget *table, int row, const setting *set)
 	{
 		if (text[i][0] != 0)
 		{
-			wid = gtk_radio_button_new_with_mnemonic (group, _(text[i]));
+			wid = nx_radio_button_new (group, _(text[i]));
 			/*if (set->tooltip)
 				gtk_widget_set_tooltip_text (wid, _(set->tooltip));*/
-			group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (wid));
+			group = wid;
 			gtkutil_container_add (GTK_WIDGET (hbox), wid);
 			if (i == setup_get_int (&setup_prefs, set))
 				gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), TRUE);
@@ -1406,7 +1406,7 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 				"button { background-image: none; background-color: rgb(%d,%d,%d);"
 				" padding: 0; min-width: 18px; min-height: 18px; border-radius: 0; }",
 				C8R (*col), C8G (*col), C8B (*col));
-	gtk_css_provider_load_from_data (prov, css, -1, NULL);
+	nx_css_provider_load (prov, css);
 }
 
 /* GtkColorSelectionDialog (GTK2's triangle picker) is deprecated in GTK3 and
@@ -1840,7 +1840,7 @@ setup_add_page (const char *title, GtkWidget *book, GtkWidget *tab)
 	gtkutil_container_add (GTK_WIDGET (sw), vvbox);
 
 	viewport = nx_bin_get_child (sw);
-	gtk_viewport_set_shadow_type (GTK_VIEWPORT(viewport), GTK_SHADOW_NONE);
+	nx_viewport_set_no_shadow (viewport);
 
 	gtk_notebook_append_page (GTK_NOTEBOOK (book), GTK_WIDGET(sw), NULL);
 }
@@ -2000,7 +2000,7 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 	frame = gtk_frame_new (NULL);
 	gtkutil_container_add (GTK_WIDGET (frame), tree);
 	nx_box_pack_start (box, frame, 0, 0, 0);
-	gtk_box_reorder_child (GTK_BOX (box), frame, 0);
+	nx_box_reorder_child (box, frame, 0);
 
 	if (sel_iter)
 	{

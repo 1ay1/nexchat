@@ -106,7 +106,7 @@ void gtkutil_force_images (void);
 #define NX_STOCK_YES "gtk-yes"
 
 const char *gtkutil_stock_icon_name (const char *stock_id);
-GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size);
+GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, nx_icon_size size);
 /* label + mnemonic GTK used for a stock button (_OK, _Cancel, ...), translated */
 const char *gtkutil_stock_label (const char *stock_id);
 GtkWidget *gtkutil_button_new_from_stock (const char *stock_id);
@@ -114,7 +114,7 @@ GtkWidget *gtkutil_button_new_from_stock (const char *stock_id);
    label and icon the stock button had */
 GtkWidget *gtkutil_dialog_add_stock_button (GtkDialog *dialog, const char *stock_id, int response);
 /* gtk_widget_render_icon (w, stock, size, NULL): a new pixbuf, from the theme */
-GdkPixbuf *gtkutil_render_icon (GtkWidget *widget, const char *stock_id, GtkIconSize size, const char *unused);
+GdkPixbuf *gtkutil_render_icon (GtkWidget *widget, const char *stock_id, nx_icon_size size, const char *unused);
 
 /* GtkTable's attach options. GtkAttachOptions lives in GTK3's deprecated
    gtktable.h and is gone in GTK4, so we carry our own copy. */

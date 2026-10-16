@@ -29,7 +29,6 @@
 
 #include "fe-gtk.h"
 
-#include <gdk/gdkkeysyms.h>
 
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"

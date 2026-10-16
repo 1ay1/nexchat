@@ -43,7 +43,6 @@
 #include "../common/text.h"
 #include "../common/plugin.h"
 #include "../common/typedef.h"
-#include <gdk/gdkkeysyms.h>
 #ifdef GDK_WINDOWING_QUARTZ
 #include <gdk/gdkquartz.h>
 #endif

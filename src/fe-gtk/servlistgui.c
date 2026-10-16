@@ -21,7 +21,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <gdk/gdkkeysyms.h>
 
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"
@@ -708,27 +707,25 @@ servlist_edit_close_cb (GtkWidget *button, gpointer userdata)
 	edit_win = NULL;
 }
 
-static gint
-servlist_editwin_delete_cb (GtkWidget *win, GdkEventAny *event, gpointer none)
+static gboolean
+servlist_editwin_delete_cb (GtkWidget *win, gpointer none)
 {
 	servlist_edit_close_cb (NULL, NULL);
 	return FALSE;
 }
 
-static gboolean
-servlist_configure_cb (GtkWindow *win, GdkEventConfigure *event, gpointer none)
+static void
+servlist_configure_cb (GtkWindow *win, gpointer none)
 {
 	/* remember the window size */
-	gtk_window_get_size (win, &netlist_win_width, &netlist_win_height);
-	return FALSE;
+	nx_window_get_size (win, &netlist_win_width, &netlist_win_height);
 }
 
-static gboolean
-servlist_edit_configure_cb (GtkWindow *win, GdkEventConfigure *event, gpointer none)
+static void
+servlist_edit_configure_cb (GtkWindow *win, gpointer none)
 {
 	/* remember the window size */
-	gtk_window_get_size (win, &netedit_win_width, &netedit_win_height);
-	return FALSE;
+	nx_window_get_size (win, &netedit_win_width, &netedit_win_height);
 }
 
 static void
@@ -742,10 +739,8 @@ servlist_edit_cb (GtkWidget *but, gpointer none)
 	servlist_servers_populate (selected_net, edit_trees[SERVER_TREE]);
 	servlist_channels_populate (selected_net, edit_trees[CHANNEL_TREE]);
 	servlist_commands_populate (selected_net, edit_trees[CMD_TREE]);
-	g_signal_connect (G_OBJECT (edit_win), "delete_event",
-						 	G_CALLBACK (servlist_editwin_delete_cb), 0);
-	g_signal_connect (G_OBJECT (edit_win), "configure_event",
-							G_CALLBACK (servlist_edit_configure_cb), 0);
+	nx_on_close_request (edit_win, servlist_editwin_delete_cb, 0);
+	nx_on_window_configure (edit_win, servlist_edit_configure_cb, 0);
 	gtk_widget_show (edit_win);
 }
 
@@ -1291,8 +1286,8 @@ servlist_create_entry (GtkWidget *table, char *labeltext, int row,
 	return entry;
 }
 
-static gint
-servlist_delete_cb (GtkWidget *win, GdkEventAny *event, gpointer userdata)
+static gboolean
+servlist_delete_cb (GtkWidget *win, gpointer userdata)
 {
 	servlist_savegui ();
 	serverlist_win = NULL;
@@ -1647,7 +1642,7 @@ servlist_create_logintypecombo (GtkWidget *data)
 	gtk_combo_box_set_active (GTK_COMBO_BOX (cb), servlist_get_login_desc_index (selected_net->logintype));
 
 	gtk_widget_set_tooltip_text (cb, _("The way you identify yourself to the server. For custom login methods use connect commands."));
-	g_signal_connect (G_OBJECT (GTK_BIN (cb)), "changed", G_CALLBACK (servlist_logintypecombo_cb), data);
+	g_signal_connect (G_OBJECT (cb), "changed", G_CALLBACK (servlist_logintypecombo_cb), data);
 
 	return cb;
 }
@@ -1718,15 +1713,15 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 	GtkCellRenderer *renderer;
 	char buf[128];
 
-	editwindow = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	editwindow = nx_window_new ();
 	nx_set_border_width (editwindow, 4);
 	g_snprintf (buf, sizeof (buf), _("Edit %s - %s"), net->name, _(DISPLAY_NAME));
 	gtk_window_set_title (GTK_WINDOW (editwindow), buf);
 	gtk_window_set_default_size (GTK_WINDOW (editwindow), netedit_win_width, netedit_win_height);
 	gtk_window_set_transient_for (GTK_WINDOW (editwindow), GTK_WINDOW (parent));
 	gtk_window_set_modal (GTK_WINDOW (editwindow), TRUE);
-	gtk_window_set_type_hint (GTK_WINDOW (editwindow), GDK_WINDOW_TYPE_HINT_DIALOG);
-	gtk_window_set_role (GTK_WINDOW (editwindow), "editserv");
+	nx_window_set_dialog_hint (editwindow);
+	nx_window_set_role (editwindow, "editserv");
 
 	vbox5 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtkutil_container_add (GTK_WIDGET (editwindow), vbox5);
@@ -1976,13 +1971,13 @@ servlist_open_networks (void)
 	GtkCellRenderer *renderer;
 	char buf[128];
 
-	servlist = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	servlist = nx_window_new ();
 	nx_set_border_width (servlist, 4);
 	g_snprintf(buf, sizeof(buf), _("Network List - %s"), _(DISPLAY_NAME));
 	gtk_window_set_title (GTK_WINDOW (servlist), buf);
 	gtk_window_set_default_size (GTK_WINDOW (servlist), netlist_win_width, netlist_win_height);
-	gtk_window_set_role (GTK_WINDOW (servlist), "servlist");
-	gtk_window_set_type_hint (GTK_WINDOW (servlist), GDK_WINDOW_TYPE_HINT_DIALOG);
+	nx_window_set_role (servlist, "servlist");
+	nx_window_set_dialog_hint (servlist);
 	if (current_sess)
 		gtk_window_set_transient_for (GTK_WINDOW (servlist), GTK_WINDOW (current_sess->gui->window));
 
@@ -2233,10 +2228,8 @@ fe_serverlist_open (session *sess)
 
 	servlist_networks_populate (networks_tree, network_list);
 
-	g_signal_connect (G_OBJECT (serverlist_win), "delete_event",
-						 	G_CALLBACK (servlist_delete_cb), 0);
-	g_signal_connect (G_OBJECT (serverlist_win), "configure_event",
-							G_CALLBACK (servlist_configure_cb), 0);
+	nx_on_close_request (serverlist_win, servlist_delete_cb, 0);
+	nx_on_window_configure (serverlist_win, servlist_configure_cb, 0);
 	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW (networks_tree))),
 							"changed", G_CALLBACK (servlist_network_row_cb), NULL);
 	nx_on_key (networks_tree, servlist_net_keypress_cb, networks_tree);

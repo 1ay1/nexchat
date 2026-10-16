@@ -22,7 +22,6 @@
 
 #include "fe-gtk.h"
 
-#include <gdk/gdkkeysyms.h>
 
 #include "../common/hexchat.h"
 #include "../common/util.h"
@@ -624,8 +623,9 @@ userlist_key_cb (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer u
 		SPELL_ENTRY_SET_EDITABLE (current_sess->gui->input_box, FALSE);
 		gtk_widget_grab_focus (current_sess->gui->input_box);
 		SPELL_ENTRY_SET_EDITABLE (current_sess->gui->input_box, TRUE);
-		/* GTK4: no gtk_widget_event (); needs re-dispatch some other way */
-		gtk_widget_event (current_sess->gui->input_box, nx_current_event ());
+		/* and the key goes to the input box (GTK4: the box takes the
+		   keyval itself, see nx_widget_forward_key) */
+		nx_widget_forward_key (current_sess->gui->input_box, nx_current_event ());
 		return TRUE;
 	}
 
@@ -638,8 +638,7 @@ userlist_create (GtkWidget *box)
 	GtkWidget *sw, *treeview;
 
 	sw = nx_scrolled_window_new ();
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw),
-													 GTK_SHADOW_ETCHED_IN);
+	nx_scrolled_window_set_shadow_etched (sw);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw),
 											  prefs.hex_gui_ulist_show_hosts ?
 												GTK_POLICY_AUTOMATIC :

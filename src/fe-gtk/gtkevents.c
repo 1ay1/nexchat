@@ -8,12 +8,14 @@
  */
 
 #include "gtkevents.h"
+#include "gtkcompat.h"
 
 typedef struct
 {
 	gpointer cb;
 	gpointer userdata;
 	guint button;		/* GTK4 release: button seen at drag-begin */
+	gpointer userdata2;
 } hook;
 
 static hook *
@@ -23,6 +25,7 @@ hook_new (gpointer cb, gpointer userdata)
 	h->cb = cb;
 	h->userdata = userdata;
 	h->button = 0;
+	h->userdata2 = NULL;
 	return h;
 }
 
@@ -230,6 +233,82 @@ nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata)
 	gtk_widget_add_controller (w, m);
 }
 
+/* ---- window state / geometry ---- */
+
+GMainLoop *
+nx_main_loop (void)
+{
+	static GMainLoop *loop;
+
+	if (!loop)
+		loop = g_main_loop_new (NULL, FALSE);
+	return loop;
+}
+
+static nx_window_state
+toplevel_state (GtkWindow *win)
+{
+	GdkSurface *s = gtk_native_get_surface (GTK_NATIVE (win));
+	GdkToplevelState st = s ? gdk_toplevel_get_state (GDK_TOPLEVEL (s)) : 0;
+	nx_window_state r = 0;
+
+	if (st & GDK_TOPLEVEL_STATE_MINIMIZED)
+		r |= NX_WIN_ICONIFIED;
+	if (st & GDK_TOPLEVEL_STATE_MAXIMIZED)
+		r |= NX_WIN_MAXIMIZED;
+	if (st & GDK_TOPLEVEL_STATE_FULLSCREEN)
+		r |= NX_WIN_FULLSCREEN;
+	return r;
+}
+
+static void
+surface_state_changed (GdkSurface *s, GParamSpec *ps, hook *h)
+{
+	GtkWindow *win = h->userdata2;
+	nx_window_state now = toplevel_state (win);
+	nx_window_state old = h->button;	/* last state seen */
+
+	h->button = now;
+	if (now != old)
+		((nx_window_state_cb) h->cb) (win, now ^ old, now, h->userdata);
+}
+
+static void
+window_state_realize (GtkWidget *w, hook *h)
+{
+	GdkSurface *s = gtk_native_get_surface (GTK_NATIVE (w));
+
+	h->button = toplevel_state (GTK_WINDOW (w));
+	g_signal_connect (s, "notify::state", G_CALLBACK (surface_state_changed), h);
+}
+
+void
+nx_on_window_state (GtkWidget *win, nx_window_state_cb cb, gpointer ud)
+{
+	hook *h = hook_new (cb, ud);
+
+	h->userdata2 = win;
+	g_signal_connect_data (win, "realize", G_CALLBACK (window_state_realize), h, hook_free, 0);
+}
+
+/* GTK4 reports no moves (the WM owns positions); a size change is all */
+static void
+window_size_notify (GtkWidget *w, GParamSpec *ps, hook *h)
+{
+	((nx_window_configure_cb) h->cb) (GTK_WINDOW (w), h->userdata);
+}
+
+void
+nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud)
+{
+	hook *h = hook_new (cb, ud);
+
+	g_signal_connect (win, "notify::default-width", G_CALLBACK (window_size_notify), h);
+	g_signal_connect_data (win, "notify::default-height", G_CALLBACK (window_size_notify), h,
+								  hook_free, 0);
+}
+
+
 #else
 
 /* ================= GTK3: the old "*-event" signals ================= */
@@ -395,6 +474,57 @@ nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata)
 	gtk_widget_add_events (w, GDK_POINTER_MOTION_MASK);
 	g_signal_connect_data (w, "motion-notify-event", G_CALLBACK (motion_sig),
 								  hook_new (cb, userdata), hook_free, 0);
+}
+
+/* ---- window state / geometry ---- */
+
+static gboolean
+window_state_sig (GtkWidget *w, GdkEventWindowState *ev, hook *h)
+{
+	nx_window_state changed = 0, now = 0;
+
+	if (ev->changed_mask & GDK_WINDOW_STATE_ICONIFIED) changed |= NX_WIN_ICONIFIED;
+	if (ev->changed_mask & GDK_WINDOW_STATE_MAXIMIZED) changed |= NX_WIN_MAXIMIZED;
+	if (ev->changed_mask & GDK_WINDOW_STATE_FULLSCREEN) changed |= NX_WIN_FULLSCREEN;
+	if (ev->new_window_state & GDK_WINDOW_STATE_ICONIFIED) now |= NX_WIN_ICONIFIED;
+	if (ev->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) now |= NX_WIN_MAXIMIZED;
+	if (ev->new_window_state & GDK_WINDOW_STATE_FULLSCREEN) now |= NX_WIN_FULLSCREEN;
+	((nx_window_state_cb) h->cb) (GTK_WINDOW (w), changed, now, h->userdata);
+	return FALSE;
+}
+
+void
+nx_on_window_state (GtkWidget *win, nx_window_state_cb cb, gpointer ud)
+{
+	g_signal_connect_data (win, "window-state-event", G_CALLBACK (window_state_sig),
+								  hook_new (cb, ud), hook_free, 0);
+}
+
+static gboolean
+configure_sig (GtkWidget *w, GdkEventConfigure *ev, hook *h)
+{
+	((nx_window_configure_cb) h->cb) (GTK_WINDOW (w), h->userdata);
+	return FALSE;
+}
+
+void
+nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud)
+{
+	g_signal_connect_data (win, "configure-event", G_CALLBACK (configure_sig),
+								  hook_new (cb, ud), hook_free, 0);
+}
+
+static gboolean
+delete_sig (GtkWidget *w, GdkEvent *ev, hook *h)
+{
+	return ((nx_close_request_cb) h->cb) (w, h->userdata);
+}
+
+void
+nx_on_close_request (GtkWidget *win, nx_close_request_cb cb, gpointer ud)
+{
+	g_signal_connect_data (win, "delete-event", G_CALLBACK (delete_sig),
+								  hook_new (cb, ud), hook_free, 0);
 }
 
 #endif

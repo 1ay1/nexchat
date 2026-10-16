@@ -98,9 +98,9 @@ cv_tree_init (chanview *cv)
 	GtkWidget *view, *win;
 	GtkCellRenderer *renderer;
 	GtkTreeViewColumn *col;
-	int wid1, wid2;
 
-	win = gtk_scrolled_window_new (0, 0);
+
+	win = nx_scrolled_window_new ();
 	/*nx_set_border_width (win, 1);*/
 	nx_scrolled_window_set_shadow_in (win, TRUE);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
@@ -120,10 +120,7 @@ cv_tree_init (chanview *cv)
 	
 	/* Indented channels with no server looks silly, but we still want expanders */
 	if (!prefs.hex_gui_tab_server)
-	{
-		gtk_widget_style_get (view, "expander-size", &wid1, "horizontal-separator", &wid2, NULL);
-		gtk_tree_view_set_level_indentation (GTK_TREE_VIEW (view), -wid1 - wid2);
-	}
+		gtk_tree_view_set_level_indentation (GTK_TREE_VIEW (view), -nx_tree_view_expander_indent (view));
 
 
 	gtkutil_container_add (GTK_WIDGET (win), view);

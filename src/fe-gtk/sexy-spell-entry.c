@@ -63,7 +63,7 @@ sexy_image_menu_item (const char *label, const char *icon_name)
 {
 	GtkWidget *item = gtk_menu_item_new ();
 	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-	GtkWidget *img = gtk_image_new_from_icon_name (icon_name, GTK_ICON_SIZE_MENU);
+	GtkWidget *img = nx_image_new_from_icon_name (icon_name, NX_ICON_MENU);
 	GtkWidget *lbl = gtk_label_new (label);
 
 	gtk_widget_set_size_request (img, 16, -1);

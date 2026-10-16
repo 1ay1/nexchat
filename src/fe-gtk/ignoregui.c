@@ -324,7 +324,7 @@ ignore_stats_entry (GtkWidget * box, char *label, int value)
 	/* GTK3 entries also *want* width-chars (default ~20 chars) on top of the
 	   size request; GTK2 used the request as the natural width. Without this
 	   the five stat boxes make the window ~1100px wide. */
-	gtk_entry_set_width_chars (GTK_ENTRY (wid), 4);
+	nx_entry_set_width_chars (wid, 4);
 	gtk_editable_set_editable (GTK_EDITABLE (wid), FALSE);
 	gtk_widget_set_sensitive (GTK_WIDGET (wid), FALSE);
 	nx_entry_set_text (wid, buf);

@@ -23,7 +23,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <gdk/gdkkeysyms.h>
 
 #ifdef WIN32
 #include <io.h>

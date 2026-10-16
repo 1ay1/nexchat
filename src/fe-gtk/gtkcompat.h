@@ -134,6 +134,9 @@ nx_widget_get_children (GtkWidget *w)
 #define nx_scrolled_window_new() gtk_scrolled_window_new ()
 #define nx_scrolled_window_set_shadow_in(sw, on) \
 	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), (on))
+/* GTK_SHADOW_ETCHED_IN: GTK4 has one frame style */
+#define nx_scrolled_window_set_shadow_etched(sw) \
+	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), TRUE)
 
 /* GtkButtonBox is gone. Our boxes are all horizontal rows of buttons with
    a layout: SPREAD (equal gaps, homogeneous) or END (packed right).
@@ -185,6 +188,248 @@ nx_widget_make_default (GtkWidget *button)
 #define nx_widget_set_cursor_name(w, name) \
 	gtk_widget_set_cursor_from_name (GTK_WIDGET (w), (name))
 
+/* ---- step 10 ---- */
+
+/* GTK_RELIEF_NONE: a flat button */
+#define nx_button_set_flat(b) gtk_button_set_has_frame (GTK_BUTTON (b), FALSE)
+/* frame shadows are gone (a frame always draws its border) */
+#define nx_frame_set_shadow(f, t) ((void) (f))
+/* viewports never draw a frame in GTK4 */
+#define nx_viewport_set_no_shadow(v) ((void) (v))
+
+/* GtkPaned pack1/pack2 (child, resize, shrink) */
+static inline void
+nx_paned_pack (GtkWidget *paned, GtkWidget *child, gboolean second,
+					gboolean resize, gboolean shrink)
+{
+	if (second)
+	{
+		gtk_paned_set_end_child (GTK_PANED (paned), child);
+		gtk_paned_set_resize_end_child (GTK_PANED (paned), resize);
+		gtk_paned_set_shrink_end_child (GTK_PANED (paned), shrink);
+	}
+	else
+	{
+		gtk_paned_set_start_child (GTK_PANED (paned), child);
+		gtk_paned_set_resize_start_child (GTK_PANED (paned), resize);
+		gtk_paned_set_shrink_start_child (GTK_PANED (paned), shrink);
+	}
+}
+#define nx_paned_get_child1(p) gtk_paned_get_start_child (GTK_PANED (p))
+#define nx_paned_get_child2(p) gtk_paned_get_end_child (GTK_PANED (p))
+
+/* gtk_box_reorder_child (box, child, pos): pos -1 is the end */
+static inline void
+nx_box_reorder_child (GtkWidget *box, GtkWidget *child, int pos)
+{
+	GtkWidget *sib = NULL, *c;
+	int i = 0;
+
+	if (pos != 0)
+		for (c = gtk_widget_get_first_child (box); c; c = gtk_widget_get_next_sibling (c))
+		{
+			if (c == child)
+				continue;
+			sib = c;
+			if (++i == pos)
+				break;
+		}
+	gtk_box_reorder_child_after (GTK_BOX (box), child, sib);
+}
+
+/* radio buttons: GTK4 groups check buttons. group is any earlier member
+   (NULL: start one); nx_radio_button_new returns the new button. */
+static inline GtkWidget *
+nx_radio_button_new (GtkWidget *group, const char *mnemonic)
+{
+	GtkWidget *b = gtk_check_button_new_with_mnemonic (mnemonic);
+	if (group)
+		gtk_check_button_set_group (GTK_CHECK_BUTTON (b), GTK_CHECK_BUTTON (group));
+	return b;
+}
+
+/* window hints GTK4 dropped: roles and type hints are gone (the WM decides
+   from transient-for / modality) */
+#define nx_window_set_role(w, role) ((void) (w))
+#define nx_window_set_dialog_hint(w) ((void) (w))
+
+#define nx_label_set_wrap(l, on) gtk_label_set_wrap (GTK_LABEL (l), (on))
+
+/* GtkButton's image: an icon-only button takes it as its child; with a
+   label (set before, mnemonic or not) it's [image label] in a box, as
+   GTK3's always-show-image laid it out */
+static inline void
+nx_button_set_image (GtkWidget *button, GtkWidget *image)
+{
+	const char *text = gtk_button_get_label (GTK_BUTTON (button));
+
+	if (text && *text)
+	{
+		GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
+		GtkWidget *lbl = gtk_label_new (NULL);
+
+		if (gtk_button_get_use_underline (GTK_BUTTON (button)))
+			gtk_label_set_text_with_mnemonic (GTK_LABEL (lbl), text);
+		else
+			gtk_label_set_text (GTK_LABEL (lbl), text);
+		gtk_label_set_mnemonic_widget (GTK_LABEL (lbl), button);
+		gtk_box_append (GTK_BOX (box), image);
+		gtk_box_append (GTK_BOX (box), lbl);
+		gtk_widget_set_halign (box, GTK_ALIGN_CENTER);
+		gtk_button_set_child (GTK_BUTTON (button), box);
+	}
+	else
+		gtk_button_set_child (GTK_BUTTON (button), image);
+}
+
+/* the size the window would open at again: its default size tracks the
+   user's resizes */
+#define nx_window_get_size(win, w, h) \
+	gtk_window_get_default_size (GTK_WINDOW (win), (w), (h))
+
+/* GTK4 style properties are gone; Adwaita's expander is 16px and the
+   tree view's horizontal separator 4px, GTK3's defaults (TODO: measure the
+   theme's when the GTK4 build runs) */
+#define nx_tree_view_expander_indent(view) (16 + 4)
+
+/* a grid child's cell */
+#define nx_grid_child_get(grid, child, l, t, w, h) \
+	gtk_grid_query_child (GTK_GRID (grid), (child), (l), (t), (w), (h))
+
+/* GtkPaned's handle: GTK4 has no style property; 1px separator + the
+   theme's margins. GTK3 Adwaita's handle-size was 1. */
+#define nx_paned_handle_size(p) 1
+
+/* take a child out of whatever container it's in (box, paned, ...) */
+static inline void
+nx_widget_unparent_child (GtkWidget *child)
+{
+	GtkWidget *parent = gtk_widget_get_parent (child);
+
+	if (!parent)
+		return;
+	if (GTK_IS_BOX (parent))
+		gtk_box_remove (GTK_BOX (parent), child);
+	else if (GTK_IS_PANED (parent))
+	{
+		if (gtk_paned_get_start_child (GTK_PANED (parent)) == child)
+			gtk_paned_set_start_child (GTK_PANED (parent), NULL);
+		else
+			gtk_paned_set_end_child (GTK_PANED (parent), NULL);
+	}
+	else if (GTK_IS_GRID (parent))
+		gtk_grid_remove (GTK_GRID (parent), child);
+	else
+		gtk_widget_unparent (child);
+}
+
+/* GtkEventBox (its own input window) is gone: every widget takes input.
+   A plain box stands in where code packed a child into one. */
+#define nx_event_box_new() gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0)
+
+/* GdkPixbuf -> GdkTexture (gdk_texture_new_for_pixbuf is deprecated) */
+static inline GdkTexture *
+nx_texture_new_for_pixbuf (GdkPixbuf *pix)
+{
+	GBytes *b = gdk_pixbuf_read_pixel_bytes (pix);
+	GdkTexture *t = gdk_memory_texture_new (gdk_pixbuf_get_width (pix), gdk_pixbuf_get_height (pix),
+														 gdk_pixbuf_get_has_alpha (pix) ? GDK_MEMORY_R8G8B8A8
+																							: GDK_MEMORY_R8G8B8,
+														 b, gdk_pixbuf_get_rowstride (pix));
+	g_bytes_unref (b);
+	return t;
+}
+
+/* the pixbuf an image shows: we keep it on the image ourselves */
+static inline void
+nx_image_set_from_pixbuf (GtkWidget *img, GdkPixbuf *pix)
+{
+	g_object_set_data_full (G_OBJECT (img), "nx-pixbuf", pix ? g_object_ref (pix) : NULL,
+									pix ? g_object_unref : NULL);
+	if (pix)
+	{
+		GdkTexture *t = nx_texture_new_for_pixbuf (pix);
+		gtk_image_set_from_paintable (GTK_IMAGE (img), GDK_PAINTABLE (t));
+		g_object_unref (t);
+	}
+	else
+		gtk_image_clear (GTK_IMAGE (img));
+}
+#define nx_image_get_pixbuf(img) ((GdkPixbuf *) g_object_get_data (G_OBJECT (img), "nx-pixbuf"))
+static inline GtkWidget *
+nx_image_new_from_pixbuf (GdkPixbuf *pix)
+{
+	GtkWidget *img = gtk_image_new ();
+	nx_image_set_from_pixbuf (img, pix);
+	return img;
+}
+
+#define nx_window_iconify(w) gtk_window_minimize (GTK_WINDOW (w))
+#define nx_window_deiconify(w) gtk_window_unminimize (GTK_WINDOW (w))
+
+/* gtk_init / gtk_main without a GtkApplication (that comes later): GTK4's
+   gtk_init takes no arguments, the loop is a GMainLoop */
+#define nx_gtk_init(argc, argv) gtk_init ()
+GMainLoop *nx_main_loop (void);
+#define nx_main() g_main_loop_run (nx_main_loop ())
+#define nx_main_quit() g_main_loop_quit (nx_main_loop ())
+
+/* window state, as flags */
+typedef enum { NX_WIN_ICONIFIED = 1, NX_WIN_MAXIMIZED = 2, NX_WIN_FULLSCREEN = 4 } nx_window_state;
+typedef void (*nx_window_state_cb) (GtkWindow *win, nx_window_state changed,
+												nx_window_state now, gpointer ud);
+/* the window was moved or resized */
+typedef void (*nx_window_configure_cb) (GtkWindow *win, gpointer ud);
+void nx_on_window_state (GtkWidget *win, nx_window_state_cb cb, gpointer ud);
+void nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud);
+/* the user asked to close the window: return TRUE to keep it open
+   (GTK3 delete-event / GTK4 close-request) */
+typedef gboolean (*nx_close_request_cb) (GtkWidget *win, gpointer ud);
+#define nx_on_close_request(win, cb, ud) \
+	g_signal_connect (G_OBJECT (win), "close-request", G_CALLBACK (cb), (ud))
+/* GTK4: gtk_window_new () takes no type */
+#define nx_window_new() gtk_window_new ()
+
+/* a display that can draw translucent windows */
+#define nx_widget_is_composited(w) gdk_display_is_composited (gtk_widget_get_display (GTK_WIDGET (w)))
+#define nx_css_provider_load(prov, css) gtk_css_provider_load_from_string ((prov), (css))
+#define nx_entry_set_width_chars(e, n) gtk_editable_set_width_chars (GTK_EDITABLE (e), (n))
+
+/* hand the key event being handled to an entry, as if typed there
+   (GTK3: gtk_widget_event). GTK4 has no synthetic dispatch: the key's
+   text is inserted at the cursor. */
+static inline void
+nx_widget_forward_key (GtkWidget *entry, GdkEvent *ev)
+{
+	guint kv;
+	gunichar c;
+
+	if (!ev || gdk_event_get_event_type (ev) != GDK_KEY_PRESS)
+		return;
+	kv = gdk_key_event_get_keyval (ev);
+	c = gdk_keyval_to_unicode (kv);
+	if (c)
+	{
+		char buf[8];
+		int pos = gtk_editable_get_position (GTK_EDITABLE (entry));
+		buf[g_unichar_to_utf8 (c, buf)] = 0;
+		gtk_editable_insert_text (GTK_EDITABLE (entry), buf, -1, &pos);
+		gtk_editable_set_position (GTK_EDITABLE (entry), pos);
+	}
+}
+
+/* icon sizes: GTK4 has normal (16) / large (32); pixel sizes keep the old
+   GTK3 ones exact */
+typedef enum { NX_ICON_MENU = 16, NX_ICON_BUTTON = 16, NX_ICON_LARGE_TOOLBAR = 24,
+					NX_ICON_DIALOG = 48 } nx_icon_size;
+static inline GtkWidget *
+nx_image_new_from_icon_name (const char *name, nx_icon_size size)
+{
+	GtkWidget *img = gtk_image_new_from_icon_name (name);
+	gtk_image_set_pixel_size (GTK_IMAGE (img), size);
+	return img;
+}
+
 #else
 
 /* ---- GTK3: exactly the old calls ---- */
@@ -205,6 +450,8 @@ nx_widget_make_default (GtkWidget *button)
 #define nx_scrolled_window_new() gtk_scrolled_window_new (NULL, NULL)
 #define nx_scrolled_window_set_shadow_in(sw, on) \
 	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw), (on) ? GTK_SHADOW_IN : GTK_SHADOW_NONE)
+#define nx_scrolled_window_set_shadow_etched(sw) \
+	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw), GTK_SHADOW_ETCHED_IN)
 
 typedef enum { NX_BUTTONBOX_SPREAD, NX_BUTTONBOX_END, NX_BUTTONBOX_START, NX_BUTTONBOX_EDGE } nx_buttonbox_layout;
 static inline GtkWidget *
@@ -270,6 +517,106 @@ nx_widget_set_cursor_name (GtkWidget *w, const char *name)
 	if (c)
 		g_object_unref (c);
 }
+
+/* ---- step 10: the old calls ---- */
+
+#define nx_button_set_flat(b) gtk_button_set_relief (GTK_BUTTON (b), GTK_RELIEF_NONE)
+#define nx_frame_set_shadow(f, t) gtk_frame_set_shadow_type (GTK_FRAME (f), (t))
+#define nx_viewport_set_no_shadow(v) gtk_viewport_set_shadow_type (GTK_VIEWPORT (v), GTK_SHADOW_NONE)
+
+static inline void
+nx_paned_pack (GtkWidget *paned, GtkWidget *child, gboolean second,
+					gboolean resize, gboolean shrink)
+{
+	if (second)
+		gtk_paned_pack2 (GTK_PANED (paned), child, resize, shrink);
+	else
+		gtk_paned_pack1 (GTK_PANED (paned), child, resize, shrink);
+}
+#define nx_paned_get_child1(p) gtk_paned_get_child1 (GTK_PANED (p))
+#define nx_paned_get_child2(p) gtk_paned_get_child2 (GTK_PANED (p))
+
+#define nx_box_reorder_child(box, child, pos) \
+	gtk_box_reorder_child (GTK_BOX (box), (child), (pos))
+
+static inline GtkWidget *
+nx_radio_button_new (GtkWidget *group, const char *mnemonic)
+{
+	return gtk_radio_button_new_with_mnemonic (
+		group ? gtk_radio_button_get_group (GTK_RADIO_BUTTON (group)) : NULL, mnemonic);
+}
+
+#define nx_window_set_role(w, role) gtk_window_set_role (GTK_WINDOW (w), (role))
+#define nx_window_set_dialog_hint(w) \
+	gtk_window_set_type_hint (GTK_WINDOW (w), GDK_WINDOW_TYPE_HINT_DIALOG)
+
+#define nx_label_set_wrap(l, on) gtk_label_set_line_wrap (GTK_LABEL (l), (on))
+
+/* set the label (and use-underline) first: GTK4 builds the child from it */
+#define nx_button_set_image(b, img) gtk_button_set_image (GTK_BUTTON (b), (img))
+
+#define nx_window_get_size(win, w, h) gtk_window_get_size (GTK_WINDOW (win), (w), (h))
+
+/* how far a tree view indents a child for its expander: expander-size +
+   horizontal-separator (GTK3 style properties) */
+static inline int
+nx_tree_view_expander_indent (GtkWidget *view)
+{
+	int wid1 = 0, wid2 = 0;
+
+	gtk_widget_style_get (view, "expander-size", &wid1, "horizontal-separator", &wid2, NULL);
+	return wid1 + wid2;
+}
+
+#define nx_grid_child_get(grid, child, l, t, w, h) \
+	gtk_container_child_get (GTK_CONTAINER (grid), (child), "left-attach", (l), \
+									 "top-attach", (t), "width", (w), "height", (h), NULL)
+
+static inline int
+nx_paned_handle_size (GtkWidget *paned)
+{
+	int handle_size = 0;
+	gtk_widget_style_get (paned, "handle-size", &handle_size, NULL);
+	return handle_size;
+}
+
+#define nx_widget_unparent_child(child) \
+	gtk_container_remove (GTK_CONTAINER (gtk_widget_get_parent (child)), (child))
+
+#define nx_event_box_new() gtk_event_box_new ()
+
+#define nx_image_set_from_pixbuf(img, pix) gtk_image_set_from_pixbuf (GTK_IMAGE (img), (pix))
+#define nx_image_get_pixbuf(img) gtk_image_get_pixbuf (GTK_IMAGE (img))
+#define nx_image_new_from_pixbuf(pix) gtk_image_new_from_pixbuf (pix)
+
+#define nx_window_iconify(w) gtk_window_iconify (GTK_WINDOW (w))
+#define nx_window_deiconify(w) gtk_window_deiconify (GTK_WINDOW (w))
+
+#define nx_gtk_init(argc, argv) gtk_init ((argc), (argv))
+#define nx_main() gtk_main ()
+#define nx_main_quit() gtk_main_quit ()
+
+typedef enum { NX_WIN_ICONIFIED = 1, NX_WIN_MAXIMIZED = 2, NX_WIN_FULLSCREEN = 4 } nx_window_state;
+typedef void (*nx_window_state_cb) (GtkWindow *win, nx_window_state changed,
+												nx_window_state now, gpointer ud);
+typedef void (*nx_window_configure_cb) (GtkWindow *win, gpointer ud);
+void nx_on_window_state (GtkWidget *win, nx_window_state_cb cb, gpointer ud);
+void nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer ud);
+typedef gboolean (*nx_close_request_cb) (GtkWidget *win, gpointer ud);
+void nx_on_close_request (GtkWidget *win, nx_close_request_cb cb, gpointer ud);
+#define nx_window_new() gtk_window_new (GTK_WINDOW_TOPLEVEL)
+
+#define nx_widget_is_composited(w) gdk_screen_is_composited (gtk_widget_get_screen (GTK_WIDGET (w)))
+#define nx_css_provider_load(prov, css) gtk_css_provider_load_from_data ((prov), (css), -1, NULL)
+#define nx_entry_set_width_chars(e, n) gtk_entry_set_width_chars (GTK_ENTRY (e), (n))
+#define nx_widget_forward_key(entry, ev) gtk_widget_event ((entry), (ev))
+
+/* the GtkIconSize values themselves */
+typedef enum { NX_ICON_MENU = GTK_ICON_SIZE_MENU, NX_ICON_BUTTON = GTK_ICON_SIZE_BUTTON,
+					NX_ICON_LARGE_TOOLBAR = GTK_ICON_SIZE_LARGE_TOOLBAR,
+					NX_ICON_DIALOG = GTK_ICON_SIZE_DIALOG } nx_icon_size;
+#define nx_image_new_from_icon_name(name, size) \
+	gtk_image_new_from_icon_name ((name), (GtkIconSize) (size))
 
 #endif
 

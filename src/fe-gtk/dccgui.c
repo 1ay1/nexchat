@@ -188,7 +188,7 @@ dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 
 	if (!pix_up)
 		pix_up = gtkutil_render_icon (dccfwin.window, "gtk-go-up",
-													GTK_ICON_SIZE_MENU, NULL);
+													NX_ICON_MENU, NULL);
 
 	/* percentage ack'ed */
 	per = (float) ((dcc->ack * 100.00) / dcc->size);
@@ -245,7 +245,7 @@ dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 
 	if (!pix_dn)
 		pix_dn = gtkutil_render_icon (dccfwin.window, "gtk-go-down",
-													GTK_ICON_SIZE_MENU, NULL);
+													NX_ICON_MENU, NULL);
 
 	proper_unit (dcc->size, size, sizeof (size));
 	if (dcc->dccstat == STAT_QUEUED)
@@ -778,12 +778,11 @@ dcc_toggle (GtkWidget *item, gpointer data)
 	}
 }
 
-static gboolean
-dcc_configure_cb (GtkWindow *win, GdkEventConfigure *event, gpointer data)
+static void
+dcc_configure_cb (GtkWindow *win, gpointer data)
 {
 	/* remember the window size */
-	gtk_window_get_size (win, &win_width, &win_height);
-	return FALSE;
+	nx_window_get_size (win, &win_width, &win_height);
 }
 
 int
@@ -791,7 +790,7 @@ fe_dcc_open_recv_win (int passive)
 {
 	GtkWidget *radio, *table, *vbox, *bbox, *view, *exp, *detailbox;
 	GtkListStore *store;
-	GSList *group;
+	GtkWidget *group;
 	char buf[128];
 
 	if (dccfwin.window)
@@ -835,8 +834,7 @@ fe_dcc_open_recv_win (int passive)
 	gtk_tree_selection_set_mode (dccfwin.sel, GTK_SELECTION_MULTIPLE);
 
 	if (!prefs.hex_gui_tab_utils)
-		g_signal_connect (G_OBJECT (dccfwin.window), "configure_event",
-								G_CALLBACK (dcc_configure_cb), 0);
+		nx_on_window_configure (dccfwin.window, dcc_configure_cb, 0);
 	g_signal_connect (G_OBJECT (dccfwin.sel), "changed",
 							G_CALLBACK (dcc_row_cb), NULL);
 	/* double click */
@@ -847,19 +845,17 @@ fe_dcc_open_recv_win (int passive)
 	gtk_grid_set_column_spacing (GTK_GRID (table), 16);
 	nx_box_pack_start (vbox, table, 0, 0, 0);
 
-	radio = gtk_radio_button_new_with_mnemonic (NULL, _("Both"));
+	radio = group = nx_radio_button_new (NULL, _("Both"));
 	g_signal_connect (G_OBJECT (radio), "toggled",
 							G_CALLBACK (dcc_toggle), GINT_TO_POINTER (VIEW_BOTH));
 	gtkutil_grid_attach (table, radio, 3, 4, 0, 1, GU_FILL, GU_FILL, 0, 0);
-	group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (radio));
 
-	radio = gtk_radio_button_new_with_mnemonic (group, _("Uploads"));
+	radio = nx_radio_button_new (group, _("Uploads"));
 	g_signal_connect (G_OBJECT (radio), "toggled",
 							G_CALLBACK (dcc_toggle), GINT_TO_POINTER (VIEW_UPLOAD));
 	gtkutil_grid_attach (table, radio, 1, 2, 0, 1, GU_FILL, GU_FILL, 0, 0);
-	group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (radio));
 
-	radio = gtk_radio_button_new_with_mnemonic (group, _("Downloads"));
+	radio = nx_radio_button_new (group, _("Downloads"));
 	g_signal_connect (G_OBJECT (radio), "toggled",
 							G_CALLBACK (dcc_toggle), GINT_TO_POINTER (VIEW_DOWNLOAD));
 	gtkutil_grid_attach (table, radio, 2, 3, 0, 1, GU_FILL, GU_FILL, 0, 0);
