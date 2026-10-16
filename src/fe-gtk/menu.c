@@ -1445,7 +1445,7 @@ menu_join (GtkWidget * wid, gpointer none)
 									NULL);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
-	hbox = gtk_hbox_new (TRUE, 0);
+	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
 
 	entry = gtk_entry_new ();
 	gtk_editable_set_editable (GTK_EDITABLE (entry), FALSE);	/* avoid auto-selection */
@@ -1460,7 +1460,7 @@ menu_join (GtkWidget * wid, gpointer none)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (menu_join_cb), entry);
 
-	gtk_container_add (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), hbox);
+	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
 	gtk_widget_show_all (dialog);
 

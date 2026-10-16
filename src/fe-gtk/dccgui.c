@@ -879,7 +879,7 @@ fe_dcc_open_recv_win (int passive)
 	dccfwin.file_label = dcc_detail_label (_("File:"), detailbox, 0);
 	dccfwin.address_label = dcc_detail_label (_("Address:"), detailbox, 1);
 
-	bbox = gtk_hbutton_box_new ();
+	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, FALSE, FALSE, 2);
 
@@ -1080,7 +1080,7 @@ fe_dcc_open_chat_win (int passive)
 	g_signal_connect (G_OBJECT (view), "row-activated",
 							G_CALLBACK (dcc_chat_dclick_cb), NULL);
 
-	bbox = gtk_hbutton_box_new ();
+	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, FALSE, FALSE, 2);
 

@@ -833,7 +833,7 @@ banlist_opengui (struct session *sess)
 		gtk_table_attach (GTK_TABLE (table), banl->checkboxes[i], i+1, i+2, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	}
 
-	bbox = gtk_hbutton_box_new ();
+	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_container_set_border_width (GTK_CONTAINER (bbox), 5);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 0);

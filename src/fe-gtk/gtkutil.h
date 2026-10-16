@@ -25,6 +25,11 @@
 
 typedef void (*filereqcallback) (void *, char *file);
 
+/* gtk_hbox_new/gtk_vbox_new (homogeneous, spacing) for GTK3+ */
+GtkWidget *gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, int spacing);
+/* gtk_container_add with GTK2 semantics for boxes (expand + fill) */
+void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
+
 void gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *userdata, char *filter, char *extensions, int flags);
 void gtkutil_destroy (GtkWidget * igad, GtkWidget * dgad);
 void gtkutil_destroy_on_esc (GtkWidget *win);

@@ -389,7 +389,22 @@ fe_apply_css (void)
 		css_append_color (css, "color", &colors[COL_FG]);
 		css_append_color (css, "background-color", &colors[COL_BG]);
 		g_string_append (css, "}\n");
+		/* GTK2 themes drew the selected row grey; Adwaita uses its accent
+		   blue. Use the text box's own "selected text" colours, which is
+		   what HexChat users already picked for a selection. */
+		g_string_append (css, "#hexchat-userlist.view:selected, #hexchat-tree.view:selected {");
+		css_append_color (css, "color", &colors[COL_MARK_FG]);
+		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
+		g_string_append (css, "}\n");
 	}
+
+	/* the chat view scrollbar: GTK3 themes make it a thin overlay-looking
+	   slider; GTK2 had a full-width trough with stepper arrows. The arrows
+	   are a style property, set below; this keeps the slider full width. */
+	g_string_append (css,
+		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n"
+		"#hexchat-scrollbar { -GtkScrollbar-has-backward-stepper: true;"
+		" -GtkScrollbar-has-forward-stepper: true; }\n");
 
 	if (!gtk_css_provider_load_from_data (fe_css_provider, css->str, -1, &err))
 	{

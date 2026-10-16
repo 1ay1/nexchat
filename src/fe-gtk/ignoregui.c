@@ -360,9 +360,9 @@ ignore_gui_open ()
 	frame = gtk_frame_new (_("Ignore Stats:"));
 	gtk_widget_show (frame);
 
-	stat_box = gtk_hbox_new (0, 2);
+	stat_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_container_set_border_width (GTK_CONTAINER (stat_box), 6);
-	gtk_container_add (GTK_CONTAINER (frame), stat_box);
+	gtkutil_container_add (GTK_WIDGET (frame), stat_box);
 	gtk_widget_show (stat_box);
 
 	num_chan = ignore_stats_entry (stat_box, _("Channel:"), ignored_chan);
@@ -373,7 +373,7 @@ ignore_gui_open ()
 
 	gtk_box_pack_start (GTK_BOX (vbox), frame, 0, 0, 5);
 
-	box = gtk_hbutton_box_new ();
+	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
 	gtk_container_set_border_width (GTK_CONTAINER (box), 5);

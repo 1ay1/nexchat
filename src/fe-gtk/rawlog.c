@@ -118,14 +118,14 @@ open_rawlog (struct server *serv)
 	scrolledwindow = gtk_scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolledwindow), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scrolledwindow), GTK_SHADOW_IN);
-	gtk_container_add (GTK_CONTAINER (vbox), scrolledwindow);
+	gtkutil_container_add (GTK_WIDGET (vbox), scrolledwindow);
 
 	serv->gui->rawlog_textlist = gtk_xtext_new (colors, 0);
-	gtk_container_add (GTK_CONTAINER (scrolledwindow), serv->gui->rawlog_textlist);
+	gtkutil_container_add (GTK_WIDGET (scrolledwindow), serv->gui->rawlog_textlist);
 	gtk_xtext_set_font (GTK_XTEXT (serv->gui->rawlog_textlist), prefs.hex_text_font);
 	GTK_XTEXT (serv->gui->rawlog_textlist)->ignore_hidden = 1;
 
-	bbox = gtk_hbutton_box_new ();
+	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 4);
 

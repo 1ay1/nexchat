@@ -759,8 +759,8 @@ key_dialog_treeview_new (GtkWidget *box)
 	gtk_tree_view_column_set_min_width (col, 80);
 	gtk_tree_view_column_set_resizable (col, TRUE);
 
-	gtk_container_add (GTK_CONTAINER (scroll), view);
-	gtk_container_add (GTK_CONTAINER (box), scroll);
+	gtkutil_container_add (GTK_WIDGET (scroll), view);
+	gtkutil_container_add (GTK_WIDGET (box), scroll);
 
 	return view;
 }
@@ -821,7 +821,7 @@ key_dialog_show ()
 	g_object_set_data (G_OBJECT (key_dialog), "view", view);
 	g_object_set_data (G_OBJECT (key_dialog), "xtext", xtext);
 
-	box = gtk_hbutton_box_new ();
+	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
 	gtk_container_set_border_width (GTK_CONTAINER (box), 5);

@@ -384,8 +384,8 @@ pevent_treeview_new (GtkWidget *box)
 	gtk_tree_view_column_set_resizable (col, TRUE);
 	gtk_tree_view_column_set_min_width (col, 100);
 
-	gtk_container_add (GTK_CONTAINER (scroll), view);
-	gtk_container_add (GTK_CONTAINER (box), scroll);
+	gtkutil_container_add (GTK_WIDGET (scroll), view);
+	gtkutil_container_add (GTK_WIDGET (box), scroll);
 
 	return view;
 }
@@ -428,8 +428,8 @@ pevent_hlist_treeview_new (GtkWidget *box)
 	col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), 0);
 	gtk_tree_view_column_set_sizing (col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
 
-	gtk_container_add (GTK_CONTAINER (scroll), view);
-	gtk_container_add (GTK_CONTAINER (box), scroll);
+	gtkutil_container_add (GTK_WIDGET (scroll), view);
+	gtkutil_container_add (GTK_WIDGET (box), scroll);
 
 	return view;
 }
@@ -450,7 +450,7 @@ pevent_dialog_show ()
 											 TRUE, FALSE, pevent_dialog_close, NULL,
 											 600, 455, &vbox, 0);
 
-	pane = gtk_vpaned_new ();
+	pane = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
 	gtk_box_pack_start (GTK_BOX (vbox), pane, TRUE, TRUE, 0);
 	
 	pevent_dialog_list = pevent_treeview_new (pane);
@@ -465,10 +465,10 @@ pevent_dialog_show ()
 	pevent_dialog_twid = gtk_xtext_new (colors, 0);
 	gtk_widget_set_sensitive (pevent_dialog_twid, FALSE);
 	gtk_widget_set_size_request (pevent_dialog_twid, -1, 75);
-	gtk_container_add (GTK_CONTAINER (wid), pevent_dialog_twid);
+	gtkutil_container_add (GTK_WIDGET (wid), pevent_dialog_twid);
 	gtk_xtext_set_font (GTK_XTEXT (pevent_dialog_twid), prefs.hex_text_font);
 
-	hbox = gtk_hbutton_box_new ();
+	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
 	gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 4);
 	gtkutil_button (hbox, GTK_STOCK_SAVE_AS, NULL, pevent_save_cb,

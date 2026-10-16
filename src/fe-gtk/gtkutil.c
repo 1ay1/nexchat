@@ -54,6 +54,27 @@
 
 extern void path_part (char *file, char *path, int pathlen);
 
+GtkWidget *
+gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, int spacing)
+{
+	GtkWidget *box = gtk_box_new (orientation, spacing);
+	gtk_box_set_homogeneous (GTK_BOX (box), homogeneous);
+	return box;
+}
+
+/* gtk_container_add() into a GTK2 GtkHBox/GtkVBox packed the child with
+   expand=TRUE, fill=TRUE. A GTK3 gtk_box_new() box packs it with
+   expand=FALSE, so whole panes collapse. Keep the GTK2 behaviour for every
+   box, and plain gtk_container_add for everything else. */
+void
+gtkutil_container_add (GtkWidget *container, GtkWidget *child)
+{
+	if (GTK_IS_BOX (container))
+		gtk_box_pack_start (GTK_BOX (container), child, TRUE, TRUE, 0);
+	else
+		gtk_container_add (GTK_CONTAINER (container), child);
+}
+
 struct file_req
 {
 	GtkWidget *dialog;
@@ -372,7 +393,7 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 		gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	}
 
-	hbox = gtk_hbox_new (TRUE, 0);
+	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
 
 	g_object_set_data (G_OBJECT (dialog), "cb", callback);
 	g_object_set_data (G_OBJECT (dialog), "ud", userdata);
@@ -389,7 +410,7 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_str_response), entry);
 
-	gtk_container_add (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), hbox);
+	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
 	gtk_widget_show_all (dialog);
 }
@@ -458,7 +479,7 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 
-	hbox = gtk_hbox_new (TRUE, 0);
+	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
 
 	g_object_set_data (G_OBJECT (dialog), "cb", callback);
 	g_object_set_data (G_OBJECT (dialog), "ud", userdata);
@@ -478,7 +499,7 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_number_response), spin);
 
-	gtk_container_add (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), hbox);
+	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
 	gtk_widget_show_all (dialog);
 }
@@ -507,7 +528,7 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	g_signal_connect (G_OBJECT (dialog), "response",
 		G_CALLBACK (gtkutil_get_bool_response), NULL);
 
-	gtk_container_add (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), prompt_label);
+	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), prompt_label);
 
 	gtk_widget_show_all (dialog);
 }
@@ -526,16 +547,16 @@ gtkutil_button (GtkWidget *box, char *stock, char *tip, void *callback,
 		gtk_button_set_image (GTK_BUTTON (wid), gtk_image_new_from_stock (stock, GTK_ICON_SIZE_MENU));
 		gtk_button_set_use_underline (GTK_BUTTON (wid), TRUE);
 		if (box)
-			gtk_container_add (GTK_CONTAINER (box), wid);
+			gtkutil_container_add (GTK_WIDGET (box), wid);
 	}
 	else
 	{
-		bbox = gtk_hbox_new (0, 0);
-		gtk_container_add (GTK_CONTAINER (wid), bbox);
+		bbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+		gtkutil_container_add (GTK_WIDGET (wid), bbox);
 		gtk_widget_show (bbox);
 
 		img = gtk_image_new_from_stock (stock, GTK_ICON_SIZE_MENU);
-		gtk_container_add (GTK_CONTAINER (bbox), img);
+		gtkutil_container_add (GTK_WIDGET (bbox), img);
 		gtk_widget_show (img);
 		gtk_box_pack_start (GTK_BOX (box), wid, 0, 0, 0);
 	}
@@ -553,7 +574,7 @@ void
 gtkutil_label_new (char *text, GtkWidget * box)
 {
 	GtkWidget *label = gtk_label_new (text);
-	gtk_container_add (GTK_CONTAINER (box), label);
+	gtkutil_container_add (GTK_WIDGET (box), label);
 	gtk_widget_show (label);
 }
 
@@ -563,7 +584,7 @@ gtkutil_entry_new (int max, GtkWidget * box, void *callback,
 {
 	GtkWidget *entry = gtk_entry_new ();
 	gtk_entry_set_max_length (GTK_ENTRY (entry), max);
-	gtk_container_add (GTK_CONTAINER (box), entry);
+	gtkutil_container_add (GTK_WIDGET (box), entry);
 	if (callback)
 		g_signal_connect (G_OBJECT (entry), "changed",
 								G_CALLBACK (callback), userdata);
@@ -659,7 +680,7 @@ gtkutil_treeview_new (GtkWidget *box, GtkTreeModel *model,
 	char *title, *attr;
 
 	win = gtk_scrolled_window_new (0, 0);
-	gtk_container_add (GTK_CONTAINER (box), win);
+	gtkutil_container_add (GTK_WIDGET (box), win);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 	gtk_widget_show (win);
@@ -667,7 +688,7 @@ gtkutil_treeview_new (GtkWidget *box, GtkTreeModel *model,
 	view = gtk_tree_view_new_with_model (model);
 	/* the view now has a ref on the model, we can unref it */
 	g_object_unref (G_OBJECT (model));
-	gtk_container_add (GTK_CONTAINER (win), view);
+	gtkutil_container_add (GTK_WIDGET (win), view);
 
 	va_start (args, mapper);
 	for (col_id = va_arg (args, int); col_id != -1; col_id = va_arg (args, int))

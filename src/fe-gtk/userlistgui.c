@@ -700,7 +700,7 @@ userlist_create (GtkWidget *box)
 
 	userlist_add_columns (GTK_TREE_VIEW (treeview));
 
-	gtk_container_add (GTK_CONTAINER (sw), treeview);
+	gtkutil_container_add (GTK_WIDGET (sw), treeview);
 	gtk_widget_show (treeview);
 
 	return treeview;

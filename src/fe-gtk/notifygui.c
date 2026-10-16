@@ -355,7 +355,7 @@ fe_notify_ask (char *nick, char *networks)
 	gtk_container_set_border_width (GTK_CONTAINER (table), 12);
 	gtk_table_set_row_spacings (GTK_TABLE (table), 3);
 	gtk_table_set_col_spacings (GTK_TABLE (table), 8);
-	gtk_container_add (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), table);
+	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), table);
 
 	label = gtk_label_new (msg);
 	gtk_table_attach_defaults (GTK_TABLE (table), label, 0, 1, 0, 1);
@@ -415,7 +415,7 @@ notify_opengui (void)
 	view = notify_treeview_new (vbox);
 	g_object_set_data (G_OBJECT (notify_window), "view", view);
   
-	bbox = gtk_hbutton_box_new ();
+	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
 	gtk_container_set_border_width (GTK_CONTAINER (bbox), 5);
 	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 0);
