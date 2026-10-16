@@ -27,7 +27,13 @@ xv=$!
 sleep 1.5
 mkdir -p "$tmp/cfg"
 printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_width = 900\ngui_win_height = 600\ngui_win_left = 0\ngui_win_top = 0\n' > "$tmp/cfg/hexchat.conf"
-if [ -n "${CONF:-}" ]; then printf '%b\n' "$CONF" >> "$tmp/cfg/hexchat.conf"; fi
+if [ -n "${CONF:-}" ]; then
+	# CONF entries replace the defaults above: drop base lines for the same keys
+	printf '%b\n' "$CONF" > "$tmp/conf.extra"
+	sed -E 's/ *=.*//' "$tmp/conf.extra" > "$tmp/conf.keys"
+	grep -v -F -f "$tmp/conf.keys" "$tmp/cfg/hexchat.conf" > "$tmp/conf.base" || true
+	cat "$tmp/conf.base" "$tmp/conf.extra" > "$tmp/cfg/hexchat.conf"
+fi
 
 if [ -n "${CONNECT:-}" ]; then
 	python3 "$here/../fake_ircd.py" --demo --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &

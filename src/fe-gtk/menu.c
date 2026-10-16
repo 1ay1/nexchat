@@ -290,7 +290,7 @@ menu_quick_item (char *cmd, char *label, GtkWidget * menu, int flags,
 				if (access (path, R_OK) == 0)
 					img = gtk_image_new_from_file (path);
 				else
-					img = gtk_image_new_from_stock (icon, GTK_ICON_SIZE_MENU);
+					img = gtkutil_image_new_from_stock (icon, GTK_ICON_SIZE_MENU);
 				g_free (path);
 			}
 
@@ -575,8 +575,7 @@ menu_popup (GtkWidget *menu, GdkEventButton *event, gpointer objtounref)
 	g_object_unref (menu);
 	g_signal_connect (G_OBJECT (menu), "selection-done",
 							G_CALLBACK (menu_destroy), objtounref);
-	gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL,
-						 0, event ? event->time : 0);
+	gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
 }
 
 static void
@@ -1442,9 +1441,9 @@ menu_join (GtkWidget * wid, gpointer none)
 	dialog = gtk_dialog_new_with_buttons (_("Join Channel"),
 									GTK_WINDOW (parent_window), 0,
 									_("Retrieve channel list"), GTK_RESPONSE_HELP,
-									GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
-									GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
 									NULL);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
@@ -1926,7 +1925,7 @@ create_icon_menu (char *labeltext, void *stock_name, int is_stock)
 	GtkWidget *item, *img;
 
 	if (is_stock)
-		img = gtk_image_new_from_stock (stock_name, GTK_ICON_SIZE_MENU);
+		img = gtkutil_image_new_from_stock (stock_name, GTK_ICON_SIZE_MENU);
 	else
 		img = gtk_image_new_from_pixbuf (*((GdkPixbuf **)stock_name));
 	item = gtk_image_menu_item_new_with_mnemonic (labeltext);

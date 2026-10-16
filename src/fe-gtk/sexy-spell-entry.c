@@ -50,6 +50,11 @@
 #include "palette.h"
 #include "xtext.h"
 
+/* GTK3's stock table maps these ids to these icon names (gtkiconfactory.c) */
+#define SEXY_ICON_ADD "list-add"
+#define SEXY_ICON_REMOVE "list-remove"
+#define SEXY_ICON_SPELL_CHECK "tools-check-spelling"
+
 /*
  * Bunch of poop to make enchant into a runtime dependency rather than a
  * compile-time dependency.  This makes it so I don't have to hear the
@@ -678,7 +683,7 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 	mi = gtk_image_menu_item_new_with_label(label);
 	g_free(label);
 
-	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_stock(GTK_STOCK_ADD, GTK_ICON_SIZE_MENU));
+	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_icon_name (SEXY_ICON_ADD, GTK_ICON_SIZE_MENU));
 
 	if (g_slist_length(entry->priv->dict_list) == 1) {
 		dict = (struct EnchantDict *) entry->priv->dict_list->data;
@@ -720,7 +725,7 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 
 	/* - Ignore All */
 	mi = gtk_image_menu_item_new_with_label(_("Ignore All"));
-	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_stock(GTK_STOCK_REMOVE, GTK_ICON_SIZE_MENU));
+	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), gtk_image_new_from_icon_name (SEXY_ICON_REMOVE, GTK_ICON_SIZE_MENU));
 	g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(ignore_all), entry);
 	gtk_widget_show_all(mi);
 	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
@@ -753,7 +758,7 @@ sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer d
 	gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
 
 	/* Above the separator, show the suggestions menu */
-	icon = gtk_image_new_from_stock(GTK_STOCK_SPELL_CHECK, GTK_ICON_SIZE_MENU);
+	icon = gtk_image_new_from_icon_name (SEXY_ICON_SPELL_CHECK, GTK_ICON_SIZE_MENU);
 	mi = gtk_image_menu_item_new_with_label(_("Spelling Suggestions"));
 	gtk_image_menu_item_set_image(GTK_IMAGE_MENU_ITEM(mi), icon);
 

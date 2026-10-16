@@ -268,13 +268,13 @@ void
 userlist_set_value (GtkWidget *treeview, gfloat val)
 {
 	gtk_adjustment_set_value (
-			gtk_tree_view_get_vadjustment (GTK_TREE_VIEW (treeview)), val);
+			gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (treeview)), val);
 }
 
 gfloat
 userlist_get_value (GtkWidget *treeview)
 {
-	return gtk_adjustment_get_value (gtk_tree_view_get_vadjustment (GTK_TREE_VIEW (treeview)));
+	return gtk_adjustment_get_value (gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (treeview)));
 }
 
 int

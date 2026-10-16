@@ -131,7 +131,7 @@ PrintTextRaw (void *xtbuf, unsigned char *text, int indent, time_t stamp)
 			{
 				beep_done = TRUE;
 				if (!prefs.hex_input_filter_beep)
-					gdk_beep ();
+					gdk_display_beep (gdk_display_get_default ());
 			}
 		default:
 			text++;
@@ -356,7 +356,6 @@ pevent_treeview_new (GtkWidget *box)
 	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
 	gtk_tree_view_set_fixed_height_mode (GTK_TREE_VIEW (view), TRUE);
 	gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), TRUE);
-	gtk_tree_view_set_rules_hint (GTK_TREE_VIEW (view), TRUE);
 
 	sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (view));
 	g_signal_connect (G_OBJECT (sel), "changed",

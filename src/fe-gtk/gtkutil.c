@@ -113,6 +113,126 @@ gtkutil_force_images (void)
 	g_signal_add_emission_hook (sig, 0, gtkutil_realize_hook, NULL, NULL);
 }
 
+/* GTK 3.24's own stock table: stock id -> icon name (gtkiconfactory.c) and
+   label (gtkstock.c). Ids whose image only exists under the stock name
+   (gtk-ok, gtk-cancel, gtk-connect, ...) map to themselves: GTK3 ships
+   those PNGs as named icons, checked with tests/ux/iconprobe.c. */
+static const struct
+{
+	const char *stock;
+	const char *icon;
+	const char *context;	/* gettext context in GTK's gtk30 domain */
+	const char *label;
+} stock_table[] = {
+	{ "gtk-about", "help-about", "Stock label", "_About" },
+	{ "gtk-add", "list-add", "Stock label", "_Add" },
+	{ "gtk-apply", "gtk-apply", "Stock label", "_Apply" },
+	{ "gtk-cancel", "gtk-cancel", "Stock label", "_Cancel" },
+	{ "gtk-clear", "edit-clear", "Stock label", "_Clear" },
+	{ "gtk-close", "window-close", "Stock label", "_Close" },
+	{ "gtk-connect", "gtk-connect", "Stock label", "C_onnect" },
+	{ "gtk-copy", "edit-copy", "Stock label", "_Copy" },
+	{ "gtk-delete", "edit-delete", "Stock label", "_Delete" },
+	{ "gtk-dialog-error", "dialog-error", "Stock label", "Error" },
+	{ "gtk-dialog-warning", "dialog-warning", "Stock label", "Warning" },
+	{ "gtk-disconnect", "gtk-disconnect", "Stock label", "_Disconnect" },
+	{ "gtk-find", "edit-find", "Stock label", "_Find" },
+	{ "gtk-go-back", "go-previous", "Stock label, navigation", "_Back" },
+	{ "gtk-go-down", "go-down", "Stock label, navigation", "_Down" },
+	{ "gtk-go-forward", "go-next", "Stock label, navigation", "_Forward" },
+	{ "gtk-go-up", "go-up", "Stock label, navigation", "_Up" },
+	{ "gtk-help", "help-contents", "Stock label", "_Help" },
+	{ "gtk-index", "gtk-index", "Stock label", "_Index" },
+	{ "gtk-jump-to", "go-jump", "Stock label", "_Jump to" },
+	{ "gtk-justify-left", "format-justify-left", "Stock label", "_Left" },
+	{ "gtk-media-play", "media-playback-start", "Stock label, media", "_Play" },
+	{ "gtk-network", "network-idle", "Stock label", "_Network" },
+	{ "gtk-new", "document-new", "Stock label", "_New" },
+	{ "gtk-no", "gtk-no", "Stock label", "_No" },
+	{ "gtk-ok", "gtk-ok", "Stock label", "_OK" },
+	{ "gtk-open", "document-open", "Stock label", "_Open" },
+	{ "gtk-preferences", "gtk-preferences", "Stock label", "_Preferences" },
+	{ "gtk-quit", "application-exit", "Stock label", "_Quit" },
+	{ "gtk-redo", "edit-redo", "Stock label", "_Redo" },
+	{ "gtk-refresh", "view-refresh", "Stock label", "_Refresh" },
+	{ "gtk-remove", "list-remove", "Stock label", "_Remove" },
+	{ "gtk-revert-to-saved", "document-revert", "Stock label", "_Revert" },
+	{ "gtk-save", "document-save", "Stock label", "_Save" },
+	{ "gtk-save-as", "document-save-as", "Stock label", "Save _As" },
+	{ "gtk-spell-check", "tools-check-spelling", "Stock label", "_Spell Check" },
+	{ "gtk-yes", "gtk-yes", "Stock label", "_Yes" },
+};
+
+static int
+stock_find (const char *stock_id)
+{
+	guint i;
+
+	if (!stock_id)
+		return -1;
+	for (i = 0; i < G_N_ELEMENTS (stock_table); i++)
+		if (strcmp (stock_table[i].stock, stock_id) == 0)
+			return i;
+	return -1;
+}
+
+const char *
+gtkutil_stock_icon_name (const char *stock_id)
+{
+	int i = stock_find (stock_id);
+	return i >= 0 ? stock_table[i].icon : stock_id;
+}
+
+GtkWidget *
+gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size)
+{
+	return gtk_image_new_from_icon_name (gtkutil_stock_icon_name (stock_id), size);
+}
+
+const char *
+gtkutil_stock_label (const char *stock_id)
+{
+	int i = stock_find (stock_id);
+
+	if (i < 0)
+		return stock_id;
+	/* GTK translated these in its own catalogue; use the same strings so
+	   every language keeps its existing button text */
+	return g_dpgettext2 ("gtk30", stock_table[i].context, stock_table[i].label);
+}
+
+GtkWidget *
+gtkutil_button_new_from_stock (const char *stock_id)
+{
+	GtkWidget *button = gtk_button_new_with_mnemonic (gtkutil_stock_label (stock_id));
+	gtk_button_set_image (GTK_BUTTON (button),
+								 gtkutil_image_new_from_stock (stock_id, GTK_ICON_SIZE_BUTTON));
+	return button;
+}
+
+GtkWidget *
+gtkutil_dialog_add_stock_button (GtkDialog *dialog, const char *stock_id, int response)
+{
+	GtkWidget *button = gtkutil_button_new_from_stock (stock_id);
+
+	gtk_widget_set_can_default (button, TRUE);
+	gtk_widget_show (button);
+	gtk_dialog_add_action_widget (dialog, button, response);
+	return button;
+}
+
+GdkPixbuf *
+gtkutil_render_icon (GtkWidget *widget, const char *stock_id, GtkIconSize size, const char *unused)
+{
+	int w = 16, h = 16;
+	GtkIconTheme *theme = widget ? gtk_icon_theme_get_for_screen (gtk_widget_get_screen (widget))
+								  : gtk_icon_theme_get_default ();
+
+	gtk_icon_size_lookup (size, &w, &h);
+	return gtk_icon_theme_load_icon (theme, gtkutil_stock_icon_name (stock_id), MIN (w, h),
+												GTK_ICON_LOOKUP_FORCE_SIZE, NULL);
+}
+
 void
 gtkutil_grid_attach (GtkWidget *grid, GtkWidget *child,
 							int left, int right, int top, int bottom,
@@ -281,19 +401,21 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 	{
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_SAVE,
-												GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-												GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-												NULL);
+												NULL, NULL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
 
 		if (!(flags & FRF_NOASKOVERWRITE))
 			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
 	}
 	else
+	{
 		dialog = gtk_file_chooser_dialog_new (title, NULL,
 												GTK_FILE_CHOOSER_ACTION_OPEN,
-												GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-												GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
-												NULL);
+												NULL, NULL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+		gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	}
 
 	if (filter && filter[0] && (flags & FRF_FILTERISINITIAL))
 	{
@@ -432,10 +554,9 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	GtkWidget *label;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0,
-										GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
-										GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
-										NULL);
+	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
 
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
@@ -527,10 +648,9 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	GtkAdjustment *adj;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0,
-										GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
-										GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
-										NULL);
+	dialog = gtk_dialog_new_with_buttons (msg, NULL, 0, NULL, NULL);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
@@ -545,7 +665,6 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	gtk_adjustment_set_lower (adj, 0);
 	gtk_adjustment_set_upper (adj, 1024);
 	gtk_adjustment_set_step_increment (adj, 1);
-	gtk_adjustment_changed (adj);
 	gtk_spin_button_set_value ((GtkSpinButton*)spin, def);
 	gtk_box_pack_end (GTK_BOX (hbox), spin, 0, 0, 0);
 
@@ -567,10 +686,9 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	GtkWidget *prompt_label;
 	extern GtkWidget *parent_window;
 
-	dialog = gtk_dialog_new_with_buttons (title, NULL, 0,
-		GTK_STOCK_NO, GTK_RESPONSE_REJECT,
-		GTK_STOCK_YES, GTK_RESPONSE_ACCEPT,
-		NULL);
+	dialog = gtk_dialog_new_with_buttons (title, NULL, 0, NULL, NULL);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_NO, GTK_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), GTK_STOCK_YES, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
@@ -600,7 +718,7 @@ gtkutil_button (GtkWidget *box, char *stock, char *tip, void *callback,
 	if (labeltext)
 	{
 		gtk_button_set_label (GTK_BUTTON (wid), labeltext);
-		gtk_button_set_image (GTK_BUTTON (wid), gtk_image_new_from_stock (stock, GTK_ICON_SIZE_MENU));
+		gtk_button_set_image (GTK_BUTTON (wid), gtkutil_image_new_from_stock (stock, GTK_ICON_SIZE_MENU));
 		gtk_button_set_use_underline (GTK_BUTTON (wid), TRUE);
 		if (box)
 			gtkutil_container_add (GTK_WIDGET (box), wid);
@@ -611,7 +729,7 @@ gtkutil_button (GtkWidget *box, char *stock, char *tip, void *callback,
 		gtkutil_container_add (GTK_WIDGET (wid), bbox);
 		gtk_widget_show (bbox);
 
-		img = gtk_image_new_from_stock (stock, GTK_ICON_SIZE_MENU);
+		img = gtkutil_image_new_from_stock (stock, GTK_ICON_SIZE_MENU);
 		gtkutil_container_add (GTK_WIDGET (bbox), img);
 		gtk_widget_show (img);
 		gtk_box_pack_start (GTK_BOX (box), wid, 0, 0, 0);
@@ -844,7 +962,7 @@ gtkutil_tray_icon_supported (GtkWindow *window)
 	if (!GDK_IS_X11_DISPLAY (display))
 		return TRUE;
 
-	screen_number = gdk_screen_get_number (screen);
+	screen_number = gdk_x11_screen_get_screen_number (screen);
 	xdisplay = gdk_x11_display_get_xdisplay (display);
 	selection_name = g_strdup_printf ("_NET_SYSTEM_TRAY_S%d", screen_number);
 	selection_atom = XInternAtom (xdisplay, selection_name, False);

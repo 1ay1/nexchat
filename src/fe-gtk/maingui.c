@@ -1222,7 +1222,6 @@ mg_open_quit_dialog (gboolean minimize_button)
 	GtkWidget *image;
 	GtkWidget *checkbutton1;
 	GtkWidget *label;
-	GtkWidget *dialog_action_area1;
 	GtkWidget *button;
 	char *text, *connecttext;
 	int cons;
@@ -1258,7 +1257,7 @@ mg_open_quit_dialog (gboolean minimize_button)
 	gtk_grid_set_row_spacing (GTK_GRID (table1), 12);
 	gtk_grid_set_column_spacing (GTK_GRID (table1), 12);
 
-	image = gtk_image_new_from_stock ("gtk-dialog-warning", GTK_ICON_SIZE_DIALOG);
+	image = gtkutil_image_new_from_stock ("gtk-dialog-warning", GTK_ICON_SIZE_DIALOG);
 	gtk_widget_show (image);
 	gtkutil_grid_attach (table1, image, 0, 1, 0, 1,
 							(GU_FILL),
@@ -1283,12 +1282,7 @@ mg_open_quit_dialog (gboolean minimize_button)
 							(GU_EXPAND | GU_SHRINK | GU_FILL),
 							(GU_EXPAND | GU_SHRINK), 0, 0);
 	gtk_label_set_use_markup (GTK_LABEL (label), TRUE);
-	gtk_misc_set_alignment (GTK_MISC (label), 0, 0.5);
-
-	dialog_action_area1 = gtk_dialog_get_action_area (GTK_DIALOG (dialog));
-	gtk_widget_show (dialog_action_area1);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (dialog_action_area1),
-										GTK_BUTTONBOX_END);
+	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 
 	if (minimize_button && gtkutil_tray_icon_supported (GTK_WINDOW(dialog)))
 	{
@@ -1297,13 +1291,13 @@ mg_open_quit_dialog (gboolean minimize_button)
 		gtk_dialog_add_action_widget (GTK_DIALOG (dialog), button, 1);
 	}
 
-	button = gtk_button_new_from_stock ("gtk-cancel");
+	button = gtkutil_button_new_from_stock ("gtk-cancel");
 	gtk_widget_show (button);
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog), button,
 											GTK_RESPONSE_CANCEL);
 	gtk_widget_grab_focus (button);
 
-	button = gtk_button_new_from_stock ("gtk-quit");
+	button = gtkutil_button_new_from_stock ("gtk-quit");
 	gtk_widget_show (button);
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog), button, 0);
 
@@ -1670,7 +1664,7 @@ mg_create_tabmenu (session *sess, GdkEventButton *event, chan *ch)
 	g_object_unref (menu);
 	g_signal_connect (G_OBJECT (menu), "selection-done",
 							G_CALLBACK (mg_menu_destroy), NULL);
-	gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, event->time);
+	gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
 }
 
 static gboolean
@@ -2852,7 +2846,7 @@ search_handle_event(int search_type, session *sess)
 
 	if (err)
 	{
-		gtk_entry_set_icon_from_stock (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, GTK_STOCK_DIALOG_ERROR);
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _(err->message));
 		g_error_free (err);
 	}
@@ -2860,7 +2854,7 @@ search_handle_event(int search_type, session *sess)
 	{
 		if (text && text[0] == 0) /* empty string, no error */
 		{
-			gtk_entry_set_icon_from_stock (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, NULL);
+			gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
 		}
 		else
 		{
@@ -2868,14 +2862,14 @@ search_handle_event(int search_type, session *sess)
 			last = gtk_xtext_search (GTK_XTEXT (sess->gui->xtext), text, flags, &err);
 			if (!last) /* Not found error */
 			{
-				gtk_entry_set_icon_from_stock (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, GTK_STOCK_DIALOG_ERROR);
+				gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
 				gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _("No results found."));
 			}
 		}
 	}
 	else
 	{
-		gtk_entry_set_icon_from_stock (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, NULL);
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
 	}
 }
 
@@ -2922,7 +2916,7 @@ mg_search_toggle(session *sess)
 	else
 	{
 		/* Reset search state */
-		gtk_entry_set_icon_from_stock (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, NULL);
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
 
 		/* Show and focus */
 		gtk_widget_show(sess->gui->shbox);
@@ -2949,7 +2943,7 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), gui->shbox, FALSE, FALSE, 0);
 
 	close = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (close), gtk_image_new_from_stock (GTK_STOCK_CLOSE, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (close), gtkutil_image_new_from_stock (GTK_STOCK_CLOSE, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(close), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (close, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), close, FALSE, FALSE, 0);
@@ -2968,14 +2962,14 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _("Search hit end or not found."));
 
 	previous = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (previous), gtk_image_new_from_stock (GTK_STOCK_GO_BACK, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (previous), gtkutil_image_new_from_stock (GTK_STOCK_GO_BACK, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(previous), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (previous, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), previous, FALSE, FALSE, 0);
 	g_signal_connect(G_OBJECT(previous), "clicked", G_CALLBACK(mg_search_handle_previous), sess);
 
 	next = gtk_button_new ();
-	gtk_button_set_image (GTK_BUTTON (next), gtk_image_new_from_stock (GTK_STOCK_GO_FORWARD, GTK_ICON_SIZE_MENU));
+	gtk_button_set_image (GTK_BUTTON (next), gtkutil_image_new_from_stock (GTK_STOCK_GO_FORWARD, GTK_ICON_SIZE_MENU));
 	gtk_button_set_relief(GTK_BUTTON(next), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (next, FALSE);
 	gtk_box_pack_start(GTK_BOX(gui->shbox), next, FALSE, FALSE, 0);
@@ -3177,7 +3171,7 @@ mg_create_topwindow (session *sess)
 										  prefs.hex_gui_win_height, 0);
 	sess->gui->window = win;
 	gtk_container_set_border_width (GTK_CONTAINER (win), GUI_BORDER);
-	gtk_window_set_opacity (GTK_WINDOW (win), (prefs.hex_gui_transparency / 255.));
+	gtk_widget_set_opacity (GTK_WIDGET (win), (prefs.hex_gui_transparency / 255.));
 
 	g_signal_connect (G_OBJECT (win), "focus_in_event",
 							G_CALLBACK (mg_topwin_focus_cb), sess);
@@ -3301,7 +3295,7 @@ mg_create_tabwindow (session *sess)
 		gtk_window_maximize (GTK_WINDOW (win));
 	if (prefs.hex_gui_win_fullscreen)
 		gtk_window_fullscreen (GTK_WINDOW (win));
-	gtk_window_set_opacity (GTK_WINDOW (win), (prefs.hex_gui_transparency / 255.));
+	gtk_widget_set_opacity (GTK_WIDGET (win), (prefs.hex_gui_transparency / 255.));
 	gtk_container_set_border_width (GTK_CONTAINER (win), GUI_BORDER);
 
 	g_signal_connect (G_OBJECT (win), "delete_event",

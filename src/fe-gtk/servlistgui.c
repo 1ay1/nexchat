@@ -1277,7 +1277,7 @@ servlist_create_entry (GtkWidget *table, char *labeltext, int row,
 		*label_ret = label;
 	gtk_widget_show (label);
 	gtkutil_grid_attach (table, label, 0, 1, row, row+1, GU_FILL, 0, SERVLIST_X_PADDING, SERVLIST_Y_PADDING);
-	gtk_misc_set_alignment (GTK_MISC (label), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 
 	entry = gtk_entry_new ();
 	gtk_widget_set_tooltip_text (entry, tip);
@@ -1563,14 +1563,14 @@ servlist_username_changed_cb (GtkEntry *entry, gpointer userdata)
 
 	if (gtk_entry_get_text (entry)[0] == 0)
 	{
-		gtk_entry_set_icon_from_stock (entry, GTK_ENTRY_ICON_SECONDARY, GTK_STOCK_DIALOG_ERROR);
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 										_("User name cannot be left blank."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
 	}
 	else
 	{
-		gtk_entry_set_icon_from_stock (entry, GTK_ENTRY_ICON_SECONDARY, NULL);
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
 		gtk_widget_set_sensitive (connect_btn, TRUE);
 	}
 }
@@ -1585,22 +1585,22 @@ servlist_nick_changed_cb (GtkEntry *entry, gpointer userdata)
 	if (!nick1[0] || !nick2[0])
 	{
 		entry = GTK_ENTRY(!nick1[0] ? entry_nick1 : entry_nick2);
-		gtk_entry_set_icon_from_stock (entry, GTK_ENTRY_ICON_SECONDARY, GTK_STOCK_DIALOG_ERROR);
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 		                                 _("You cannot have an empty nick name."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
 	}
 	else if (!rfc_casecmp (nick1, nick2))
 	{
-		gtk_entry_set_icon_from_stock (entry, GTK_ENTRY_ICON_SECONDARY, GTK_STOCK_DIALOG_ERROR);
+		gtk_entry_set_icon_from_icon_name (entry, GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (GTK_STOCK_DIALOG_ERROR));
 		gtk_entry_set_icon_tooltip_text (entry, GTK_ENTRY_ICON_SECONDARY,
 										_("You must have two unique nick names."));
 		gtk_widget_set_sensitive (connect_btn, FALSE);
 	}
 	else
 	{
-		gtk_entry_set_icon_from_stock (GTK_ENTRY(entry_nick1), GTK_ENTRY_ICON_SECONDARY, NULL);
-		gtk_entry_set_icon_from_stock (GTK_ENTRY(entry_nick2), GTK_ENTRY_ICON_SECONDARY, NULL);
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY(entry_nick1), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
+		gtk_entry_set_icon_from_icon_name (GTK_ENTRY(entry_nick2), GTK_ENTRY_ICON_SECONDARY, gtkutil_stock_icon_name (NULL));
 		gtk_widget_set_sensitive (connect_btn, TRUE);
 	}
 }
@@ -1680,7 +1680,7 @@ bold_label (char *text)
 	g_snprintf (buf, sizeof (buf), "<b>%s</b>", text);
 	label = gtk_label_new (buf);
 	gtk_label_set_use_markup (GTK_LABEL (label), TRUE);
-	gtk_misc_set_alignment (GTK_MISC (label), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0.5);
 	gtk_widget_show (label);
 
 	return label;
@@ -1850,13 +1850,13 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (vbuttonbox1), GTK_BUTTONBOX_START);
 	gtk_box_pack_start (GTK_BOX (hbox1), vbuttonbox1, FALSE, FALSE, 3);
 
-	buttonadd = gtk_button_new_from_stock ("gtk-add");
+	buttonadd = gtkutil_button_new_from_stock ("gtk-add");
 	g_signal_connect (G_OBJECT (buttonadd), "clicked",
 							G_CALLBACK (servlist_addbutton_cb), notebook);
 	gtkutil_container_add (GTK_WIDGET (vbuttonbox1), buttonadd);
 	gtk_widget_set_can_default (buttonadd, TRUE);
 
-	buttonremove = gtk_button_new_from_stock ("gtk-remove");
+	buttonremove = gtkutil_button_new_from_stock ("gtk-remove");
 	g_signal_connect (G_OBJECT (buttonremove), "clicked",
 							G_CALLBACK (servlist_deletebutton_cb), notebook);
 	gtkutil_container_add (GTK_WIDGET (vbuttonbox1), buttonremove);
@@ -1896,7 +1896,7 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 
 	label_logintype = gtk_label_new (_("Login method:"));
 	gtkutil_grid_attach (table3, label_logintype, 0, 1, 10, 11, (GU_FILL), (0), SERVLIST_X_PADDING, SERVLIST_Y_PADDING);
-	gtk_misc_set_alignment (GTK_MISC (label_logintype), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label_logintype), 0); gtk_label_set_yalign (GTK_LABEL (label_logintype), 0.5);
 	combobox_logintypes = servlist_create_logintypecombo (notebook);
 	gtkutil_grid_attach (table3, combobox_logintypes, 1, 2, 10, 11, (GU_FILL), (GU_FILL), 4, 2);
 
@@ -1907,7 +1907,7 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 
 	label34 = gtk_label_new (_("Character set:"));
 	gtkutil_grid_attach (table3, label34, 0, 1, 12, 13, (GU_FILL), (0), SERVLIST_X_PADDING, SERVLIST_Y_PADDING);
-	gtk_misc_set_alignment (GTK_MISC (label34), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label34), 0); gtk_label_set_yalign (GTK_LABEL (label34), 0.5);
 	comboboxentry_charset = servlist_create_charsetcombo ();
 	gtkutil_grid_attach (table3, comboboxentry_charset, 1, 2, 12, 13, (GU_FILL), (GU_FILL), 4, 2);
 
@@ -1920,7 +1920,7 @@ servlist_open_edit (GtkWidget *parent, ircnet *net)
 	gtk_box_pack_start (GTK_BOX (vbox5), hbuttonbox4, FALSE, FALSE, 0);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbuttonbox4), GTK_BUTTONBOX_END);
 
-	button10 = gtk_button_new_from_stock ("gtk-close");
+	button10 = gtkutil_button_new_from_stock ("gtk-close");
 	g_signal_connect (G_OBJECT (button10), "clicked",
 							G_CALLBACK (servlist_edit_close_cb), 0);
 	gtkutil_container_add (GTK_WIDGET (hbuttonbox4), button10);
@@ -2013,35 +2013,35 @@ servlist_open_networks (void)
 	gtkutil_grid_attach (table1, label3, 0, 1, 0, 1,
 							(GU_FILL),
 							(0), 0, 0);
-	gtk_misc_set_alignment (GTK_MISC (label3), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label3), 0); gtk_label_set_yalign (GTK_LABEL (label3), 0.5);
 
 	label4 = gtk_label_new (_("Second choice:"));
 	gtk_widget_show (label4);
 	gtkutil_grid_attach (table1, label4, 0, 1, 1, 2,
 							(GU_FILL),
 							(0), 0, 0);
-	gtk_misc_set_alignment (GTK_MISC (label4), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label4), 0); gtk_label_set_yalign (GTK_LABEL (label4), 0.5);
 
 	label5 = gtk_label_new (_("Third choice:"));
 	gtk_widget_show (label5);
 	gtkutil_grid_attach (table1, label5, 0, 1, 2, 3,
 							(GU_FILL),
 							(0), 0, 0);
-	gtk_misc_set_alignment (GTK_MISC (label5), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label5), 0); gtk_label_set_yalign (GTK_LABEL (label5), 0.5);
 
 	label6 = gtk_label_new_with_mnemonic (_("_User name:"));
 	gtk_widget_show (label6);
 	gtkutil_grid_attach (table1, label6, 0, 1, 3, 4,
 							(GU_FILL),
 							(0), 0, 0);
-	gtk_misc_set_alignment (GTK_MISC (label6), 0, 0.5);
+	gtk_label_set_xalign (GTK_LABEL (label6), 0); gtk_label_set_yalign (GTK_LABEL (label6), 0.5);
 
 	/* label7 = gtk_label_new_with_mnemonic (_("Rea_l name:"));
 	gtk_widget_show (label7);
 	gtkutil_grid_attach (table1, label7, 0, 1, 4, 5,
 							(GU_FILL),
 							(0), 0, 0);
-	gtk_misc_set_alignment (GTK_MISC (label7), 0, 0.5);*/
+	gtk_label_set_xalign (GTK_LABEL (label7), 0); gtk_label_set_yalign (GTK_LABEL (label7), 0.5);*/
 
 	entry_nick1 = entry1 = gtk_entry_new ();
 	gtk_entry_set_text (GTK_ENTRY (entry1), prefs.hex_irc_nick1);
@@ -2155,14 +2155,14 @@ servlist_open_networks (void)
 							(GU_FILL),
 							(GU_FILL), 0, 0);
 
-	button_add = gtk_button_new_from_stock ("gtk-add");
+	button_add = gtkutil_button_new_from_stock ("gtk-add");
 	g_signal_connect (G_OBJECT (button_add), "clicked",
 							G_CALLBACK (servlist_addnet_cb), networks_tree);
 	gtk_widget_show (button_add);
 	gtkutil_container_add (GTK_WIDGET (vbuttonbox2), button_add);
 	gtk_widget_set_can_default (button_add, TRUE);
 
-	button_remove = gtk_button_new_from_stock ("gtk-remove");
+	button_remove = gtkutil_button_new_from_stock ("gtk-remove");
 	g_signal_connect (G_OBJECT (button_remove), "clicked",
 							G_CALLBACK (servlist_deletenet_cb), 0);
 	gtk_widget_show (button_remove);
@@ -2202,7 +2202,7 @@ servlist_open_networks (void)
 	gtk_box_pack_start (GTK_BOX (vbox1), hbuttonbox1, FALSE, TRUE, 0);
 	gtk_container_set_border_width (GTK_CONTAINER (hbuttonbox1), 8);
 
-	button_close = gtk_button_new_from_stock ("gtk-close");
+	button_close = gtkutil_button_new_from_stock ("gtk-close");
 	gtk_widget_show (button_close);
 	g_signal_connect (G_OBJECT (button_close), "clicked",
 							G_CALLBACK (servlist_close_cb), 0);

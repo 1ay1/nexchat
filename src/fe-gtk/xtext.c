@@ -1492,7 +1492,7 @@ gtk_xtext_scrolldown_timeout (GtkXText * xtext)
 	xtext_buffer *buf = xtext->buffer;
 	GtkAdjustment *adj = xtext->adj;
 
-	gdk_window_get_pointer (gtk_widget_get_window (GTK_WIDGET (xtext)), 0, &p_y, 0);
+	gdk_window_get_device_position (gtk_widget_get_window (GTK_WIDGET (xtext)), gdk_seat_get_pointer (gdk_display_get_default_seat (gtk_widget_get_display (GTK_WIDGET (xtext)))), NULL, &p_y, NULL);
 	win_height = gdk_window_get_height (gtk_widget_get_window (GTK_WIDGET (xtext)));
 
 	if (buf->last_ent_end == NULL ||	/* If context has changed OR */
@@ -1525,7 +1525,7 @@ gtk_xtext_scrollup_timeout (GtkXText * xtext)
 	GtkAdjustment *adj = xtext->adj;
 	int delta_y;
 
-	gdk_window_get_pointer (gtk_widget_get_window (GTK_WIDGET (xtext)), 0, &p_y, 0);
+	gdk_window_get_device_position (gtk_widget_get_window (GTK_WIDGET (xtext)), gdk_seat_get_pointer (gdk_display_get_default_seat (gtk_widget_get_display (GTK_WIDGET (xtext)))), NULL, &p_y, NULL);
 
 	if (buf->last_ent_start == NULL ||	/* If context has changed OR */
 		 buf->pagetop_ent == NULL ||		/* pagetop_ent is reset OR */
@@ -1796,7 +1796,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, GdkEventMotion * event)
 	textentry *word_ent;
 	int word_type;
 
-	gdk_window_get_pointer (gtk_widget_get_window (widget), &x, &y, &mask);
+	gdk_window_get_device_position (gtk_widget_get_window (widget), gdk_seat_get_pointer (gdk_display_get_default_seat (gtk_widget_get_display (widget))), &x, &y, &mask);
 
 	if (xtext->moving_separator)
 	{
@@ -2050,7 +2050,7 @@ gtk_xtext_button_press (GtkWidget * widget, GdkEventButton * event)
 	unsigned char *word;
 	int line_x, x, y, offset, len;
 
-	gdk_window_get_pointer (gtk_widget_get_window (widget), &x, &y, &mask);
+	gdk_window_get_device_position (gtk_widget_get_window (widget), gdk_seat_get_pointer (gdk_display_get_default_seat (gtk_widget_get_display (widget))), &x, &y, &mask);
 
 	if (event->button == 3 || event->button == 2) /* right/middle click */
 	{
@@ -5035,7 +5035,7 @@ gtk_xtext_buffer_show (GtkXText *xtext, xtext_buffer *buf, int render)
 		}
 
 		gtk_xtext_render_page (xtext);
-		gtk_adjustment_changed (xtext->adj);
+		g_signal_emit_by_name (xtext->adj, "changed");
 	}
 }
 

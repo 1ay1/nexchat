@@ -72,11 +72,11 @@ cv_tabs_sizealloc (GtkWidget *widget, GtkAllocation *allocation, chanview *cv)
 
 	if (cv->vertical)
 	{
-		adj = gtk_viewport_get_vadjustment (GTK_VIEWPORT (gtk_widget_get_parent (inner)));
+		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
 	} else
 	{
-		adj = gtk_viewport_get_hadjustment (GTK_VIEWPORT (gtk_widget_get_parent (inner)));
+		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
 	}
 
@@ -149,11 +149,11 @@ tab_scroll_left_up_clicked (GtkWidget *widget, chanview *cv)
 
 	if (cv->vertical)
 	{
-		adj = gtk_viewport_get_vadjustment (GTK_VIEWPORT (gtk_widget_get_parent(inner)));
+		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
 	} else
 	{
-		adj = gtk_viewport_get_hadjustment (GTK_VIEWPORT (gtk_widget_get_parent(inner)));
+		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
 	}
 
@@ -198,11 +198,11 @@ tab_scroll_right_down_clicked (GtkWidget *widget, chanview *cv)
 
 	if (cv->vertical)
 	{
-		adj = gtk_viewport_get_vadjustment (GTK_VIEWPORT (gtk_widget_get_parent(inner)));
+		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, 0, &viewport_size);
 	} else
 	{
-		adj = gtk_viewport_get_hadjustment (GTK_VIEWPORT (gtk_widget_get_parent(inner)));
+		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
 		gdk_window_get_geometry (parent_win, 0, 0, &viewport_size, 0);
 	}
 
@@ -263,12 +263,12 @@ cv_tabs_xclick_cb (GtkWidget *button, chanview *cv)
 /* make a Scroll (arrow) button */
 
 static GtkWidget *
-make_sbutton (GtkArrowType type, void *click_cb, void *userdata)
+make_sbutton (const char *icon_name, void *click_cb, void *userdata)
 {
 	GtkWidget *button, *arrow;
 
 	button = gtk_button_new ();
-	arrow = gtk_arrow_new (type, GTK_SHADOW_NONE);
+	arrow = gtk_image_new_from_icon_name (icon_name, GTK_ICON_SIZE_MENU);
 	gtkutil_container_add (GTK_WIDGET (button), arrow);
 	gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
 	g_signal_connect (G_OBJECT (button), "clicked",
@@ -325,12 +325,12 @@ cv_tabs_init (chanview *cv)
 
 	/* make the Scroll buttons */
 	((tabview *)cv)->b2 = make_sbutton (cv->vertical ?
-													GTK_ARROW_UP : GTK_ARROW_LEFT,
+													"pan-up-symbolic" : "pan-start-symbolic",
 													tab_scroll_left_up_clicked,
 													cv);
 
 	((tabview *)cv)->b1 = make_sbutton (cv->vertical ?
-													GTK_ARROW_DOWN : GTK_ARROW_RIGHT,
+													"pan-down-symbolic" : "pan-end-symbolic",
 													tab_scroll_right_down_clicked,
 													cv);
 

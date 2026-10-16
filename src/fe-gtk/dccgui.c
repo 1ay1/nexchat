@@ -187,7 +187,7 @@ dcc_prepare_row_send (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 	float per;
 
 	if (!pix_up)
-		pix_up = gtk_widget_render_icon (dccfwin.window, "gtk-go-up",
+		pix_up = gtkutil_render_icon (dccfwin.window, "gtk-go-up",
 													GTK_ICON_SIZE_MENU, NULL);
 
 	/* percentage ack'ed */
@@ -244,7 +244,7 @@ dcc_prepare_row_recv (struct DCC *dcc, GtkListStore *store, GtkTreeIter *iter,
 	int to_go;
 
 	if (!pix_dn)
-		pix_dn = gtk_widget_render_icon (dccfwin.window, "gtk-go-down",
+		pix_dn = gtkutil_render_icon (dccfwin.window, "gtk-go-down",
 													GTK_ICON_SIZE_MENU, NULL);
 
 	proper_unit (dcc->size, size, sizeof (size));
@@ -744,12 +744,12 @@ dcc_detail_label (char *text, GtkWidget *box, int num)
 	label = gtk_label_new (NULL);
 	g_snprintf (buf, sizeof (buf), "<b>%s</b>", text);
 	gtk_label_set_markup (GTK_LABEL (label), buf);
-	gtk_misc_set_alignment (GTK_MISC (label), 0, 0);
+	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0);
 	gtkutil_grid_attach (box, label, 0, 1, 0 + num, 1 + num, GU_FILL, GU_FILL, 0, 0);
 
 	label = gtk_label_new (NULL);
 	gtk_label_set_selectable (GTK_LABEL (label), TRUE);
-	gtk_misc_set_alignment (GTK_MISC (label), 0, 0);
+	gtk_label_set_xalign (GTK_LABEL (label), 0); gtk_label_set_yalign (GTK_LABEL (label), 0);
 	gtkutil_grid_attach (box, label, 1, 2, 0 + num, 1 + num, GU_FILL, GU_FILL, 0, 0);
 
 	return label;
@@ -812,7 +812,6 @@ fe_dcc_open_recv_win (int passive)
 										 G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
 										 G_TYPE_STRING, G_TYPE_POINTER, GDK_TYPE_RGBA);
 	view = gtkutil_treeview_new (vbox, GTK_TREE_MODEL (store), NULL, -1);
-	gtk_tree_view_set_rules_hint (GTK_TREE_VIEW (view), TRUE);
 	/* Up/Down Icon column */
 	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view), -1, NULL,
 																gtk_cell_renderer_pixbuf_new (),
@@ -1067,7 +1066,6 @@ fe_dcc_open_chat_win (int passive)
 	dcc_add_column (view, CCOL_START,  CCOL_COLOR, _("Start Time"), FALSE);
 
 	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), 1), TRUE);
-	gtk_tree_view_set_rules_hint (GTK_TREE_VIEW (view), TRUE);
 
 	dcccwin.list = view;
 	dcccwin.store = store;
