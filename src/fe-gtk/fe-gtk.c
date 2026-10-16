@@ -508,6 +508,10 @@ fe_apply_css (void)
 		"columnview.nx-list > listview > row > cell { padding: 4px 4px 3px 4px; min-height: 0; }\n"
 		"columnview.nx-list.nx-compact > listview > row > cell { padding-top: 2px; padding-bottom: 1px; }\n"
 		"columnview.nx-list > listview > row:not(:selected) { background: none; }\n"
+		/* GTK3's tree views kept the blue selection when the list didn't have
+		   focus; GTK4's theme greys it */
+		"columnview.nx-list > listview > row:selected { background-color: @theme_selected_bg_color;"
+		" color: @theme_selected_fg_color; }\n"
 		/* a GtkCellRendererPixbuf had 1px either side, not a text cell's 4 */
 		"columnview.nx-list .nx-icon-cell { margin-left: -3px; margin-right: -3px; }\n"
 		/* the "3 ops, 16 total" frame: the theme's frame > label margin is

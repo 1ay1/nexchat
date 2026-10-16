@@ -681,6 +681,7 @@ typedef struct
 	nx_row *last_ok;			/* the last row the select filter allowed */
 	GString *typeahead;
 	gint64 typeahead_time;
+	struct _scroll_later *pending_scroll;	/* until first shown */
 } view_priv;
 
 struct _nx_col
@@ -1365,6 +1366,55 @@ view_focus_in (GtkEventControllerFocus *f, GtkWidget *view)
 
 static void apply_title_align (GtkWidget *view);
 
+/* a nx_view_scroll_to that needs the rows laid out first */
+typedef struct _scroll_later
+{
+	GtkWidget *view;
+	nx_row *row;
+	int how;
+} scroll_later;
+
+static void
+scroll_later_free (scroll_later *s)
+{
+	g_object_unref (s->view);
+	g_object_unref (s->row);
+	g_free (s);
+}
+
+/* put the row at the top, middle or bottom: rows are all one height, so
+   its offset is its position times the row height */
+static gboolean
+scroll_place_idle (gpointer data)
+{
+	scroll_later *s = data;
+	view_priv *p = vp (s->view);
+	GtkAdjustment *a = p ? gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (p->cv)) : NULL;
+	guint pos, n;
+	double upper, page, rowh, y, v;
+
+	if (a && !s->row->removed && (pos = row_pos (p, s->row)) != G_MAXUINT)
+	{
+		n = g_list_model_get_n_items (G_LIST_MODEL (p->sel));
+		upper = gtk_adjustment_get_upper (a);
+		page = gtk_adjustment_get_page_size (a);
+		if (n && upper > page)
+		{
+			rowh = upper / n;
+			y = pos * rowh;
+			if (s->how == NX_SCROLL_TOP)
+				v = y;
+			else if (s->how == NX_SCROLL_BOTTOM)
+				v = y + rowh - page;
+			else
+				v = y - (page - rowh) / 2;
+			gtk_adjustment_set_value (a, CLAMP (v, 0, upper - page));
+		}
+	}
+	scroll_later_free (s);
+	return G_SOURCE_REMOVE;
+}
+
 /* first shown: at the top, or at the selected row, as GtkTreeView was */
 static gboolean
 view_scroll_first (gpointer data)
@@ -1381,6 +1431,13 @@ view_scroll_first (gpointer data)
 		if (r)
 			gtk_column_view_scroll_to (GTK_COLUMN_VIEW (p->cv), row_pos (p, r), NULL,
 												GTK_LIST_SCROLL_NONE, NULL);
+		/* a centred scroll asked for before it was shown */
+		if (p->pending_scroll)
+		{
+			p->pending_scroll->view = g_object_ref (view);
+			g_idle_add (scroll_place_idle, p->pending_scroll);
+			p->pending_scroll = NULL;
+		}
 	}
 	g_object_unref (view);
 	return G_SOURCE_REMOVE;
@@ -1403,6 +1460,12 @@ view_destroy (GtkWidget *view, gpointer data)
 
 	for (l = p->cols; l; l = l->next)
 		g_strfreev (((nx_col *) l->data)->choices);
+	if (p->pending_scroll)
+	{
+		g_object_unref (p->pending_scroll->row);
+		g_free (p->pending_scroll);	/* no view ref while pending */
+		p->pending_scroll = NULL;
+	}
 	g_list_free_full (p->cols, g_free);
 	p->cols = NULL;
 	g_clear_object (&p->store);
@@ -1974,22 +2037,35 @@ nx_view_scroll_to (GtkWidget *view, nx_row *row, int how)
 {
 	view_priv *p = vp (view);
 	guint pos = row_pos (p, row);
-	GtkScrollInfo *si;
 
 	if (pos == G_MAXUINT)
 		return;
-	switch (how)
+	gtk_column_view_scroll_to (GTK_COLUMN_VIEW (p->cv), pos, NULL, GTK_LIST_SCROLL_NONE, NULL);
+	if (how == NX_SCROLL_MIN || how == NX_SCROLL_IF_HIDDEN_CENTER)
+		return;
+	/* GtkScrollInfo can't place a row, so place it with the adjustment
+	   once laid out (rows are all one height in nexchat's lists) */
 	{
-	case NX_SCROLL_CENTER:
-	case NX_SCROLL_TOP:
-	case NX_SCROLL_BOTTOM:
-		/* GtkScrollInfo can't place a row; it scrolls just enough, which
-		   is close for the lists nexchat has */
-	default:
-		si = NULL;
-		break;
+		scroll_later *s = g_new (scroll_later, 1);
+		s->row = g_object_ref (row);
+		s->how = how;
+		if (gtk_widget_get_mapped (view))
+		{
+			s->view = g_object_ref (view);
+			g_idle_add (scroll_place_idle, s);
+		}
+		else
+		{
+			/* no view ref while it waits: destroy frees it */
+			s->view = view;
+			if (p->pending_scroll)
+			{
+				g_object_unref (p->pending_scroll->row);
+				g_free (p->pending_scroll);
+			}
+			p->pending_scroll = s;
+		}
 	}
-	gtk_column_view_scroll_to (GTK_COLUMN_VIEW (p->cv), pos, NULL, GTK_LIST_SCROLL_NONE, si);
 }
 
 static GtkTreeListRow *
