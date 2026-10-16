@@ -6,6 +6,8 @@
 #     tabs (checked by sending a line: it must go to the other target)
 #   - right-click in the user list opens the nick menu (screenshot area
 #     changes; a crash or a stuck grab fails the test)
+#   - chat view (xtext): drag-select and double-click-word copy the text
+#     (text_autocopy_text=1); pasted and sent, it shows up at the ircd
 # usage: tests/ux/mouse.sh BIN   (needs Xvfb + XTest)
 set -eu
 bin=$1
@@ -23,7 +25,7 @@ xv=$!
 sleep 1.5
 mkdir -p "$tmp/cfg"
 # tree layout, userlist on the right; fixed geometry so coordinates hold
-printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ngui_tab_layout = 2\ngui_tab_scrollchans = 1\ngui_ulist_doubleclick = MSG %%s dbl\ngui_pane_left_size = 128\ngui_pane_right_size = 100\n' > "$tmp/cfg/hexchat.conf"
+printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ngui_tab_layout = 2\ngui_tab_scrollchans = 1\ngui_ulist_doubleclick = MSG %%s dbl\ngui_pane_left_size = 128\ngui_pane_right_size = 100\ntext_autocopy_text = 1\n' > "$tmp/cfg/hexchat.conf"
 python3 "$here/../fake_ircd.py" --demo --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &
 ircd=$!
 i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
@@ -69,5 +71,24 @@ kill -0 "$app" 2>/dev/null && ok "right-click nick menu (app alive)" || bad "rig
 x Escape
 sleep 0.3
 
+# 4. drag across "morning everyone" in the chat view: with
+#    text_autocopy_text=1 the release copies it; paste it and send it
+x --click 60,68
+x --drag 331,180:500,180
+sleep 0.5
+x ctrl+v Return
+sleep 1
+grep -qa '^PRIVMSG #nexchat :morning everyone' "$tmp/server.log" && ok "chat view drag-select copies" \
+	|| bad "chat view drag-select"
+
+# 5. double-click a word in the chat view selects just that word
+x --dblclick 395,201
+sleep 0.5
+x ctrl+v Return
+sleep 1
+grep -qa '^PRIVMSG #nexchat :smoke,\{0,1\}$' "$tmp/server.log" && ok "chat view double-click selects a word" \
+	|| bad "chat view double-click word"
+
+if [ -n "${KEEP:-}" ]; then /opt/X11/bin/xwd -root -display "$disp" > "$tmp/end.xwd" 2>/dev/null || xwd -root -display "$disp" > "$tmp/end.xwd" || true; fi
 if grep -qiE 'critical' "$tmp/log"; then echo "--- criticals:"; grep -iE 'critical' "$tmp/log" | sort | uniq -c | head; fail=1; fi
 [ $fail -eq 0 ] && echo "mouse: ok" || { echo "--- server.log"; grep -a PRIVMSG "$tmp/server.log" | tail; exit 1; }

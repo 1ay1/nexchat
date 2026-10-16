@@ -6,6 +6,8 @@ XQuartz's Xvfb). Each argument is a key combo like "ctrl+s", "alt+e", "p",
 "Return", "Escape"; names are X keysym names.
 
 usage: DISPLAY=:94 xkey.py [--delay 0.3] ctrl+s Escape
+       --click/--rclick/--dblclick/--wheel-up/--wheel-down X,Y
+       --drag X1,Y1:X2,Y2   (left button)
 """
 import ctypes
 import ctypes.util
@@ -114,6 +116,10 @@ def main(argv):
             kind = {"--click": (1, 1), "--rclick": (3, 1), "--dblclick": (1, 2),
                     "--wheel-up": (4, 1), "--wheel-down": (5, 1)}[argv[0]]
             clicks.append(tuple(int(v) for v in argv[1].split(",")) + kind)
+        if argv[0] == "--drag":
+            a, b = argv[1].split(":")
+            clicks.append(tuple(int(v) for v in a.split(",")) + (1, -1)
+                          + tuple(int(v) for v in b.split(",")))
         if argv[0] == "--delay":
             delay = float(argv[1])
         elif argv[0] == "--at":
@@ -123,10 +129,23 @@ def main(argv):
     if not dpy:
         raise SystemExit("cannot open display")
     focus_at(dpy, *at)
-    for cx, cy, button, count in clicks:
+    for cx, cy, button, count, *to in clicks:
         xtst.XTestFakeMotionEvent(dpy, -1, cx, cy, 0)
         x11.XSync(dpy, 0)
         time.sleep(0.1)
+        if count < 0:  # drag: press, move in steps, release at `to`
+            xtst.XTestFakeButtonEvent(dpy, button, 1, 0)
+            x11.XSync(dpy, 0)
+            for i in range(1, 11):
+                time.sleep(0.03)
+                xtst.XTestFakeMotionEvent(dpy, -1, cx + (to[0] - cx) * i // 10,
+                                          cy + (to[1] - cy) * i // 10, 0)
+                x11.XSync(dpy, 0)
+            time.sleep(0.1)
+            xtst.XTestFakeButtonEvent(dpy, button, 0, 0)
+            x11.XSync(dpy, 0)
+            time.sleep(delay)
+            continue
         for _ in range(count):
             xtst.XTestFakeButtonEvent(dpy, button, 1, 0)
             xtst.XTestFakeButtonEvent(dpy, button, 0, 0)

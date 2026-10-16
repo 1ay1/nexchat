@@ -22,6 +22,7 @@
 #ifndef NEXCHAT_GTKCOMPAT_H
 #define NEXCHAT_GTKCOMPAT_H
 
+#include <string.h>
 #include <gtk/gtk.h>
 
 #if GTK_CHECK_VERSION(4, 0, 0)
@@ -175,6 +176,10 @@ nx_widget_make_default (GtkWidget *button)
 #define nx_widget_get_width(w) gtk_widget_get_width (GTK_WIDGET (w))
 #define nx_widget_get_height(w) gtk_widget_get_height (GTK_WIDGET (w))
 
+/* pointer shape by CSS cursor name ("pointer", "w-resize"); NULL: default */
+#define nx_widget_set_cursor_name(w, name) \
+	gtk_widget_set_cursor_from_name (GTK_WIDGET (w), (name))
+
 #else
 
 /* ---- GTK3: exactly the old calls ---- */
@@ -223,6 +228,27 @@ nx_widget_make_default (GtkWidget *button)
 
 #define nx_widget_get_width(w) gdk_window_get_width (gtk_widget_get_window (GTK_WIDGET (w)))
 #define nx_widget_get_height(w) gdk_window_get_height (gtk_widget_get_window (GTK_WIDGET (w)))
+
+/* GTK3: the old GdkCursorType for the two names we use, so the shapes
+   don't change; anything else goes by name */
+static inline void
+nx_widget_set_cursor_name (GtkWidget *w, const char *name)
+{
+	GdkWindow *win = gtk_widget_get_window (w);
+	GdkCursor *c = NULL;
+
+	if (!win)
+		return;
+	if (name && !strcmp (name, "pointer"))
+		c = gdk_cursor_new_for_display (gdk_window_get_display (win), GDK_HAND1);
+	else if (name && !strcmp (name, "w-resize"))
+		c = gdk_cursor_new_for_display (gdk_window_get_display (win), GDK_LEFT_SIDE);
+	else if (name)
+		c = gdk_cursor_new_from_name (gdk_window_get_display (win), name);
+	gdk_window_set_cursor (win, c);
+	if (c)
+		g_object_unref (c);
+}
 
 #endif
 

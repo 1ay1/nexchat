@@ -13,6 +13,7 @@ typedef struct
 {
 	gpointer cb;
 	gpointer userdata;
+	guint button;		/* GTK4 release: button seen at drag-begin */
 } hook;
 
 static hook *
@@ -21,6 +22,7 @@ hook_new (gpointer cb, gpointer userdata)
 	hook *h = g_new (hook, 1);
 	h->cb = cb;
 	h->userdata = userdata;
+	h->button = 0;
 	return h;
 }
 
@@ -162,6 +164,59 @@ nx_on_focus_in (GtkWidget *w, nx_focus_cb cb, gpointer userdata)
 	gtk_widget_add_controller (w, f);
 }
 
+/* A GtkGestureClick gives up once the pointer travels, so a release after
+   a drag-select would be lost; a drag gesture always sees the release. */
+static void
+drag_begin (GtkGestureDrag *g, double x, double y, hook *h)
+{
+	h->button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (g));
+}
+
+static void
+drag_end (GtkGestureDrag *g, double ox, double oy, hook *h)
+{
+	GtkEventController *ec = GTK_EVENT_CONTROLLER (g);
+	GtkWidget *w = gtk_event_controller_get_widget (ec);
+	double sx = 0, sy = 0;
+
+	gtk_gesture_drag_get_start_point (g, &sx, &sy);
+	cur_event = gtk_event_controller_get_current_event (ec);
+	((nx_click_cb) h->cb) (w, h->button, 1, sx + ox, sy + oy,
+								  gtk_event_controller_get_current_event_state (ec), h->userdata);
+	cur_event = NULL;
+}
+
+void
+nx_on_release (GtkWidget *w, nx_click_cb cb, gpointer userdata)
+{
+	GtkGesture *g = gtk_gesture_drag_new ();
+	hook *h = hook_new (cb, userdata);
+
+	gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (g), 0);
+	gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (g), GTK_PHASE_CAPTURE);
+	g_signal_connect (g, "drag-begin", G_CALLBACK (drag_begin), h);
+	g_signal_connect_data (g, "drag-end", G_CALLBACK (drag_end), h, hook_free, 0);
+	gtk_widget_add_controller (w, GTK_EVENT_CONTROLLER (g));
+}
+
+static void
+motion_cb (GtkEventControllerMotion *m, double x, double y, hook *h)
+{
+	GtkEventController *ec = GTK_EVENT_CONTROLLER (m);
+
+	((nx_motion_cb) h->cb) (gtk_event_controller_get_widget (ec), x, y,
+									gtk_event_controller_get_current_event_state (ec), h->userdata);
+}
+
+void
+nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata)
+{
+	GtkEventController *m = gtk_event_controller_motion_new ();
+	g_signal_connect_data (m, "motion", G_CALLBACK (motion_cb),
+								  hook_new (cb, userdata), hook_free, 0);
+	gtk_widget_add_controller (w, m);
+}
+
 #else
 
 /* ================= GTK3: the old "*-event" signals ================= */
@@ -280,6 +335,39 @@ void
 nx_on_focus_in (GtkWidget *w, nx_focus_cb cb, gpointer userdata)
 {
 	g_signal_connect_data (w, "focus-in-event", G_CALLBACK (focus_in_sig),
+								  hook_new (cb, userdata), hook_free, 0);
+}
+
+static gboolean
+button_release_sig (GtkWidget *w, GdkEventButton *ev, hook *h)
+{
+	gboolean stop;
+	cur_event = (GdkEvent *) ev;
+	stop = ((nx_click_cb) h->cb) (w, ev->button, 1, ev->x, ev->y, ev->state, h->userdata);
+	cur_event = NULL;
+	return stop;
+}
+
+void
+nx_on_release (GtkWidget *w, nx_click_cb cb, gpointer userdata)
+{
+	gtk_widget_add_events (w, GDK_BUTTON_RELEASE_MASK);
+	g_signal_connect_data (w, "button-release-event", G_CALLBACK (button_release_sig),
+								  hook_new (cb, userdata), hook_free, 0);
+}
+
+static gboolean
+motion_sig (GtkWidget *w, GdkEventMotion *ev, hook *h)
+{
+	((nx_motion_cb) h->cb) (w, ev->x, ev->y, ev->state, h->userdata);
+	return FALSE;
+}
+
+void
+nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata)
+{
+	gtk_widget_add_events (w, GDK_POINTER_MOTION_MASK);
+	g_signal_connect_data (w, "motion-notify-event", G_CALLBACK (motion_sig),
 								  hook_new (cb, userdata), hook_free, 0);
 }
 

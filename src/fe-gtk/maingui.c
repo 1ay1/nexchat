@@ -2268,9 +2268,11 @@ mg_word_check (GtkWidget * xtext, char *word)
 /* mouse click inside text area */
 
 static void
-mg_word_clicked (GtkWidget *xtext, char *word, GdkEventButton *even)
+mg_word_clicked (GtkWidget *xtext, char *word, GtkXTextClick *click)
 {
 	session *sess = current_sess;
+	/* menus still position from the event being handled */
+	GdkEventButton *even = (GdkEventButton *) nx_current_event ();
 	int word_type = 0, start, end;
 	char *tmp;
 
@@ -2280,7 +2282,7 @@ mg_word_clicked (GtkWidget *xtext, char *word, GdkEventButton *even)
 		url_last (&start, &end);
 	}
 
-	if (even->button == 1)			/* left button */
+	if (click->button == 1)			/* left button */
 	{
 		if (word == NULL)
 		{
@@ -2288,7 +2290,7 @@ mg_word_clicked (GtkWidget *xtext, char *word, GdkEventButton *even)
 			return;
 		}
 
-		if ((even->state & 13) == prefs.hex_gui_url_mod)
+		if ((click->state & 13) == prefs.hex_gui_url_mod)
 		{
 			switch (word_type)
 			{
@@ -2302,11 +2304,11 @@ mg_word_clicked (GtkWidget *xtext, char *word, GdkEventButton *even)
 		return;
 	}
 
-	if (even->button == 2)
+	if (click->button == 2)
 	{
 		if (sess->type == SESS_DIALOG)
 			menu_middlemenu (sess, even);
-		else if (even->type == GDK_2BUTTON_PRESS)
+		else if (click->n_press == 2)
 			userlist_select (sess, word);
 		return;
 	}

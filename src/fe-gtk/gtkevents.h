@@ -39,12 +39,20 @@ typedef gboolean (*nx_scroll_cb) (GtkWidget *w, GdkScrollDirection dir,
 typedef void (*nx_crossing_cb) (GtkWidget *w, gboolean entered, gpointer userdata);
 /* keyboard focus came in */
 typedef void (*nx_focus_cb) (GtkWidget *w, gpointer userdata);
+/* pointer moved; x/y widget-relative (outside the widget while a button
+   pressed in it is held, as with GTK3's implicit grab) */
+typedef void (*nx_motion_cb) (GtkWidget *w, double x, double y,
+										GdkModifierType state, gpointer userdata);
 
 void nx_on_click (GtkWidget *w, nx_click_cb cb, gpointer userdata);
 void nx_on_key (GtkWidget *w, nx_key_cb cb, gpointer userdata);
 void nx_on_scroll (GtkWidget *w, nx_scroll_cb cb, gpointer userdata);
 void nx_on_crossing (GtkWidget *w, nx_crossing_cb cb, gpointer userdata);
 void nx_on_focus_in (GtkWidget *w, nx_focus_cb cb, gpointer userdata);
+/* button released (n_press is always 1); the return value only matters
+   on GTK3 */
+void nx_on_release (GtkWidget *w, nx_click_cb cb, gpointer userdata);
+void nx_on_motion (GtkWidget *w, nx_motion_cb cb, gpointer userdata);
 
 /* The event currently being handled, as a GdkEvent*, for the few callers
    that still need one (menu popups positioned at the pointer). NULL

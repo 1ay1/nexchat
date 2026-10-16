@@ -141,8 +141,7 @@ struct _GtkXText
 	cairo_surface_t *backing;		/* everything is rendered here, draw() copies it out */
 	cairo_t *cr;						/* drawing context on ->backing */
 	int backing_scale;				/* HiDPI scale ->backing was made for */
-	GdkCursor *hand_cursor;
-	GdkCursor *resize_cursor;
+	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 
 	int pixel_offset;					/* amount of pixels the top line is chopped by */
 
@@ -251,10 +250,19 @@ struct _GtkXText
 	unsigned int ignore_hidden:1;	/* rawlog uses this */
 };
 
+/* what word_click hands its handlers; the GdkEvent itself (for popups) is
+   nx_current_event () */
+typedef struct
+{
+	guint button;
+	int n_press;					/* 2: second press of a double click */
+	GdkModifierType state;
+} GtkXTextClick;
+
 struct _GtkXTextClass
 {
 	GtkWidgetClass parent_class;
-	void (*word_click) (GtkXText * xtext, char *word, GdkEventButton * event);
+	void (*word_click) (GtkXText * xtext, char *word, GtkXTextClick * click);
 };
 
 GtkWidget *gtk_xtext_new (GdkRGBA palette[], int separator);
