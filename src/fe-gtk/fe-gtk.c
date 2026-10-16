@@ -563,6 +563,8 @@ fe_self_shot (gpointer data)
 			}
 			g_object_unref (pix);
 		}
+		else
+			g_printerr ("NEXCHAT_SHOT: no pixels from the window\n");
 #endif
 	}
 	else
