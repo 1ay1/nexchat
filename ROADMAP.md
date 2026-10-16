@@ -178,9 +178,13 @@ Goal: it builds with `-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED`. After 
 - [x] Step 13, **the GTK4 build runs**: `meson setup -Dgtk=4` (default stays 3). The tray uses `tray-backend-none.c` on GTK4 until the StatusNotifierItem backend exists. First run fixes: check buttons aren't toggle buttons in GTK4 (`nx_toggle_get/set_active`), no `gtk-key-theme-name`, xtext's adjustment upper < page size (GTK4 asserts; clamped on GTK4 only). It starts with `G_DEBUG=fatal-criticals`, connects, joins and draws the main window, chat text, topic and user list on native macOS (Quartz). `NEXCHAT_SHOT=path[:secs]` makes either build write its main window as a PNG (for backends where a screen grab isn't possible). New `smoke-gui` test (backend-independent: connect, join, render, no criticals) runs on both builds; CI has a GTK4 job that builds everything and runs smoke-gui, nxmenu and gtkcompat on Ubuntu 24.04 (GTK 4.14).
 
 - [x] meson: `gtk4` behind `-Dgtk=4` (step 13). No libadwaita.
-### What's left (measured after step 13, on Arch / GTK 4.24 / X11; steps 14-16 and 18 done since)
+### After step 13: making GTK4 right (steps 14-24)
 
-State: the GTK4 build needed 3 Linux fixes to compile (`gdk/gdkx.h` is GTK3 only, `gtk_show_uri` lost an argument); upstream CI only builds on GTK 4.14. With those, 8 of 13 tests pass. Under `GDK_BACKEND=x11` gui-keys, gui-tray and gui-colors-roundtrip pass too; what still fails is gui-mouse (3 chat-view selection checks) and gui-menus (accel spelling only). The build still makes 1026 deprecation warnings: ~900 are GtkTreeView/GtkListStore/cell renderers (phase 5), the rest are `gtk_widget_show/hide` (204), GtkDialog/GtkMessageDialog, GtkComboBoxText, the font/colour chooser dialogs, allocation getters and `gtk_show_uri`.
+Where it started (measured after step 13 on Arch, GTK 4.24, X11): the GTK4 build didn't compile on Linux, and once it did 8 of 13 tests passed. The build makes ~1000 deprecation warnings: ~900 are GtkTreeView/GtkListStore/cell renderers (phase 5), the rest are `gtk_widget_show/hide`, GtkDialog/GtkMessageDialog, GtkComboBoxText, the font/colour chooser dialogs, allocation getters and `gtk_show_uri` (step 22).
+
+Where it is now (after step 20): everything passes on both builds, GTK3 18/18 and GTK4 15/15 tests. GTK4 looks like GTK3 except for the items listed under step 17 and section 9. Left: the tray (21), the deprecated non-tree API (22), Wayland/Windows/macOS (23), switching the default (24).
+
+How to run the tests: put Xvfb (and for `gui-wm`, xdotool, xprop/xwininfo and openbox) on PATH before `meson setup`, or the GUI tests aren't registered. `meson test -C build` then runs all of them in parallel, ~70 s per build. Every GUI script sources `tests/ux/isolate.sh` (X11 backend, private config dir, Adwaita, DejaVu fonts, no a11y bus) so a desktop session can't change the results, and waits for the window or the server line instead of sleeping. `tests/ux/compare-builds.sh OLD NEW OUT` takes side-by-side screenshots of 14 windows and menus from two builds.
 
 Order matters: first make the GTK4 build trustworthy (tests and CI), then make it look the same, then fill the platform gaps, then drop the deprecated API, then switch the default.
 
@@ -221,13 +225,17 @@ After phase 4 it runs on GTK4, but it still uses GtkTreeView, which is deprecate
 
 | HexChat behaviour | Problem | Plan |
 |---|---|---|
-| Tray icon (`plugin-tray.c`) | GtkStatusIcon is gone in GTK4 | Linux: our own StatusNotifierItem over GDBus, with a dbusmenu for the tray menu. Windows: `Shell_NotifyIcon`. macOS: none, same as today. Same icons, same blinking, same menu. |
-| Remembers where the window was | `gtk_window_move` is gone; Wayland doesn't allow it | X11: Xlib through `gdk_x11`. Windows: Win32 API. Wayland: not possible, the compositor decides. Window size is still remembered. |
-| Taskbar flashing on highlight (urgency hint) | `gtk_window_set_urgency_hint` is gone | X11: `XSetWMHints` urgency. Windows: `FlashWindowEx` (already there). Wayland: xdg-activation request. |
-| Menus look like menus | GTK4 menus are popovers | CSS: no arrow, square corners, normal padding. Keep the mnemonics. |
+| Tray icon (`plugin-tray.c`) | GtkStatusIcon is gone in GTK4 | Not done (step 21). Linux: our own StatusNotifierItem over GDBus, with a dbusmenu for the tray menu. Windows: `Shell_NotifyIcon`. macOS: none, same as today. Same icons, same blinking, same menu. Until then the GTK4 build has no tray icon. |
+| Remembers where the window was | `gtk_window_move` is gone; Wayland doesn't allow it | X11: done (step 20), Xlib through `gdk_x11`, moves seen through ConfigureNotify. Windows: Win32 API, not done. Wayland: not possible, the compositor decides. Window size is still remembered everywhere. |
+| Taskbar flashing on highlight (urgency hint) | `gtk_window_set_urgency_hint` is gone | X11: done (step 20), `XSetWMHints`, cleared when the window is active again (needs a WM). Windows: `FlashWindowEx`, not done. Wayland: xdg-activation request, not done. |
+| Menus look like menus | GTK4 menus are popovers | Done (step 17): CSS makes them square with a 1px border, GTK3 row height, real check/radio boxes; item icons shown next to labels; no arrow; at the pointer. The first Down selects the first item as in GTK3. Mnemonics kept. |
+| Button icons (OK, Cancel, Connect, ...) | GTK4 has no stock icons | Done (step 17): GTK3's own icons for these ship in our resources (GTK4 build only). |
+| Scrollbar arrows | GTK4 scrollbars have no stepper buttons | Can't be fixed; the chat view scrollbar has no arrows on GTK4. |
+| Window-manager-free X11 (Xvfb, some kiosks) | GTK4 only knows a window is active from the WM | Urgency isn't cleared without a WM. Real desktops all have one. |
 | Modal dialogs | `gtk_dialog_run` is gone | Async callbacks. The flow stays the same for the user. |
 | Hiding/showing the window from the tray | Wayland can't put a window back where it was | Use `gtk_window_present`. On X11, restore the position as before. |
 | Fonts and colours in the chat view | No more `modify_*` calls | A per-widget CSS provider, generated from the prefs. |
+| Chat text metrics | GTK4 measures text unhinted (wider cells, gaps between colour runs) | Done (step 16): the chat view uses its own Pango context with GTK3's hinted metrics; text is pixel-identical. |
 | Transparent background (old X11 trick) | Doesn't work with compositors | Dropped in phase 2. Window opacity still works. |
 | Font picker (Preferences > Text box > Browse) | GtkFontSelectionDialog is deprecated in GTK3 and gone in GTK4 | GtkFontChooserDialog: a searchable list with a preview instead of three columns. It returns the same Pango font string, so `text_font` is unchanged. |
 | Colour picker (Preferences > Colors) | GtkColorSelectionDialog (the triangle) is deprecated and gone in GTK4 | GtkColorChooserDialog, opened straight in its editor (hue/saturation plane, hex entry). Same RGB out; `colors.conf` is byte-identical (`tests/ux/colors-roundtrip.sh`). |
