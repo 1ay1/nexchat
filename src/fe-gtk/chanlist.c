@@ -242,7 +242,7 @@ chanlist_timeout (server *serv)
 }
 
 /**
- * Places a data row into the gui GtkTreeView, if and only if the row matches
+ * Places a data row into the channel list, if and only if the row matches
  * the user and regex/search requirements.
  */
 static void
@@ -368,7 +368,7 @@ chanlist_refresh (GtkWidget * wid, server *serv)
 }
 
 /**
- * Fills the gui GtkTreeView with stored items from the GSList.
+ * Fills the channel list with stored items from the GSList.
  */
 static void
 chanlist_build_gui_list (server *serv)

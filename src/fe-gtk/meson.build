@@ -58,6 +58,12 @@ if gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
 endif
 
 hexchat_gtk_cflags = []
+# phase 5: no deprecated GTK4 API either; the few kept on purpose (X11
+# getters, the font/colour chooser dialogs) sit behind
+# G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+if get_option('gtk') == '4'
+  hexchat_gtk_cflags += cc.get_supported_arguments('-Werror=deprecated-declarations')
+endif
 
 hexchat_gtk_ldflags = []
 

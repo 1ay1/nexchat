@@ -357,11 +357,6 @@ nx_button_set_image (GtkWidget *button, GtkWidget *image)
 #define nx_window_get_size(win, w, h) \
 	gtk_window_get_default_size (GTK_WINDOW (win), (w), (h))
 
-/* GTK4 style properties are gone; Adwaita's expander is 16px and the
-   tree view's horizontal separator 4px, GTK3's defaults (TODO: measure the
-   theme's when the GTK4 build runs) */
-#define nx_tree_view_expander_indent(view) (16 + 4)
-
 /* a grid child's cell */
 #define nx_grid_child_get(grid, child, l, t, w, h) \
 	gtk_grid_query_child (GTK_GRID (grid), (child), (l), (t), (w), (h))
@@ -720,17 +715,6 @@ nx_radio_button_new (GtkWidget *group, const char *mnemonic)
 #define nx_button_set_image(b, img) gtk_button_set_image (GTK_BUTTON (b), (img))
 
 #define nx_window_get_size(win, w, h) gtk_window_get_size (GTK_WINDOW (win), (w), (h))
-
-/* how far a tree view indents a child for its expander: expander-size +
-   horizontal-separator (GTK3 style properties) */
-static inline int
-nx_tree_view_expander_indent (GtkWidget *view)
-{
-	int wid1 = 0, wid2 = 0;
-
-	gtk_widget_style_get (view, "expander-size", &wid1, "horizontal-separator", &wid2, NULL);
-	return wid1 + wid2;
-}
 
 #define nx_grid_child_get(grid, child, l, t, w, h) \
 	gtk_container_child_get (GTK_CONTAINER (grid), (child), "left-attach", (l), \

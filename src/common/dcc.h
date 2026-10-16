@@ -59,7 +59,7 @@ struct DCC
 	int resume_error;
 	int resume_errno;
 
-	GTimeVal lastcpstv, firstcpstv;
+	gint64 lastcpstv, firstcpstv;	/* g_get_real_time, microseconds */
 	goffset lastcpspos;
 	gint64 maxcps;
 

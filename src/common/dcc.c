@@ -100,18 +100,11 @@ static int new_id(void)
 	return id++;
 }
 
+/* seconds between two g_get_real_time () values */
 static double
-timeval_diff (GTimeVal *greater,
-				 GTimeVal *less)
+timeval_diff (gint64 greater, gint64 less)
 {
-	long usecdiff;
-	double result;
-	
-	result = greater->tv_sec - less->tv_sec;
-	usecdiff = (long) greater->tv_usec - less->tv_usec;
-	result += (double) usecdiff / 1000000;
-	
-	return result;
+	return (double) (greater - less) / G_USEC_PER_SEC;
 }
 
 static void
@@ -127,18 +120,13 @@ dcc_unthrottle (struct DCC *dcc)
 static void
 dcc_calc_cps (struct DCC *dcc)
 {
-	GTimeVal now;
+	gint64 now = g_get_real_time ();
 	gint64 oldcps;
 	double timediff, startdiff;
 	int glob_throttle_bit, wasthrottled;
 	gint64 *cpssum;
 	int glob_limit;
 	goffset pos, posdiff;
-	gint64 real = g_get_real_time ();
-
-	/* g_get_current_time is deprecated; same value */
-	now.tv_sec = real / G_USEC_PER_SEC;
-	now.tv_usec = real % G_USEC_PER_SEC;
 
 	/* the pos we use for sends is an average
 		between pos and ack */
@@ -158,17 +146,17 @@ dcc_calc_cps (struct DCC *dcc)
 		glob_limit = prefs.hex_dcc_global_max_get_cps;
 	}
 
-	if (!dcc->firstcpstv.tv_sec && !dcc->firstcpstv.tv_usec)
+	if (!dcc->firstcpstv)
 		dcc->firstcpstv = now;
 	else
 	{
-		startdiff = timeval_diff (&now, &dcc->firstcpstv);
+		startdiff = timeval_diff (now, dcc->firstcpstv);
 		if (startdiff < 1)
 			startdiff = 1;
 		else if (startdiff > CPS_AVG_WINDOW)
 			startdiff = CPS_AVG_WINDOW;
 
-		timediff = timeval_diff (&now, &dcc->lastcpstv);
+		timediff = timeval_diff (now, dcc->lastcpstv);
 		if (timediff > startdiff)
 			timediff = startdiff = 1;
 

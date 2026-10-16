@@ -377,13 +377,19 @@ static int handle_incoming(char *word[], char *word_eol[], hexchat_event_attrs *
 
     if (attrs->server_time_utc)
     {
-        GTimeVal tv = { (glong)attrs->server_time_utc, 0 };
-        char *timestamp = g_time_val_to_iso8601 (&tv);
+        /* same text g_time_val_to_iso8601 gave: whole seconds, Z */
+        GDateTime *dt = g_date_time_new_from_unix_utc (attrs->server_time_utc);
+        char *timestamp = dt ? g_date_time_format (dt, "%Y-%m-%dT%H:%M:%SZ") : NULL;
 
-       g_string_append (message, "@time=");
-       g_string_append (message, timestamp);
-       g_string_append (message, " ");
+       if (timestamp)
+       {
+          g_string_append (message, "@time=");
+          g_string_append (message, timestamp);
+          g_string_append (message, " ");
+       }
        g_free (timestamp);
+       if (dt)
+          g_date_time_unref (dt);
     }
 
     g_string_append (message, decrypted);
