@@ -23,6 +23,8 @@
 extern GtkStyle *input_style;
 extern GtkWidget *parent_window;
 
+void fe_apply_css (void);
+
 void mg_changui_new (session *sess, restore_gui *res, int tab, int focus);
 void mg_update_xtext (GtkWidget *wid);
 void mg_open_quit_dialog (gboolean minimize_button);

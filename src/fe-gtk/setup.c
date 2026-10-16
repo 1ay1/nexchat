@@ -2030,36 +2030,9 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 }
 
 static void
-setup_apply_entry_style (GtkWidget *entry)
-{
-	gtk_widget_modify_base (entry, GTK_STATE_NORMAL, &colors[COL_BG]);
-	gtk_widget_modify_text (entry, GTK_STATE_NORMAL, &colors[COL_FG]);
-	gtk_widget_modify_font (entry, input_style->font_desc);
-}
-
-static void
 setup_apply_to_sess (session_gui *gui)
 {
 	mg_update_xtext (gui->xtext);
-
-	if (prefs.hex_gui_ulist_style)
-		gtk_widget_set_style (gui->user_tree, input_style);
-
-	if (prefs.hex_gui_input_style)
-	{
-		extern char cursor_color_rc[];
-		char buf[256];
-		sprintf (buf, cursor_color_rc,
-				(colors[COL_FG].red >> 8),
-				(colors[COL_FG].green >> 8),
-				(colors[COL_FG].blue >> 8));
-		gtk_rc_parse_string (buf);
-
-		setup_apply_entry_style (gui->input_box);
-		setup_apply_entry_style (gui->limit_entry);
-		setup_apply_entry_style (gui->key_entry);
-		setup_apply_entry_style (gui->topic_entry);
-	}
 
 	if (prefs.hex_gui_ulist_buttons)
 		gtk_widget_show (gui->button_box);
@@ -2111,6 +2084,7 @@ setup_apply_real (int new_pix, int do_ulist, int do_layout, int do_identd)
 	}
 
 	input_style = create_input_style (input_style);
+	fe_apply_css ();
 
 	list = sess_list;
 	while (list)

@@ -247,34 +247,10 @@ fe_args (int argc, char *argv[])
 	return -1;
 }
 
-const char cursor_color_rc[] =
-	"style \"xc-ib-st\""
-	"{"
-		"GtkEntry::cursor-color=\"#%02x%02x%02x\""
-	"}"
-	"widget \"*.hexchat-inputbox\" style : application \"xc-ib-st\"";
-
-static const char adwaita_workaround_rc[] =
-	"style \"hexchat-input-workaround\""
-	"{"
-		"engine \"pixmap\" {"
-			"image {"
-				"function = FLAT_BOX\n"
-				"state    = NORMAL\n"
-			"}"
-			"image {"
-				"function = FLAT_BOX\n"
-				"state    = ACTIVE\n"
-			"}"
-		"}"
-	"}"
-	"widget \"*.hexchat-inputbox\" style \"hexchat-input-workaround\"";
-
 GtkStyle *
 create_input_style (GtkStyle *style)
 {
 	char buf[256];
-	static int done_rc = FALSE;
 
 	pango_font_description_free (style->font_desc);
 	style->font_desc = pango_font_description_from_string (prefs.hex_text_font);
@@ -288,29 +264,140 @@ create_input_style (GtkStyle *style)
 		style->font_desc = pango_font_description_from_string ("sans 11");
 	}
 
-	if (prefs.hex_gui_input_style && !done_rc)
-	{
-		GtkSettings *settings = gtk_settings_get_default ();
-		char *theme_name;
-
-		/* gnome-themes-standard 3.20+ relies on images to do theming
-		 * so we have to override that. */
-		g_object_get (settings, "gtk-theme-name", &theme_name, NULL);
-		if (g_str_has_prefix (theme_name, "Adwaita") || g_str_has_prefix (theme_name, "Yaru"))
-			gtk_rc_parse_string (adwaita_workaround_rc);
-		g_free (theme_name);
-
-		done_rc = TRUE;
-		sprintf (buf, cursor_color_rc, (colors[COL_FG].red >> 8),
-			(colors[COL_FG].green >> 8), (colors[COL_FG].blue >> 8));
-		gtk_rc_parse_string (buf);
-	}
-
 	style->bg[GTK_STATE_NORMAL] = colors[COL_FG];
 	style->base[GTK_STATE_NORMAL] = colors[COL_BG];
 	style->text[GTK_STATE_NORMAL] = colors[COL_FG];
 
 	return style;
+}
+
+/* ---- per-widget CSS ----
+
+   GTK2 gave the input boxes, user list and channel tree the text box font
+   and colours with gtk_widget_set_style / gtk_widget_modify_* and a bit of
+   gtkrc. GTK3 ignores GtkStyle for most widgets, so the same thing is now a
+   generated stylesheet. It only matches our own widget names
+   (#hexchat-inputbox, #hexchat-userlist, #hexchat-tree); the rest of the
+   theme is left alone. Rebuilt whenever prefs or colours change. */
+
+static GtkCssProvider *fe_css_provider;
+
+static void
+css_append_color (GString *css, const char *prop, const GdkColor *c)
+{
+	g_string_append_printf (css, "%s: rgb(%d,%d,%d);", prop,
+									c->red >> 8, c->green >> 8, c->blue >> 8);
+}
+
+static void
+css_append_font (GString *css, const PangoFontDescription *fd)
+{
+	const char *family = pango_font_description_get_family (fd);
+	int size = pango_font_description_get_size (fd);
+	PangoFontMask set = pango_font_description_get_set_fields (fd);
+
+	if (family && *family)
+	{
+		/* pango allows "A,B" fallback lists; quote each name for CSS */
+		char **names = g_strsplit (family, ",", -1);
+		int i;
+
+		g_string_append (css, "font-family: ");
+		for (i = 0; names[i]; i++)
+		{
+			char *n = g_strstrip (names[i]);
+			if (!*n)
+				continue;
+			if (i)
+				g_string_append (css, ", ");
+			g_string_append_printf (css, "\"%s\"", n);
+		}
+		g_string_append (css, ";");
+		g_strfreev (names);
+	}
+	if (size > 0)
+		g_string_append_printf (css, "font-size: %g%s;", (double)size / PANGO_SCALE,
+										pango_font_description_get_size_is_absolute (fd) ? "px" : "pt");
+	if (set & PANGO_FONT_MASK_WEIGHT)
+		g_string_append_printf (css, "font-weight: %d;", (int)pango_font_description_get_weight (fd));
+	if (set & PANGO_FONT_MASK_STYLE)
+	{
+		switch (pango_font_description_get_style (fd))
+		{
+		case PANGO_STYLE_ITALIC: g_string_append (css, "font-style: italic;"); break;
+		case PANGO_STYLE_OBLIQUE: g_string_append (css, "font-style: oblique;"); break;
+		default: break;
+		}
+	}
+}
+
+void
+fe_apply_css (void)
+{
+	GString *css;
+	GdkScreen *screen = gdk_screen_get_default ();
+	GError *err = NULL;
+	PangoFontDescription *fd;
+
+	if (!screen)
+		return;
+	css = g_string_new (NULL);
+
+	/* same font + fallback create_input_style() uses; GTK3's GtkStyle is a
+	   compatibility shim whose fields can't be trusted, so don't read it */
+	fd = pango_font_description_from_string (prefs.hex_text_font);
+	if (pango_font_description_get_size (fd) == 0)
+	{
+		pango_font_description_free (fd);
+		fd = pango_font_description_from_string ("sans 11");
+	}
+
+	if (!fe_css_provider)
+	{
+		fe_css_provider = gtk_css_provider_new ();
+		gtk_style_context_add_provider_for_screen (screen,
+					GTK_STYLE_PROVIDER (fe_css_provider),
+					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	}
+
+	if (prefs.hex_gui_input_style)
+	{
+		g_string_append (css, "#hexchat-inputbox {");
+		if (fd)
+			css_append_font (css, fd);
+		/* text-box colours; background-image: none is what the old
+		   "adwaita workaround" gtkrc did, so the flat colour shows */
+		css_append_color (css, "color", &colors[COL_FG]);
+		css_append_color (css, "caret-color", &colors[COL_FG]);
+		css_append_color (css, "background-color", &colors[COL_BG]);
+		/* GTK2 drew a flat, square box; GTK3 themes add a rounded frame
+		   and a focus glow. Keep the theme's 1px border colour. */
+		g_string_append (css, "background-image: none; border-radius: 0;"
+							  " box-shadow: none; outline: none; }\n");
+		g_string_append (css, "#hexchat-inputbox:focus { box-shadow: none; }\n");
+	}
+
+	if (prefs.hex_gui_ulist_style)
+	{
+		g_string_append (css, "#hexchat-userlist, #hexchat-tree {");
+		if (fd)
+			css_append_font (css, fd);
+		g_string_append (css, "}\n");
+		/* treeview.view is the row area; :selected rows keep the theme's
+		   selection, as GTK2 only overrode the NORMAL state */
+		g_string_append (css, "#hexchat-userlist.view:not(:selected), #hexchat-tree.view:not(:selected) {");
+		css_append_color (css, "color", &colors[COL_FG]);
+		css_append_color (css, "background-color", &colors[COL_BG]);
+		g_string_append (css, "}\n");
+	}
+
+	if (!gtk_css_provider_load_from_data (fe_css_provider, css->str, -1, &err))
+	{
+		g_warning ("nexchat css: %s\n%s", err->message, css->str);
+		g_error_free (err);
+	}
+	g_string_free (css, TRUE);
+	pango_font_description_free (fd);
 }
 
 void
@@ -325,6 +412,7 @@ fe_init (void)
 #endif
 	channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
 	input_style = create_input_style (gtk_style_new ());
+	fe_apply_css ();
 }
 
 #ifdef HAVE_GTK_MAC

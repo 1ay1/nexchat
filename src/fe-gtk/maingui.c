@@ -2057,14 +2057,6 @@ mg_limit_entry_cb (GtkWidget * igad, gpointer userdata)
 }
 
 static void
-mg_apply_entry_style (GtkWidget *entry)
-{
-	gtk_widget_modify_base (entry, GTK_STATE_NORMAL, &colors[COL_BG]);
-	gtk_widget_modify_text (entry, GTK_STATE_NORMAL, &colors[COL_FG]);
-	gtk_widget_modify_font (entry, input_style->font_desc);
-}
-
-static void
 mg_create_chanmodebuttons (session_gui *gui, GtkWidget *box)
 {
 	gui->flag_c = mg_create_flagbutton (_("Filter Colors"), box, "c");
@@ -2083,9 +2075,6 @@ mg_create_chanmodebuttons (session_gui *gui, GtkWidget *box)
 	g_signal_connect (G_OBJECT (gui->key_entry), "activate",
 							G_CALLBACK (mg_key_entry_cb), NULL);
 
-	if (prefs.hex_gui_input_style)
-		mg_apply_entry_style (gui->key_entry);
-
 	gui->flag_l = mg_create_flagbutton (_("User Limit"), box, "l");
 	gui->limit_entry = gtk_entry_new ();
 	gtk_widget_set_name (gui->limit_entry, "hexchat-inputbox");
@@ -2094,9 +2083,6 @@ mg_create_chanmodebuttons (session_gui *gui, GtkWidget *box)
 	gtk_box_pack_start (GTK_BOX (box), gui->limit_entry, 0, 0, 0);
 	g_signal_connect (G_OBJECT (gui->limit_entry), "activate",
 							G_CALLBACK (mg_limit_entry_cb), NULL);
-
-	if (prefs.hex_gui_input_style)
-		mg_apply_entry_style (gui->limit_entry);
 }
 
 /*static void
@@ -2183,9 +2169,6 @@ mg_create_topicbar (session *sess, GtkWidget *box)
 	gtk_container_add (GTK_CONTAINER (hbox), topic);
 	g_signal_connect (G_OBJECT (topic), "activate",
 							G_CALLBACK (mg_topic_cb), 0);
-
-	if (prefs.hex_gui_input_style)
-		mg_apply_entry_style (topic);
 
 	gui->topicbutton_box = bbox = gtk_hbox_new (FALSE, 0);
 	gtk_box_pack_start (GTK_BOX (hbox), bbox, 0, 0, 0);
@@ -2474,12 +2457,6 @@ mg_create_userlist (session_gui *gui, GtkWidget *box)
 	gtk_container_add (GTK_CONTAINER (frame), gui->namelistinfo);
 
 	gui->user_tree = ulist = userlist_create (vbox);
-
-	if (prefs.hex_gui_ulist_style)
-	{
-		gtk_widget_set_style (ulist, input_style);
-		gtk_widget_modify_base (ulist, GTK_STATE_NORMAL, &colors[COL_BG]);
-	}
 
 	mg_create_meters (gui, vbox);
 
@@ -2999,9 +2976,6 @@ mg_create_entry (session *sess, GtkWidget *box)
 	g_signal_connect (G_OBJECT (entry), "word-check",
 							G_CALLBACK (mg_spellcheck_cb), NULL);
 	gtk_widget_grab_focus (entry);
-
-	if (prefs.hex_gui_input_style)
-		mg_apply_entry_style (entry);
 }
 
 static void
