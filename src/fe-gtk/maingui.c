@@ -1012,11 +1012,11 @@ mg_populate (session *sess)
 
 	/* menu items */
 	menu_set_away (gui, sess->server->is_away);
-	gtk_widget_set_sensitive (gui->menu_item[MENU_ID_AWAY], sess->server->connected);
-	gtk_widget_set_sensitive (gui->menu_item[MENU_ID_JOIN], sess->server->end_of_motd);
-	gtk_widget_set_sensitive (gui->menu_item[MENU_ID_DISCONNECT],
+	nx_item_set_sensitive (gui->menu_item[MENU_ID_AWAY], sess->server->connected);
+	nx_item_set_sensitive (gui->menu_item[MENU_ID_JOIN], sess->server->end_of_motd);
+	nx_item_set_sensitive (gui->menu_item[MENU_ID_DISCONNECT],
 									  sess->server->connected || sess->server->recondelay_tag);
-	menu_debug_dump (gui->menu, g_object_get_data (G_OBJECT (gui->menu), "nx-accel"));
+	menu_debug_dump (gui->main_menu);
 
 	mg_set_topic_tip (sess);
 
@@ -3094,17 +3094,10 @@ mg_topwin_focus_cb (GtkWidget * win, gpointer userdata)
 static void
 mg_create_menu (session_gui *gui, GtkWidget *table, int away_state)
 {
-	GtkAccelGroup *accel_group;
-
-	accel_group = gtk_accel_group_new ();
-	gtk_window_add_accel_group (GTK_WINDOW (nx_widget_get_toplevel (table)),
-										 accel_group);
-	g_object_unref (accel_group);
-
-	gui->menu = menu_create_main (accel_group, TRUE, away_state, !gui->is_tab,
-											gui->menu_item);
-	g_object_set_data (G_OBJECT (gui->menu), "nx-accel", accel_group);
-	menu_debug_dump (gui->menu, accel_group);
+	gui->main_menu = menu_create_main (nx_widget_get_toplevel (table), TRUE, away_state,
+												  !gui->is_tab, gui->menu_item);
+	gui->menu = nx_menu_bar_get_widget (gui->main_menu);
+	menu_debug_dump (gui->main_menu);
 	mg_grid_attach (table, gui->menu, 0, 3, 0, 1,
 						 GU_EXPAND | GU_FILL, GU_SHRINK | GU_FILL);
 }

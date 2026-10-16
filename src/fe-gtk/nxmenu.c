@@ -56,6 +56,7 @@ struct _nx_item
 	char *text;				/* displayed text, made on demand */
 	int flags;
 	char *icon;
+	GdkPixbuf *pixbuf;
 	nx_item_cb cb;
 	gpointer userdata;
 	gboolean sensitive;
@@ -64,6 +65,9 @@ struct _nx_item
 	char *target;			/* radio: this item's value in the group's action */
 	nx_menu *submenu;
 	GSimpleAction *action;	/* item / check: its own; radio: the group's (ref) */
+	guint accel_key;
+	GdkModifierType accel_mods;
+	GtkShortcut *shortcut;	/* in the root's controller */
 	GData *data;
 };
 
@@ -79,6 +83,11 @@ struct _nx_menu
 	int next_id;
 	nx_menu_show_cb show_cb;
 	gpointer show_data;
+	gboolean is_bar;			/* entries are submenus, no sections */
+	GtkWidget *bar_widget;	/* GtkPopoverMenuBar */
+	GtkShortcutController *shortcuts;	/* root only */
+	gboolean accel_on;		/* root: nx_menu_set_accel_window was called */
+	gboolean dirty;			/* model needs a rebuild */
 };
 
 static nx_menu *
@@ -103,6 +112,12 @@ item_free (nx_item *it)
 {
 	nx_menu *root = menu_root (it->menu);
 
+	if (it->shortcut)
+	{
+		if (root->shortcuts)
+			gtk_shortcut_controller_remove_shortcut (root->shortcuts, it->shortcut);
+		g_object_unref (it->shortcut);
+	}
 	if (it->submenu)
 	{
 		it->submenu->parent = NULL;
@@ -128,6 +143,8 @@ item_free (nx_item *it)
 	g_free (it->label);
 	g_free (it->text);
 	g_free (it->icon);
+	if (it->pixbuf)
+		g_object_unref (it->pixbuf);
 	g_free (it->target);
 	g_free (it);
 }
@@ -146,6 +163,8 @@ nx_menu_free (nx_menu *m)
 	g_object_unref (m->actions);
 	if (m->popover)
 		gtk_widget_unparent (m->popover);
+	if (m->shortcuts)
+		g_object_unref (m->shortcuts);
 	g_free (m);
 }
 
@@ -258,7 +277,12 @@ model_item (nx_item *it)
 	}
 	if (it->flags & NX_ITEM_MARKUP)
 		g_menu_item_set_attribute (mi, "use-markup", "b", TRUE);
-	if (it->icon)
+	if (it->pixbuf)
+	{
+		/* GdkPixbuf is a GIcon */
+		g_menu_item_set_icon (mi, G_ICON (it->pixbuf));
+	}
+	else if (it->icon)
 	{
 		GIcon *icon;
 		if (icon_is_file (it->icon))
@@ -271,6 +295,13 @@ model_item (nx_item *it)
 			icon = g_themed_icon_new (gtkutil_stock_icon_name (it->icon));
 		g_menu_item_set_icon (mi, icon);
 		g_object_unref (icon);
+	}
+	if (it->accel_key)
+	{
+		/* shown next to the label (the shortcut controller does the work) */
+		char *accel = gtk_accelerator_name (it->accel_key, it->accel_mods);
+		g_menu_item_set_attribute (mi, "accel", "s", accel);
+		g_free (accel);
 	}
 	g_free (label);
 	return mi;
@@ -286,6 +317,18 @@ rebuild_one (nx_menu *m)
 	GList *l;
 
 	g_menu_remove_all (m->model);
+	if (m->is_bar)
+	{
+		/* a bar's model is its submenus, flat */
+		g_object_unref (section);
+		for (l = m->entries; l; l = l->next)
+		{
+			GMenuItem *mi = model_item (l->data);
+			g_menu_append_item (m->model, mi);
+			g_object_unref (mi);
+		}
+		return;
+	}
 	for (l = m->entries; l; l = l->next)
 	{
 		nx_item *it = l->data;
@@ -306,10 +349,32 @@ rebuild_one (nx_menu *m)
 	g_object_unref (section);
 }
 
+/* models are rebuilt lazily: building an 80-entry menu shouldn't redo the
+   model 80 times. Shown menus (popups, bars) rebuild right away. */
 static void
 changed (nx_menu *m)
 {
-	rebuild_one (m);
+	nx_menu *root = menu_root (m);
+
+	m->dirty = TRUE;
+	if (root->popover || root->bar_widget)
+		rebuild_one (m);
+}
+
+/* bring m and every submenu's model up to date */
+static void
+sync_models (nx_menu *m)
+{
+	GList *l;
+
+	if (m->dirty)
+	{
+		rebuild_one (m);
+		m->dirty = FALSE;
+	}
+	for (l = m->entries; l; l = l->next)
+		if (((nx_item *) l->data)->submenu)
+			sync_models (((nx_item *) l->data)->submenu);
 }
 
 static nx_item *
@@ -341,6 +406,16 @@ nx_menu_add_item (nx_menu *m, int pos, const char *label, int flags,
 	it->userdata = userdata;
 	it->action = action_new (m, NULL, NULL, it);
 	g_simple_action_set_enabled (it->action, it->sensitive);
+	changed (m);
+	return it;
+}
+
+nx_item *
+nx_menu_add_item_pixbuf (nx_menu *m, int pos, const char *label, int flags,
+								 GdkPixbuf *icon, nx_item_cb cb, gpointer userdata)
+{
+	nx_item *it = nx_menu_add_item (m, pos, label, flags | NX_ITEM_MNEMONIC, NULL, cb, userdata);
+	it->pixbuf = icon ? g_object_ref (icon) : NULL;
 	changed (m);
 	return it;
 }
@@ -417,6 +492,20 @@ nx_menu_add_submenu (nx_menu *m, int pos, const char *label, int flags, nx_item 
 	if (item_ret)
 		*item_ret = it;
 	return it->submenu;
+}
+
+nx_menu *
+nx_menu_add_submenu_icon (nx_menu *m, int pos, const char *label,
+								  const char *icon, nx_item **item_ret)
+{
+	nx_item *it;
+	nx_menu *sub = nx_menu_add_submenu (m, pos, label, NX_ITEM_MNEMONIC, &it);
+
+	it->icon = g_strdup (icon);
+	changed (m);
+	if (item_ret)
+		*item_ret = it;
+	return sub;
 }
 
 int
@@ -622,6 +711,7 @@ nx_item_get_data (nx_item *it, const char *key)
 GMenuModel *
 nx_menu_get_model (nx_menu *m)
 {
+	sync_models (m);
 	return G_MENU_MODEL (m->model);
 }
 
@@ -655,11 +745,12 @@ void
 nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 					GDestroyNotify done, gpointer done_data)
 {
-	GtkWidget *p = gtk_popover_menu_new_from_model_full (G_MENU_MODEL (m->model),
-																		  GTK_POPOVER_MENU_NESTED);
+	GtkWidget *p;
 	double x = 0, y = 0;
 	GdkRectangle r;
 
+	sync_models (m);
+	p = gtk_popover_menu_new_from_model_full (G_MENU_MODEL (m->model), GTK_POPOVER_MENU_NESTED);
 	m->popover = p;
 	m->done = done;
 	m->done_data = done_data;
@@ -690,6 +781,99 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	g_signal_connect (p, "closed", G_CALLBACK (popup_closed), m);
 	run_show_hooks (m);
 	gtk_popover_popup (GTK_POPOVER (p));
+}
+
+nx_menu *
+nx_menu_bar_new (void)
+{
+	nx_menu *m = nx_menu_new ();
+	m->is_bar = TRUE;
+	return m;
+}
+
+GtkWidget *
+nx_menu_bar_get_widget (nx_menu *m)
+{
+	if (!m->bar_widget)
+	{
+		sync_models (m);
+		m->bar_widget = gtk_popover_menu_bar_new_from_model (G_MENU_MODEL (m->model));
+		gtk_widget_insert_action_group (m->bar_widget, "nx", G_ACTION_GROUP (m->actions));
+		/* the bar owns the menu: freed with it */
+		g_object_set_data_full (G_OBJECT (m->bar_widget), "nx-menu", m,
+										(GDestroyNotify) nx_menu_free);
+	}
+	return m->bar_widget;
+}
+
+void
+nx_menu_set_accel_window (nx_menu *m, GtkWidget *window)
+{
+	m = menu_root (m);
+	if (m->accel_on)
+		return;
+	m->accel_on = TRUE;
+	if (!window)
+		return;
+	m->shortcuts = GTK_SHORTCUT_CONTROLLER (gtk_shortcut_controller_new ());
+	g_object_ref (m->shortcuts);
+	/* anywhere in the window, like a GtkAccelGroup */
+	gtk_shortcut_controller_set_scope (m->shortcuts, GTK_SHORTCUT_SCOPE_MANAGED);
+	gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (m->shortcuts),
+															  GTK_PHASE_CAPTURE);
+	gtk_widget_add_controller (window, GTK_EVENT_CONTROLLER (m->shortcuts));
+	/* the actions are reachable from the window for the shortcuts */
+	gtk_widget_insert_action_group (window, "nx", G_ACTION_GROUP (m->actions));
+}
+
+void
+nx_item_set_accel (nx_item *it, guint key, GdkModifierType mods)
+{
+	nx_menu *root = menu_root (it->menu);
+	char name[48];
+
+	if (!root->accel_on)
+		return;
+	if (it->shortcut)
+	{
+		if (root->shortcuts)
+			gtk_shortcut_controller_remove_shortcut (root->shortcuts, it->shortcut);
+		g_clear_object (&it->shortcut);
+	}
+	it->accel_key = key;
+	it->accel_mods = mods;
+	if (key && it->action && root->shortcuts)
+	{
+		/* disabled actions don't fire: the "only while sensitive" rule */
+		g_snprintf (name, sizeof name, "nx.%s", g_action_get_name (G_ACTION (it->action)));
+		it->shortcut = gtk_shortcut_new (gtk_keyval_trigger_new (key, mods),
+													gtk_named_action_new (name));
+		if (it->kind == E_RADIO)
+			gtk_shortcut_set_arguments (it->shortcut, g_variant_new_string (it->target));
+		g_object_ref (it->shortcut);
+		gtk_shortcut_controller_add_shortcut (root->shortcuts, it->shortcut);
+	}
+	changed (it->menu);
+}
+
+void
+nx_item_get_accel (nx_item *it, guint *key, GdkModifierType *mods)
+{
+	*key = it->accel_key;
+	*mods = it->accel_mods;
+}
+
+nx_item_kind
+nx_item_get_kind (nx_item *it)
+{
+	switch (it->kind)
+	{
+	case E_CHECK: return NX_KIND_CHECK;
+	case E_RADIO: return NX_KIND_RADIO;
+	case E_SEPARATOR: return NX_KIND_SEPARATOR;
+	case E_SUBMENU: return NX_KIND_SUBMENU;
+	default: return NX_KIND_ITEM;
+	}
 }
 
 #else
@@ -831,6 +1015,22 @@ nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int flags, nx_it
 	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), sub);
 	if (flags & NX_ITEM_INSENSITIVE)
 		gtk_widget_set_sensitive (item, FALSE);
+	if (item_ret)
+		*item_ret = NX_ITEM (item);
+	return NX_MENU (sub);
+}
+
+nx_menu *
+nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
+								  const char *icon, nx_item **item_ret)
+{
+	GtkWidget *sub = gtk_menu_new ();
+	GtkWidget *img = icon ? gtkutil_image_new_from_stock (icon, GTK_ICON_SIZE_MENU) : NULL;
+	GtkWidget *item = gtkutil_menu_item_new_with_image (label, FALSE, img);
+
+	place (menu, item, pos);
+	nx_widget_show_all (item);
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), sub);
 	if (item_ret)
 		*item_ret = NX_ITEM (item);
 	return NX_MENU (sub);
@@ -1038,6 +1238,118 @@ nx_menu_popup (nx_menu *menu, GtkWidget *widget, GdkEvent *event,
 	g_object_unref (menu);
 	g_signal_connect (menu, "selection-done", G_CALLBACK (popup_selection_done), d);
 	nx_menu_popup_at_pointer (NX_MENU_WIDGET (menu), event);
+}
+
+nx_item *
+nx_menu_add_item_pixbuf (nx_menu *menu, int pos, const char *label, int flags,
+								 GdkPixbuf *icon, nx_item_cb cb, gpointer userdata)
+{
+	GtkWidget *img = gtk_image_new_from_pixbuf (icon);
+	GtkWidget *item = gtkutil_menu_item_new_with_image (label, FALSE, img);
+
+	place (menu, item, pos);
+	connect_cb (item, cb, userdata);
+	if (flags & NX_ITEM_INSENSITIVE)
+		gtk_widget_set_sensitive (item, FALSE);
+	nx_widget_show_all (item);
+	return NX_ITEM (item);
+}
+
+nx_menu *
+nx_menu_bar_new (void)
+{
+	return NX_MENU (gtk_menu_bar_new ());
+}
+
+GtkWidget *
+nx_menu_bar_get_widget (nx_menu *bar)
+{
+	return NX_MENU_WIDGET (bar);
+}
+
+void
+nx_menu_set_accel_window (nx_menu *menu, GtkWidget *window)
+{
+	GtkAccelGroup *ag;
+
+	if (g_object_get_data (G_OBJECT (menu), "nx-accel-on"))
+		return;
+	g_object_set_data (G_OBJECT (menu), "nx-accel-on", GINT_TO_POINTER (1));
+	ag = gtk_accel_group_new ();
+	if (window)
+		gtk_window_add_accel_group (GTK_WINDOW (window), ag);
+	g_object_set_data_full (G_OBJECT (menu), "nx-accel", ag, g_object_unref);
+}
+
+/* Override the default GTK2.4 handler, which would make menu
+   bindings not work when the menu-bar is hidden. */
+static gboolean
+can_activate_accel (GtkWidget *widget, guint signal_id, gpointer user_data)
+{
+	/* GTK2.2 behaviour */
+	return gtk_widget_is_sensitive (widget);
+}
+
+void
+nx_item_set_accel (nx_item *item, guint key, GdkModifierType mods)
+{
+	GtkWidget *w = NX_ITEM_WIDGET (item);
+	GtkAccelGroup *ag = NULL;
+	GtkWidget *top;
+
+	/* the accel group lives on the top menu, which an item finds through
+	   the parents (a submenu's attach widget, up to the bar / popup) */
+	for (top = w; top; )
+	{
+		ag = g_object_get_data (G_OBJECT (top), "nx-accel");
+		if (ag || g_object_get_data (G_OBJECT (top), "nx-accel-on"))
+			break;
+		if (GTK_IS_MENU (top) && gtk_menu_get_attach_widget (GTK_MENU (top)))
+			top = gtk_menu_get_attach_widget (GTK_MENU (top));
+		else
+			top = gtk_widget_get_parent (top);
+	}
+	if (!ag)
+		return;
+
+	{
+		guint oldkey = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (w), "nx-key"));
+		GdkModifierType oldmods = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (w), "nx-mods"));
+
+		if (oldkey)
+			gtk_widget_remove_accelerator (w, ag, oldkey, oldmods);
+	}
+	g_object_set_data (G_OBJECT (w), "nx-key", GUINT_TO_POINTER (key));
+	g_object_set_data (G_OBJECT (w), "nx-mods", GUINT_TO_POINTER (mods));
+	if (!key)
+		return;
+	gtk_widget_add_accelerator (w, "activate", ag, key, mods, GTK_ACCEL_VISIBLE);
+	if (!g_object_get_data (G_OBJECT (w), "nx-canaccel"))
+	{
+		g_signal_connect (w, "can-activate-accel", G_CALLBACK (can_activate_accel), NULL);
+		g_object_set_data (G_OBJECT (w), "nx-canaccel", GINT_TO_POINTER (1));
+	}
+}
+
+void
+nx_item_get_accel (nx_item *item, guint *key, GdkModifierType *mods)
+{
+	*key = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (item), "nx-key"));
+	*mods = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (item), "nx-mods"));
+}
+
+nx_item_kind
+nx_item_get_kind (nx_item *item)
+{
+	if (GTK_IS_SEPARATOR_MENU_ITEM (item))
+		return NX_KIND_SEPARATOR;
+	if (GTK_IS_RADIO_MENU_ITEM (item))
+		return NX_KIND_RADIO;
+	if (GTK_IS_CHECK_MENU_ITEM (item))
+		return NX_KIND_CHECK;
+	if (gtk_menu_item_get_submenu (GTK_MENU_ITEM (item)))
+		return NX_KIND_SUBMENU;
+	return NX_KIND_ITEM;
 }
 
 #endif

@@ -166,7 +166,8 @@ typedef struct session_gui
 		gulong search_changed_signal; /* hook for search change event so blanking the box doesn't suck */
 
 #define MENU_ID_NUM 14
-	GtkWidget *menu_item[MENU_ID_NUM+1]; /* some items we may change state of */
+	nx_item *menu_item[MENU_ID_NUM+1]; /* some items we may change state of */
+	nx_menu *main_menu;		/* the menu bar (*menu is its widget) */
 
 	void *chanview;	/* chanview.h */
 

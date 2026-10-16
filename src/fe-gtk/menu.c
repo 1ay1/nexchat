@@ -767,9 +767,9 @@ menu_cmbuttons_showhide_cb (session *sess)
 /* GTK2 code assigned GtkCheckMenuItem->active directly: the state changes,
    no handler runs (nx_item_set_active_quiet keeps that) */
 static void
-menu_check_item_set_active_quiet (GtkWidget *item, gboolean active)
+menu_check_item_set_active_quiet (nx_item *item, gboolean active)
 {
-	nx_item_set_active_quiet (NX_ITEM (item), active);
+	nx_item_set_active_quiet (item, active);
 }
 
 static void
@@ -872,13 +872,11 @@ menu_fullscreen_toggle (GtkWidget *wid, gpointer ud)
 void
 menu_middlemenu (session *sess, GdkEvent *event)
 {
-	GtkWidget *menu;
-	GtkAccelGroup *accel_group;
+	nx_menu *menu;
 
-	accel_group = gtk_accel_group_new ();
-	menu = menu_create_main (accel_group, FALSE, sess->server->is_away, !sess->gui->is_tab, NULL);
-	/* TODO GTK4: the main menu model */
-	menu_popup (NX_MENU (menu), event, accel_group);
+	/* the main menu as a popup: shortcuts shown, not active */
+	menu = menu_create_main (NULL, FALSE, sess->server->is_away, !sess->gui->is_tab, NULL);
+	menu_popup (menu, event, NULL);
 }
 
 static void
@@ -1142,8 +1140,8 @@ usermenu_update (void)
 	while (list)
 	{
 		sess = list->data;
-		/* TODO GTK4: the main menu model; on GTK3 the GtkMenu is the nx_menu */
-		menu = NX_MENU (sess->gui->menu_item[MENU_ID_USERMENU]);
+		menu = sess->gui->menu_item[MENU_ID_USERMENU] ?
+			nx_item_get_submenu (sess->gui->menu_item[MENU_ID_USERMENU]) : NULL;
 		if (sess->gui->is_tab)
 		{
 			if (!done_main && menu)
@@ -1239,13 +1237,13 @@ menu_search (void)
 static void
 menu_search_next (GtkWidget *wid)
 {
-	mg_search_handle_next(wid, current_sess);
+	mg_search_handle_next (NULL, current_sess);
 }
 
 static void
 menu_search_prev (GtkWidget *wid)
 {
-	mg_search_handle_previous(wid, current_sess);
+	mg_search_handle_previous (NULL, current_sess);
 }
 
 static void
@@ -1394,9 +1392,9 @@ menu_join (GtkWidget * wid, gpointer none)
 }
 
 static void
-menu_away (GtkCheckMenuItem *item, gpointer none)
+menu_away (nx_item *item, gpointer none)
 {
-	handle_command (current_sess, gtk_check_menu_item_get_active (item) ? "away" : "back", FALSE);
+	handle_command (current_sess, nx_item_get_active (item) ? "away" : "back", FALSE);
 }
 
 static void
@@ -1605,10 +1603,10 @@ menu_change_layout (void)
 }
 
 static void
-menu_layout_cb (GtkWidget *item, gpointer none)
+menu_layout_cb (nx_item *item, gpointer none)
 {
 	prefs.hex_gui_tab_layout = 2;
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
+	if (nx_item_get_active (item))
 		prefs.hex_gui_tab_layout = 0;
 
 	menu_change_layout ();
@@ -1621,9 +1619,9 @@ menu_apply_metres_cb (session *sess)
 }
 
 static void
-menu_metres_off (GtkWidget *item, gpointer none)
+menu_metres_off (nx_item *item, gpointer none)
 {
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
+	if (nx_item_get_active (item))
 	{
 		prefs.hex_gui_lagometer = 0;
 		prefs.hex_gui_throttlemeter = 0;
@@ -1633,9 +1631,9 @@ menu_metres_off (GtkWidget *item, gpointer none)
 }
 
 static void
-menu_metres_text (GtkWidget *item, gpointer none)
+menu_metres_text (nx_item *item, gpointer none)
 {
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
+	if (nx_item_get_active (item))
 	{
 		prefs.hex_gui_lagometer = 2;
 		prefs.hex_gui_throttlemeter = 2;
@@ -1645,9 +1643,9 @@ menu_metres_text (GtkWidget *item, gpointer none)
 }
 
 static void
-menu_metres_graph (GtkWidget *item, gpointer none)
+menu_metres_graph (nx_item *item, gpointer none)
 {
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
+	if (nx_item_get_active (item))
 	{
 		prefs.hex_gui_lagometer = 1;
 		prefs.hex_gui_throttlemeter = 1;
@@ -1657,9 +1655,9 @@ menu_metres_graph (GtkWidget *item, gpointer none)
 }
 
 static void
-menu_metres_both (GtkWidget *item, gpointer none)
+menu_metres_both (nx_item *item, gpointer none)
 {
-	if (gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)))
+	if (nx_item_get_active (item))
 	{
 		prefs.hex_gui_lagometer = 3;
 		prefs.hex_gui_throttlemeter = 3;
@@ -1823,48 +1821,17 @@ static struct mymenu mymenu[] = {
 	{0, 0, 0, M_END, 0, 0, 0},
 };
 
+/* the state follows the server / window, without running the callback */
 void
 menu_set_away (session_gui *gui, int away)
 {
-	GtkCheckMenuItem *item = GTK_CHECK_MENU_ITEM (gui->menu_item[MENU_ID_AWAY]);
-
-	g_signal_handlers_block_by_func (G_OBJECT (item), menu_away, NULL);
-	gtk_check_menu_item_set_active (item, away);
-	g_signal_handlers_unblock_by_func (G_OBJECT (item), menu_away, NULL);
+	nx_item_set_active_quiet (gui->menu_item[MENU_ID_AWAY], away);
 }
 
 void
 menu_set_fullscreen (session_gui *gui, int full)
 {
-	GtkCheckMenuItem *item = GTK_CHECK_MENU_ITEM (gui->menu_item[MENU_ID_FULLSCREEN]);
-
-	g_signal_handlers_block_by_func (G_OBJECT (item), menu_fullscreen_toggle, NULL);
-	gtk_check_menu_item_set_active (item, full);
-	g_signal_handlers_unblock_by_func (G_OBJECT (item), menu_fullscreen_toggle, NULL);
-}
-
-GtkWidget *
-create_icon_menu (char *labeltext, void *stock_name, int is_stock)
-{
-	GtkWidget *item, *img;
-
-	if (is_stock)
-		img = gtkutil_image_new_from_stock (stock_name, GTK_ICON_SIZE_MENU);
-	else
-		img = gtk_image_new_from_pixbuf (*((GdkPixbuf **)stock_name));
-	item = gtkutil_menu_item_new_with_image (labeltext, FALSE, img);
-	gtk_widget_show (img);
-
-	return item;
-}
-
-/* Override the default GTK2.4 handler, which would make menu
-   bindings not work when the menu-bar is hidden. */
-static gboolean
-menu_canacaccel (GtkWidget *widget, guint signal_id, gpointer user_data)
-{
-	/* GTK2.2 behaviour */
-	return gtk_widget_is_sensitive (widget);
+	nx_item_set_active_quiet (gui->menu_item[MENU_ID_FULLSCREEN], full);
 }
 
 /* === STUFF FOR /MENU === */
@@ -1952,11 +1919,9 @@ menu_foreach_gui (menu_entry *me, void (*callback) (nx_menu *, menu_entry *, cha
 	{
 		sess = list->data;
 		/* do it only once for tab sessions, since they share a GUI */
-		if (!sess->gui->is_tab || !tabdone)
+		if (sess->gui->main_menu && (!sess->gui->is_tab || !tabdone))
 		{
-			/* the menu bar: a GtkMenuShell, so an nx_menu on GTK3.
-			   TODO GTK4: the main menu model */
-			callback (NX_MENU (sess->gui->menu), me, NULL);
+			callback (sess->gui->main_menu, me, NULL);
 			if (sess->gui->is_tab)
 				tabdone = TRUE;
 		}
@@ -2121,16 +2086,9 @@ menu_add_cb (nx_menu *menu, menu_entry *me, char *target)
 	if (item)
 	{
 		nx_item_set_sensitive (item, me->enable);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-		/* TODO GTK4: shortcuts come with the main menu bar */
+		/* only the menu bar has shortcuts (popups ignore them) */
 		if (me->key)
-		{
-			GtkAccelGroup *accel_group = g_object_get_data (G_OBJECT (menu), "accel");
-			if (accel_group)	/* popup menus don't have them */
-				gtk_widget_add_accelerator (NX_ITEM_WIDGET (item), "activate", accel_group,
-													 me->key, me->modifier, GTK_ACCEL_VISIBLE);
-		}
-#endif
+			nx_item_set_accel (item, me->key, me->modifier);
 	}
 }
 
@@ -2160,9 +2118,8 @@ menu_debug_redump (void)
 {
 	if (!g_getenv ("NEXCHAT_MENU_DUMP"))
 		return;
-	if (current_sess && current_sess->gui && current_sess->gui->menu)
-		menu_debug_dump (current_sess->gui->menu,
-							  g_object_get_data (G_OBJECT (current_sess->gui->menu), "nx-accel"));
+	if (current_sess && current_sess->gui && current_sess->gui->main_menu)
+		menu_debug_dump (current_sess->gui->main_menu);
 }
 
 void
@@ -2216,84 +2173,64 @@ menu_add_plugin_items (nx_menu *menu, char *root, char *target)
 /* === END STUFF FOR /MENU === */
 
 /* ---- menu tree dump for tests/ux/menus.sh ----
-   One line per item: indent, kind, label as GTK shows it (mnemonic
-   underscore kept), [accel], state. Walks the widget tree, so it records
-   what the user actually gets, whatever builds it. */
-
-static gboolean
-menu_accel_find_cb (GtkAccelKey *key, GClosure *closure, gpointer data)
-{
-	return closure == data;
-}
+   One line per item: indent, kind, label as given (mnemonic underscore
+   kept), [accel], state. Walks the nx_menu tree, so it records what the
+   user gets on either GTK. */
 
 static void
-menu_dump_level (FILE *f, GtkWidget *shell, int depth)
+menu_dump_level (FILE *f, nx_menu *menu, int depth)
 {
-	GList *children = gtk_container_get_children (GTK_CONTAINER (shell)), *l;
+	int i, n = nx_menu_get_n_items (menu);
 
-	for (l = children; l; l = l->next)
+	for (i = 0; i < n; i++)
 	{
-		GtkWidget *item = l->data;
-		GtkWidget *lbl, *sub;
-		const char *kind = "item", *text = "";
+		nx_item *item = nx_menu_get_item (menu, i);
+		nx_item_kind k = nx_item_get_kind (item);
+		const char *kind = "item", *text;
 		char accel[64] = "";
+		guint key;
+		GdkModifierType mods;
+		nx_menu *sub;
 
-		if (!gtk_widget_get_visible (item))
-			continue;
-		if (GTK_IS_SEPARATOR_MENU_ITEM (item))
+		if (k == NX_KIND_SEPARATOR)
 		{
 			fprintf (f, "%*s---\n", depth * 2, "");
 			continue;
 		}
-		if (GTK_IS_RADIO_MENU_ITEM (item))
+		if (k == NX_KIND_RADIO)
 			kind = "radio";
-		else if (GTK_IS_CHECK_MENU_ITEM (item))
+		else if (k == NX_KIND_CHECK)
 			kind = "check";
 
-		lbl = gtkutil_menu_item_get_label (item);
-		if (lbl)
-			text = gtk_label_get_label (GTK_LABEL (lbl));	/* with _mnemonic */
-
-		/* the item's accelerator, from the accel group it was added to
-		   (an accel label only resolves it when drawn) */
+		text = nx_item_get_label (item);
+		nx_item_get_accel (item, &key, &mods);
+		if (key)
 		{
-			GList *closures = gtk_widget_list_accel_closures (item), *c;
-			for (c = closures; c; c = c->next)
-			{
-				GtkAccelGroup *ag = gtk_accel_group_from_accel_closure (c->data);
-				GtkAccelKey *k = ag ? gtk_accel_group_find (ag, menu_accel_find_cb, c->data) : NULL;
-				if (k && k->accel_key)
-				{
-					char *name = gtk_accelerator_name (k->accel_key, k->accel_mods);
-					g_strlcpy (accel, name, sizeof accel);
-					g_free (name);
-					break;
-				}
-			}
-			g_list_free (closures);
+			char *name = gtk_accelerator_name (key, mods);
+			g_strlcpy (accel, name, sizeof accel);
+			g_free (name);
 		}
 
-		fprintf (f, "%*s%s \"%s\"%s%s%s%s\n", depth * 2, "", kind, text,
+		fprintf (f, "%*s%s \"%s\"%s%s%s%s\n", depth * 2, "", kind, text ? text : "",
 					accel[0] ? " [" : "", accel, accel[0] ? "]" : "",
-					!gtk_widget_get_sensitive (item) ? " insensitive" : "");
-		if (GTK_IS_CHECK_MENU_ITEM (item))
+					!nx_item_get_sensitive (item) ? " insensitive" : "");
+		if (k == NX_KIND_CHECK || k == NX_KIND_RADIO)
 			fprintf (f, "%*s  = %s\n", depth * 2, "",
-						gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)) ? "on" : "off");
+						nx_item_get_active (item) ? "on" : "off");
 
-		sub = gtk_menu_item_get_submenu (GTK_MENU_ITEM (item));
+		sub = nx_item_get_submenu (item);
 		if (sub)
 			menu_dump_level (f, sub, depth + 1);
 	}
-	g_list_free (children);
 }
 
 void
-menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group)
+menu_debug_dump (nx_menu *menu_bar)
 {
 	const char *path = g_getenv ("NEXCHAT_MENU_DUMP");
 	FILE *f;
 
-	if (!path || !*path)
+	if (!path || !*path || !menu_bar)
 		return;
 	f = fopen (path, "w");
 	if (!f)
@@ -2302,41 +2239,33 @@ menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group)
 	fclose (f);
 }
 
-GtkWidget *
-menu_create_main (void *accel_group, int bar, int away, int toplevel,
-						GtkWidget **menu_widgets)
+/* the table's callbacks: void (*) (GtkWidget-or-item, gpointer); items
+   with no use for the first argument get the nx_item, which they ignore */
+#define TABLE_CB(i) ((nx_item_cb) mymenu[i].callback)
+
+/* bar: the window's menu bar, its shortcuts working in `window`. !bar: a
+   popup copy (middle-click), shortcuts only shown. */
+nx_menu *
+menu_create_main (GtkWidget *window, int bar, int away, int toplevel,
+						nx_item **menu_widgets)
 {
 	int i = 0;
-	GtkWidget *item;
-	GtkWidget *menu = 0;
-	GtkWidget *menu_item = 0;
-	GtkWidget *menu_bar;
-	GtkWidget *usermenu = 0;
-	GtkWidget *submenu = 0;
+	nx_item *item;
+	nx_item *menu_item = NULL;
+	nx_menu *menu = NULL;
+	nx_menu *menu_bar;
+	nx_menu *usermenu = NULL;
+	nx_menu *submenu = NULL;
+	nx_item *group = NULL;
 	int close_mask = STATE_CTRL;
 	int away_mask = STATE_ALT;
 	char *key_theme = NULL;
 	GtkSettings *settings;
-	GSList *group = NULL;
-#ifdef HAVE_GTK_MAC
-	int appmenu_offset = 1; /* 0 is for about */
-#endif
 
-	if (bar)
-	{
-		menu_bar = gtk_menu_bar_new ();
-#ifdef HAVE_GTK_MAC
-		gtkosx_application_set_menu_bar (osx_app, GTK_MENU_SHELL (menu_bar));
-#endif
-	}
-	else
-		menu_bar = gtk_menu_new ();
-
-	/* /MENU needs to know this later */
-	g_object_set_data (G_OBJECT (menu_bar), "accel", accel_group);
-
-	g_signal_connect (G_OBJECT (menu_bar), "can-activate-accel",
-							G_CALLBACK (menu_canacaccel), 0);
+	menu_bar = bar ? nx_menu_bar_new () : nx_menu_new ();
+	/* the bar's shortcuts work in the window; the popup copy only shows them
+	   (its accel group was never attached to a window) */
+	nx_menu_set_accel_window (menu_bar, bar ? window : NULL);
 
 	/* set the initial state of toggles */
 	mymenu[MENUBAR_OFFSET].state = !prefs.hex_gui_hide_menu;
@@ -2378,7 +2307,7 @@ menu_create_main (void *accel_group, int bar, int away, int toplevel,
 	}
 
 	/* change Close binding to ctrl-shift-w when using emacs keys */
-	settings = gtk_widget_get_settings (menu_bar);
+	settings = gtk_settings_get_default ();
 	if (settings)
 	{
 		g_object_get (settings, "gtk-key-theme-name", &key_theme, NULL);
@@ -2414,6 +2343,8 @@ menu_create_main (void *accel_group, int bar, int away, int toplevel,
 
 	while (1)
 	{
+		nx_menu *target = submenu ? submenu : menu;
+
 		item = NULL;
 		if (mymenu[i].id == MENU_ID_USERMENU && !prefs.hex_gui_usermenu)
 		{
@@ -2424,127 +2355,89 @@ menu_create_main (void *accel_group, int bar, int away, int toplevel,
 		switch (mymenu[i].type)
 		{
 		case M_NEWMENU:
-			if (menu)
-				gtk_menu_item_set_submenu (GTK_MENU_ITEM (menu_item), menu);
-			item = menu = gtk_menu_new ();
+			menu = nx_menu_add_submenu (menu_bar, NX_MENU_APPEND, _(mymenu[i].text),
+												 NX_ITEM_MNEMONIC, &menu_item);
+			/* record the English name for /menu */
+			nx_item_set_data (menu_item, "name", mymenu[i].text);
 			if (mymenu[i].id == MENU_ID_USERMENU)
 				usermenu = menu;
-			menu_item = gtk_menu_item_new_with_mnemonic (_(mymenu[i].text));
-			/* record the English name for /menu */
-			g_object_set_data (G_OBJECT (menu_item), "name", mymenu[i].text);
-#ifdef HAVE_GTK_MAC /* Added to app menu, see below */
-			if (!bar || mymenu[i].id != MENU_ID_HEXCHAT)		
-#endif
-				gtk_menu_shell_append (GTK_MENU_SHELL (menu_bar), menu_item);
-			gtk_widget_show (menu_item);
+			item = menu_item;	/* usermenu_update finds the submenu from it */
 			break;
 
 		case M_MENUPIX:
-			item = create_icon_menu (_(mymenu[i].text), mymenu[i].image, FALSE);
+			item = nx_menu_add_item_pixbuf (target, NX_MENU_APPEND, _(mymenu[i].text),
+													  NX_ITEM_MNEMONIC, *(GdkPixbuf **) mymenu[i].image,
+													  TABLE_CB (i), NULL);
 			goto normalitem;
 
 		case M_MENUSTOCK:
-			item = create_icon_menu (_(mymenu[i].text), mymenu[i].image, TRUE);
+			item = nx_menu_add_item (target, NX_MENU_APPEND, _(mymenu[i].text), NX_ITEM_MNEMONIC,
+											 mymenu[i].image, TABLE_CB (i), NULL);
 			goto normalitem;
 
 		case M_MENUITEM:
-			item = gtk_menu_item_new_with_mnemonic (_(mymenu[i].text));
+			item = nx_menu_add_item (target, NX_MENU_APPEND, _(mymenu[i].text), NX_ITEM_MNEMONIC,
+											 NULL, TABLE_CB (i), NULL);
 normalitem:
 			if (mymenu[i].key != 0)
-				gtk_widget_add_accelerator (item, "activate", accel_group,
-										mymenu[i].key,
-										mymenu[i].key == GDK_KEY_F1 ? 0 :
-										mymenu[i].key == GDK_KEY_w ? close_mask :
-										(g_ascii_isupper (mymenu[i].key)) ?
+				nx_item_set_accel (item, mymenu[i].key,
+										 mymenu[i].key == GDK_KEY_F1 ? 0 :
+										 mymenu[i].key == GDK_KEY_w ? close_mask :
+										 (g_ascii_isupper (mymenu[i].key)) ?
 											STATE_SHIFT | STATE_CTRL :
-											STATE_CTRL,
-										GTK_ACCEL_VISIBLE);
-			if (mymenu[i].callback)
-				g_signal_connect (G_OBJECT (item), "activate",
-										G_CALLBACK (mymenu[i].callback), 0);
-			if (submenu)
-				gtk_menu_shell_append (GTK_MENU_SHELL (submenu), item);
-			else
-				gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-			gtk_widget_show (item);
+											STATE_CTRL);
 			break;
 
 		case M_MENUTOG:
-			item = gtk_check_menu_item_new_with_mnemonic (_(mymenu[i].text));
-togitem:
-			/* must avoid callback for Radio buttons */
-			menu_check_item_set_active_quiet (item, mymenu[i].state);
-			/*gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (item),
-													 mymenu[i].state);*/
-			if (mymenu[i].key != 0)
-				gtk_widget_add_accelerator (item, "activate", accel_group,
-											mymenu[i].key,
-											mymenu[i].id == MENU_ID_FULLSCREEN ? 0 :
-											mymenu[i].id == MENU_ID_AWAY ? away_mask :
-											STATE_CTRL, GTK_ACCEL_VISIBLE);
-			if (mymenu[i].callback)
-				g_signal_connect (G_OBJECT (item), "toggled",
-									G_CALLBACK (mymenu[i].callback), NULL);
-
-			if (submenu)
-				gtk_menu_shell_append (GTK_MENU_SHELL (submenu), item);
-			else
-				gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-			gtk_widget_show (item);
-			gtk_widget_set_sensitive (item, mymenu[i].sensitive);
-			break;
-
-		case M_MENURADIO:
-			item = gtk_radio_menu_item_new_with_mnemonic (group, _(mymenu[i].text));
-			group = gtk_radio_menu_item_get_group (GTK_RADIO_MENU_ITEM (item));
+			/* the state is set without running the callback, as before */
+			item = nx_menu_add_check (target, NX_MENU_APPEND, _(mymenu[i].text), NX_ITEM_MNEMONIC,
+											  mymenu[i].state, TABLE_CB (i), NULL);
 			goto togitem;
 
+		case M_MENURADIO:
+			item = nx_menu_add_radio (target, NX_MENU_APPEND, _(mymenu[i].text), NX_ITEM_MNEMONIC,
+											  group, mymenu[i].state, TABLE_CB (i), NULL);
+			if (!group)
+				group = item;
+togitem:
+			if (mymenu[i].key != 0)
+				nx_item_set_accel (item, mymenu[i].key,
+										 mymenu[i].id == MENU_ID_FULLSCREEN ? 0 :
+										 mymenu[i].id == MENU_ID_AWAY ? away_mask :
+										 STATE_CTRL);
+			nx_item_set_sensitive (item, mymenu[i].sensitive);
+			break;
+
 		case M_SEP:
-			item = gtk_separator_menu_item_new ();
-			gtk_widget_set_sensitive (item, FALSE);
-			gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-			gtk_widget_show (item);
+			item = nx_menu_add_separator (menu, NX_MENU_APPEND);
 			break;
 
 		case M_MENUSUB:
 			group = NULL;
-			submenu = gtk_menu_new ();
-			item = create_icon_menu (_(mymenu[i].text), mymenu[i].image, TRUE);
+			/* laid out as an icon item, as GTK2's image item was (an empty
+			   icon column for the image-less ones) */
+			submenu = nx_menu_add_submenu_icon (menu, NX_MENU_APPEND, _(mymenu[i].text),
+															mymenu[i].image, &item);
 			/* record the English name for /menu */
-			g_object_set_data (G_OBJECT (item), "name", mymenu[i].text);
-			gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), submenu);
-			gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-			gtk_widget_show (item);
+			nx_item_set_data (item, "name", mymenu[i].text);
 			break;
 
 		/*case M_END:*/ default:
 			if (!submenu)
 			{
 				if (menu)
-				{
-					gtk_menu_item_set_submenu (GTK_MENU_ITEM (menu_item), menu);
-					menu_add_plugin_mainmenu_items (NX_MENU (menu_bar));
-				}
+					menu_add_plugin_mainmenu_items (menu_bar);
 				if (usermenu)
-					usermenu_create (NX_MENU (usermenu));
+					usermenu_create (usermenu);
 				return (menu_bar);
 			}
 			submenu = NULL;
 		}
 
-		/* record this GtkWidget * so it's state might be changed later */
+		/* record this item so its state might be changed later */
 		if (mymenu[i].id != 0 && menu_widgets)
 			/* this ends up in sess->gui->menu_item[MENU_ID_XXX] */
 			menu_widgets[mymenu[i].id] = item;
-
-#ifdef HAVE_GTK_MAC
-		/* We want HexChat to be the app menu, not including Quit or HexChat itself */
-		if (bar && item && i <= CLOSE_OFFSET + 1 && mymenu[i].id != MENU_ID_HEXCHAT)
-		{
-			if (!submenu || mymenu[i].type == M_MENUSUB)
-				gtkosx_application_insert_app_menu_item (osx_app, item, appmenu_offset++);
-		}
-#endif
 
 		i++;
 	}

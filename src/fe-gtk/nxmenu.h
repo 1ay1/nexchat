@@ -51,6 +51,9 @@ nx_menu *nx_menu_new (void);
    menu's entries (separators count), NX_MENU_APPEND for the end. */
 nx_item *nx_menu_add_item (nx_menu *menu, int pos, const char *label, int flags,
 									const char *icon, nx_item_cb cb, gpointer userdata);
+/* the same with the icon as a pixbuf (an app resource) */
+nx_item *nx_menu_add_item_pixbuf (nx_menu *menu, int pos, const char *label, int flags,
+											 GdkPixbuf *icon, nx_item_cb cb, gpointer userdata);
 nx_item *nx_menu_add_check (nx_menu *menu, int pos, const char *label, int flags,
 									 gboolean active, nx_item_cb cb, gpointer userdata);
 /* group: an earlier radio item of the same group, or NULL to start one */
@@ -60,6 +63,10 @@ nx_item *nx_menu_add_separator (nx_menu *menu, int pos);
 /* a submenu entry; item_ret (may be NULL) gets its item */
 nx_menu *nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int flags,
 										nx_item **item_ret);
+/* a submenu entry laid out like an icon item (icon column, icon may be
+   NULL for an empty one; the label is a mnemonic) */
+nx_menu *nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
+											  const char *icon, nx_item **item_ret);
 
 /* number of entries (separators included) */
 int nx_menu_get_n_items (nx_menu *menu);
@@ -102,6 +109,28 @@ void nx_item_activate (nx_item *item);
    and done (may be NULL) runs then with done_data. */
 void nx_menu_popup (nx_menu *menu, GtkWidget *widget, GdkEvent *event,
 						  GDestroyNotify done, gpointer done_data);
+
+/* ---- menu bars and keyboard shortcuts ---- */
+
+/* a menu bar: its entries are the top-level submenus */
+nx_menu *nx_menu_bar_new (void);
+/* the widget to put in a window (GTK3: the GtkMenuBar itself) */
+GtkWidget *nx_menu_bar_get_widget (nx_menu *bar);
+
+/* shortcuts of items under `menu` (a bar or a popup) work in `window`. Call
+   once, before nx_item_set_accel. They work while the item is sensitive,
+   even with the menu bar hidden (GTK2's can-activate-accel rule). window
+   NULL: shortcuts are only shown (a popup copy of the main menu). Without
+   this call nx_item_set_accel does nothing (popups had no accel group). */
+void nx_menu_set_accel_window (nx_menu *menu, GtkWidget *window);
+/* key + mods activate the item (shown next to its label); key 0 removes */
+void nx_item_set_accel (nx_item *item, guint key, GdkModifierType mods);
+/* the shortcut, key 0 if none */
+void nx_item_get_accel (nx_item *item, guint *key, GdkModifierType *mods);
+
+typedef enum { NX_KIND_ITEM, NX_KIND_CHECK, NX_KIND_RADIO, NX_KIND_SEPARATOR,
+					NX_KIND_SUBMENU } nx_item_kind;
+nx_item_kind nx_item_get_kind (nx_item *item);
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 /* what a popup shows: the model (actions are "nx.<name>") and the actions;

@@ -60,5 +60,15 @@ x Escape
 x --rclick 450,580
 shot input
 x Escape
+# the menu bar, View menu open (checks, radios, a submenu)
+x --click 72,12
+x Down Down Down Down Down Down Down Right
+shot menubar-view
+x Escape Escape Escape
+# the main menu as a middle-click popup in the chat view (blank area)
+x --mclick 600,450
+x Down Right
+shot middle
+x Escape Escape
 kill -0 "$app" 2>/dev/null || { echo "app died"; exit 1; }
 echo "shots in $out"

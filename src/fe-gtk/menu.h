@@ -20,11 +20,11 @@
 #ifndef HEXCHAT_MENU_H
 #define HEXCHAT_MENU_H
 
-GtkWidget *menu_create_main (void *accel_group, int bar, int away, int toplevel, GtkWidget **menu_widgets);
+nx_menu *menu_create_main (GtkWidget *window, int bar, int away, int toplevel, nx_item **menu_widgets);
 /* NEXCHAT_MENU_DUMP=path: write the main menu tree (labels with mnemonics,
    accelerators, toggle/radio state, sensitivity) to path as text. Used by
    tests/ux/menus.sh to catch menu regressions; does nothing otherwise. */
-void menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group);
+void menu_debug_dump (nx_menu *menu_bar);
 void menu_urlmenu (GdkEvent *event, char *url);
 void menu_chanmenu (session *sess, GdkEvent *event, char *chan);
 void menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean istree);
@@ -37,7 +37,6 @@ void usermenu_update (void);
 nx_item *menu_toggle_item (char *label, nx_menu *menu, nx_item_cb callback, void *userdata, int state);
 nx_item *menu_quick_item (char *cmd, char *label, nx_menu *menu, int flags, gpointer userdata, char *icon);
 nx_menu *menu_quick_sub (char *name, nx_menu *menu, nx_item **sub_item_ret, int flags, int pos);
-GtkWidget *create_icon_menu (char *labeltext, void *stock_name, int is_stock);
 void menu_create (nx_menu *menu, GSList *list, char *target, int check_path);
 void menu_bar_toggle (void);
 void menu_add_plugin_items (nx_menu *menu, char *root, char *target);
