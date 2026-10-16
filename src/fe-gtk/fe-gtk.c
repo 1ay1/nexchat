@@ -402,6 +402,21 @@ fe_apply_css (void)
 		"#hexchat-scrollbar { -GtkScrollbar-has-backward-stepper: true;"
 		" -GtkScrollbar-has-forward-stepper: true; }\n");
 
+	/* Channel tabs, the nick button and the "3 ops, 16 total" box: GTK2
+	   buttons were text + a few px; GTK3 themes pad buttons to ~32px tall,
+	   which makes the tab bar half again as high. Shrink our own buttons
+	   only, keep the theme's look otherwise. */
+	g_string_append (css,
+		"#hexchat-tab { padding: 1px 4px; min-height: 0; min-width: 0; border-radius: 0; }\n"
+		/* GTK2 drew the current tab sunken with a dark edge; GTK3's :checked is
+		   only a slightly darker fill. Add the inset edge back. */
+		"#hexchat-tab:checked { box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45); }\n"
+		"#hexchat-tab label { padding: 0; }\n"
+		"#hexchat-nickbutton { padding: 1px 4px; min-height: 0; }\n"
+		/* Character Chart: 28px-wide cells like GTK2 */
+		"#hexchat-charbutton { padding: 0; min-width: 0; min-height: 23px; border-radius: 0; }\n"
+		"#hexchat-ulistinfo label { padding: 1px 2px; }\n");
+
 	if (!gtk_css_provider_load_from_data (fe_css_provider, css->str, -1, &err))
 	{
 		g_warning ("nexchat css: %s\n%s", err->message, css->str);
@@ -414,6 +429,7 @@ fe_apply_css (void)
 void
 fe_init (void)
 {
+	gtkutil_force_images ();
 	palette_load ();
 	key_init ();
 	pixmaps_init ();

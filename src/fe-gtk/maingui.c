@@ -2515,6 +2515,7 @@ mg_create_userlist (session_gui *gui, GtkWidget *box)
 	gtkutil_container_add (GTK_WIDGET (box), vbox);
 
 	frame = gtk_frame_new (NULL);
+	gtk_widget_set_name (frame, "hexchat-ulistinfo");
 	if (prefs.hex_gui_ulist_count)
 		gtk_box_pack_start (GTK_BOX (vbox), frame, 0, 0, GUI_SPACING);
 
@@ -3016,6 +3017,7 @@ mg_create_entry (session *sess, GtkWidget *box)
 	gtk_box_pack_start (GTK_BOX (hbox), gui->nick_box, 0, 0, 0);
 
 	gui->nick_label = but = gtk_button_new_with_label (sess->server->nick);
+	gtk_widget_set_name (but, "hexchat-nickbutton");
 	gtk_button_set_relief (GTK_BUTTON (but), GTK_RELIEF_NONE);
 	gtk_widget_set_can_focus (but, FALSE);
 	gtk_box_pack_end (GTK_BOX (gui->nick_box), but, 0, 0, 0);

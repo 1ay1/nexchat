@@ -75,6 +75,44 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 		gtk_container_add (GTK_CONTAINER (container), child);
 }
 
+/* Every GtkButton / GtkImageMenuItem keeps its image visible. A hook on
+   GtkWidget::realize catches all of them: our own gtk_button_set_image
+   calls, gtk_button_new_from_stock, dialog buttons and plugins' menu items,
+   without touching each call site. (GObject::notify can't take hooks.) */
+static gboolean
+gtkutil_realize_hook (GSignalInvocationHint *ihint, guint n_params,
+							 const GValue *params, gpointer data)
+{
+	GObject *obj = g_value_get_object (&params[0]);
+
+	if (GTK_IS_BUTTON (obj))
+	{
+		if (!gtk_button_get_always_show_image (GTK_BUTTON (obj)))
+			gtk_button_set_always_show_image (GTK_BUTTON (obj), TRUE);
+	}
+	else if (GTK_IS_IMAGE_MENU_ITEM (obj))
+	{
+		if (!gtk_image_menu_item_get_always_show_image (GTK_IMAGE_MENU_ITEM (obj)))
+			gtk_image_menu_item_set_always_show_image (GTK_IMAGE_MENU_ITEM (obj), TRUE);
+	}
+	return TRUE;	/* stay connected */
+}
+
+void
+gtkutil_force_images (void)
+{
+	static gboolean done;
+	guint sig;
+
+	if (done)
+		return;
+	done = TRUE;
+
+	g_type_class_unref (g_type_class_ref (GTK_TYPE_WIDGET));
+	sig = g_signal_lookup ("realize", GTK_TYPE_WIDGET);
+	g_signal_add_emission_hook (sig, 0, gtkutil_realize_hook, NULL, NULL);
+}
+
 void
 gtkutil_grid_attach (GtkWidget *grid, GtkWidget *child,
 							int left, int right, int top, int bottom,

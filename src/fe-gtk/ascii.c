@@ -150,6 +150,7 @@ ascii_open (void)
 		name[len] = 0;
 
 		but = gtk_button_new_with_label (name);
+		gtk_widget_set_name (but, "hexchat-charbutton");
 		gtk_widget_set_size_request (but, 28, -1);
 		g_signal_connect (G_OBJECT (but), "clicked",
 								G_CALLBACK (ascii_click), NULL);

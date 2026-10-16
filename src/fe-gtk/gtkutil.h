@@ -30,6 +30,11 @@ GtkWidget *gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, in
 /* gtk_container_add with GTK2 semantics for boxes (expand + fill) */
 void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
 
+/* GTK3 hides images on buttons and menu items unless the theme/setting
+   asks for them (gtk-button-images / gtk-menu-images default to FALSE);
+   HexChat on GTK2 showed them everywhere. Call once at startup. */
+void gtkutil_force_images (void);
+
 /* GtkTable's attach options. GtkAttachOptions lives in GTK3's deprecated
    gtktable.h and is gone in GTK4, so we carry our own copy. */
 #define GU_EXPAND (1 << 0)
