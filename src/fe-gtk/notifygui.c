@@ -351,38 +351,38 @@ fe_notify_ask (char *nick, char *networks)
 		gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 
-	table = gtk_table_new (2, 3, FALSE);
+	table = gtk_grid_new ();
 	gtk_container_set_border_width (GTK_CONTAINER (table), 12);
-	gtk_table_set_row_spacings (GTK_TABLE (table), 3);
-	gtk_table_set_col_spacings (GTK_TABLE (table), 8);
+	gtk_grid_set_row_spacing (GTK_GRID (table), 3);
+	gtk_grid_set_column_spacing (GTK_GRID (table), 8);
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), table);
 
 	label = gtk_label_new (msg);
-	gtk_table_attach_defaults (GTK_TABLE (table), label, 0, 1, 0, 1);
+	gtkutil_grid_attach (table, label, 0, 1, 0, 1, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	entry = gtk_entry_new ();
 	gtk_entry_set_text (GTK_ENTRY (entry), nick);
 	g_signal_connect (G_OBJECT (entry), "activate",
 						 	G_CALLBACK (notifygui_add_enter), dialog);
-	gtk_table_attach_defaults (GTK_TABLE (table), entry, 1, 2, 0, 1);
+	gtkutil_grid_attach (table, entry, 1, 2, 0, 1, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (notifygui_add_cb), entry);
 
 	label = gtk_label_new (_("Notify on these networks:"));
-	gtk_table_attach_defaults (GTK_TABLE (table), label, 0, 1, 2, 3);
+	gtkutil_grid_attach (table, label, 0, 1, 2, 3, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	wid = gtk_entry_new ();
 	g_object_set_data (G_OBJECT (entry), "net", wid);
 	g_signal_connect (G_OBJECT (wid), "activate",
 						 	G_CALLBACK (notifygui_add_enter), dialog);
 	gtk_entry_set_text (GTK_ENTRY (wid), networks ? networks : "ALL");
-	gtk_table_attach_defaults (GTK_TABLE (table), wid, 1, 2, 2, 3);
+	gtkutil_grid_attach (table, wid, 1, 2, 2, 3, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	label = gtk_label_new (NULL);
 	g_snprintf (buf, sizeof (buf), "<i><span size=\"smaller\">%s</span></i>", _("Comma separated list of networks is accepted."));
 	gtk_label_set_markup (GTK_LABEL (label), buf);
-	gtk_table_attach_defaults (GTK_TABLE (table), label, 1, 2, 3, 4);
+	gtkutil_grid_attach (table, label, 1, 2, 3, 4, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	gtk_widget_show_all (dialog);
 }

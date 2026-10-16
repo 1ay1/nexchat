@@ -457,7 +457,7 @@ tray_make_item (GtkWidget *menu, char *label, void *callback, void *userdata)
 	if (label)
 		item = gtk_menu_item_new_with_mnemonic (label);
 	else
-		item = gtk_menu_item_new ();
+		item = gtk_separator_menu_item_new ();	/* GTK3: empty item is a gap, not a line */
 	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 	g_signal_connect (G_OBJECT (item), "activate",
 							G_CALLBACK (callback), userdata);

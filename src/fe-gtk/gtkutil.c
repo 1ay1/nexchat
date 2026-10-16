@@ -75,6 +75,24 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 		gtk_container_add (GTK_CONTAINER (container), child);
 }
 
+void
+gtkutil_grid_attach (GtkWidget *grid, GtkWidget *child,
+							int left, int right, int top, int bottom,
+							int xoptions, int yoptions, int xpadding, int ypadding)
+{
+	/* explicit FALSE too: GtkTable never let a child's own wish to expand
+	   leak into a column that wasn't attached with EXPAND */
+	gtk_widget_set_hexpand (child, (xoptions & GU_EXPAND) != 0);
+	gtk_widget_set_vexpand (child, (yoptions & GU_EXPAND) != 0);
+	gtk_widget_set_halign (child, (xoptions & GU_FILL) ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER);
+	gtk_widget_set_valign (child, (yoptions & GU_FILL) ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER);
+	gtk_widget_set_margin_start (child, xpadding);
+	gtk_widget_set_margin_end (child, xpadding);
+	gtk_widget_set_margin_top (child, ypadding);
+	gtk_widget_set_margin_bottom (child, ypadding);
+	gtk_grid_attach (GTK_GRID (grid), child, left, top, right - left, bottom - top);
+}
+
 struct file_req
 {
 	GtkWidget *dialog;

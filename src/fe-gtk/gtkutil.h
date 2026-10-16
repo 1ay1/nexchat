@@ -30,6 +30,19 @@ GtkWidget *gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, in
 /* gtk_container_add with GTK2 semantics for boxes (expand + fill) */
 void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
 
+/* GtkTable's attach options. GtkAttachOptions lives in GTK3's deprecated
+   gtktable.h and is gone in GTK4, so we carry our own copy. */
+#define GU_EXPAND (1 << 0)
+#define GU_SHRINK (1 << 1)
+#define GU_FILL   (1 << 2)
+
+/* gtk_table_attach() on a GtkGrid: same cell coordinates (left/right/top/
+   bottom edges), EXPAND -> h/vexpand, FILL -> align FILL else CENTER,
+   padding -> margins on both sides. SHRINK has no GTK3 meaning. */
+void gtkutil_grid_attach (GtkWidget *grid, GtkWidget *child,
+								  int left, int right, int top, int bottom,
+								  int xoptions, int yoptions, int xpadding, int ypadding);
+
 void gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *userdata, char *filter, char *extensions, int flags);
 void gtkutil_destroy (GtkWidget * igad, GtkWidget * dgad);
 void gtkutil_destroy_on_esc (GtkWidget *win);

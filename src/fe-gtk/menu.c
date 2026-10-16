@@ -269,7 +269,9 @@ menu_quick_item (char *cmd, char *label, GtkWidget * menu, int flags,
 	char *path;
 
 	if (!label)
-		item = gtk_menu_item_new ();
+		/* GTK2 drew an empty GtkMenuItem as a separator line; GTK3 draws an
+		   empty gap. Use the real thing. */
+		item = gtk_separator_menu_item_new ();
 	else
 	{
 		if (icon)
@@ -2505,7 +2507,7 @@ togitem:
 			goto togitem;
 
 		case M_SEP:
-			item = gtk_menu_item_new ();
+			item = gtk_separator_menu_item_new ();
 			gtk_widget_set_sensitive (item, FALSE);
 			gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 			gtk_widget_show (item);
