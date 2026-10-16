@@ -757,11 +757,20 @@ gtkutil_tray_icon_supported (GtkWindow *window)
 #else
 	GdkScreen *screen = gtk_window_get_screen (window);
 	GdkDisplay *display = gdk_screen_get_display (screen);
-	int screen_number = gdk_screen_get_number (screen);
-	Display *xdisplay = gdk_x11_display_get_xdisplay (display);
-	char *selection_name = g_strdup_printf ("_NET_SYSTEM_TRAY_S%d", screen_number);
-	Atom selection_atom = XInternAtom (xdisplay, selection_name, False);
+	int screen_number;
+	Display *xdisplay;
+	char *selection_name;
+	Atom selection_atom;
 	Window tray_window = None;
+
+	/* a GTK3 build with X11 support may still be running on Wayland etc. */
+	if (!GDK_IS_X11_DISPLAY (display))
+		return TRUE;
+
+	screen_number = gdk_screen_get_number (screen);
+	xdisplay = gdk_x11_display_get_xdisplay (display);
+	selection_name = g_strdup_printf ("_NET_SYSTEM_TRAY_S%d", screen_number);
+	selection_atom = XInternAtom (xdisplay, selection_name, False);
 
 	XGrabServer (xdisplay);
 

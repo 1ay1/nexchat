@@ -102,7 +102,9 @@ hexchat_common_dep = declare_dependency(
   link_with: hexchat_common,
   include_directories: common_includes,
   compile_args: common_cflags,
-  dependencies: libgio_dep,
+  # hexchat.h includes <openssl/ssl.h>, so every frontend needs its include
+  # path too (Homebrew keeps OpenSSL out of the default search path)
+  dependencies: libssl_dep.found() ? [libgio_dep, libssl_dep] : [libgio_dep],
 )
 
 hexchat_plugin_dep = declare_dependency(

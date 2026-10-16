@@ -49,26 +49,29 @@ GdkPixbuf *pix_tree_util;
 GdkPixbuf *pix_book;
 GdkPixbuf *pix_hexchat;
 
-static GdkPixmap *
+static GdkPixbuf *
 pixmap_load_from_file_real (char *file)
 {
-	GdkPixbuf *img;
-	GdkPixmap *pixmap;
-
-	img = gdk_pixbuf_new_from_file (file, 0);
-	if (!img)
-		return NULL;
-	gdk_pixbuf_render_pixmap_and_mask (img, &pixmap, NULL, 128);
-	g_object_unref (img);
-
-	return pixmap;
+	/* GTK2 turned this into a server-side pixmap, dropping alpha below 128.
+	   The chat view tiles it as-is now; flatten alpha the same way so a
+	   semi-transparent image still looks like it did. */
+	GdkPixbuf *img = gdk_pixbuf_new_from_file (file, 0);
+	if (img && gdk_pixbuf_get_has_alpha (img))
+	{
+		GdkPixbuf *flat = gdk_pixbuf_composite_color_simple (img,
+							gdk_pixbuf_get_width (img), gdk_pixbuf_get_height (img),
+							GDK_INTERP_NEAREST, 255, 8, 0, 0);
+		g_object_unref (img);
+		img = flat;
+	}
+	return img;
 }
 
-GdkPixmap *
+GdkPixbuf *
 pixmap_load_from_file (char *filename)
 {
 	char buf[256];
-	GdkPixmap *pix;
+	GdkPixbuf *pix;
 
 	if (filename[0] == '\0')
 		return NULL;

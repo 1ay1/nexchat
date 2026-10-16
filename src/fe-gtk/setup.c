@@ -1406,11 +1406,9 @@ setup_color_ok_cb (GtkWidget *button, GtkWidget *dialog)
 {
 	GtkColorSelectionDialog *cdialog = GTK_COLOR_SELECTION_DIALOG (dialog);
 	GdkColor *col;
-	GdkColor old_color;
 	GtkStyle *style;
 
 	col = g_object_get_data (G_OBJECT (button), "c");
-	old_color = *col;
 
 	button = g_object_get_data (G_OBJECT (button), "b");
 
@@ -1424,15 +1422,10 @@ setup_color_ok_cb (GtkWidget *button, GtkWidget *dialog)
 
 	gtk_color_selection_get_current_color (GTK_COLOR_SELECTION (gtk_color_selection_dialog_get_color_selection (cdialog)), col);
 
-	gdk_colormap_alloc_color (gtk_widget_get_colormap (button), col, TRUE, TRUE);
-
 	style = gtk_style_new ();
 	style->bg[0] = *col;
 	gtk_widget_set_style (button, style);
 	g_object_unref (style);
-
-	/* is this line correct?? */
-	gdk_colormap_free_colors (gtk_widget_get_colormap (button), &old_color, 1);
 
 	gtk_widget_destroy (dialog);
 }

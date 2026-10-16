@@ -77,6 +77,13 @@ typedef enum marker_reset_reason_e {
 	MARKER_RESET_BY_CLEAR
 } marker_reset_reason;
 
+/* what a GdkGC used to carry for us: a foreground and a background colour */
+typedef struct
+{
+	GdkColor fg;
+	GdkColor bg;
+} xtext_gc;
+
 typedef struct {
 	GtkXText *xtext;					/* attached to this widget */
 
@@ -130,8 +137,10 @@ struct _GtkXText
 	xtext_buffer *selection_buffer;
 
 	GtkAdjustment *adj;
-	GdkPixmap *pixmap;				/* 0 = use palette[19] */
-	GdkDrawable *draw_buf;			/* points to ->window */
+	cairo_pattern_t *pixmap;		/* tiled background image, NULL = use palette[XTEXT_BG] */
+	cairo_surface_t *backing;		/* everything is rendered here, draw() copies it out */
+	cairo_t *cr;						/* drawing context on ->backing */
+	int backing_scale;				/* HiDPI scale ->backing was made for */
 	GdkCursor *hand_cursor;
 	GdkCursor *resize_cursor;
 
@@ -142,12 +151,12 @@ struct _GtkXText
 	int last_win_h;
 	int last_win_w;
 
-	GdkGC *bgc;						  /* backing pixmap */
-	GdkGC *fgc;						  /* text foreground color */
-	GdkGC *light_gc;				  /* sep bar */
-	GdkGC *dark_gc;
-	GdkGC *thin_gc;
-	GdkGC *marker_gc;
+	xtext_gc bgc;					  /* background */
+	xtext_gc fgc;					  /* text foreground color */
+	xtext_gc light_gc;			  /* sep bar */
+	xtext_gc dark_gc;
+	xtext_gc thin_gc;
+	xtext_gc marker_gc;
 	GdkColor palette[XTEXT_COLS];
 
 	gint io_tag;					  /* for delayed refresh events */
@@ -165,8 +174,6 @@ struct _GtkXText
 
 	int col_fore;
 	int col_back;
-
-	int depth;						  /* gdk window depth */
 
 	char num[8];					  /* for parsing mirc color */
 	int nc;							  /* offset into xtext->num */
@@ -196,9 +203,6 @@ struct _GtkXText
 
 	int jump_out_offset;	/* point at which to stop rendering */
 	int jump_in_offset;	/* "" start rendering */
-
-	int ts_x;			/* ts origin for ->bgc GC */
-	int ts_y;
 
 	int clip_x;			/* clipping (x directions) */
 	int clip_x2;		/* from x to x2 */
@@ -235,6 +239,8 @@ struct _GtkXText
 	unsigned int recycle:1;
 	unsigned int force_render:1;
 	unsigned int color_paste:1; /* CTRL was pressed when selection finished */
+	unsigned int backing_stale:1;	/* backing surface needs a full render_page */
+	unsigned int in_draw:1;			/* inside draw(): don't queue more redraws */
 
 	/* settings/prefs */
 	unsigned int auto_indent:1;
@@ -249,7 +255,6 @@ struct _GtkXTextClass
 {
 	GtkWidgetClass parent_class;
 	void (*word_click) (GtkXText * xtext, char *word, GdkEventButton * event);
-	void (*set_scroll_adjustments) (GtkXText *xtext, GtkAdjustment *hadj, GtkAdjustment *vadj);
 };
 
 GtkWidget *gtk_xtext_new (GdkColor palette[], int separator);
@@ -259,7 +264,7 @@ void gtk_xtext_append_indent (xtext_buffer *buf,
 										unsigned char *right_text, int right_len,
 										time_t stamp);
 int gtk_xtext_set_font (GtkXText *xtext, char *name);
-void gtk_xtext_set_background (GtkXText * xtext, GdkPixmap * pixmap);
+void gtk_xtext_set_background (GtkXText * xtext, GdkPixbuf * pixbuf);
 void gtk_xtext_set_palette (GtkXText * xtext, GdkColor palette[]);
 void gtk_xtext_clear (xtext_buffer *buf, int lines);
 void gtk_xtext_save (GtkXText * xtext, int fh);

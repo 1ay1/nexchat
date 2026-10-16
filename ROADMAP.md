@@ -98,16 +98,24 @@ Plugin compatibility (nothing breaks):
 
 Goal: it builds against GTK3 and looks the same as the GTK2 build, item by item on the checklist.
 
-- [ ] meson: `gtk+-3.0`. Keep a short-lived `-Dgtk=2|3` switch only if it helps compare.
+- [x] meson: `gtk+-3.0`. No `-Dgtk=2|3` switch: dual-building would mean `#ifdef`s through 34k lines. The GTK2 reference is built from `b544ac33` in a worktree instead (`tests/ux/build-gtk2-reference.sh`). `GTK_DISABLE_DEPRECATED` is off until phase 3 turns it back on.
 - [ ] Boxes and tables: `gtk_hbox/vbox_new` becomes `gtk_box_new`, GtkTable becomes GtkGrid. Copy the padding and spacing values exactly so the dialogs line up the same way.
 - [ ] Colours: GdkColor becomes GdkRGBA. Keep `palette.c` and the `colors.conf` format as they are.
 - [ ] Styling: `gtk_widget_modify_*` and `gtk_rc_*` become a GtkCssProvider. The rules: the HexChat-specific styles stay (the input box and user list fonts and colours follow the preferences), and nothing else gets a new look. Theme-wide CSS is not allowed.
-- [ ] `xtext.c` drawing: GdkGC, GdkPixmap and `gdk_draw_*` become cairo, `expose-event` becomes `draw`. Keep the same layout code (line wrapping, indent, separator line, marker line, selection, URL hover). Only the drawing calls change.
-- [ ] `xtext` scrolling: move the GtkAdjustment to the GtkScrollable interface.
-- [ ] Spell entry: port `sexy-spell-entry.c` to GTK3's GtkEntry (it can still be subclassed in GTK3) and enchant-2.
-- [ ] Remove the transparent background feature that reads `_XROOTPMAP_ID` from the root window. It doesn't work under compositors. Keep the window opacity pref.
-- [ ] Get rid of GtkObject, `gtk_signal_*` and `GTK_OBJECT` (5 uses).
+- [x] `xtext.c` drawing: GdkGC, GdkPixmap and `gdk_draw_*` became cairo, `expose-event` became `draw`. The render code is untouched; it draws into an off-screen image surface at the moment it used to draw to the window, and `::draw` copies it out. The scroll fast path (copy the backing up/down, render only the new strip) now also runs on macOS, where GTK2 had it `#ifdef`'d off. The background image is a GdkPixbuf tiled with a cairo pattern.
+- [x] `xtext` scrolling: GTK3 has no `set_scroll_adjustments`; xtext owns its adjustment from init and every place that wrote `adj->value`/`upper` directly goes through `gtk_adjustment_configure` with our own handler blocked, so value-changed fires exactly when it used to. GtkScrollable isn't needed: nothing puts xtext in a GtkScrolledWindow except two small read-only views.
+- [~] Spell entry: compiles and draws on GTK3 (`draw`, preedit length tracked via `preedit-changed`, click position via `gtk_entry_get_layout_offsets`). Still to check: enchant-2 on all platforms, IM preedit with a real input method.
+- [x] Transparent background (`_XROOTPMAP_ID`): already gone upstream; nothing left to remove.
+- [x] GtkObject, `gtk_signal_*`, `GTK_OBJECT`: gone.
 - [ ] Check it on X11, Wayland, Windows and macOS.
+  - X11 (Xvfb on macOS, `/opt/X11/bin/Xvfb`): connects, joins, renders. Screenshot diff vs GTK2 below.
+
+Known visible differences on the first GTK3 build, all from the GTK3 theme (Adwaita) not from our code, and all to be fixed by the CSS step above:
+- Channel tree and user list rows are shorter and use the theme's smaller default font; GTK2 inherited `hexchat.conf`'s font through `gtk_widget_set_style` and GTK3 ignores GtkStyle for treeviews.
+- Input box gets Adwaita's blue focus ring and rounded frame.
+- Tree selection is Adwaita blue instead of the grey GTK2 Raleigh selection.
+- Scrollbar is the GTK3 overlay-style slider instead of the stepper scrollbar.
+- The text view itself (fonts, colours, indent, separator, wrapping, nick colours, bold) matches.
 
 Exit criteria: the parity checklist matches the GTK2 reference, and the smoke test passes.
 

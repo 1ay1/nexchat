@@ -28,14 +28,15 @@ hexchat_gtk_sources = [
   'xtext.c'
 ]
 
-gtk_dep = dependency('gtk+-2.0', version: '>= 2.24.0')
+gtk_dep = dependency('gtk+-3.0', version: '>= 3.22.0')
 hexchat_gtk_deps = [
   hexchat_common_dep,
   libgmodule_dep, # used by libsexy
   gtk_dep
 ]
 
-if gtk_dep.get_pkgconfig_variable('target') == 'x11'
+# GTK2 exposed a single 'target'; GTK3 builds several backends, see 'targets'
+if gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   hexchat_gtk_deps += dependency('x11')
 endif
 

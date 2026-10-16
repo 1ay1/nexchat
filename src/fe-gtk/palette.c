@@ -90,17 +90,8 @@ GdkColor colors[] = {
 void
 palette_alloc (GtkWidget * widget)
 {
-	int i;
-	static int done_alloc = FALSE;
-	GdkColormap *cmap;
-
-	if (!done_alloc)		  /* don't do it again */
-	{
-		done_alloc = TRUE;
-		cmap = gtk_widget_get_colormap (widget);
-		for (i = MAX_COL; i >= 0; i--)
-			gdk_colormap_alloc_color (cmap, &colors[i], FALSE, TRUE);
-	}
+	/* GTK3 is always TrueColor: no colormap allocation needed */
+	(void) widget;
 }
 
 void

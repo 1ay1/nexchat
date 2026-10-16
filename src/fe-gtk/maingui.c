@@ -559,13 +559,11 @@ mg_progressbar_update (GtkWidget *bar)
 		if (type == 0)
 		{
 			type = 1;
-			gtk_progress_bar_set_orientation ((GtkProgressBar *) bar,
-														 GTK_PROGRESS_RIGHT_TO_LEFT);
+			gtk_progress_bar_set_inverted ((GtkProgressBar *) bar, TRUE);
 		} else
 		{
 			type = 0;
-			gtk_progress_bar_set_orientation ((GtkProgressBar *) bar,
-														 GTK_PROGRESS_LEFT_TO_RIGHT);
+			gtk_progress_bar_set_inverted ((GtkProgressBar *) bar, FALSE);
 		}
 		pos = 0.05;
 	}
@@ -3785,18 +3783,16 @@ gboolean
 mg_drag_begin_cb (GtkWidget *widget, GdkDragContext *context, gpointer userdata)
 {
 	int width, height;
-	GdkColormap *cmap;
 	GdkPixbuf *pix, *pix2;
 
 	/* ignore file drops */
 	if (!mg_is_gui_target (context))
 		return FALSE;
 
-	cmap = gtk_widget_get_colormap (widget);
 	width = gdk_window_get_width (gtk_widget_get_window (widget));
 	height = gdk_window_get_height (gtk_widget_get_window (widget));
 
-	pix = gdk_pixbuf_get_from_drawable (NULL, gtk_widget_get_window (widget), cmap, 0, 0, 0, 0, width, height);
+	pix = gdk_pixbuf_get_from_window (gtk_widget_get_window (widget), 0, 0, width, height);
 	pix2 = gdk_pixbuf_scale_simple (pix, width * 4 / 5, height / 2, GDK_INTERP_HYPER);
 	g_object_unref (pix);
 
@@ -3844,77 +3840,91 @@ mg_drag_drop_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint
 
 /* draw highlight rectangle in the destination */
 
+/* GTK2 XOR-drew the drop-target outline straight onto the window from
+   drag-motion. GTK3 only allows drawing inside ::draw, so drag-motion now
+   records which half to outline and ::draw paints it. DIFFERENCE is cairo's
+   nearest thing to GDK_XOR. */
+
+#define MG_DROP_HALF "mg-drop-half"	/* 0 = none, 1 = top, 2 = bottom */
+#define MG_DROP_COL "mg-drop-col"
+
+static gboolean
+mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
+{
+	int which = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (widget), MG_DROP_HALF));
+	GdkRGBA *col = g_object_get_data (G_OBJECT (widget), MG_DROP_COL);
+	int width, height, half, y;
+
+	if (!which || !col)
+		return FALSE;
+
+	width = gtk_widget_get_allocated_width (widget);
+	height = gtk_widget_get_allocated_height (widget);
+	half = height / 2;
+	y = (which == 1) ? 0 : half;
+
+	cairo_save (cr);
+	cairo_set_operator (cr, CAIRO_OPERATOR_DIFFERENCE);
+	gdk_cairo_set_source_rgba (cr, col);
+	cairo_set_line_width (cr, 1);
+	/* same two nested 1px rectangles as gdk_draw_rectangle drew */
+	if (which == 1)
+	{
+		cairo_rectangle (cr, 1 + 0.5, 2 + 0.5, width - 3, half - 4);
+		cairo_rectangle (cr, 0 + 0.5, 1 + 0.5, width - 1, half - 2);
+	} else
+	{
+		cairo_rectangle (cr, 0 + 0.5, y + 1 + 0.5, width - 1, half - 2);
+		cairo_rectangle (cr, 1 + 0.5, y + 2 + 0.5, width - 3, half - 4);
+	}
+	cairo_stroke (cr);
+	cairo_restore (cr);
+
+	return FALSE;
+}
+
+static void
+mg_drag_highlight_clear_cb (GtkWidget *widget, GdkDragContext *context, guint time, gpointer userdata)
+{
+	if (g_object_get_data (G_OBJECT (widget), MG_DROP_HALF))
+	{
+		g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, NULL);
+		gtk_widget_queue_draw (widget);
+	}
+}
+
 gboolean
 mg_drag_motion_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint time, gpointer scbar)
 {
-	GdkGC *gc;
-	GdkColor col;
-	GdkGCValues val;
-	int half, width, height;
-	int ox, oy;
-	GdkDrawable *draw;
-	GtkAllocation allocation;
+	GdkRGBA *col;
+	int which;
 
 	/* ignore file drops */
 	if (!mg_is_gui_target (context))
 		return FALSE;
 
-	if (scbar)	/* scrollbar */
+	/* hook up the painter the first time this widget is a drop target */
+	if (!g_object_get_data (G_OBJECT (widget), MG_DROP_COL))
 	{
-		gtk_widget_get_allocation (widget, &allocation);
-		ox = allocation.x;
-		oy = allocation.y;
-		width = allocation.width;
-		height = allocation.height;
-		draw = gtk_widget_get_window (widget);
-	}
-	else
-	{
-		ox = oy = 0;
-		width = gdk_window_get_width (gtk_widget_get_window (widget));
-		height = gdk_window_get_height (gtk_widget_get_window (widget));
-		draw = gtk_widget_get_window (widget);
+		g_signal_connect_after (G_OBJECT (widget), "draw",
+								G_CALLBACK (mg_drag_highlight_draw_cb), NULL);
+		g_signal_connect (G_OBJECT (widget), "drag-leave",
+								G_CALLBACK (mg_drag_highlight_clear_cb), NULL);
 	}
 
-	val.subwindow_mode = GDK_INCLUDE_INFERIORS;
-	val.graphics_exposures = 0;
-	val.function = GDK_XOR;
+	/* a new random colour on every motion, as before */
+	col = g_new (GdkRGBA, 1);
+	col->red = (rand() % 0xffff) / 65535.0;
+	col->green = (rand() % 0xffff) / 65535.0;
+	col->blue = (rand() % 0xffff) / 65535.0;
+	col->alpha = 1.0;
+	g_object_set_data_full (G_OBJECT (widget), MG_DROP_COL, col, g_free);
 
-	gc = gdk_gc_new_with_values (gtk_widget_get_window (widget), &val, GDK_GC_EXPOSURES | GDK_GC_SUBWINDOW | GDK_GC_FUNCTION);
-	col.red = rand() % 0xffff;
-	col.green = rand() % 0xffff;
-	col.blue = rand() % 0xffff;
-	gdk_colormap_alloc_color (gtk_widget_get_colormap (widget), &col, FALSE, TRUE);
-	gdk_gc_set_foreground (gc, &col);
-
-	half = height / 2;
-
-#if 0
-	/* are both tree/userlist on the same side? */
-	paned = (GtkPaned *)widget->parent->parent;
-	if (paned->child1 != NULL && paned->child2 != NULL)
-	{
-		gdk_draw_rectangle (draw, gc, 0, 1, 2, width - 3, height - 4);
-		gdk_draw_rectangle (draw, gc, 0, 0, 1, width - 1, height - 2);
-		g_object_unref (gc);
-		return TRUE;
-	}
-#endif
-
-	if (y < half)
-	{
-		gdk_draw_rectangle (draw, gc, FALSE, 1 + ox, 2 + oy, width - 3, half - 4);
-		gdk_draw_rectangle (draw, gc, FALSE, 0 + ox, 1 + oy, width - 1, half - 2);
-		gtk_widget_queue_draw_area (widget, ox, half + oy, width, height - half);
-	}
-	else
-	{
-		gdk_draw_rectangle (draw, gc, FALSE, 0 + ox, half + 1 + oy, width - 1, half - 2);
-		gdk_draw_rectangle (draw, gc, FALSE, 1 + ox, half + 2 + oy, width - 3, half - 4);
-		gtk_widget_queue_draw_area (widget, ox, oy, width, half);
-	}
-
-	g_object_unref (gc);
+	/* y is widget-relative in GTK3 for both cases, scrollbar included, so the
+	   ox/oy allocation offset the old code needed for scbar is gone */
+	which = (y < gtk_widget_get_allocated_height (widget) / 2) ? 1 : 2;
+	g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, GINT_TO_POINTER (which));
+	gtk_widget_queue_draw (widget);
 
 	return TRUE;
 }
