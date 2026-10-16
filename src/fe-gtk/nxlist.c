@@ -495,6 +495,9 @@ struct _nx_col
 	gboolean expand_set;
 	int min_width;
 	float xalign;
+	nx_accel_cb accel;
+	gpointer accel_ud;
+	char **choices;
 };
 
 /* GtkTreeView gave the last column the space left over unless some column
@@ -794,11 +797,98 @@ cell_start_editing (cell *c)
 	if (!c->entry || !c->row || !cell_is_editable (c))
 		return;
 	s = nx_row_peek_string (c->row, c->col->value_col);
-	gtk_editable_set_text (GTK_EDITABLE (c->entry), s ? s : "");
+	if (c->col->kind == NX_COL_ACCEL)
+		gtk_editable_set_text (GTK_EDITABLE (c->entry), g_dgettext ("gtk30", "New accelerator…"));
+	else if (c->col->kind == NX_COL_COMBO)
+	{
+		guint i;
+		g_object_set_data (G_OBJECT (c->entry), "nx-quiet", GINT_TO_POINTER (1));
+		gtk_drop_down_set_selected (GTK_DROP_DOWN (c->entry), GTK_INVALID_LIST_POSITION);
+		for (i = 0; c->col->choices && c->col->choices[i]; i++)
+			if (s && !strcmp (s, c->col->choices[i]))
+				gtk_drop_down_set_selected (GTK_DROP_DOWN (c->entry), i);
+		g_object_set_data (G_OBJECT (c->entry), "nx-quiet", NULL);
+	}
+	else
+		gtk_editable_set_text (GTK_EDITABLE (c->entry), s ? s : "");
 	gtk_widget_set_visible (c->label, FALSE);
 	gtk_widget_set_visible (c->entry, TRUE);
 	gtk_widget_grab_focus (c->entry);
-	gtk_editable_select_region (GTK_EDITABLE (c->entry), 0, -1);
+	if (c->col->kind == NX_COL_COMBO)
+	{
+		/* pop the list up, as GTK3 did; the drop-down's first child is its
+		   toggle button ("activate" only came in GTK 4.18) */
+		GtkWidget *b = gtk_widget_get_first_child (c->entry);
+		if (GTK_IS_TOGGLE_BUTTON (b))
+			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (b), TRUE);
+	}
+	else if (GTK_IS_EDITABLE (c->entry) && c->col->kind != NX_COL_ACCEL)
+		gtk_editable_select_region (GTK_EDITABLE (c->entry), 0, -1);
+}
+
+/* back to showing the label, without an edit */
+static void
+cell_end_editing (cell *c)
+{
+	gtk_widget_set_visible (c->entry, FALSE);
+	gtk_widget_set_visible (c->label, TRUE);
+	gtk_widget_grab_focus (c->col->view);
+}
+
+/* NX_COL_ACCEL: the next key press is the new accelerator, Escape cancels
+   and BackSpace clears, as GtkCellRendererAccel did */
+static gboolean
+accel_key (GtkEventControllerKey *k, guint keyval, guint code, GdkModifierType st, cell *c)
+{
+	nx_row *r = c->row;
+
+	if (gtk_widget_get_visible (c->entry) == FALSE)
+		return FALSE;
+	switch (keyval)
+	{
+	case GDK_KEY_Shift_L: case GDK_KEY_Shift_R: case GDK_KEY_Control_L: case GDK_KEY_Control_R:
+	case GDK_KEY_Alt_L: case GDK_KEY_Alt_R: case GDK_KEY_Super_L: case GDK_KEY_Super_R:
+	case GDK_KEY_Meta_L: case GDK_KEY_Meta_R: case GDK_KEY_ISO_Level3_Shift:
+		return TRUE;	/* a modifier alone: wait for the key */
+	case GDK_KEY_Escape:
+		cell_end_editing (c);
+		return TRUE;
+	case GDK_KEY_BackSpace:
+		if (!(st & gtk_accelerator_get_default_mod_mask ()))
+		{
+			cell_end_editing (c);
+			if (r && c->col->accel)
+				c->col->accel (r, 0, 0, c->col->accel_ud);
+			return TRUE;
+		}
+		break;
+	}
+	cell_end_editing (c);
+	if (r && c->col->accel)
+		c->col->accel (r, gdk_keyval_to_lower (keyval), st & gtk_accelerator_get_default_mod_mask (),
+							c->col->accel_ud);
+	return TRUE;
+}
+
+static void
+combo_chosen (GtkDropDown *dd, GParamSpec *ps, cell *c)
+{
+	guint i = gtk_drop_down_get_selected (dd);
+	nx_row *r = c->row;
+
+	if (g_object_get_data (G_OBJECT (dd), "nx-quiet") || !gtk_widget_get_visible (c->entry))
+		return;
+	cell_end_editing (c);
+	if (r && i != GTK_INVALID_LIST_POSITION && c->col->edited)
+		c->col->edited (r, c->col->choices[i], c->col->edited_ud);
+}
+
+static void
+combo_focus_out (GtkEventControllerFocus *f, cell *c)
+{
+	/* focus going into its popup is still choosing */
+	if (gtk_widget_get_visible (c->entry) && !gtk_event_controller_focus_contains_focus (f))
+		cell_end_editing (c);
 }
 
 static void
@@ -809,10 +899,13 @@ cell_stop_editing (cell *c, gboolean commit)
 
 	if (!gtk_widget_get_visible (c->entry))
 		return;
+	if (!GTK_IS_EDITABLE (c->entry) || c->col->kind == NX_COL_ACCEL)
+	{
+		cell_end_editing (c);
+		return;
+	}
 	text = g_strdup (gtk_editable_get_text (GTK_EDITABLE (c->entry)));
-	gtk_widget_set_visible (c->entry, FALSE);
-	gtk_widget_set_visible (c->label, TRUE);
-	gtk_widget_grab_focus (c->col->view);
+	cell_end_editing (c);
 	if (commit && r && c->col->edited)
 		c->col->edited (r, text, c->col->edited_ud);
 	g_free (text);
@@ -898,17 +991,43 @@ factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 			gtk_box_append (GTK_BOX (box), c->label);
 			if (col->editable || col->editable_col >= 0)
 			{
-				c->entry = gtk_entry_new ();
+				if (col->kind == NX_COL_ACCEL)
+				{
+					/* an entry only to take focus and keys; it isn't typed in */
+					c->entry = gtk_text_new ();
+					gtk_editable_set_editable (GTK_EDITABLE (c->entry), FALSE);
+					gtk_text_set_propagate_text_width (GTK_TEXT (c->entry), FALSE);
+					k = gtk_event_controller_key_new ();
+					/* before the window's shortcuts: any key is the new accel */
+					gtk_event_controller_set_propagation_phase (k, GTK_PHASE_CAPTURE);
+					g_signal_connect (k, "key-pressed", G_CALLBACK (accel_key), c);
+					gtk_widget_add_controller (c->entry, k);
+					k = gtk_event_controller_focus_new ();
+					g_signal_connect_swapped (k, "leave", G_CALLBACK (cell_end_editing), c);
+					gtk_widget_add_controller (c->entry, k);
+				}
+				else if (col->kind == NX_COL_COMBO)
+				{
+					c->entry = gtk_drop_down_new_from_strings ((const char * const *) col->choices);
+					g_signal_connect (c->entry, "notify::selected", G_CALLBACK (combo_chosen), c);
+					k = gtk_event_controller_focus_new ();
+					g_signal_connect (k, "leave", G_CALLBACK (combo_focus_out), c);
+					gtk_widget_add_controller (c->entry, k);
+				}
+				else
+				{
+					c->entry = gtk_entry_new ();
+					g_signal_connect (c->entry, "activate", G_CALLBACK (entry_activate), c);
+					k = gtk_event_controller_key_new ();
+					g_signal_connect (k, "key-pressed", G_CALLBACK (entry_key), c);
+					gtk_widget_add_controller (c->entry, k);
+					k = gtk_event_controller_focus_new ();
+					g_signal_connect (k, "leave", G_CALLBACK (entry_focus_out), c);
+					gtk_widget_add_controller (c->entry, k);
+				}
 				gtk_widget_set_hexpand (c->entry, TRUE);
 				gtk_widget_set_visible (c->entry, FALSE);
 				gtk_box_append (GTK_BOX (box), c->entry);
-				g_signal_connect (c->entry, "activate", G_CALLBACK (entry_activate), c);
-				k = gtk_event_controller_key_new ();
-				g_signal_connect (k, "key-pressed", G_CALLBACK (entry_key), c);
-				gtk_widget_add_controller (c->entry, k);
-				k = gtk_event_controller_focus_new ();
-				g_signal_connect (k, "leave", G_CALLBACK (entry_focus_out), c);
-				gtk_widget_add_controller (c->entry, k);
 				g = gtk_gesture_click_new ();
 				gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (g), GTK_PHASE_CAPTURE);
 				g_signal_connect (g, "pressed", G_CALLBACK (label_pressed), c);
@@ -1048,7 +1167,10 @@ static void
 view_destroy (GtkWidget *view, gpointer data)
 {
 	view_priv *p = vp (view);
+	GList *l;
 
+	for (l = p->cols; l; l = l->next)
+		g_strfreev (((nx_col *) l->data)->choices);
 	g_list_free_full (p->cols, g_free);
 	p->cols = NULL;
 	g_clear_object (&p->store);
@@ -1344,6 +1466,28 @@ nx_col_on_toggled (nx_col *col, nx_toggled_cb cb, gpointer userdata)
 {
 	col->toggled = cb;
 	col->toggled_ud = userdata;
+}
+
+void
+nx_col_on_accel (nx_col *col, nx_accel_cb cb, gpointer userdata)
+{
+	col->accel = cb;
+	col->accel_ud = userdata;
+	col->editable = TRUE;
+}
+
+void
+nx_col_set_choices (nx_col *col, const char * const *choices)
+{
+	g_strfreev (col->choices);
+	col->choices = g_strdupv ((char **) choices);
+	col->editable = TRUE;
+}
+
+void
+nx_col_set_visible (nx_col *col, gboolean visible)
+{
+	gtk_column_view_column_set_visible (col->col, visible);
 }
 
 void
@@ -2198,6 +2342,8 @@ struct _nx_col
 	nx_row_compare_fn sort_fn;
 	gpointer sort_ud;
 	int sort_id;
+	nx_accel_cb accel;
+	gpointer accel_ud;
 };
 
 typedef struct
@@ -2315,6 +2461,23 @@ text_edited (GtkCellRendererText *cr, char *pathstr, char *text, nx_col *col)
 }
 
 static void
+accel_edited3 (GtkCellRendererAccel *cr, char *pathstr, guint key, GdkModifierType mods,
+					guint code, nx_col *col)
+{
+	view_priv *p = vp (col->view);
+	GtkTreeIter iter;
+
+	if (col->accel && gtk_tree_model_get_iter_from_string (p->store->model, &iter, pathstr))
+		col->accel (nx_store_row_from_iter (p->store, &iter), key, mods, col->accel_ud);
+}
+
+static void
+accel_cleared3 (GtkCellRendererAccel *cr, char *pathstr, nx_col *col)
+{
+	accel_edited3 (cr, pathstr, 0, 0, 0, col);
+}
+
+static void
 toggle_toggled (GtkCellRendererToggle *cr, char *pathstr, nx_col *col)
 {
 	view_priv *p = vp (col->view);
@@ -2348,6 +2511,22 @@ nx_view_add_column (GtkWidget *view, const char *title, int kind, int value_col)
 	case NX_COL_MARKUP:
 		col->render = gtk_cell_renderer_text_new ();
 		attr = "markup";
+		break;
+	case NX_COL_ACCEL:
+		col->render = gtk_cell_renderer_accel_new ();
+		g_object_set (col->render, "editable", TRUE,
+#ifndef WIN32
+						  "accel-mode", GTK_CELL_RENDERER_ACCEL_MODE_OTHER,
+#endif
+						  NULL);
+		g_signal_connect (col->render, "accel-edited", G_CALLBACK (accel_edited3), col);
+		g_signal_connect (col->render, "accel-cleared", G_CALLBACK (accel_cleared3), col);
+		attr = "text";
+		break;
+	case NX_COL_COMBO:
+		col->render = gtk_cell_renderer_combo_new ();
+		g_object_set (col->render, "has-entry", FALSE, "editable", TRUE, "text-column", 0, NULL);
+		attr = "text";
 		break;
 	default:
 		col->render = gtk_cell_renderer_text_new ();
@@ -2496,6 +2675,31 @@ nx_col_on_toggled (nx_col *col, nx_toggled_cb cb, gpointer userdata)
 	col->toggled = cb;
 	col->toggled_ud = userdata;
 	g_object_set (col->render, "activatable", TRUE, NULL);
+}
+
+void
+nx_col_on_accel (nx_col *col, nx_accel_cb cb, gpointer userdata)
+{
+	col->accel = cb;
+	col->accel_ud = userdata;
+}
+
+void
+nx_col_set_choices (nx_col *col, const char * const *choices)
+{
+	GtkListStore *ls = gtk_list_store_new (1, G_TYPE_STRING);
+	GtkTreeIter iter;
+
+	for (; choices && *choices; choices++)
+		gtk_list_store_insert_with_values (ls, &iter, -1, 0, *choices, -1);
+	g_object_set (col->render, "model", ls, NULL);
+	g_object_unref (ls);
+}
+
+void
+nx_col_set_visible (nx_col *col, gboolean visible)
+{
+	gtk_tree_view_column_set_visible (col->col, visible);
 }
 
 static GtkTreeSelection *

@@ -87,7 +87,9 @@ enum
 	NX_COL_TEXT,		/* string */
 	NX_COL_MARKUP,		/* string with pango markup */
 	NX_COL_TOGGLE,		/* boolean, a check box */
-	NX_COL_ICON			/* GdkPixbuf */
+	NX_COL_ICON,			/* GdkPixbuf */
+	NX_COL_ACCEL,		/* string; editing grabs a key combo (nx_col_on_accel) */
+	NX_COL_COMBO		/* string; editing picks from nx_col_set_choices */
 };
 
 /* value_col: the store column shown */
@@ -125,6 +127,13 @@ typedef void (*nx_edited_cb) (nx_row *row, const char *text, gpointer userdata);
 typedef void (*nx_toggled_cb) (nx_row *row, gpointer userdata);
 void nx_col_on_edited (nx_col *col, nx_edited_cb cb, gpointer userdata);
 void nx_col_on_toggled (nx_col *col, nx_toggled_cb cb, gpointer userdata);
+/* NX_COL_ACCEL: the key pressed while editing */
+typedef void (*nx_accel_cb) (nx_row *row, guint key, GdkModifierType mods, gpointer userdata);
+void nx_col_on_accel (nx_col *col, nx_accel_cb cb, gpointer userdata);
+/* NX_COL_COMBO: the choices (NULL-terminated, copied); the choice comes
+   to nx_col_on_edited */
+void nx_col_set_choices (nx_col *col, const char * const *choices);
+void nx_col_set_visible (nx_col *col, gboolean visible);
 
 /* selection: GTK_SELECTION_SINGLE (default), BROWSE, MULTIPLE, NONE */
 void nx_view_set_select_mode (GtkWidget *view, GtkSelectionMode mode);
