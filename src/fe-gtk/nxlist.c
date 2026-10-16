@@ -258,6 +258,9 @@ nx_store_insert (nx_store *s, nx_row *parent, int pos)
 		pos = n;
 	g_list_store_insert (l, pos, r);
 	g_object_unref (r);		/* the list holds it */
+	/* the parent's expander shows once it has a child */
+	if (parent && n == 0)
+		g_signal_emit (parent, row_signals[ROW_CHANGED], 0);
 	return r;
 }
 
@@ -674,6 +677,7 @@ typedef struct
 	gboolean in_select;		/* our own selection changes */
 	gboolean reorderable;
 	gboolean had_cursor;		/* got focus once */
+	gboolean cursor_reported;	/* set_cursor ran the select callback */
 	nx_row *last_ok;			/* the last row the select filter allowed */
 	GString *typeahead;
 	gint64 typeahead_time;
@@ -778,10 +782,10 @@ tree_children (gpointer item, gpointer data)
 {
 	nx_row *r = item;
 
-	/* NULL: a leaf, no expander (children added later get one when the
-	   view is rebuilt; nexchat fills trees before showing them) */
-	if (!r->children || g_list_model_get_n_items (G_LIST_MODEL (r->children)) == 0)
-		return NULL;
+	/* always a model, so rows added later show up; the expander is hidden
+	   while it's empty (cell_refresh) */
+	if (!r->children)
+		r->children = g_list_store_new (NX_TYPE_ROW);
 	return g_object_ref (G_LIST_MODEL (r->children));
 }
 
@@ -888,6 +892,9 @@ cell_refresh (cell *c)
 
 	if (!r)
 		return;
+	if (c->expander)
+		gtk_tree_expander_set_hide_expander (GTK_TREE_EXPANDER (c->expander),
+					!r->children || g_list_model_get_n_items (G_LIST_MODEL (r->children)) == 0);
 	if (c->icon)
 	{
 		int ic = col->kind == NX_COL_ICON ? col->value_col : col->icon_col;
@@ -1935,6 +1942,20 @@ nx_view_set_cursor (GtkWidget *view, nx_row *row, nx_col *edit_col)
 
 	if (pos == G_MAXUINT)
 		return;
+	/* scroll_to only selects once the view is laid out: select first, as
+	   gtk_tree_view_set_cursor always did */
+	if (p->mode != GTK_SELECTION_NONE && !nx_view_is_selected (view, row))
+	{
+		gtk_selection_model_select_item (p->sel, pos, TRUE);
+		pos = row_pos (p, row);
+	}
+	else if (p->mode == GTK_SELECTION_BROWSE && p->select_cb && !p->cursor_reported)
+	{
+		/* browse mode picked row 0 by itself before anyone listened:
+		   GtkTreeView's cursor-changed reported it now */
+		p->select_cb (view, p->select_ud);
+	}
+	p->cursor_reported = TRUE;
 	gtk_column_view_scroll_to (GTK_COLUMN_VIEW (p->cv), pos, NULL,
 										GTK_LIST_SCROLL_FOCUS | GTK_LIST_SCROLL_SELECT, NULL);
 	if (edit_col)
@@ -1996,6 +2017,21 @@ tree_row_for (view_priv *p, nx_row *row)
 		}
 	}
 	return NULL;
+}
+
+void
+nx_view_set_tree_lines (GtkWidget *view, gboolean lines)
+{
+	/* GtkTreeExpander draws no lines */
+}
+
+void
+nx_view_set_unindented (GtkWidget *view, gboolean unindented)
+{
+	if (unindented)
+		gtk_widget_add_css_class (view, "nx-unindented");
+	else
+		gtk_widget_remove_css_class (view, "nx-unindented");
 }
 
 void
@@ -3211,11 +3247,46 @@ nx_view_scroll_to (GtkWidget *view, nx_row *row, int how)
 	case NX_SCROLL_BOTTOM:
 		gtk_tree_view_scroll_to_cell (GTK_TREE_VIEW (view), path, NULL, TRUE, 1.0, 0.0);
 		break;
+	case NX_SCROLL_IF_HIDDEN_CENTER:
+	{
+		/* scroll_to_cell centred, but only if the row is out of sight */
+		GtkTreeView *tree = GTK_TREE_VIEW (view);
+		GdkRectangle cell_rect, vis_rect;
+		int dest_y;
+
+		gtk_tree_view_get_background_area (tree, path, NULL, &cell_rect);
+		gtk_tree_view_get_visible_rect (tree, &vis_rect);
+		gtk_tree_view_convert_widget_to_bin_window_coords (tree, cell_rect.x, cell_rect.y, NULL, &cell_rect.y);
+		if (cell_rect.y < vis_rect.y ||
+			 cell_rect.y + cell_rect.height > vis_rect.y + vis_rect.height)
+		{
+			dest_y = cell_rect.y - ((vis_rect.height - cell_rect.height) * 0.5);
+			if (dest_y < 0)
+				dest_y = 0;
+			gtk_tree_view_scroll_to_point (tree, -1, dest_y);
+		}
+		break;
+	}
 	default:
 		gtk_tree_view_scroll_to_cell (GTK_TREE_VIEW (view), path, NULL, FALSE, 0, 0);
 		break;
 	}
 	gtk_tree_path_free (path);
+}
+
+void
+nx_view_set_tree_lines (GtkWidget *view, gboolean lines)
+{
+	gtk_tree_view_set_enable_tree_lines (GTK_TREE_VIEW (view), lines);
+}
+
+void
+nx_view_set_unindented (GtkWidget *view, gboolean unindented)
+{
+	int e = 0, s = 0;
+
+	gtk_widget_style_get (view, "expander-size", &e, "horizontal-separator", &s, NULL);
+	gtk_tree_view_set_level_indentation (GTK_TREE_VIEW (view), unindented ? -(e + s) : 0);
 }
 
 void

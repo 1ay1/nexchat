@@ -21,32 +21,31 @@
 
 typedef struct
 {
-	GtkTreeView *tree;
+	GtkWidget *tree;		/* nxlist view */
 	GtkWidget *scrollw;	/* scrolledWindow */
 } treeview;
 
 #include <gdk/gdk.h>
 
 static void 	/* row-activated, when a row is double clicked */
-cv_tree_activated_cb (GtkTreeView *view, GtkTreePath *path,
-							 GtkTreeViewColumn *column, gpointer data)
+cv_tree_activated_cb (GtkWidget *view, nx_row *row, gpointer data)
 {
-	if (gtk_tree_view_row_expanded (view, path))
-		gtk_tree_view_collapse_row (view, path);
+	if (nx_view_is_expanded (view, row))
+		nx_view_collapse (view, row);
 	else
-		gtk_tree_view_expand_row (view, path, FALSE);
+		nx_view_expand (view, row);
 }
 
 static void		/* row selected callback */
-cv_tree_sel_cb (GtkTreeSelection *sel, chanview *cv)
+cv_tree_sel_cb (GtkWidget *view, gpointer data)
 {
-	GtkTreeModel *model;
-	GtkTreeIter iter;
+	chanview *cv = data;
+	nx_row *row = nx_view_get_selected (view);
 	chan *ch;
 
-	if (gtk_tree_selection_get_selected (sel, &model, &iter))
+	if (row)
 	{
-		gtk_tree_model_get (model, &iter, COL_CHAN, &ch, -1);
+		ch = nx_row_get_pointer (row, COL_CHAN);
 
 		cv->focused = ch;
 		cv->cb_focus (cv, ch, ch->tag, ch->userdata);
@@ -58,22 +57,13 @@ cv_tree_click_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 						GdkModifierType state, gpointer userdata)
 {
 	chanview *cv = userdata;
-	GtkTreeView *tree = GTK_TREE_VIEW (w);
+	nx_row *row = nx_view_row_at (w, x, y);
 	chan *ch;
-	GtkTreePath *path;
-	GtkTreeIter iter;
-	int ret = FALSE;
 
-	if (gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
-	{
-		if (gtk_tree_model_get_iter (GTK_TREE_MODEL (cv->store), &iter, path))
-		{
-			gtk_tree_model_get (GTK_TREE_MODEL (cv->store), &iter, COL_CHAN, &ch, -1);
-			ret = cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata, button, n_press);
-		}
-		gtk_tree_path_free (path);
-	}
-	return ret;
+	if (!row)
+		return FALSE;
+	ch = nx_row_get_pointer (row, COL_CHAN);
+	return cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata, button, n_press);
 }
 
 static gboolean
@@ -96,9 +86,7 @@ static void
 cv_tree_init (chanview *cv)
 {
 	GtkWidget *view, *win;
-	GtkCellRenderer *renderer;
-	GtkTreeViewColumn *col;
-
+	nx_col *col;
 
 	win = nx_scrolled_window_new ();
 	/*nx_set_border_width (win, 1);*/
@@ -108,56 +96,39 @@ cv_tree_init (chanview *cv)
 	gtkutil_container_add (cv->box, mg_drop_overlay (win));
 	nx_widget_show (win);
 
-	view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (cv->store));
+	view = nx_view_new (cv->store);
 	gtk_widget_set_name (view, "hexchat-tree");	/* font/colours come from fe_apply_css() */
 	gtk_widget_set_can_focus (view, FALSE);
-	gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
+	nx_view_set_headers_visible (view, FALSE);
+	nx_view_set_select_mode (view, GTK_SELECTION_BROWSE);
+	if (prefs.hex_gui_compact)
+		nx_view_set_compact (view, TRUE);
 
 	if (prefs.hex_gui_tab_dots)
-	{
-		gtk_tree_view_set_enable_tree_lines (GTK_TREE_VIEW (view), TRUE);
-	}
-	
+		nx_view_set_tree_lines (view, TRUE);
+
 	/* Indented channels with no server looks silly, but we still want expanders */
 	if (!prefs.hex_gui_tab_server)
-		gtk_tree_view_set_level_indentation (GTK_TREE_VIEW (view), -nx_tree_view_expander_indent (view));
-
+		nx_view_set_unindented (view, TRUE);
 
 	gtkutil_container_add (GTK_WIDGET (win), view);
-	col = gtk_tree_view_column_new();
 
-	/* icon column */
+	/* the name, with the icon before it */
+	col = nx_view_add_column (view, NULL, NX_COL_TEXT, COL_NAME);
 	if (cv->use_icons)
-	{
-		renderer = gtk_cell_renderer_pixbuf_new ();
-		if (prefs.hex_gui_compact)
-			g_object_set (G_OBJECT (renderer), "ypad", 0, NULL);
+		nx_col_add_icon (col, COL_PIXBUF);
+	nx_col_bind (col, NX_BIND_ATTRS, COL_ATTR);
 
-		gtk_tree_view_column_pack_start(col, renderer, FALSE);
-		gtk_tree_view_column_set_attributes (col, renderer, "pixbuf", COL_PIXBUF, NULL);
-	}
-
-	/* main column */
-	renderer = gtk_cell_renderer_text_new ();
-	if (prefs.hex_gui_compact)
-		g_object_set (G_OBJECT (renderer), "ypad", 0, NULL);
-	gtk_cell_renderer_text_set_fixed_height_from_font (GTK_CELL_RENDERER_TEXT (renderer), 1);
-	gtk_tree_view_column_pack_start(col, renderer, TRUE);
-	gtk_tree_view_column_set_attributes (col, renderer, "text", COL_NAME, "attributes", COL_ATTR, NULL);
-	gtk_tree_view_append_column(GTK_TREE_VIEW(view), col);									
-
-	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW (view))),
-							"changed", G_CALLBACK (cv_tree_sel_cb), cv);
+	nx_view_on_select (view, cv_tree_sel_cb, cv);
 	nx_on_click (view, cv_tree_click_cb, cv);
-	g_signal_connect (G_OBJECT (view), "row-activated",
-							G_CALLBACK (cv_tree_activated_cb), NULL);
+	nx_view_on_activate (view, cv_tree_activated_cb, NULL);
 	nx_on_scroll (view, cv_tree_scroll_event_cb, NULL);
 
 	/* takes the user list's layout drags, and can be dragged itself */
 	mg_layout_drop_dest (view, NX_DND_USERLIST);
 	nx_dnd_layout_source (view, NX_DND_CHANVIEW);
 
-	((treeview *)cv)->tree = GTK_TREE_VIEW (view);
+	((treeview *)cv)->tree = view;
 	((treeview *)cv)->scrollw = win;
 	nx_widget_show (view);
 }
@@ -165,24 +136,15 @@ cv_tree_init (chanview *cv)
 static void
 cv_tree_postinit (chanview *cv)
 {
-	gtk_tree_view_expand_all (((treeview *)cv)->tree);
+	nx_view_expand_all (((treeview *)cv)->tree);
 }
 
 static void *
-cv_tree_add (chanview *cv, chan *ch, char *name, GtkTreeIter *parent)
+cv_tree_add (chanview *cv, chan *ch, char *name, nx_row *parent)
 {
-	GtkTreePath *path;
-
+	/* expand the parent node */
 	if (parent)
-	{
-		/* expand the parent node */
-		path = gtk_tree_model_get_path (GTK_TREE_MODEL (cv->store), parent);
-		if (path)
-		{
-			gtk_tree_view_expand_row (((treeview *)cv)->tree, path, FALSE);
-			gtk_tree_path_free (path);
-		}
-	}
+		nx_view_expand (((treeview *)cv)->tree, parent);
 
 	return NULL;
 }
@@ -195,58 +157,16 @@ cv_tree_change_orientation (chanview *cv)
 static void
 cv_tree_focus (chan *ch)
 {
-	GtkTreeView *tree = ((treeview *)ch->cv)->tree;
-	GtkTreeModel *model = gtk_tree_view_get_model (tree);
-	GtkTreePath *path;
-	GtkTreeIter parent;
-	GdkRectangle cell_rect;
-	GdkRectangle vis_rect;
-	gint dest_y;
+	GtkWidget *tree = ((treeview *)ch->cv)->tree;
+	nx_row *parent = nx_row_parent (ch->row);
 
 	/* expand the parent node */
-	if (gtk_tree_model_iter_parent (model, &parent, &ch->iter))
-	{
-		path = gtk_tree_model_get_path (model, &parent);
-		if (path)
-		{
-			/*if (!gtk_tree_view_row_expanded (tree, path))
-			{
-				gtk_tree_path_free (path);
-				return;
-			}*/
-			gtk_tree_view_expand_row (tree, path, FALSE);
-			gtk_tree_path_free (path);
-		}
-	}
+	if (parent)
+		nx_view_expand (tree, parent);
 
-	path = gtk_tree_model_get_path (model, &ch->iter);
-	if (path)
-	{
-		/* This full section does what
-		 * gtk_tree_view_scroll_to_cell (tree, path, NULL, TRUE, 0.5, 0.5);
-		 * does, except it only scrolls the window if the provided cell is
-		 * not visible. Basic algorithm taken from gtktreeview.c */
-
-		/* obtain information to see if the cell is visible */
-		gtk_tree_view_get_background_area (tree, path, NULL, &cell_rect);
-		gtk_tree_view_get_visible_rect (tree, &vis_rect);
-
-		/* The cordinates aren't offset correctly */
-		gtk_tree_view_convert_widget_to_bin_window_coords ( tree, cell_rect.x, cell_rect.y, NULL, &cell_rect.y );
-
-		/* only need to scroll if out of bounds */
-		if (cell_rect.y < vis_rect.y ||
-				cell_rect.y + cell_rect.height > vis_rect.y + vis_rect.height)
-		{
-			dest_y = cell_rect.y - ((vis_rect.height - cell_rect.height) * 0.5);
-			if (dest_y < 0)
-				dest_y = 0;
-			gtk_tree_view_scroll_to_point (tree, -1, dest_y);
-		}
-		/* theft done, now make it focused like */
-		gtk_tree_view_set_cursor (tree, path, NULL, FALSE);
-		gtk_tree_path_free (path);
-	}
+	/* scroll only if it's out of sight (then centre it), and make it the cursor */
+	nx_view_scroll_to (tree, ch->row, NX_SCROLL_IF_HIDDEN_CENTER);
+	nx_view_set_cursor (tree, ch->row, NULL);
 }
 
 static void
@@ -274,50 +194,38 @@ cv_tree_remove (chan *ch)
 }
 
 static void
-move_row (chan *ch, int delta, GtkTreeIter *parent)
+move_row (chan *ch, int delta)
 {
-	GtkTreeStore *store = ch->cv->store;
-	GtkTreeIter *src = &ch->iter;
-	GtkTreeIter dest = ch->iter;
-	GtkTreePath *dest_path;
+	nx_row *row = ch->row, *dest;
+	int n = nx_store_n_rows (ch->cv->store, nx_row_parent (row));
 
 	if (delta < 0) /* down */
 	{
-		if (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &dest))
-			gtk_tree_store_swap (store, src, &dest);
+		if ((dest = nx_row_next (row)))
+			nx_row_swap (row, dest);
 		else	/* move to top */
-			gtk_tree_store_move_after (store, src, NULL);
-
+			nx_row_move (row, 0);
 	} else
 	{
-		dest_path = gtk_tree_model_get_path (GTK_TREE_MODEL (store), &dest);
-		if (gtk_tree_path_prev (dest_path))
-		{
-			gtk_tree_model_get_iter (GTK_TREE_MODEL (store), &dest, dest_path);
-			gtk_tree_store_swap (store, src, &dest);
-		} else
-		{	/* move to bottom */
-			gtk_tree_store_move_before (store, src, NULL);
-		}
-
-		gtk_tree_path_free (dest_path);
+		if ((dest = nx_row_prev (row)))
+			nx_row_swap (row, dest);
+		else	/* move to bottom */
+			nx_row_move (row, n - 1);
 	}
 }
 
 static void
 cv_tree_move (chan *ch, int delta)
 {
-	GtkTreeIter parent;
-
 	/* do nothing if this is a server row */
-	if (gtk_tree_model_iter_parent (GTK_TREE_MODEL (ch->cv->store), &parent, &ch->iter))
-		move_row (ch, delta, &parent);
+	if (nx_row_parent (ch->row))
+		move_row (ch, delta);
 }
 
 static void
 cv_tree_move_family (chan *ch, int delta)
 {
-	move_row (ch, delta, NULL);
+	move_row (ch, delta);
 }
 
 static void
@@ -347,31 +255,18 @@ cv_tree_rename (chan *ch, char *name)
 static chan *
 cv_tree_get_parent (chan *ch)
 {
-	chan *parent_ch = NULL;
-	GtkTreeIter parent;
+	nx_row *parent = nx_row_parent (ch->row);
 
-	if (gtk_tree_model_iter_parent (GTK_TREE_MODEL (ch->cv->store), &parent, &ch->iter))
-	{
-		gtk_tree_model_get (GTK_TREE_MODEL (ch->cv->store), &parent, COL_CHAN, &parent_ch, -1);
-	}
-
-	return parent_ch;
+	return parent ? nx_row_get_pointer (parent, COL_CHAN) : NULL;
 }
 
 static gboolean
 cv_tree_is_collapsed (chan *ch)
 {
 	chan *parent = cv_tree_get_parent (ch);
-	GtkTreePath *path = NULL;
-	gboolean ret;
 
 	if (parent == NULL)
 		return FALSE;
 
-	path = gtk_tree_model_get_path (GTK_TREE_MODEL (parent->cv->store),
-											  &parent->iter);
-	ret = !gtk_tree_view_row_expanded (((treeview *)parent->cv)->tree, path);
-	gtk_tree_path_free (path);
-	
-	return ret;
+	return !nx_view_is_expanded (((treeview *)parent->cv)->tree, parent->row);
 }

@@ -175,12 +175,18 @@ enum
 	NX_SCROLL_MIN,			/* just enough to show it */
 	NX_SCROLL_CENTER,
 	NX_SCROLL_TOP,
-	NX_SCROLL_BOTTOM
+	NX_SCROLL_BOTTOM,
+	NX_SCROLL_IF_HIDDEN_CENTER	/* centre it only if it's out of sight */
 };
 void nx_view_scroll_to (GtkWidget *view, nx_row *row, int how);
 
 /* trees */
 void nx_view_expand_all (GtkWidget *view);
+/* dotted lines joining tree rows (GTK3 only; GTK4 has none) */
+void nx_view_set_tree_lines (GtkWidget *view, gboolean lines);
+/* top-level rows not indented for their expander's width: children line up
+   under their parent's text */
+void nx_view_set_unindented (GtkWidget *view, gboolean unindented);
 void nx_view_expand (GtkWidget *view, nx_row *row);
 void nx_view_collapse (GtkWidget *view, nx_row *row);
 gboolean nx_view_is_expanded (GtkWidget *view, nx_row *row);

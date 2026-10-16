@@ -544,7 +544,7 @@ tab_click_cb (GtkWidget *wid, guint button, int n_press, double x, double y,
 }
 
 static void *
-cv_tabs_add (chanview *cv, chan *ch, char *name, GtkTreeIter *parent)
+cv_tabs_add (chanview *cv, chan *ch, char *name, nx_row *parent)
 {
 	GtkWidget *but;
 

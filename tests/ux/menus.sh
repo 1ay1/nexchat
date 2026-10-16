@@ -15,7 +15,7 @@ xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
 disp=${DISP:-:95}
 tmp=$(mktemp -d)
 app=; ircd=; xv=
-cleanup() { kill $app $ircd $xv 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"; }
+cleanup() { kill $app $ircd $xv 2>/dev/null || true; wait 2>/dev/null || true; [ -n "${KEEP:-}" ] && cp -r "$tmp" "$KEEP"; rm -rf "$tmp"; }
 trap cleanup EXIT
 
 start_xvfb "$xvfb" "$disp"
