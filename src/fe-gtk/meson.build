@@ -3,7 +3,6 @@ hexchat_gtk_sources = [
   'banlist.c',
   'chanlist.c',
   'chanview.c',
-  'custom-list.c',
   'dccgui.c',
   'editlist.c',
   'fe-gtk.c',

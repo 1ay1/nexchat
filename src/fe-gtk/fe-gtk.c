@@ -498,6 +498,9 @@ fe_apply_css (void)
 		"columnview.nx-list > header > button { padding: 4px 6px 5px 6px; min-height: 0; border-radius: 0;"
 		" border: none; background: none; box-shadow: inset -1px 0 #d7d2ce; font-weight: bold; }\n"
 		"columnview.nx-list check { margin: 0; min-width: 14px; min-height: 14px; }\n"
+		/* GTK3 drew ascending as a down arrow, at the right of the title */
+		"columnview.nx-list > header > button sort-indicator.ascending { -gtk-icon-source: -gtk-icontheme('pan-down-symbolic'); }\n"
+		"columnview.nx-list > header > button sort-indicator.descending { -gtk-icon-source: -gtk-icontheme('pan-up-symbolic'); }\n"
 		"columnview.nx-list checkbutton { padding: 0; margin: 0; min-height: 0; }\n"
 		/* trees: GTK3's 16px expander + 2px separator per level, arrow 2px in */
 		"columnview.nx-list treeexpander { border-spacing: 2px; margin-left: -2px; }\n"

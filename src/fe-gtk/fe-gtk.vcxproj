@@ -69,7 +69,6 @@ powershell "Get-Content -Encoding UTF8 '$(HexChatLib)hexchat.rc.utf8' | Out-File
     <ClInclude Include="banlist.h" />
     <ClInclude Include="chanlist.h" />
     <ClInclude Include="chanview.h" />
-    <ClInclude Include="custom-list.h" />
     <ClInclude Include="editlist.h" />
     <ClInclude Include="fe-gtk.h" />
     <ClInclude Include="fkeys.h" />
@@ -98,7 +97,6 @@ powershell "Get-Content -Encoding UTF8 '$(HexChatLib)hexchat.rc.utf8' | Out-File
     <ClCompile Include="banlist.c" />
     <ClCompile Include="chanlist.c" />
     <ClCompile Include="chanview.c" />
-    <ClCompile Include="custom-list.c" />
     <ClCompile Include="dccgui.c" />
     <ClCompile Include="editlist.c" />
     <ClCompile Include="fe-gtk.c" />

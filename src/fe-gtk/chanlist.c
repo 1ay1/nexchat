@@ -39,21 +39,20 @@
 #include "../common/fe.h"
 #include "../common/server.h"
 #include "gtkutil.h"
+#include "nxlist.h"
 #include "maingui.h"
 #include "menu.h"
-
-#include "custom-list.h"
 
 enum
 {
 	COL_CHANNEL,
 	COL_USERS,
 	COL_TOPIC,
+	COL_ROW,		/* chanlistrow *, for sorting */
 	N_COLUMNS
 };
 
-#ifndef CUSTOM_LIST
-typedef struct	/* this is now in custom-list.h */
+typedef struct
 {
 	char *topic;
 	char *collation_key;
@@ -63,9 +62,57 @@ typedef struct	/* this is now in custom-list.h */
 #define GET_CHAN(row) (((char *)row)+sizeof(chanlistrow))
 }
 chanlistrow;
-#endif
 
-#define GET_MODEL(xserv) (gtk_tree_view_get_model(GTK_TREE_VIEW(xserv->gui->chanlist_list)))
+#define GET_STORE(xserv) (nx_view_get_store (xserv->gui->chanlist_list))
+
+/* fast as possible compares, as custom-list.c's were */
+#define TOSML(c) (((c) >= 'A' && (c) <= 'Z') ? (c) - 'A' + 'a' : (c))
+
+static int
+fast_ascii_stricmp (const char *s1, const char *s2)
+{
+	int c1, c2;
+
+	while (*s1 && *s2)
+	{
+		c1 = (int) (unsigned char) TOSML (*s1);
+		c2 = (int) (unsigned char) TOSML (*s2);
+		if (c1 != c2)
+			return (c1 - c2);
+		s1++;
+		s2++;
+	}
+
+	return (((int) (unsigned char) *s1) - ((int) (unsigned char) *s2));
+}
+
+static int
+chanlist_cmp_channel (nx_row *a, nx_row *b, gpointer data)
+{
+	return strcmp (((chanlistrow *) nx_row_get_pointer (a, COL_ROW))->collation_key,
+						((chanlistrow *) nx_row_get_pointer (b, COL_ROW))->collation_key);
+}
+
+static int
+chanlist_cmp_users (nx_row *a, nx_row *b, gpointer data)
+{
+	return (int) ((chanlistrow *) nx_row_get_pointer (a, COL_ROW))->users -
+			 (int) ((chanlistrow *) nx_row_get_pointer (b, COL_ROW))->users;
+}
+
+static int
+chanlist_cmp_topic (nx_row *a, nx_row *b, gpointer data)
+{
+	return fast_ascii_stricmp (((chanlistrow *) nx_row_get_pointer (a, COL_ROW))->topic,
+										((chanlistrow *) nx_row_get_pointer (b, COL_ROW))->topic);
+}
+
+static void
+chanlist_store_append (server *serv, chanlistrow *row)
+{
+	nx_row_set (nx_store_append (GET_STORE (serv), NULL), COL_CHANNEL, GET_CHAN (row),
+					COL_USERS, (int) row->users, COL_TOPIC, row->topic, COL_ROW, row, -1);
+}
 
 
 static gboolean
@@ -164,7 +211,6 @@ static void
 chanlist_flush_pending (server *serv)
 {
 	GSList *list = serv->gui->chanlist_pending_rows;
-	GtkTreeModel *model;
 	chanlistrow *row;
 
 	if (!list)
@@ -173,14 +219,15 @@ chanlist_flush_pending (server *serv)
 			chanlist_update_caption (serv);
 		return;
 	}
-	model = GET_MODEL (serv);
 
+	nx_store_freeze (GET_STORE (serv));
 	while (list)
 	{
 		row = list->data;
-		custom_list_append (CUSTOM_LIST (model), row);
+		chanlist_store_append (serv, row);
 		list = list->next;
 	}
+	nx_store_thaw (GET_STORE (serv));
 
 	g_slist_free (serv->gui->chanlist_pending_rows);
 	serv->gui->chanlist_pending_rows = NULL;
@@ -201,8 +248,6 @@ chanlist_timeout (server *serv)
 static void
 chanlist_place_row_in_gui (server *serv, chanlistrow *next_row, gboolean force)
 {
-	GtkTreeModel *model;
-
 	/* First, update the 'found' counter values */
 	serv->gui->chanlist_users_found_count += next_row->users;
 	serv->gui->chanlist_channels_found_count++;
@@ -261,9 +306,8 @@ chanlist_place_row_in_gui (server *serv, chanlistrow *next_row, gboolean force)
 
 	if (force || serv->gui->chanlist_channels_shown_count < 20)
 	{
-		model = GET_MODEL (serv);
 		/* makes it appear fast :) */
-		custom_list_append (CUSTOM_LIST (model), next_row);
+		chanlist_store_append (serv, next_row);
 		chanlist_update_caption (serv);
 	}
 	else
@@ -292,7 +336,7 @@ chanlist_do_refresh (server *serv)
 		return;
 	}
 
-	custom_list_clear ((CustomList *)GET_MODEL (serv));
+	nx_store_clear (GET_STORE (serv));
 	gtk_widget_set_sensitive (serv->gui->chanlist_refresh, FALSE);
 
 	chanlist_data_free (serv);
@@ -339,7 +383,7 @@ chanlist_build_gui_list (server *serv)
 		return;
 	}
 
-	custom_list_clear ((CustomList *)GET_MODEL (serv));
+	nx_store_clear (GET_STORE (serv));
 
 	/* discard pending rows FIXME: free the structs? */
 	g_slist_free (serv->gui->chanlist_pending_rows);
@@ -349,13 +393,13 @@ chanlist_build_gui_list (server *serv)
 	chanlist_reset_counters (serv);
 
 	/* Refill the list */
+	nx_store_freeze (GET_STORE (serv));
 	for (rows = serv->gui->chanlist_data_stored_rows; rows != NULL;
 		  rows = rows->next)
 	{
 		chanlist_place_row_in_gui (serv, rows->data, TRUE);
 	}
-
-	custom_list_resort ((CustomList *)GET_MODEL (serv));
+	nx_store_thaw (GET_STORE (serv));
 }
 
 /**
@@ -391,7 +435,6 @@ fe_chan_list_end (server *serv)
 	/* download complete */
 	chanlist_flush_pending (serv);
 	gtk_widget_set_sensitive (serv->gui->chanlist_refresh, TRUE);
-	custom_list_resort ((CustomList *)GET_MODEL (serv));
 }
 
 static void
@@ -434,15 +477,12 @@ chanlist_match_topic_button_toggled (GtkWidget * wid, server *serv)
 static char *
 chanlist_get_selected (server *serv, gboolean get_topic)
 {
-	char *chan;
-	GtkTreeSelection *sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (serv->gui->chanlist_list));
-	GtkTreeModel *model;
-	GtkTreeIter iter;
+	char *chan = NULL;
+	nx_row *row = nx_view_get_selected (serv->gui->chanlist_list);
 
-	if (!gtk_tree_selection_get_selected (sel, &model, &iter))
+	if (!row)
 		return NULL;
-
-	gtk_tree_model_get (model, &iter, get_topic ? COL_TOPIC : COL_CHANNEL, &chan, -1);
+	nx_row_get (row, get_topic ? COL_TOPIC : COL_CHANNEL, &chan, -1);
 	return chan;
 }
 
@@ -470,8 +510,7 @@ chanlist_filereq_done (server *serv, char *file)
 	int fh, users;
 	char *chan, *topic;
 	char buf[1024];
-	GtkTreeModel *model = GET_MODEL (serv);
-	GtkTreeIter iter;
+	nx_row *row;
 
 	if (!file)
 		return;
@@ -485,20 +524,16 @@ chanlist_filereq_done (server *serv, char *file)
 				 serv->servername, ctime (&t));
 	write (fh, buf, strlen (buf));
 
-	if (gtk_tree_model_get_iter_first (model, &iter))
+	for (row = nx_store_first (GET_STORE (serv)); row; row = nx_row_next (row))
 	{
-		do
-		{
-			gtk_tree_model_get (model, &iter,
-									  COL_CHANNEL, &chan,
-									  COL_USERS, &users,
-									  COL_TOPIC, &topic, -1);
-			g_snprintf (buf, sizeof buf, "%-16s %-5d%s\n", chan, users, topic);
-			g_free (chan);
-			g_free (topic);
-			write (fh, buf, strlen (buf));
-		}
-		while (gtk_tree_model_iter_next (model, &iter));
+		nx_row_get (row,
+						COL_CHANNEL, &chan,
+						COL_USERS, &users,
+						COL_TOPIC, &topic, -1);
+		g_snprintf (buf, sizeof buf, "%-16s %-5d%s\n", chan, users, topic);
+		g_free (chan);
+		g_free (topic);
+		write (fh, buf, strlen (buf));
 	}
 
 	close (fh);
@@ -507,10 +542,7 @@ chanlist_filereq_done (server *serv, char *file)
 static void
 chanlist_save (GtkWidget * wid, server *serv)
 {
-	GtkTreeIter iter;
-	GtkTreeModel *model = GET_MODEL (serv);
-
-	if (gtk_tree_model_get_iter_first (model, &iter))
+	if (nx_store_first (GET_STORE (serv)))
 		gtkutil_file_req (NULL, _("Select an output filename"), chanlist_filereq_done,
 								serv, NULL, NULL, FRF_WRITE);
 }
@@ -557,8 +589,7 @@ chanlist_maxusers (GtkSpinButton *wid, server *serv)
 }
 
 static void
-chanlist_dclick_cb (GtkTreeView *view, GtkTreePath *path,
-						  GtkTreeViewColumn *column, gpointer data)
+chanlist_dclick_cb (GtkWidget *view, nx_row *row, gpointer data)
 {
 	chanlist_join (0, (server *) data);	/* double clicked a row */
 }
@@ -596,23 +627,19 @@ chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 						  GdkModifierType state, gpointer userdata)
 {
 	server *serv = userdata;
-	GtkTreeView *tree = GTK_TREE_VIEW (w);
 	nx_menu *menu;
-	GtkTreeSelection *sel;
-	GtkTreePath *path;
+	nx_row *row;
 	char *chan;
 
 	if (button != 3)
 		return FALSE;
 
-	if (!gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
+	if (!(row = nx_view_row_at (w, x, y)))
 		return FALSE;
 
 	/* select what they right-clicked on */
-	sel = gtk_tree_view_get_selection (tree);
-	gtk_tree_selection_unselect_all (sel);
-	gtk_tree_selection_select_path (sel, path);
-	gtk_tree_path_free (path);
+	nx_view_unselect_all (w);
+	nx_view_select (w, row);
 
 	menu = nx_menu_new ();
 	mg_create_icon_item (_("_Join Channel"), NX_STOCK_JUMP_TO, menu,
@@ -635,7 +662,7 @@ chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
 static void
 chanlist_destroy_widget (GtkWidget *wid, server *serv)
 {
-	custom_list_clear ((CustomList *)GET_MODEL (serv));
+	nx_store_clear (GET_STORE (serv));
 	chanlist_data_free (serv);
 
 	if (serv->gui->chanlist_flash_tag)
@@ -664,33 +691,21 @@ chanlist_closegui (GtkWidget *wid, server *serv)
 		serv->gui->chanlist_window = NULL;
 }
 
-static void
-chanlist_add_column (GtkWidget *tree, int textcol, int size, char *title, gboolean right_justified)
+static nx_col *
+chanlist_add_column (GtkWidget *view, int textcol, int size, char *title, gboolean right_justified,
+							nx_row_compare_fn cmp)
 {
-	GtkCellRenderer *renderer;
-	GtkTreeViewColumn *col;
+	nx_col *col = nx_view_add_column (view, title, NX_COL_TEXT, textcol);
 
-	renderer = gtk_cell_renderer_text_new ();
 	if (right_justified)
-		g_object_set (G_OBJECT (renderer), "xalign", (gfloat) 1.0, NULL);
-	g_object_set (G_OBJECT (renderer), "ypad", (gint) 0, NULL);
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (tree), -1, title,
-																renderer, "text", textcol, NULL);
-	gtk_cell_renderer_text_set_fixed_height_from_font (GTK_CELL_RENDERER_TEXT (renderer), 1);
-
-	col = gtk_tree_view_get_column (GTK_TREE_VIEW (tree), textcol);
-	gtk_tree_view_column_set_sort_column_id (col, textcol);
-	gtk_tree_view_column_set_resizable (col, TRUE);
+		nx_col_set_xalign (col, 1.0);
+	nx_col_set_sort_func (col, cmp, NULL);
+	nx_col_set_resizable (col, TRUE);
 	if (textcol == COL_CHANNEL)
-	{
-		gtk_tree_view_column_set_sizing (col, GTK_TREE_VIEW_COLUMN_FIXED);
-		gtk_tree_view_column_set_fixed_width (col, size);
-	}
+		nx_col_set_fixed_width (col, size);
 	else if (textcol == COL_USERS)
-	{
-		gtk_tree_view_column_set_sizing (col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
-		gtk_tree_view_column_set_resizable (col, FALSE);
-	}
+		nx_col_set_resizable (col, FALSE);
+	return col;
 }
 
 static void
@@ -705,7 +720,8 @@ chanlist_opengui (server *serv, int do_refresh)
 {
 	GtkWidget *vbox, *hbox, *table, *wid, *view;
 	char tbuf[256];
-	GtkListStore *store;
+	nx_store *store;
+	nx_col *chan_col;
 
 	if (serv->gui->chanlist_window)
 	{
@@ -759,20 +775,22 @@ chanlist_opengui (server *serv, int do_refresh)
 
 	/* ============================================================= */
 
-	store = (GtkListStore *) custom_list_new();
-	view = gtkutil_treeview_new (vbox, GTK_TREE_MODEL (store), NULL, -1);
+	store = nx_store_new (FALSE, N_COLUMNS, G_TYPE_STRING, G_TYPE_INT, G_TYPE_STRING, G_TYPE_POINTER);
+	view = nx_view_new_scrolled (vbox, store);
+	g_object_unref (store);
 	nx_scrolled_window_set_shadow_in (gtk_widget_get_parent (view), TRUE);
 	serv->gui->chanlist_list = view;
 
-	g_signal_connect (G_OBJECT (view), "row_activated",
-							G_CALLBACK (chanlist_dclick_cb), serv);
+	nx_view_on_activate (view, chanlist_dclick_cb, serv);
 	nx_on_click (view, chanlist_button_cb, serv);
 
-	chanlist_add_column (view, COL_CHANNEL, 96, _("Channel"), FALSE);
-	chanlist_add_column (view, COL_USERS,   50, _("Users"),   TRUE);
-	chanlist_add_column (view, COL_TOPIC,   50, _("Topic"),   FALSE);
-	/* this is a speed up, but no horizontal scrollbar :( */
-	/*gtk_tree_view_set_fixed_height_mode (GTK_TREE_VIEW (view), TRUE);*/
+	chan_col = chanlist_add_column (view, COL_CHANNEL, 96, _("Channel"), FALSE, chanlist_cmp_channel);
+	chanlist_add_column (view, COL_USERS,   50, _("Users"),   TRUE, chanlist_cmp_users);
+	chanlist_add_column (view, COL_TOPIC,   50, _("Topic"),   FALSE, chanlist_cmp_topic);
+	/* rows without padding, as GTK3's ypad 0 */
+	nx_view_set_compact (view, TRUE);
+	nx_view_set_search_column (view, COL_CHANNEL);
+	nx_view_sort_by (view, chan_col, GTK_SORT_ASCENDING);
 	nx_widget_show (view);
 
 	/* ============================================================= */

@@ -797,8 +797,17 @@ cell_refresh (cell *c)
 	}
 	if (c->label)
 	{
-		const char *s = nx_row_peek_string (r, col->value_col);
+		const char *s;
+		char num[24];
 		PangoAttrList *attrs = NULL;
+
+		if (r->store->types[col->value_col] == G_TYPE_INT)
+		{
+			g_snprintf (num, sizeof num, "%d", nx_row_get_int (r, col->value_col));
+			s = num;
+		}
+		else
+			s = nx_row_peek_string (r, col->value_col);
 
 		if (col->kind == NX_COL_MARKUP)
 			gtk_label_set_markup (GTK_LABEL (c->label), s ? s : "");
@@ -1228,6 +1237,8 @@ view_focus_in (GtkEventControllerFocus *f, GtkWidget *view)
 		nx_view_select (view, r);
 }
 
+static void apply_title_align (GtkWidget *view);
+
 /* first shown: at the top, or at the selected row, as GtkTreeView was */
 static gboolean
 view_scroll_first (gpointer data)
@@ -1294,6 +1305,9 @@ nx_view_new (nx_store *store)
 	g_signal_connect (cv, "activate", G_CALLBACK (view_activate), cv);
 	g_signal_connect (cv, "destroy", G_CALLBACK (view_destroy), NULL);
 	g_signal_connect (cv, "map", G_CALLBACK (view_map), NULL);
+	/* headers: the title fills the button, the sort arrow at its right */
+	g_signal_connect (cv, "map", G_CALLBACK (apply_title_align), NULL);
+	g_object_set_data (G_OBJECT (cv), "nx-align-hooked", GINT_TO_POINTER (1));
 	k = gtk_event_controller_key_new ();
 	g_signal_connect (k, "key-pressed", G_CALLBACK (view_key), cv);
 	gtk_widget_add_controller (cv, k);
@@ -2001,6 +2015,8 @@ struct _nx_row
 {
 	nx_store *store;
 	GtkTreeRowReference *ref;
+	gboolean set;		/* values set at least once */
+	GtkTreeIter *sort_iter;	/* set while a sort compare reads the row */
 };
 
 #define NX_TYPE_STORE (nx_store_get_type ())
@@ -2065,6 +2081,11 @@ row_iter (nx_row *r, GtkTreeIter *iter)
 	GtkTreePath *path;
 	gboolean ok;
 
+	if (r && r->sort_iter)
+	{
+		*iter = *r->sort_iter;
+		return TRUE;
+	}
 	if (!r || !r->ref || !gtk_tree_row_reference_valid (r->ref))
 		return FALSE;
 	path = gtk_tree_row_reference_get_path (r->ref);
@@ -2221,6 +2242,18 @@ nx_row_set (nx_row *r, ...)
 	else
 		gtk_list_store_set_valist (GTK_LIST_STORE (r->store->model), &iter, ap);
 	va_end (ap);
+	if (!r->set)
+	{
+		r->set = TRUE;
+		/* now it has values: setting the hidden row column again re-sorts */
+		if (row_iter (r, &iter))
+		{
+			if (r->store->tree)
+				gtk_tree_store_set (GTK_TREE_STORE (r->store->model), &iter, ROW_COL (r->store), r, -1);
+			else
+				gtk_list_store_set (GTK_LIST_STORE (r->store->model), &iter, ROW_COL (r->store), r, -1);
+		}
+	}
 }
 
 void
@@ -2738,9 +2771,21 @@ sort_func3 (GtkTreeModel *m, GtkTreeIter *a, GtkTreeIter *b, gpointer data)
 {
 	nx_col *col = data;
 	view_priv *p = vp (col->view);
+	nx_row *ra = nx_store_row_from_iter (p->store, a);
+	nx_row *rb = nx_store_row_from_iter (p->store, b);
+	int ret;
 
-	return col->sort_fn (nx_store_row_from_iter (p->store, a),
-								nx_store_row_from_iter (p->store, b), col->sort_ud);
+	/* a row just inserted has no values yet: GtkListStore sorts it as it's
+	   attached, before nx_row_set fills it; keep those at the end */
+	if (!ra || !rb || !ra->set || !rb->set)
+		return (rb && rb->set) - (ra && ra->set);
+	/* row references are stale while the store moves rows to sort them:
+	   the compare reads these iters instead */
+	ra->sort_iter = a;
+	rb->sort_iter = b;
+	ret = col->sort_fn (ra, rb, col->sort_ud);
+	ra->sort_iter = rb->sort_iter = NULL;
+	return ret;
 }
 
 void
