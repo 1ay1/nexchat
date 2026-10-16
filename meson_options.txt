@@ -2,6 +2,9 @@
 option('gtk-frontend', type: 'boolean',
   description: 'Main graphical interface'
 )
+option('gtk', type: 'combo', choices: ['3', '4'], value: '3',
+  description: 'GTK major version for the graphical interface (4: work in progress)'
+)
 option('text-frontend', type: 'boolean', value: false,
   description: 'Text interface (not generally useful)'
 )

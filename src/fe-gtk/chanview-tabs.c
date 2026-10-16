@@ -511,7 +511,7 @@ tab_pressed_cb (GtkToggleButton *tab, chan *ch)
 	old_tab = cv->focused;
 	if (old_tab && old_tab->impl)
 	{
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (old_tab->impl), FALSE);
+		nx_toggle_set_active ((GtkWidget *) (old_tab->impl), FALSE);
 		if (old_tab == ch)
 			is_switching = FALSE;
 	}
@@ -631,7 +631,7 @@ tab_group_for_each_tab (chanview *cv,
 static int
 tab_check_focus_cb (GtkWidget *tab, int num, int unused)
 {
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (tab)))
+	if (nx_toggle_get_active ((GtkWidget *) (tab)))
 		return num;
 
 	return -1;

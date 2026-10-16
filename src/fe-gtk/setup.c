@@ -675,9 +675,9 @@ static const setting identd_settings[] =
 
 
 static void
-setup_3oggle_cb (GtkToggleButton *but, unsigned int *setting)
+setup_3oggle_cb (GtkWidget *but, unsigned int *setting)
 {
-	*setting = gtk_toggle_button_get_active (but);
+	*setting = nx_toggle_get_active (but);
 }
 
 static void
@@ -724,21 +724,21 @@ setup_create_3oggle (GtkWidget *tab, int row, const setting *set)
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, LABEL_INDENT, 0);
 
 	wid = gtk_check_button_new ();
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid),
+	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[0]));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_3oggle_cb), ((int *)&setup_prefs) + offsets[0]);
 	gtkutil_grid_attach (tab, wid, 3, 4, row, row + 1, 0, 0, 0, 0);
 
 	wid = gtk_check_button_new ();
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid),
+	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[1]));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_3oggle_cb), ((int *)&setup_prefs) + offsets[1]);
 	gtkutil_grid_attach (tab, wid, 4, 5, row, row + 1, 0, 0, 0, 0);
 
 	wid = gtk_check_button_new ();
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid),
+	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[2]));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_3oggle_cb), ((int *)&setup_prefs) + offsets[2]);
@@ -746,26 +746,26 @@ setup_create_3oggle (GtkWidget *tab, int row, const setting *set)
 }
 
 static void
-setup_toggle_cb (GtkToggleButton *but, const setting *set)
+setup_toggle_cb (GtkWidget *but, const setting *set)
 {
 	GtkWidget *label, *disable_wid;
 
-	setup_set_int (&setup_prefs, set, gtk_toggle_button_get_active (but));
+	setup_set_int (&setup_prefs, set, nx_toggle_get_active (but));
 
 	/* does this toggle also enable/disable another widget? */
 	disable_wid = g_object_get_data (G_OBJECT (but), "nxt");
 	if (disable_wid)
 	{
-		gtk_widget_set_sensitive (disable_wid, gtk_toggle_button_get_active (but));
+		gtk_widget_set_sensitive (disable_wid, nx_toggle_get_active (but));
 		label = g_object_get_data (G_OBJECT (disable_wid), "lbl");
-		gtk_widget_set_sensitive (label, gtk_toggle_button_get_active (but));
+		gtk_widget_set_sensitive (label, nx_toggle_get_active (but));
 	}
 }
 
 static void
-setup_toggle_sensitive_cb (GtkToggleButton *but, GtkWidget *wid)
+setup_toggle_sensitive_cb (GtkWidget *but, GtkWidget *wid)
 {
-	gtk_widget_set_sensitive (wid, gtk_toggle_button_get_active (but));
+	gtk_widget_set_sensitive (wid, nx_toggle_get_active (but));
 }
 
 static void
@@ -774,7 +774,7 @@ setup_create_toggleR (GtkWidget *tab, int row, const setting *set)
 	GtkWidget *wid;
 
 	wid = gtk_check_button_new_with_label (_(set->label));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid),
+	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int (&setup_prefs, set));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_toggle_cb), (gpointer)set);
@@ -790,7 +790,7 @@ setup_create_toggleL (GtkWidget *tab, int row, const setting *set)
 	GtkWidget *wid;
 
 	wid = gtk_check_button_new_with_label (_(set->label));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid),
+	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int (&setup_prefs, set));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_toggle_cb), (gpointer)set);
@@ -935,7 +935,7 @@ setup_menu_cb (GtkWidget *cbox, const setting *set)
 static void
 setup_radio_cb (GtkWidget *item, const setting *set)
 {
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (item)))
+	if (nx_toggle_get_active ((GtkWidget *) (item)))
 	{
 		int n = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (item), "n"));
 		/* set the prefs.<field> */
@@ -972,7 +972,7 @@ setup_create_radio (GtkWidget *table, int row, const setting *set)
 			group = wid;
 			gtkutil_container_add (GTK_WIDGET (hbox), wid);
 			if (i == setup_get_int (&setup_prefs, set))
-				gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), TRUE);
+				nx_toggle_set_active ((GtkWidget *) (wid), TRUE);
 			g_object_set_data (G_OBJECT (wid), "n", GINT_TO_POINTER (i));
 			g_signal_connect (G_OBJECT (wid), "toggled",
 									G_CALLBACK (setup_radio_cb), (gpointer)set);
@@ -1363,7 +1363,7 @@ setup_create_page (const setting *set)
 			if (GTK_IS_WIDGET (parentwid))
 			{
 				g_signal_connect (G_OBJECT (parentwid), "toggled", G_CALLBACK(setup_toggle_sensitive_cb), wid);
-				gtk_widget_set_sensitive (wid, gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (parentwid)));
+				gtk_widget_set_sensitive (wid, nx_toggle_get_active ((GtkWidget *) (parentwid)));
 				do_disable--;
 				if (!do_disable)
 					parentwid = NULL;

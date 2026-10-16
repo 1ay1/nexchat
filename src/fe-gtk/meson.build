@@ -21,7 +21,6 @@ hexchat_gtk_sources = [
   'palette-c16.c',
   'pixmaps.c',
   'plugin-tray.c',
-  'tray-backend-statusicon.c',
   'plugin-notification.c',
   'rawlog.c',
   'servlistgui.c',
@@ -33,7 +32,14 @@ hexchat_gtk_sources = [
   'xtext.c'
 ]
 
-gtk_dep = dependency('gtk+-3.0', version: '>= 3.22.0')
+if get_option('gtk') == '4'
+  gtk_dep = dependency('gtk4', version: '>= 4.14.0')
+  # no GtkStatusIcon in GTK4; the StatusNotifierItem backend is still to come
+  hexchat_gtk_sources += 'tray-backend-none.c'
+else
+  gtk_dep = dependency('gtk+-3.0', version: '>= 3.22.0')
+  hexchat_gtk_sources += 'tray-backend-statusicon.c'
+endif
 hexchat_gtk_deps = [
   hexchat_common_dep,
   libgmodule_dep, # used by libsexy
@@ -115,11 +121,14 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
 endif
 
 # gtkdnd.c must set up the same drag targets the old code did (GTK3 only)
+gtkdnd_test = disabler ()
+if get_option('gtk') == '3'
 gtkdnd_test = executable('gtkdnd-test',
   sources: ['../../tests/gtkdnd-test.c', 'gtkdnd.c'],
   include_directories: include_directories('.'),
   dependencies: gtk_dep,
 )
+endif
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('gtkdnd', gtkdnd_test)
 endif
@@ -132,6 +141,14 @@ nxmenu_test = executable('nxmenu-test',
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('nxmenu', nxmenu_test)
+endif
+
+# Backend-independent smoke test: connect, join, render (no XTest needed).
+# On X11 backends it runs under a private Xvfb.
+if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
+  test('smoke-gui', find_program('sh'),
+    args: [files('../../tests/smoke-gui.sh'), hexchat_gtk],
+    timeout: 60, is_parallel: false)
 endif
 
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.
@@ -148,6 +165,10 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('nxmenu', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), nxmenu_test],
     env: gui_env + ['DISP=:87'], timeout: 60)
+  test('smoke-gui', find_program('sh'),
+    args: [files('../../tests/ux/with-xvfb.sh'), find_program('sh').full_path(),
+           files('../../tests/smoke-gui.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:73'], timeout: 60, is_parallel: false)
   test('gui-keys', find_program('sh'),
     args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)

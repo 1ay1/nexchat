@@ -256,7 +256,7 @@ banlist_sensitize (banlist_info *banl)
 		/* Checkbox is not checkable.  Grey it and uncheck it. */
 		{
 			gtk_widget_set_sensitive (banl->checkboxes[i], FALSE);
-			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (banl->checkboxes[i]), FALSE);
+			nx_toggle_set_active ((GtkWidget *) (banl->checkboxes[i]), FALSE);
 		}
 		else
 		/* Checkbox is checkable.  Be sure it's sensitive. */
@@ -642,7 +642,7 @@ banlist_toggle (GtkWidget *item, gpointer data)
 	if (bit)		/* Should be gassert() */
 	{
 		banl->checked &= ~bit;
-		banl->checked |= (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (item)))? bit: 0;
+		banl->checked |= (nx_toggle_get_active ((GtkWidget *) (item)))? bit: 0;
 		banlist_do_refresh (banl);
 	}
 }
@@ -832,7 +832,7 @@ banlist_opengui (struct session *sess)
 		if (!(banl->capable & 1<<i))
 			continue;
 		banl->checkboxes[i] = gtk_check_button_new_with_label (_(modes[i].name));
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (banl->checkboxes[i]), (banl->checked & 1<<i? TRUE: FALSE));
+		nx_toggle_set_active ((GtkWidget *) (banl->checkboxes[i]), (banl->checked & 1<<i? TRUE: FALSE));
 		g_signal_connect (G_OBJECT (banl->checkboxes[i]), "toggled",
 								G_CALLBACK (banlist_toggle), banl);
 		gtkutil_grid_attach (table, banl->checkboxes[i], i+1, i+2, 0, 1, GU_FILL, GU_FILL, 0, 0);

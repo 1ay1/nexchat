@@ -591,6 +591,12 @@ gtk_xtext_init (GtkXText * xtext)
 /* GTK2 code poked adj->value / adj->upper directly, which never emitted
    value-changed. GTK3 hides the fields; do the same thing through the API
    with our own handler blocked. GTK3 clamps value to [0, upper-page]. */
+#if GTK_CHECK_VERSION(4, 0, 0)
+#define NX_ADJ_UPPER(upper, page) MAX ((upper), (page))
+#else
+#define NX_ADJ_UPPER(upper, page) (upper)
+#endif
+
 static void
 xtext_adj_set_silent (GtkXText *xtext, gdouble value, gdouble upper)
 {
@@ -599,7 +605,7 @@ xtext_adj_set_silent (GtkXText *xtext, gdouble value, gdouble upper)
 
 	if (xtext->vc_signal_tag)
 		g_signal_handler_block (adj, xtext->vc_signal_tag);
-	gtk_adjustment_configure (adj, value, 0, upper, 1,
+	gtk_adjustment_configure (adj, value, 0, NX_ADJ_UPPER (upper, page), 1,
 									  gtk_adjustment_get_page_increment (adj), page);
 	if (xtext->vc_signal_tag)
 		g_signal_handler_unblock (adj, xtext->vc_signal_tag);
@@ -636,7 +642,9 @@ gtk_xtext_adjustment_set (xtext_buffer *buf, int fire_signal)
 		   fire_signal says the old code would have told anyone. */
 		if (!fire_signal)
 			g_signal_handler_block (adj, buf->xtext->vc_signal_tag);
-		gtk_adjustment_configure (adj, value, 0, upper, 1, page_size, page_size);
+		/* fewer lines than fit: GTK3 takes upper < page_size, GTK4 asserts
+		   (and draws a full thumb either way) */
+		gtk_adjustment_configure (adj, value, 0, NX_ADJ_UPPER (upper, page_size), 1, page_size, page_size);
 		if (!fire_signal)
 			g_signal_handler_unblock (adj, buf->xtext->vc_signal_tag);
 	}

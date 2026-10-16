@@ -1229,13 +1229,13 @@ servlist_check_cb (GtkWidget *but, gpointer num_p)
 	if ((1 << num) == FLAG_CYCLE || (1 << num) == FLAG_USE_PROXY)
 	{
 		/* these ones are reversed, so it's compat with 2.0.x */
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (but)))
+		if (nx_toggle_get_active ((GtkWidget *) (but)))
 			selected_net->flags &= ~(1 << num);
 		else
 			selected_net->flags |= (1 << num);
 	} else
 	{
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (but)))
+		if (nx_toggle_get_active ((GtkWidget *) (but)))
 			selected_net->flags |= (1 << num);
 		else
 			selected_net->flags &= ~(1 << num);
@@ -1243,7 +1243,7 @@ servlist_check_cb (GtkWidget *but, gpointer num_p)
 
 	if ((1 << num) == FLAG_USE_GLOBAL)
 	{
-		servlist_toggle_global_user (!gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (but)));
+		servlist_toggle_global_user (!nx_toggle_get_active ((GtkWidget *) (but)));
 	}
 }
 
@@ -1253,7 +1253,7 @@ servlist_create_check (int num, int state, GtkWidget *table, int row, int col, c
 	GtkWidget *but;
 
 	but = gtk_check_button_new_with_label (labeltext);
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (but), state);
+	nx_toggle_set_active ((GtkWidget *) (but), state);
 	g_signal_connect (G_OBJECT (but), "toggled",
 							G_CALLBACK (servlist_check_cb), GINT_TO_POINTER (num));
 	gtkutil_grid_attach (table, but, col, col+2, row, row+1, GU_FILL|GU_EXPAND, 0, SERVLIST_X_PADDING, SERVLIST_Y_PADDING);
@@ -1650,7 +1650,7 @@ servlist_create_logintypecombo (GtkWidget *data)
 static void
 no_servlist (GtkWidget * igad, gpointer serv)
 {
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (igad)))
+	if (nx_toggle_get_active ((GtkWidget *) (igad)))
 		prefs.hex_gui_slist_skip = TRUE;
 	else
 		prefs.hex_gui_slist_skip = FALSE;
@@ -1659,7 +1659,7 @@ no_servlist (GtkWidget * igad, gpointer serv)
 static void
 fav_servlist (GtkWidget * igad, gpointer serv)
 {
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (igad)))
+	if (nx_toggle_get_active ((GtkWidget *) (igad)))
 		prefs.hex_gui_slist_fav = TRUE;
 	else
 		prefs.hex_gui_slist_fav = FALSE;
@@ -2117,7 +2117,7 @@ servlist_open_networks (void)
 
 	checkbutton_skip =
 		gtk_check_button_new_with_mnemonic (_("Skip network list on startup"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (checkbutton_skip),
+	nx_toggle_set_active ((GtkWidget *) (checkbutton_skip),
 											prefs.hex_gui_slist_skip);
 	gtkutil_container_add (GTK_WIDGET (hbox), checkbutton_skip);
 	g_signal_connect (G_OBJECT (checkbutton_skip), "toggled",
@@ -2126,7 +2126,7 @@ servlist_open_networks (void)
 
 	checkbutton_fav =
 		gtk_check_button_new_with_mnemonic (_("Show favorites only"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (checkbutton_fav),
+	nx_toggle_set_active ((GtkWidget *) (checkbutton_fav),
 											prefs.hex_gui_slist_fav);
 	gtkutil_container_add (GTK_WIDGET (hbox), checkbutton_fav);
 	g_signal_connect (G_OBJECT (checkbutton_fav), "toggled",

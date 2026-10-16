@@ -2310,8 +2310,10 @@ menu_create_main (GtkWidget *window, int bar, int away, int toplevel,
 		mymenu[METRE_OFFSET+3].state = 1;
 	}
 
-	/* change Close binding to ctrl-shift-w when using emacs keys */
+	/* change Close binding to ctrl-shift-w when using emacs keys (GTK4 has
+	   no key themes) */
 	settings = gtk_settings_get_default ();
+#if !GTK_CHECK_VERSION(4, 0, 0)
 	if (settings)
 	{
 		g_object_get (settings, "gtk-key-theme-name", &key_theme, NULL);
@@ -2325,6 +2327,9 @@ menu_create_main (GtkWidget *window, int bar, int away, int toplevel,
 			g_free (key_theme);
 		}
 	}
+#else
+	(void) settings; (void) key_theme;
+#endif
 
 	/* Away binding to ctrl-alt-a if the _Help menu conflicts (FR/PT/IT) */
 	{

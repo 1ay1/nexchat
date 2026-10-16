@@ -422,13 +422,13 @@ chanlist_find_cb (GtkWidget * wid, server *serv)
 static void
 chanlist_match_channel_button_toggled (GtkWidget * wid, server *serv)
 {
-	serv->gui->chanlist_match_wants_channel = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (wid));
+	serv->gui->chanlist_match_wants_channel = nx_toggle_get_active ((GtkWidget *) (wid));
 }
 
 static void
 chanlist_match_topic_button_toggled (GtkWidget * wid, server *serv)
 {
-	serv->gui->chanlist_match_wants_topic = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (wid));
+	serv->gui->chanlist_match_wants_topic = nx_toggle_get_active ((GtkWidget *) (wid));
 }
 
 static char *
@@ -864,14 +864,14 @@ chanlist_opengui (server *serv, int do_refresh)
 	gtk_widget_show (hbox);
 
 	wid = gtk_check_button_new_with_label (_("Channel name"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), TRUE);
+	nx_toggle_set_active ((GtkWidget *) (wid), TRUE);
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							  G_CALLBACK(chanlist_match_channel_button_toggled), serv);
 	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	wid = gtk_check_button_new_with_label (_("Topic"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), TRUE);
+	nx_toggle_set_active ((GtkWidget *) (wid), TRUE);
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							  G_CALLBACK (chanlist_match_topic_button_toggled),
 							  serv);

@@ -55,3 +55,26 @@ jobs:
 
       - name: Install
         run: sudo ninja -C build install
+
+  # the GTK4 build (-Dgtk=4): it must build, and the tests that run on it
+  # (smoke-gui: connect + join + render with criticals fatal, the compat
+  # unit tests) must pass
+  ubuntu_gtk4:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson libdbus-glib-1-dev libglib2.0-dev libgtk-4-dev libssl-dev python3 desktop-file-utils gettext xvfb
+
+      - name: Configure
+        run: meson build4 -Dgtk=4 -Dtext-frontend=false -Dwith-perl=false -Dwith-python=false -Dwith-lua=false -Dlibcanberra=disabled
+
+      - name: Build
+        run: ninja -C build4
+
+      - name: Test
+        run: meson test -C build4 --print-errorlogs smoke-gui nxmenu gtkcompat

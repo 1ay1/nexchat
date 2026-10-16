@@ -471,9 +471,69 @@ gtkosx_application_terminate (GtkosxApplication *app, gpointer userdata)
 }
 #endif
 
+/* NEXCHAT_SHOT=path[:seconds]: write the main window to path as a PNG after
+   the given time (default 4s), then go on. For comparing GTK3 and GTK4
+   builds on systems where a screen grab isn't possible (macOS without the
+   screen-recording permission, Wayland). */
+static gboolean
+fe_self_shot (gpointer data)
+{
+	char *path = data;
+	GtkWidget *win = current_sess && current_sess->gui ? current_sess->gui->window : NULL;
+
+	if (win)
+	{
+#if GTK_CHECK_VERSION(4, 0, 0)
+		int w = gtk_widget_get_width (win), h = gtk_widget_get_height (win);
+		GdkPaintable *p = gtk_widget_paintable_new (win);
+		GtkSnapshot *s = gtk_snapshot_new ();
+		GskRenderNode *node;
+
+		gdk_paintable_snapshot (p, s, w, h);
+		node = gtk_snapshot_free_to_node (s);
+		if (node)
+		{
+			GskRenderer *r = gtk_native_get_renderer (GTK_NATIVE (win));
+			graphene_rect_t rect = GRAPHENE_RECT_INIT (0, 0, w, h);
+			GdkTexture *t = gsk_renderer_render_texture (r, node, &rect);
+			gdk_texture_save_to_png (t, path);
+			g_object_unref (t);
+			gsk_render_node_unref (node);
+		}
+		g_object_unref (p);
+#else
+		GdkWindow *gw = gtk_widget_get_window (win);
+		GdkPixbuf *pix = gw ? gdk_pixbuf_get_from_window (gw, 0, 0, gdk_window_get_width (gw),
+																			gdk_window_get_height (gw)) : NULL;
+		if (pix)
+		{
+			gdk_pixbuf_save (pix, path, "png", NULL, NULL);
+			g_object_unref (pix);
+		}
+#endif
+	}
+	g_free (path);
+	return G_SOURCE_REMOVE;
+}
+
 void
 fe_main (void)
 {
+	const char *shot = g_getenv ("NEXCHAT_SHOT");
+
+	if (shot && *shot)
+	{
+		char *path = g_strdup (shot), *colon = strrchr (path, ':');
+		int secs = 4;
+
+		if (colon && colon[1] && g_ascii_isdigit (colon[1]))
+		{
+			*colon = 0;
+			secs = atoi (colon + 1);
+		}
+		g_timeout_add_seconds (secs, fe_self_shot, path);
+	}
+
 #ifdef HAVE_GTK_MAC
 	gtkosx_application_ready(osx_app);
 	g_signal_connect (G_OBJECT(osx_app), "NSApplicationWillTerminate",

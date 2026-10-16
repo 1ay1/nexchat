@@ -390,6 +390,24 @@ typedef gboolean (*nx_close_request_cb) (GtkWidget *win, gpointer ud);
 /* GTK4: gtk_window_new () takes no type */
 #define nx_window_new() gtk_window_new ()
 
+/* active state of a toggle or check/radio button (GTK4: GtkCheckButton is
+   no longer a GtkToggleButton) */
+static inline gboolean
+nx_toggle_get_active (GtkWidget *w)
+{
+	if (GTK_IS_CHECK_BUTTON (w))
+		return gtk_check_button_get_active (GTK_CHECK_BUTTON (w));
+	return gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (w));
+}
+static inline void
+nx_toggle_set_active (GtkWidget *w, gboolean on)
+{
+	if (GTK_IS_CHECK_BUTTON (w))
+		gtk_check_button_set_active (GTK_CHECK_BUTTON (w), on);
+	else
+		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (w), on);
+}
+
 /* a display that can draw translucent windows */
 #define nx_widget_is_composited(w) gdk_display_is_composited (gtk_widget_get_display (GTK_WIDGET (w)))
 #define nx_css_provider_load(prov, css) gtk_css_provider_load_from_string ((prov), (css))
@@ -605,6 +623,9 @@ void nx_on_window_configure (GtkWidget *win, nx_window_configure_cb cb, gpointer
 typedef gboolean (*nx_close_request_cb) (GtkWidget *win, gpointer ud);
 void nx_on_close_request (GtkWidget *win, nx_close_request_cb cb, gpointer ud);
 #define nx_window_new() gtk_window_new (GTK_WINDOW_TOPLEVEL)
+
+#define nx_toggle_get_active(w) gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (w))
+#define nx_toggle_set_active(w, on) gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (w), (on))
 
 #define nx_widget_is_composited(w) gdk_screen_is_composited (gtk_widget_get_screen (GTK_WIDGET (w)))
 #define nx_css_provider_load(prov, css) gtk_css_provider_load_from_data ((prov), (css), -1, NULL)

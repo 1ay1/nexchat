@@ -44,7 +44,7 @@
 static void
 joind_radio2_cb (GtkWidget *radio, server *serv)
 {
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (radio)))
+	if (nx_toggle_get_active ((GtkWidget *) (radio)))
 	{
 		gtk_widget_grab_focus (serv->gui->joind_entry);
 		gtk_editable_set_position (GTK_EDITABLE (serv->gui->joind_entry), 999);
@@ -62,7 +62,7 @@ joind_entryfocus_cb (GtkWidget *entry, gpointer userdata)
 {
 	server *serv = userdata;
 
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (serv->gui->joind_radio2), TRUE);
+	nx_toggle_set_active ((GtkWidget *) (serv->gui->joind_radio2), TRUE);
 }
 
 static void
@@ -82,11 +82,11 @@ joind_ok_cb (GtkWidget *ok, server *serv)
 	}
 
 	/* do nothing */
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (serv->gui->joind_radio1)))
+	if (nx_toggle_get_active ((GtkWidget *) (serv->gui->joind_radio1)))
 		goto xit;
 
 	/* join specific channel */
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (serv->gui->joind_radio2)))
+	if (nx_toggle_get_active ((GtkWidget *) (serv->gui->joind_radio2)))
 	{
 		char *text = (char *)nx_entry_get_text (serv->gui->joind_entry);
 		if (strlen (text) < 1)
@@ -103,7 +103,7 @@ joind_ok_cb (GtkWidget *ok, server *serv)
 
 xit:
 	prefs.hex_gui_join_dialog = 0;
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (serv->gui->joind_check)))
+	if (nx_toggle_get_active ((GtkWidget *) (serv->gui->joind_check)))
 		prefs.hex_gui_join_dialog = 1;
 
 	nx_widget_destroy (serv->gui->joind_win);
@@ -221,7 +221,7 @@ joind_show_dialog (server *serv)
 
 	serv->gui->joind_check = checkbutton1 = gtk_check_button_new_with_mnemonic (_("_Always show this dialog after connecting."));
 	if (prefs.hex_gui_join_dialog)
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (checkbutton1), TRUE);
+		nx_toggle_set_active ((GtkWidget *) (checkbutton1), TRUE);
 	gtk_widget_show (checkbutton1);
 	nx_box_pack_start (vbox1, checkbutton1, FALSE, FALSE, 0);
 

@@ -669,7 +669,7 @@ mg_unpopulate (session *sess)
 		res->queue_text = g_strdup (gtk_label_get_text (GTK_LABEL (gui->throttleinfo)));
 
 	for (i = 0; i < NUM_FLAG_WIDS - 1; i++)
-		res->flag_wid_state[i] = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (gui->flag_wid[i]));
+		res->flag_wid_state[i] = nx_toggle_get_active ((GtkWidget *) (gui->flag_wid[i]));
 
 	res->old_ul_value = userlist_get_value (gui->user_tree);
 	if (gui->lagometer)
@@ -979,7 +979,7 @@ mg_populate (session *sess)
 			gtk_widget_show (sess->gui->flag_wid[i]);
 
 		/* Update state */
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (gui->flag_wid[i]),
+		nx_toggle_set_active ((GtkWidget *) (gui->flag_wid[i]),
 									res->flag_wid_state[i]);
 	}
 	ignore_chanmode = FALSE;
@@ -1202,7 +1202,7 @@ mg_count_dccs (void)
 static void
 mg_quit_dialog_response (GtkDialog *dlg, int response, GtkWidget *checkbutton1)
 {
-	gboolean dont_ask = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (checkbutton1));
+	gboolean dont_ask = nx_toggle_get_active ((GtkWidget *) (checkbutton1));
 
 	nx_widget_destroy (GTK_WIDGET (dlg));	/* clears the static via "destroy" */
 
@@ -1938,7 +1938,7 @@ mg_change_flag (GtkWidget * wid, session *sess, char flag)
 	mode[2] = '\0';
 	if (serv->connected && sess->channel[0])
 	{
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (wid)))
+		if (nx_toggle_get_active ((GtkWidget *) (wid)))
 			mode[0] = '+';
 		else
 			mode[0] = '-';
@@ -1956,7 +1956,7 @@ flagl_hit (GtkWidget * wid, struct session *sess)
 	const char *limit_str;
 	server *serv = sess->server;
 
-	if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (wid)))
+	if (nx_toggle_get_active ((GtkWidget *) (wid)))
 	{
 		if (serv->connected && sess->channel[0])
 		{
@@ -1965,7 +1965,7 @@ flagl_hit (GtkWidget * wid, struct session *sess)
 			{
 				fe_message (_("User limit must be a number!\n"), FE_MSG_ERROR);
 				nx_entry_set_text (sess->gui->limit_entry, "");
-				gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), FALSE);
+				nx_toggle_set_active ((GtkWidget *) (wid), FALSE);
 				return;
 			}
 			g_snprintf (modes, sizeof (modes), "+l %d", atoi (limit_str));
@@ -1987,7 +1987,7 @@ flagk_hit (GtkWidget * wid, struct session *sess)
 		g_snprintf (modes, sizeof (modes), "-k %s", 
 			  nx_entry_get_text (sess->gui->key_entry));
 
-		if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (wid)))
+		if (nx_toggle_get_active ((GtkWidget *) (wid)))
 			modes[0] = '+';
 
 		serv->p_mode (serv, sess->channel, modes);
@@ -2016,7 +2016,7 @@ mg_flagbutton_cb (GtkWidget *but, char *flag)
 		break;
 	case 'b':
 		ignore_chanmode = TRUE;
-		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (sess->gui->flag_b), FALSE);
+		nx_toggle_set_active ((GtkWidget *) (sess->gui->flag_b), FALSE);
 		ignore_chanmode = FALSE;
 		banlist_opengui (sess);
 		break;
@@ -2077,7 +2077,7 @@ mg_limit_entry_cb (GtkWidget * igad, gpointer userdata)
 		{
 			nx_entry_set_text (igad, "");
 			fe_message (_("User limit must be a number!\n"), FE_MSG_ERROR);
-			gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (sess->gui->flag_l), FALSE);
+			nx_toggle_set_active ((GtkWidget *) (sess->gui->flag_l), FALSE);
 			return;
 		}
 		g_snprintf (modes, sizeof(modes), "+l %d", 
@@ -2855,9 +2855,9 @@ mg_search_handle_next(GtkWidget *wid, session *sess)
 }
 
 static void
-search_set_option (GtkToggleButton *but, guint *pref)
+search_set_option (GtkWidget *but, guint *pref)
 {
-	*pref = gtk_toggle_button_get_active(but);
+	*pref = nx_toggle_get_active (but);
 	save_config();
 }
 
@@ -2935,7 +2935,7 @@ mg_create_search(session *sess, GtkWidget *box)
 	g_signal_connect(G_OBJECT(next), "clicked", G_CALLBACK(mg_search_handle_next), sess);
 
 	highlight = gtk_check_button_new_with_mnemonic (_("_Highlight all"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(highlight), prefs.hex_text_search_highlight_all);
+	nx_toggle_set_active ((GtkWidget *) (highlight), prefs.hex_text_search_highlight_all);
 	gtk_widget_set_can_focus (highlight, FALSE);
 	g_signal_connect (G_OBJECT (highlight), "toggled", G_CALLBACK (search_set_option), &prefs.hex_text_search_highlight_all);
 	g_signal_connect (G_OBJECT (highlight), "toggled", G_CALLBACK (search_handle_refresh), sess);
@@ -2943,14 +2943,14 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_widget_set_tooltip_text (highlight, _("Highlight all occurrences, and underline the current occurrence."));
 
 	matchcase = gtk_check_button_new_with_mnemonic (_("Mat_ch case"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(matchcase), prefs.hex_text_search_case_match);
+	nx_toggle_set_active ((GtkWidget *) (matchcase), prefs.hex_text_search_case_match);
 	gtk_widget_set_can_focus (matchcase, FALSE);
 	g_signal_connect (G_OBJECT (matchcase), "toggled", G_CALLBACK (search_set_option), &prefs.hex_text_search_case_match);
 	nx_box_pack_start (gui->shbox, matchcase, FALSE, FALSE, 0);
 	gtk_widget_set_tooltip_text (matchcase, _("Perform a case-sensitive search."));
 
 	regex = gtk_check_button_new_with_mnemonic (_("_Regex"));
-	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON(regex), prefs.hex_text_search_regexp);
+	nx_toggle_set_active ((GtkWidget *) (regex), prefs.hex_text_search_regexp);
 	gtk_widget_set_can_focus (regex, FALSE);
 	g_signal_connect (G_OBJECT (regex), "toggled", G_CALLBACK (search_set_option), &prefs.hex_text_search_regexp);
 	nx_box_pack_start (gui->shbox, regex, FALSE, FALSE, 0);
@@ -3444,8 +3444,8 @@ fe_update_mode_buttons (session *sess, char mode, char sign)
 			if (!sess->gui->is_tab || sess == current_tab)
 			{
 				ignore_chanmode = TRUE;
-				if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (sess->gui->flag_wid[i])) != state)
-					gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (sess->gui->flag_wid[i]), state);
+				if (nx_toggle_get_active ((GtkWidget *) (sess->gui->flag_wid[i])) != state)
+					nx_toggle_set_active ((GtkWidget *) (sess->gui->flag_wid[i]), state);
 				ignore_chanmode = FALSE;
 			} else
 			{
