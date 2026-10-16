@@ -158,6 +158,7 @@ Goal: it builds with `-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED`. After 
 **Approach (decided):** move code to GTK4-compatible spellings while still building and testing on GTK3, then switch. Every GTK3/GTK4 difference that is only spelling goes through `src/fe-gtk/gtkcompat.h` (GTK3 branch = the old call, GTK4 branch compile- and behaviour-checked by `tests/gtkcompat-test.c` against real GTK4, in CI). Behaviour differences (drawing, events, menus, DnD) get their own files. Measured size: ~1,350 compile errors / 254 distinct GTK3-only symbols on a trial GTK4 build.
 
 - [x] Step 1, mechanical: `gtk_box_pack_start/end` (exact GTK3 order and expand/fill/padding semantics on GTK4, tested), `gtk_container_set_border_width`, `gtk_widget_show_all`, `gtk_entry_get/set_text`, `gtk_widget_destroy` → `nx_*`. ~250 call sites. GTK3 suite (10 tests incl. GUI) and screenshots unchanged.
+- [x] Step 2, containers: `gtkutil_container_add` has a GTK4 branch (window/frame/scrolled window/viewport/button/expander/paned setters); `gtk_container_get_children` / `gtk_bin_get_child` → `nx_widget_get_children` / `nx_bin_get_child` outside menus (menu.c's go with the menu rewrite).
 
 - [ ] meson: `gtk4`. No libadwaita.
 - [ ] `gtk_main` becomes a GtkApplication. The single-instance behaviour of today's D-Bus `hexchat_remote()` (`-e`, `--existing`, `-c` command, URL handling) moves to the GApplication `open`/`command-line` hooks. The same command-line flags keep working.

@@ -114,6 +114,20 @@ nx_widget_destroy (GtkWidget *w)
 		gtk_widget_unparent (w);
 }
 
+/* gtk_container_get_children: a new GList the caller frees */
+static inline GList *
+nx_widget_get_children (GtkWidget *w)
+{
+	GList *list = NULL;
+	GtkWidget *c;
+	for (c = gtk_widget_get_last_child (w); c; c = gtk_widget_get_prev_sibling (c))
+		list = g_list_prepend (list, c);
+	return list;
+}
+
+/* gtk_bin_get_child: the single child (buttons, frames, windows, ...) */
+#define nx_bin_get_child(w) gtk_widget_get_first_child (GTK_WIDGET (w))
+
 #else
 
 /* ---- GTK3: exactly the old calls ---- */
@@ -128,6 +142,8 @@ nx_widget_destroy (GtkWidget *w)
 #define nx_entry_get_text(e) gtk_entry_get_text (GTK_ENTRY (e))
 #define nx_entry_set_text(e, t) gtk_entry_set_text (GTK_ENTRY (e), (t))
 #define nx_widget_destroy(w) gtk_widget_destroy (GTK_WIDGET (w))
+#define nx_widget_get_children(w) gtk_container_get_children (GTK_CONTAINER (w))
+#define nx_bin_get_child(w) gtk_bin_get_child (GTK_BIN (w))
 
 #endif
 

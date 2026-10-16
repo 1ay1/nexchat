@@ -1619,9 +1619,9 @@ servlist_create_charsetcombo (void)
 		i++;
 	}
 
-	nx_entry_set_text (gtk_bin_get_child (GTK_BIN (cb)), selected_net->encoding ? selected_net->encoding : pages[0]);
+	nx_entry_set_text (nx_bin_get_child (cb), selected_net->encoding ? selected_net->encoding : pages[0]);
 	
-	g_signal_connect (G_OBJECT (gtk_bin_get_child (GTK_BIN (cb))), "changed",
+	g_signal_connect (G_OBJECT (nx_bin_get_child (cb)), "changed",
 							G_CALLBACK (servlist_combo_cb), NULL);
 
 	return cb;

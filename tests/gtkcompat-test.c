@@ -135,6 +135,20 @@ main (int argc, char **argv)
 #endif
 		g_object_unref (parent);
 	}
+	{
+		GtkWidget *b = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+		GtkWidget *btn = gtk_button_new_with_label ("btn");
+		GList *kids;
+		g_object_ref_sink (b);
+		nx_box_pack_start (b, lbl ("k1"), FALSE, FALSE, 0);
+		nx_box_pack_start (b, lbl ("k2"), FALSE, FALSE, 0);
+		kids = nx_widget_get_children (b);
+		CHECK (g_list_length (kids) == 2 && strcmp (gtk_widget_get_name (kids->data), "k1") == 0,
+				 "get_children: two, in order");
+		g_list_free (kids);
+		CHECK (GTK_IS_LABEL (nx_bin_get_child (btn)), "bin child of a label button is the label");
+		g_object_unref (b);
+	}
 
 	if (fails)
 	{

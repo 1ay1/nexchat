@@ -81,7 +81,7 @@ mg_grid_gap (GtkWidget *grid, const char *fmt, int index)
 static void
 mg_grid_apply_gaps (GtkWidget *grid)
 {
-	GList *children = gtk_container_get_children (GTK_CONTAINER (grid)), *l;
+	GList *children = nx_widget_get_children (grid), *l;
 
 	for (l = children; l; l = l->next)
 	{
@@ -304,7 +304,7 @@ fe_set_tab_color (struct session *sess, tabcolor col)
 static void
 mg_set_myself_away (session_gui *gui, gboolean away)
 {
-	gtk_label_set_attributes (GTK_LABEL (gtk_bin_get_child (GTK_BIN (gui->nick_label))),
+	gtk_label_set_attributes (GTK_LABEL (nx_bin_get_child (gui->nick_label)),
 									  away ? away_list : NULL);
 }
 
@@ -1487,7 +1487,7 @@ mg_markup_item (GtkWidget *menu, char *text, int arg)
 	GtkWidget *item;
 
 	item = gtk_menu_item_new_with_label ("");
-	gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), text);
+	gtk_label_set_markup (GTK_LABEL (nx_bin_get_child (item)), text);
 	g_signal_connect (G_OBJECT (item), "activate",
 							G_CALLBACK (mg_color_insert), GINT_TO_POINTER (arg));
 	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
@@ -1640,7 +1640,7 @@ mg_create_tabmenu (session *sess, GdkEventButton *event, chan *ch)
 		g_free (name);
 
 		item = gtk_menu_item_new_with_label ("");
-		gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), buf);
+		gtk_label_set_markup (GTK_LABEL (nx_bin_get_child (item)), buf);
 		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 		gtk_widget_show (item);
 

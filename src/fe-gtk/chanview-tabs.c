@@ -102,7 +102,7 @@ tab_search_offset (GtkWidget *inner, gint start_offset,
 	GtkAllocation allocation;
 	gint found;
 
-	boxes = gtk_container_get_children (GTK_CONTAINER (inner));
+	boxes = nx_widget_get_children (inner);
 	if (!forward && boxes)
 		boxes = g_list_last (boxes);
 
@@ -111,7 +111,7 @@ tab_search_offset (GtkWidget *inner, gint start_offset,
 		box = (GtkWidget *)boxes->data;
 		boxes = (forward ? boxes->next : boxes->prev);
 
-		tabs = gtk_container_get_children (GTK_CONTAINER (box));
+		tabs = nx_widget_get_children (box);
 		if (!forward && tabs)
 			tabs = g_list_last (tabs);
 
@@ -378,7 +378,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 	/* userdata, passed to mg_tabs_compare() */
 	b = ch->userdata;
 
-	list = gtk_container_get_children (GTK_CONTAINER (box));
+	list = nx_widget_get_children (box);
 	while (list)
 	{
 		child = list->data;
@@ -415,7 +415,7 @@ cv_tabs_prune (chanview *cv)
 	int empty;
 
 	inner = ((tabview *)cv)->inner;
-	boxes = gtk_container_get_children (GTK_CONTAINER (inner));
+	boxes = nx_widget_get_children (inner);
 	while (boxes)
 	{
 		child = boxes->data;
@@ -424,7 +424,7 @@ cv_tabs_prune (chanview *cv)
 
 		/* check if the box is empty (except a vseperator) */
 		empty = TRUE;
-		children = gtk_container_get_children (GTK_CONTAINER (box));
+		children = nx_widget_get_children (box);
 		while (children)
 		{
 			if (!GTK_IS_SEPARATOR ((GtkWidget *)children->data))
@@ -450,7 +450,7 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 
 	inner = ((tabview *)cv)->inner;
 	/* see if a family for this tab already exists */
-	boxes = gtk_container_get_children (GTK_CONTAINER (inner));
+	boxes = nx_widget_get_children (inner);
 	while (boxes)
 	{
 		child = boxes->data;
@@ -467,7 +467,7 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 
 		/* check if the box is empty (except a vseperator) */
 		empty = TRUE;
-		children = gtk_container_get_children (GTK_CONTAINER (box));
+		children = nx_widget_get_children (box);
 		while (children)
 		{
 			if (!GTK_IS_SEPARATOR ((GtkWidget *)children->data))
@@ -613,12 +613,12 @@ tab_group_for_each_tab (chanview *cv,
 	int i;
 
 	innerbox = (GtkBox *) ((tabview *)cv)->inner;
-	boxes = gtk_container_get_children (GTK_CONTAINER (innerbox));
+	boxes = nx_widget_get_children (innerbox);
 	i = 0;
 	while (boxes)
 	{
 		child = boxes->data;
-		tabs = gtk_container_get_children (GTK_CONTAINER (child));
+		tabs = nx_widget_get_children (child);
 
 		while (tabs)
 		{
@@ -728,7 +728,7 @@ cv_tabs_move (chan *ch, int delta)
 	GList *list;
 	GtkWidget *parent = gtk_widget_get_parent(GTK_WIDGET (ch->impl));
 
-	for (list = gtk_container_get_children (GTK_CONTAINER (parent)); list; list = list->next)
+	for (list = nx_widget_get_children (parent); list; list = list->next)
 	{
 		GtkWidget *child_entry;
 
@@ -756,7 +756,7 @@ cv_tabs_move_family (chan *ch, int delta)
 
 	/* find position of tab's family */
 	i = 0;
-	for (list = gtk_container_get_children (GTK_CONTAINER (((tabview *)ch->cv)->inner)); list; list = list->next)
+	for (list = nx_widget_get_children (((tabview *)ch->cv)->inner); list; list = list->next)
 	{
 		GtkWidget *child_entry;
 		void *fam;
@@ -785,7 +785,7 @@ cv_tabs_cleanup (chanview *cv)
 static void
 cv_tabs_set_color (chan *ch, PangoAttrList *list)
 {
-	gtk_label_set_attributes (GTK_LABEL (gtk_bin_get_child (GTK_BIN (ch->impl))), list);
+	gtk_label_set_attributes (GTK_LABEL (nx_bin_get_child (ch->impl)), list);
 }
 
 static void
@@ -794,7 +794,7 @@ cv_tabs_rename (chan *ch, char *name)
 	PangoAttrList *attr;
 	GtkWidget *tab = ch->impl;
 
-	attr = gtk_label_get_attributes (GTK_LABEL (gtk_bin_get_child (GTK_BIN (tab))));
+	attr = gtk_label_get_attributes (GTK_LABEL (nx_bin_get_child (tab)));
 	if (attr)
 		pango_attr_list_ref (attr);
 
@@ -803,7 +803,7 @@ cv_tabs_rename (chan *ch, char *name)
 
 	if (attr)
 	{
-		gtk_label_set_attributes (GTK_LABEL (gtk_bin_get_child (GTK_BIN (tab))), attr);
+		gtk_label_set_attributes (GTK_LABEL (nx_bin_get_child (tab)), attr);
 		pango_attr_list_unref (attr);
 	}
 }

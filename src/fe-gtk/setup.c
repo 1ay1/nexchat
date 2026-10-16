@@ -1460,7 +1460,7 @@ setup_create_color_button (GtkWidget *table, int num, int row, int col)
 						/* 12345678901 23456789 01  23456789 */
 		sprintf (buf, "<span size=\"x-small\">%d</span>", num);
 	but = gtk_button_new_with_label (" ");
-	gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (but))), buf);
+	gtk_label_set_markup (GTK_LABEL (nx_bin_get_child (but)), buf);
 	/* win32 build uses this to turn off themeing */
 	g_object_set_data (G_OBJECT (but), "hexchat-color", (gpointer)1);
 	gtkutil_grid_attach (table, but, col, col+1, row, row+1,
@@ -1838,9 +1838,9 @@ setup_add_page (const char *title, GtkWidget *book, GtkWidget *tab)
 	sw = GTK_SCROLLED_WINDOW(gtk_scrolled_window_new (NULL, NULL));
 	gtk_scrolled_window_set_shadow_type (sw, GTK_SHADOW_IN);
 	gtk_scrolled_window_set_policy (sw, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-	gtk_container_add (GTK_CONTAINER (sw), vvbox);
+	gtkutil_container_add (GTK_WIDGET (sw), vvbox);
 
-	viewport = gtk_bin_get_child (GTK_BIN(sw));
+	viewport = nx_bin_get_child (sw);
 	gtk_viewport_set_shadow_type (GTK_VIEWPORT(viewport), GTK_SHADOW_NONE);
 
 	gtk_notebook_append_page (GTK_NOTEBOOK (book), GTK_WIDGET(sw), NULL);

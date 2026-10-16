@@ -68,14 +68,41 @@ gtkutil_box_new (GtkOrientation orientation, gboolean homogeneous, int spacing)
 /* gtk_container_add() into a GTK2 GtkHBox/GtkVBox packed the child with
    expand=TRUE, fill=TRUE. A GTK3 gtk_box_new() box packs it with
    expand=FALSE, so whole panes collapse. Keep the GTK2 behaviour for every
-   box, and plain gtk_container_add for everything else. */
+   box, and plain gtk_container_add for everything else.
+   GTK4 has no GtkContainer: each single-child parent has its own setter. */
 void
 gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 {
 	if (GTK_IS_BOX (container))
 		nx_box_pack_start (container, child, TRUE, TRUE, 0);
+#if GTK_CHECK_VERSION(4, 0, 0)
+	else if (GTK_IS_WINDOW (container))
+		gtk_window_set_child (GTK_WINDOW (container), child);
+	else if (GTK_IS_FRAME (container))
+		gtk_frame_set_child (GTK_FRAME (container), child);
+	else if (GTK_IS_SCROLLED_WINDOW (container))
+		gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (container), child);
+	else if (GTK_IS_VIEWPORT (container))
+		gtk_viewport_set_child (GTK_VIEWPORT (container), child);
+	else if (GTK_IS_BUTTON (container))
+		gtk_button_set_child (GTK_BUTTON (container), child);
+	else if (GTK_IS_EXPANDER (container))
+		gtk_expander_set_child (GTK_EXPANDER (container), child);
+	else if (GTK_IS_PANED (container))
+	{
+		/* gtk_container_add on a paned fills child1, then child2 */
+		if (!gtk_paned_get_start_child (GTK_PANED (container)))
+			gtk_paned_set_start_child (GTK_PANED (container), child);
+		else
+			gtk_paned_set_end_child (GTK_PANED (container), child);
+	}
+	else
+		g_warning ("gtkutil_container_add: no GTK4 equivalent for %s",
+					  G_OBJECT_TYPE_NAME (container));
+#else
 	else
 		gtk_container_add (GTK_CONTAINER (container), child);
+#endif
 }
 
 typedef struct
