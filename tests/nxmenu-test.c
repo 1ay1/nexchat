@@ -62,6 +62,52 @@ check_trace (const char *want, const char *what)
 }
 
 #if GTK_CHECK_VERSION(4, 0, 0)
+static void
+show_count (nx_menu *m, gpointer ud)
+{
+	(*(int *) ud)++;
+}
+
+/* the first popover menu inside w (a nested submenu) */
+static GtkWidget *
+find_popover_menu (GtkWidget *w)
+{
+	GtkWidget *c, *r;
+
+	for (c = gtk_widget_get_first_child (w); c; c = gtk_widget_get_next_sibling (c))
+	{
+		if (GTK_IS_POPOVER_MENU (c))
+			return c;
+		if ((r = find_popover_menu (c)))
+			return r;
+	}
+	return NULL;
+}
+
+/* sensitivity of the menu button labelled `text` inside w; -1 if none */
+static int
+button_sensitive (GtkWidget *w, const char *text)
+{
+	GtkWidget *c;
+	int r;
+
+	for (c = gtk_widget_get_first_child (w); c; c = gtk_widget_get_next_sibling (c))
+	{
+		if (GTK_IS_LABEL (c) && !strcmp (gtk_label_get_text (GTK_LABEL (c)), text))
+		{
+			GtkWidget *b = c;
+			while (b && strcmp (gtk_widget_get_css_name (b), "modelbutton") != 0)
+				b = gtk_widget_get_parent (b);
+			return b ? gtk_widget_is_sensitive (b) : -1;
+		}
+		if (GTK_IS_POPOVER_MENU (c))
+			continue;
+		if ((r = button_sensitive (c, text)) != -1)
+			return r;
+	}
+	return -1;
+}
+
 /* the model as text: sections and items with action (+target) */
 static void
 dump_model (GMenuModel *m, GString *out, int depth)
@@ -252,6 +298,41 @@ main (int argc, char **argv)
 		}
 	}
 	nx_menu_free (m);
+
+	/* a submenu's on_show runs when it opens, not when the popup does.
+	   X11 only: a popup with no input event behind it crashes headless weston */
+	if (!g_strcmp0 (g_getenv ("GDK_BACKEND"), "x11") || !g_getenv ("WAYLAND_DISPLAY"))
+	{
+		GtkWidget *win = gtk_window_new ();
+		GtkWidget *anchor = gtk_label_new ("x");
+		nx_menu *pm = nx_menu_new (), *ps;
+		GtkWidget *pop;
+		int shown = 0;
+
+		gtk_window_set_child (GTK_WINDOW (win), anchor);
+		gtk_window_present (GTK_WINDOW (win));
+		nx_menu_add_item (pm, NX_MENU_APPEND, "top", 0, NULL, cb, "t");
+		ps = nx_menu_add_submenu (pm, NX_MENU_APPEND, "some_nick", 0, NULL);
+		nx_menu_add_item (ps, NX_MENU_APPEND, "info", 0, NULL, cb, "i");
+		nx_menu_add_submenu (pm, NX_MENU_APPEND, "greyed", NX_ITEM_INSENSITIVE, NULL);
+		nx_menu_on_show (ps, show_count, &shown);
+		nx_menu_popup (pm, anchor, NULL, NULL, NULL);
+		CHECK (shown == 0, "submenu hook ran at popup (%d)", shown);
+		pop = nx_menu_get_popover (pm);
+		CHECK (pop != NULL, "popover");
+		if (pop)
+		{
+			GtkWidget *sp = find_popover_menu (pop);
+			CHECK (sp != NULL, "no nested submenu popover");
+			if (sp)
+				gtk_popover_popup (GTK_POPOVER (sp));
+			CHECK (shown == 1, "submenu hook didn't run when it opened (%d)", shown);
+			CHECK (button_sensitive (pop, "some_nick") == 1, "submenu entry greyed");
+			CHECK (button_sensitive (pop, "greyed") == 0, "insensitive submenu entry not greyed");
+			gtk_widget_unparent (pop);
+		}
+		gtk_window_destroy (GTK_WINDOW (win));
+	}
 #else
 	g_object_unref (m);
 #endif

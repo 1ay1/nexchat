@@ -2362,7 +2362,7 @@ mg_create_textarea (session *sess, GtkWidget *box)
 
 	gui->vscrollbar = gtk_scrollbar_new (GTK_ORIENTATION_VERTICAL, GTK_XTEXT (xtext)->adj);
 	gtk_widget_set_name (gui->vscrollbar, "hexchat-scrollbar");
-	nx_box_pack_start (inbox, gui->vscrollbar, FALSE, TRUE, 0);
+	nx_box_pack_start (inbox, mg_drop_overlay (gui->vscrollbar), FALSE, TRUE, 0);
 
 	/* flags 5 (motion|drop) as before: no theme highlight, we paint our own */
 	mg_layout_drop_dest (gui->vscrollbar,

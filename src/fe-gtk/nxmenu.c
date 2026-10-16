@@ -108,6 +108,13 @@ nx_menu_new (void)
 	menu_icons_init ();
 	m->model = g_menu_new ();
 	m->actions = g_simple_action_group_new ();
+	{
+		/* what greyed submenu entries point at */
+		GSimpleAction *off = g_simple_action_new ("nx-off", NULL);
+		g_simple_action_set_enabled (off, FALSE);
+		g_action_map_add_action (G_ACTION_MAP (m->actions), G_ACTION (off));
+		g_object_unref (off);
+	}
 	return m;
 }
 
@@ -276,7 +283,16 @@ model_item (nx_item *it)
 	GMenuItem *mi;
 
 	if (it->kind == E_SUBMENU)
+	{
 		mi = g_menu_item_new_submenu (label, G_MENU_MODEL (it->submenu->model));
+		/* a greyed submenu entry: the tracker follows an action's enabled
+		   state, so point it at a disabled one */
+		if (!it->sensitive)
+		{
+			g_snprintf (name, sizeof name, "%s.nx-off", menu_prefix (it->menu));
+			g_menu_item_set_attribute (mi, G_MENU_ATTRIBUTE_ACTION, "s", name);
+		}
+	}
 	else
 	{
 		g_snprintf (name, sizeof name, "%s.%s", menu_prefix (it->menu),
@@ -578,25 +594,62 @@ nx_menu_on_show_disconnect (nx_menu *m)
 	m->show_cb = NULL;
 }
 
-/* the popup opens: every (sub)menu's on_show, depth first */
-static void
-run_show_hooks (nx_menu *m)
+/* find the submenu whose model a nested popover shows */
+static nx_menu *
+find_submenu (nx_menu *m, GMenuModel *model)
 {
 	GList *l;
 
-	if (m->show_cb)
-		m->show_cb (m, m->show_data);
 	for (l = m->entries; l; l = l->next)
-		if (((nx_item *) l->data)->submenu)
-			run_show_hooks (((nx_item *) l->data)->submenu);
+	{
+		nx_item *it = l->data;
+		nx_menu *found;
+
+		if (!it->submenu)
+			continue;
+		if (G_MENU_MODEL (it->submenu->model) == model)
+			return it->submenu;
+		if ((found = find_submenu (it->submenu, model)))
+			return found;
+	}
+	return NULL;
+}
+
+/* a submenu opens: its on_show runs now, as GTK3's "show" did */
+static void
+popup_submenu_shown (GtkWidget *sub_popover, nx_menu *sub)
+{
+	if (sub->show_cb)
+		sub->show_cb (sub, sub->show_data);
+}
+
+/* nested popovers are made from the model, one per submenu, inside ours */
+static void
+hook_submenus (GtkWidget *w, nx_menu *root)
+{
+	GtkWidget *c;
+
+	for (c = gtk_widget_get_first_child (w); c; c = gtk_widget_get_next_sibling (c))
+	{
+		if (GTK_IS_POPOVER_MENU (c))
+		{
+			nx_menu *sub = find_submenu (root, gtk_popover_menu_get_menu_model (GTK_POPOVER_MENU (c)));
+			if (sub && sub->show_cb)
+				g_signal_connect (c, "show", G_CALLBACK (popup_submenu_shown), sub);
+		}
+		hook_submenus (c, root);
+	}
 }
 
 void
 nx_item_set_sensitive (nx_item *it, gboolean sensitive)
 {
 	it->sensitive = sensitive;
-	/* submenus: GtkPopoverMenu has no per-submenu sensitivity; their items
-	   stay as they are (GTK3 greyed the entry). Rare: only /MENU -d. */
+	if (it->kind == E_SUBMENU)
+	{
+		changed (it->menu);
+		return;
+	}
 	if (it->action && it->kind != E_RADIO)
 		g_simple_action_set_enabled (it->action, sensitive);
 	else if (it->kind == E_RADIO)
@@ -744,6 +797,12 @@ nx_menu_get_actions (nx_menu *m)
 	return G_ACTION_GROUP (menu_root (m)->actions);
 }
 
+GtkWidget *
+nx_menu_get_popover (nx_menu *m)
+{
+	return m->popover;
+}
+
 static gboolean
 popup_free_idle (gpointer data)
 {
@@ -863,7 +922,9 @@ G_GNUC_END_IGNORE_DEPRECATIONS
 	gtk_popover_set_pointing_to (GTK_POPOVER (p), &r);
 	gtk_popover_set_position (GTK_POPOVER (p), GTK_POS_BOTTOM);
 	g_signal_connect (p, "closed", G_CALLBACK (popup_closed), m);
-	run_show_hooks (m);
+	if (m->show_cb)
+		m->show_cb (m, m->show_data);
+	hook_submenus (p, m);
 	gtk_popover_popup (GTK_POPOVER (p));
 	g_object_set_data (G_OBJECT (p), "nx-fresh", GINT_TO_POINTER (1));
 	k = gtk_event_controller_key_new ();

@@ -143,6 +143,8 @@ nx_item_kind nx_item_get_kind (nx_item *item);
    for tests */
 GMenuModel *nx_menu_get_model (nx_menu *menu);
 GActionGroup *nx_menu_get_actions (nx_menu *menu);
+/* the popover while the popup is up, else NULL; for tests */
+GtkWidget *nx_menu_get_popover (nx_menu *menu);
 void nx_menu_free (nx_menu *menu);
 #else
 /* GTK3 only, during the move: the widgets behind the handles */
