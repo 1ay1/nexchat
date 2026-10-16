@@ -411,6 +411,20 @@ fe_apply_css (void)
 		css_append_color (css, "color", &colors[COL_MARK_FG]);
 		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
 		g_string_append (css, "}\n");
+#if GTK_CHECK_VERSION(4, 0, 0)
+		/* the same on nxlist's column views: the list area and its rows */
+		g_string_append (css, "#hexchat-userlist > listview, #hexchat-tree > listview,"
+									 " #hexchat-userlist > listview > row:not(:selected),"
+									 " #hexchat-tree > listview > row:not(:selected) {");
+		css_append_color (css, "color", &colors[COL_FG]);
+		css_append_color (css, "background-color", &colors[COL_BG]);
+		g_string_append (css, "}\n");
+		g_string_append (css, "#hexchat-userlist > listview > row:selected,"
+									 " #hexchat-tree > listview > row:selected {");
+		css_append_color (css, "color", &colors[COL_MARK_FG]);
+		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
+		g_string_append (css, "}\n");
+#endif
 	}
 
 	/* the chat view scrollbar: GTK3 themes make it a thin overlay-looking
@@ -494,6 +508,11 @@ fe_apply_css (void)
 		"columnview.nx-list > listview > row > cell { padding: 4px 4px 3px 4px; min-height: 0; }\n"
 		"columnview.nx-list.nx-compact > listview > row > cell { padding-top: 2px; padding-bottom: 1px; }\n"
 		"columnview.nx-list > listview > row:not(:selected) { background: none; }\n"
+		/* a GtkCellRendererPixbuf had 1px either side, not a text cell's 4 */
+		"columnview.nx-list .nx-icon-cell { margin-left: -3px; margin-right: -3px; }\n"
+		/* the "3 ops, 16 total" frame: the theme's frame > label margin is
+		   meant for a frame's title, not a label inside it */
+		"#hexchat-ulistinfo > label { margin: 0; padding: 1px 2px; min-height: 0; }\n"
 		"columnview.nx-list > header { box-shadow: inset 0 -1px #d7d2ce; padding: 0; margin: 0; }\n"
 		"columnview.nx-list > header > button { padding: 4px 6px 5px 6px; min-height: 0; border-radius: 0;"
 		" border: none; background: none; box-shadow: inset -1px 0 #d7d2ce; font-weight: bold; }\n"

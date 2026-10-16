@@ -109,7 +109,7 @@ typedef struct restore_gui
 	void *tab;			/* (chan *) */
 
 	/* information stored when this tab isn't front-most */
-	GtkListStore *user_model;	/* for filling the GtkTreeView */
+	struct _NxStore *user_model;	/* the user list's rows (nxlist.h) */
 	void *buffer;		/* xtext_Buffer */
 	char *input_text;	/* input text buffer (while not-front tab) */
 	char *topic_text;	/* topic GtkEntry buffer */

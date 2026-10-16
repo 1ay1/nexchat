@@ -53,6 +53,9 @@ struct _NxStore
 	GPtrArray *pending;		/* frozen: top-level appends not in top yet */
 	guint auto_thaw;			/* idle that puts them in */
 	gboolean in_auto;
+	nx_row_compare_fn sort_fn;	/* rows kept in this order */
+	gpointer sort_ud;
+	GtkSortType sort_order;
 };
 
 struct _nx_row
@@ -148,6 +151,21 @@ nx_store_new (gboolean tree, int n_values, ...)
 	return s;
 }
 
+static int
+store_cmp (nx_store *s, nx_row *a, nx_row *b)
+{
+	int c = s->sort_fn (a, b, s->sort_ud);
+	return s->sort_order == GTK_SORT_DESCENDING ? -c : c;
+}
+
+static int
+store_sort_ptr_cb (gconstpointer a, gconstpointer b, gpointer data)
+{
+	return store_cmp (data, *(nx_row **) a, *(nx_row **) b);
+}
+
+static void row_resort (nx_row *r);
+
 /* put queued rows into the list; still frozen (or still waiting for the
    idle) afterwards */
 static void
@@ -158,8 +176,18 @@ store_flush (nx_store *s)
 	if (!p || !p->len)
 		return;
 	s->pending = g_ptr_array_new_with_free_func (g_object_unref);
-	g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
-								p->pdata, p->len);
+	if (s->sort_fn)
+	{
+		guint i;
+		for (i = 0; i < p->len; i++)
+		{
+			g_list_store_append (s->top, p->pdata[i]);
+			row_resort (p->pdata[i]);
+		}
+	}
+	else
+		g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
+									p->pdata, p->len);
 	g_ptr_array_free (p, TRUE);
 }
 
@@ -260,8 +288,25 @@ nx_store_thaw (nx_store *s)
 		s->auto_thaw = 0;
 	}
 	if (p->len)
-		g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
-									p->pdata, p->len);
+	{
+		/* sorted store: the batch goes in sorted, then merges */
+		if (s->sort_fn)
+		{
+			guint i;
+			g_ptr_array_sort_with_data (p, store_sort_ptr_cb, s);
+			if (g_list_model_get_n_items (G_LIST_MODEL (s->top)) == 0)
+				g_list_store_splice (s->top, 0, 0, p->pdata, p->len);
+			else
+				for (i = 0; i < p->len; i++)
+				{
+					g_list_store_append (s->top, p->pdata[i]);
+					row_resort (p->pdata[i]);
+				}
+		}
+		else
+			g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
+										p->pdata, p->len);
+	}
 	g_ptr_array_free (p, TRUE);
 }
 
@@ -356,6 +401,75 @@ row_set_valist (nx_row *r, va_list ap)
 	}
 }
 
+/* a sorted store: move r to where it belongs among its siblings (rows
+   are added at the end, unsorted, and placed once they have values) */
+static void
+row_resort (nx_row *r)
+{
+	GListStore *l;
+	guint n, i, lo, hi, mid;
+	nx_row *o;
+
+	if (r->removed)
+		return;
+	l = r->parent_row ? r->parent_row->children : r->store->top;
+	if (!g_list_store_find (l, r, &i))
+		return;	/* still queued: placed when it goes in */
+	n = g_list_model_get_n_items (G_LIST_MODEL (l));
+	if (i > 0)
+	{
+		o = g_list_model_get_item (G_LIST_MODEL (l), i - 1);
+		g_object_unref (o);
+		if (store_cmp (r->store, o, r) > 0)
+			goto move;
+	}
+	if (i + 1 < n)
+	{
+		o = g_list_model_get_item (G_LIST_MODEL (l), i + 1);
+		g_object_unref (o);
+		if (store_cmp (r->store, r, o) > 0)
+			goto move;
+	}
+	return;
+move:
+	g_object_ref (r);
+	g_list_store_remove (l, i);
+	n--;
+	lo = 0;
+	hi = n;
+	while (lo < hi)
+	{
+		mid = (lo + hi) / 2;
+		o = g_list_model_get_item (G_LIST_MODEL (l), mid);
+		g_object_unref (o);
+		if (store_cmp (r->store, o, r) <= 0)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	g_list_store_insert (l, lo, r);
+	g_object_unref (r);
+}
+
+static int
+store_sort_cb (gconstpointer a, gconstpointer b, gpointer data)
+{
+	return store_cmp (data, (nx_row *) a, (nx_row *) b);
+}
+
+void
+nx_store_set_sort_func (nx_store *s, nx_row_compare_fn fn, gpointer userdata, GtkSortType order)
+{
+	s->sort_fn = fn;
+	s->sort_ud = userdata;
+	s->sort_order = order;
+	if (fn)
+	{
+		store_flush (s);
+		g_list_store_sort (s->top, store_sort_cb, s);
+	}
+}
+
 void
 nx_row_set (nx_row *r, ...)
 {
@@ -364,6 +478,8 @@ nx_row_set (nx_row *r, ...)
 	va_start (ap, r);
 	row_set_valist (r, ap);
 	va_end (ap);
+	if (r->store->sort_fn)
+		row_resort (r);
 	g_signal_emit (r, row_signals[ROW_CHANGED], 0);
 }
 
@@ -774,7 +890,8 @@ cell_refresh (cell *c)
 		return;
 	if (c->icon)
 	{
-		GdkPixbuf *pix = col->icon_col >= 0 ? nx_row_get_pointer (r, col->icon_col) : NULL;
+		int ic = col->kind == NX_COL_ICON ? col->value_col : col->icon_col;
+		GdkPixbuf *pix = ic >= 0 ? nx_row_get_pointer (r, ic) : NULL;
 		if (pix)
 		{
 			GdkTexture *t = nx_texture_new_for_pixbuf (pix);
@@ -1058,6 +1175,8 @@ factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 	GtkWidget *top = box;
 
 	c->col = col;
+	if (col->kind == NX_COL_ICON)
+		gtk_widget_add_css_class (box, "nx-icon-cell");
 	if (col->min_width > 0)
 		gtk_widget_set_size_request (box, col->min_width - 8, -1);	/* less the cell padding */
 	if (p->compact)
@@ -1336,9 +1455,21 @@ nx_view_set_store (GtkWidget *view, nx_store *store)
 {
 	view_priv *p = vp (view);
 
-	g_object_ref (store);
+	if (store == p->store)
+		return;
+	/* NULL: an empty store of the same shape, so the view stays usable */
+	if (store)
+		g_object_ref (store);
+	else
+	{
+		store = g_object_new (NX_TYPE_STORE, NULL);
+		store->tree = p->store->tree;
+		store->n_values = p->store->n_values;
+		store->types = g_memdup2 (p->store->types, sizeof (GType) * store->n_values);
+	}
 	g_clear_object (&p->store);
 	p->store = store;
+	p->last_ok = NULL;
 	build_models (view);
 }
 
@@ -1995,6 +2126,27 @@ nx_view_set_compact (GtkWidget *view, gboolean compact)
 		gtk_widget_remove_css_class (view, "nx-compact");
 }
 
+static GtkAdjustment *
+view_vadj (GtkWidget *view)
+{
+	return gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (vp (view)->cv));
+}
+
+double
+nx_view_get_scroll (GtkWidget *view)
+{
+	GtkAdjustment *a = view_vadj (view);
+	return a ? gtk_adjustment_get_value (a) : 0;
+}
+
+void
+nx_view_set_scroll (GtkWidget *view, double value)
+{
+	GtkAdjustment *a = view_vadj (view);
+	if (a)
+		gtk_adjustment_set_value (a, value);
+}
+
 #else
 
 /* ================= GTK3: GtkListStore/GtkTreeStore + GtkTreeView ======== */
@@ -2009,6 +2161,8 @@ struct _NxStore
 	GtkTreeModel *model;		/* GtkListStore or GtkTreeStore */
 	gboolean tree;
 	GHashTable *rows;			/* GtkTreeRowReference* -> nx_row* (owned) */
+	nx_row_compare_fn sort_fn;
+	gpointer sort_ud;
 };
 
 struct _nx_row
@@ -2159,6 +2313,38 @@ nx_row *
 nx_store_insert_before (nx_store *s, nx_row *parent, nx_row *sibling)
 {
 	return nx_store_insert (s, parent, sibling ? nx_row_index (sibling) : -1);
+}
+
+static int
+store_sort3 (GtkTreeModel *m, GtkTreeIter *a, GtkTreeIter *b, gpointer data)
+{
+	nx_store *s = data;
+	nx_row *ra = nx_store_row_from_iter (s, a);
+	nx_row *rb = nx_store_row_from_iter (s, b);
+	int ret;
+
+	if (!ra || !rb || !ra->set || !rb->set)
+		return (rb && rb->set) - (ra && ra->set);
+	ra->sort_iter = a;
+	rb->sort_iter = b;
+	ret = s->sort_fn (ra, rb, s->sort_ud);
+	ra->sort_iter = rb->sort_iter = NULL;
+	return ret;
+}
+
+void
+nx_store_set_sort_func (nx_store *s, nx_row_compare_fn fn, gpointer userdata, GtkSortType order)
+{
+	s->sort_fn = fn;
+	s->sort_ud = userdata;
+	if (!fn)
+	{
+		gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (s->model), NULL, NULL, NULL);
+		return;
+	}
+	gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (s->model), store_sort3, s, NULL);
+	gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (s->model),
+													 GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID, order);
 }
 
 static void row_free_tree (nx_store *s, GtkTreeIter *iter);
@@ -2573,10 +2759,11 @@ nx_view_set_store (GtkWidget *view, nx_store *store)
 {
 	view_priv *p = vp (view);
 
-	g_object_ref (store);
+	if (store)
+		g_object_ref (store);
 	g_clear_object (&p->store);
 	p->store = store;
-	gtk_tree_view_set_model (GTK_TREE_VIEW (view), store->model);
+	gtk_tree_view_set_model (GTK_TREE_VIEW (view), store ? store->model : NULL);
 }
 
 nx_store *
@@ -3098,6 +3285,18 @@ nx_view_set_compact (GtkWidget *view, gboolean compact)
 	p->compact = compact;
 	for (l = p->cols; l; l = l->next)
 		g_object_set (((nx_col *) l->data)->render, "ypad", compact ? 0 : 2, NULL);
+}
+
+double
+nx_view_get_scroll (GtkWidget *view)
+{
+	return gtk_adjustment_get_value (gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (view)));
+}
+
+void
+nx_view_set_scroll (GtkWidget *view, double value)
+{
+	gtk_adjustment_set_value (gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (view)), value);
 }
 
 #endif

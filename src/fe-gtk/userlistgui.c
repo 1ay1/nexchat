@@ -38,6 +38,7 @@
 #include "pixmaps.h"
 #include "userlistgui.h"
 #include "fkeys.h"
+#include "nxlist.h"
 
 enum
 {
@@ -117,15 +118,17 @@ fe_userlist_numbers (session *sess)
 	}
 }
 
-static void
-scroll_to_iter (GtkTreeIter *iter, GtkTreeView *treeview, GtkTreeModel *model)
+/* the store the user list shows now; another tab's store isn't on screen */
+static gboolean
+is_front (session *sess)
 {
-	GtkTreePath *path = gtk_tree_model_get_path (model, iter);
-	if (path)
-	{
-		gtk_tree_view_scroll_to_cell (treeview, path, NULL, TRUE, 0.5, 0.5);
-		gtk_tree_path_free (path);
-	}
+	return nx_view_get_store (sess->gui->user_tree) == sess->res->user_model;
+}
+
+static void
+scroll_to_row (nx_row *row, GtkWidget *view)
+{
+	nx_view_scroll_to (view, row, NX_SCROLL_CENTER);
 }
 
 /* select a row in the userlist by nick-name */
@@ -133,75 +136,48 @@ scroll_to_iter (GtkTreeIter *iter, GtkTreeView *treeview, GtkTreeModel *model)
 void
 userlist_select (session *sess, char *name)
 {
-	GtkTreeIter iter;
-	GtkTreeView *treeview = GTK_TREE_VIEW (sess->gui->user_tree);
-	GtkTreeModel *model = gtk_tree_view_get_model (treeview);
-	GtkTreeSelection *selection = gtk_tree_view_get_selection (treeview);
+	GtkWidget *view = sess->gui->user_tree;
+	nx_row *row;
 	struct User *row_user;
 
-	if (gtk_tree_model_get_iter_first (model, &iter))
+	for (row = nx_store_first (nx_view_get_store (view)); row; row = nx_row_next (row))
 	{
-		do
+		row_user = nx_row_get_pointer (row, COL_USER);
+		if (sess->server->p_cmp (row_user->nick, name) == 0)
 		{
-			gtk_tree_model_get (model, &iter, COL_USER, &row_user, -1);
-			if (sess->server->p_cmp (row_user->nick, name) == 0)
-			{
-				if (gtk_tree_selection_iter_is_selected (selection, &iter))
-					gtk_tree_selection_unselect_iter (selection, &iter);
-				else
-					gtk_tree_selection_select_iter (selection, &iter);
+			if (nx_view_is_selected (view, row))
+				nx_view_unselect (view, row);
+			else
+				nx_view_select (view, row);
 
-				/* and make sure it's visible */
-				scroll_to_iter (&iter, treeview, model);
-				return;
-			}
+			/* and make sure it's visible */
+			scroll_to_row (row, view);
+			return;
 		}
-		while (gtk_tree_model_iter_next (model, &iter));
 	}
 }
 
 char **
 userlist_selection_list (GtkWidget *widget, int *num_ret)
 {
-	GtkTreeIter iter;
-	GtkTreeView *treeview = (GtkTreeView *) widget;
-	GtkTreeSelection *selection = gtk_tree_view_get_selection (treeview);
-	GtkTreeModel *model = gtk_tree_view_get_model (treeview);
+	GList *rows = nx_view_get_selected_rows (widget), *l;
 	struct User *user;
-	int i, num_sel;
+	int i;
 	char **nicks;
 
 	*num_ret = 0;
-	/* first, count the number of selections */
-	num_sel = 0;
-	if (gtk_tree_model_get_iter_first (model, &iter))
-	{
-		do
-		{
-			if (gtk_tree_selection_iter_is_selected (selection, &iter))
-				num_sel++;
-		}
-		while (gtk_tree_model_iter_next (model, &iter));
-	}
-
-	if (num_sel < 1)
+	if (!rows)
 		return NULL;
 
-	nicks = g_new (char *, num_sel + 1);
-
+	nicks = g_new (char *, g_list_length (rows) + 1);
 	i = 0;
-	gtk_tree_model_get_iter_first (model, &iter);
-	do
+	for (l = rows; l; l = l->next)
 	{
-		if (gtk_tree_selection_iter_is_selected (selection, &iter))
-		{
-			gtk_tree_model_get (model, &iter, COL_USER, &user, -1);
-			nicks[i] = g_strdup (user->nick);
-			i++;
-			nicks[i] = NULL;
-		}
+		user = nx_row_get_pointer (l->data, COL_USER);
+		nicks[i++] = g_strdup (user->nick);
 	}
-	while (gtk_tree_model_iter_next (model, &iter));
+	nicks[i] = NULL;
+	g_list_free (rows);
 
 	*num_ret = i;
 	return nicks;
@@ -210,99 +186,53 @@ userlist_selection_list (GtkWidget *widget, int *num_ret)
 void
 fe_userlist_set_selected (struct session *sess)
 {
-	GtkListStore *store = sess->res->user_model;
-	GtkTreeSelection *selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (sess->gui->user_tree));
-	GtkTreeIter iter;
+	GtkWidget *view = sess->gui->user_tree;
+	nx_row *row;
 	struct User *user;
 
-	/* if it's not front-most tab it doesn't own the GtkTreeView! */
-	if (store != (GtkListStore*) gtk_tree_view_get_model (GTK_TREE_VIEW (sess->gui->user_tree)))
+	/* if it's not front-most tab it doesn't own the view! */
+	if (!is_front (sess))
 		return;
 
-	if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter))
+	for (row = nx_store_first (sess->res->user_model); row; row = nx_row_next (row))
 	{
-		do
-		{
-			gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, COL_USER, &user, -1);
-
-			if (gtk_tree_selection_iter_is_selected (selection, &iter))
-				user->selected = 1;
-			else
-				user->selected = 0;
-				
-		} while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
+		user = nx_row_get_pointer (row, COL_USER);
+		user->selected = nx_view_is_selected (view, row) ? 1 : 0;
 	}
 }
 
-static GtkTreeIter *
-find_row (GtkTreeView *treeview, GtkTreeModel *model, struct User *user,
-			 int *selected)
+static nx_row *
+find_row (session *sess, struct User *user, int *selected)
 {
-	static GtkTreeIter iter;
-	struct User *row_user;
+	nx_row *row = nx_store_find_pointer (sess->res->user_model, COL_USER, user);
 
-	*selected = FALSE;
-	if (gtk_tree_model_get_iter_first (model, &iter))
-	{
-		do
-		{
-			gtk_tree_model_get (model, &iter, COL_USER, &row_user, -1);
-			if (row_user == user)
-			{
-				if (gtk_tree_view_get_model (treeview) == model)
-				{
-					if (gtk_tree_selection_iter_is_selected (gtk_tree_view_get_selection (treeview), &iter))
-						*selected = TRUE;
-				}
-				return &iter;
-			}
-		}
-		while (gtk_tree_model_iter_next (model, &iter));
-	}
-
-	return NULL;
+	*selected = row && is_front (sess) && nx_view_is_selected (sess->gui->user_tree, row);
+	return row;
 }
 
 void
 userlist_set_value (GtkWidget *treeview, gfloat val)
 {
-	gtk_adjustment_set_value (
-			gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (treeview)), val);
+	nx_view_set_scroll (treeview, val);
 }
 
 gfloat
 userlist_get_value (GtkWidget *treeview)
 {
-	return gtk_adjustment_get_value (gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (treeview)));
+	return nx_view_get_scroll (treeview);
 }
 
 int
 fe_userlist_remove (session *sess, struct User *user)
 {
-	GtkTreeIter *iter;
-/*	GtkAdjustment *adj;
-	gfloat val, end;*/
+	nx_row *row;
 	int sel;
 
-	iter = find_row (GTK_TREE_VIEW (sess->gui->user_tree),
-						  GTK_TREE_MODEL(sess->res->user_model), user, &sel);
-	if (!iter)
+	row = find_row (sess, user, &sel);
+	if (!row)
 		return 0;
 
-/*	adj = gtk_tree_view_get_vadjustment (GTK_TREE_VIEW (sess->gui->user_tree));
-	val = adj->value;*/
-
-	gtk_list_store_remove (sess->res->user_model, iter);
-
-	/* is it the front-most tab? */
-/*	if (gtk_tree_view_get_model (GTK_TREE_VIEW (sess->gui->user_tree))
-		 == sess->res->user_model)
-	{
-		end = adj->upper - adj->lower - adj->page_size;
-		if (val > end)
-			val = end;
-		gtk_adjustment_set_value (adj, val);
-	}*/
+	nx_row_remove (row);
 
 	return sel;
 }
@@ -310,13 +240,12 @@ fe_userlist_remove (session *sess, struct User *user)
 void
 fe_userlist_rehash (session *sess, struct User *user)
 {
-	GtkTreeIter *iter;
+	nx_row *row;
 	int sel;
 	int nick_color = 0;
 
-	iter = find_row (GTK_TREE_VIEW (sess->gui->user_tree),
-						  GTK_TREE_MODEL(sess->res->user_model), user, &sel);
-	if (!iter)
+	row = find_row (sess, user, &sel);
+	if (!row)
 		return;
 
 	if (prefs.hex_away_track && user->away)
@@ -324,18 +253,17 @@ fe_userlist_rehash (session *sess, struct User *user)
 	else if (prefs.hex_gui_ulist_color)
 		nick_color = text_color_of(user->nick);
 
-	gtk_list_store_set (GTK_LIST_STORE (sess->res->user_model), iter,
-							  COL_HOST, user->hostname,
-							  COL_GDKCOLOR, nick_color ? &colors[nick_color] : NULL,
-							  -1);
+	nx_row_set (row,
+					COL_HOST, user->hostname,
+					COL_GDKCOLOR, nick_color ? &colors[nick_color] : NULL,
+					-1);
 }
 
 void
 fe_userlist_insert (session *sess, struct User *newuser, gboolean sel)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(sess->res->user_model);
 	GdkPixbuf *pix = get_user_icon (sess->server, newuser);
-	GtkTreeIter iter;
+	nx_row *row;
 	char *nick;
 	int nick_color = 0;
 
@@ -356,13 +284,15 @@ fe_userlist_insert (session *sess, struct User *newuser, gboolean sel)
 		pix = NULL;
 	}
 
-	gtk_list_store_insert_with_values (GTK_LIST_STORE (model), &iter, 0,
-									COL_PIX, pix,
-									COL_NICK, nick,
-									COL_HOST, newuser->hostname,
-									COL_USER, newuser,
-									COL_GDKCOLOR, nick_color ? &colors[nick_color] : NULL,
-								  -1);
+	/* sorted stores put it in its place; unsorted, at the top as before */
+	row = nx_store_prepend (sess->res->user_model, NULL);
+	nx_row_set (row,
+					COL_PIX, pix,
+					COL_NICK, nick,
+					COL_HOST, newuser->hostname,
+					COL_USER, newuser,
+					COL_GDKCOLOR, nick_color ? &colors[nick_color] : NULL,
+					-1);
 
 	if (!prefs.hex_gui_ulist_icons)
 	{
@@ -377,37 +307,25 @@ fe_userlist_insert (session *sess, struct User *newuser, gboolean sel)
 	}
 
 	/* is it the front-most tab? */
-	if (gtk_tree_view_get_model (GTK_TREE_VIEW (sess->gui->user_tree))
-		 == model)
-	{
-		if (sel)
-			gtk_tree_selection_select_iter (gtk_tree_view_get_selection
-										(GTK_TREE_VIEW (sess->gui->user_tree)), &iter);
-	}
+	if (sel && is_front (sess))
+		nx_view_select (sess->gui->user_tree, row);
 }
 
 void
 fe_userlist_clear (session *sess)
 {
-	gtk_list_store_clear (sess->res->user_model);
+	nx_store_clear (sess->res->user_model);
 }
 
 static void
 userlist_dnd_drop (GtkWidget *w, double x, double y, const char *uris, gpointer userdata)
 {
-	GtkTreeView *widget = GTK_TREE_VIEW (w);
+	nx_row *row = nx_view_row_at (w, x, y);
 	struct User *user;
-	GtkTreePath *path;
-	GtkTreeModel *model;
-	GtkTreeIter iter;
 
-	if (!gtk_tree_view_get_path_at_pos (widget, x, y, &path, NULL, NULL, NULL))
+	if (!row)
 		return;
-
-	model = gtk_tree_view_get_model (widget);
-	if (!gtk_tree_model_get_iter (model, &iter, path))
-		return;
-	gtk_tree_model_get (model, &iter, COL_USER, &user, -1);
+	user = nx_row_get_pointer (row, COL_USER);
 
 	mg_dnd_drop_file (current_sess, user->nick, (char *) uris);
 }
@@ -416,58 +334,47 @@ userlist_dnd_drop (GtkWidget *w, double x, double y, const char *uris, gpointer 
 static void
 userlist_dnd_motion (GtkWidget *w, double x, double y, gpointer tree)
 {
-	GtkTreeView *widget = GTK_TREE_VIEW (w);
-	GtkTreePath *path;
-	GtkTreeSelection *sel;
+	nx_row *row;
 
 	if (!tree)
 		return;
 
-	if (gtk_tree_view_get_path_at_pos (widget, x, y, &path, NULL, NULL, NULL))
+	if ((row = nx_view_row_at (w, x, y)))
 	{
-		sel = gtk_tree_view_get_selection (widget);
-		gtk_tree_selection_unselect_all (sel);
-		gtk_tree_selection_select_path (sel, path);
+		nx_view_unselect_all (w);
+		nx_view_select (w, row);
 	}
 }
 
 static void
 userlist_dnd_leave (GtkWidget *widget, gpointer unused)
 {
-	gtk_tree_selection_unselect_all (gtk_tree_view_get_selection (GTK_TREE_VIEW (widget)));
+	nx_view_unselect_all (widget);
 }
 
 static int
-userlist_alpha_cmp (GtkTreeModel *model, GtkTreeIter *iter_a, GtkTreeIter *iter_b, gpointer userdata)
+userlist_alpha_cmp (nx_row *a, nx_row *b, gpointer userdata)
 {
-	struct User *user_a, *user_b;
-
-	gtk_tree_model_get (model, iter_a, COL_USER, &user_a, -1);
-	gtk_tree_model_get (model, iter_b, COL_USER, &user_b, -1);
-
-	return nick_cmp_alpha (user_a, user_b, ((session*)userdata)->server);
+	return nick_cmp_alpha (nx_row_get_pointer (a, COL_USER), nx_row_get_pointer (b, COL_USER),
+								  ((session*)userdata)->server);
 }
 
 static int
-userlist_ops_cmp (GtkTreeModel *model, GtkTreeIter *iter_a, GtkTreeIter *iter_b, gpointer userdata)
+userlist_ops_cmp (nx_row *a, nx_row *b, gpointer userdata)
 {
-	struct User *user_a, *user_b;
-
-	gtk_tree_model_get (model, iter_a, COL_USER, &user_a, -1);
-	gtk_tree_model_get (model, iter_b, COL_USER, &user_b, -1);
-
-	return nick_cmp_az_ops (((session*)userdata)->server, user_a, user_b);
+	return nick_cmp_az_ops (((session*)userdata)->server, nx_row_get_pointer (a, COL_USER),
+									nx_row_get_pointer (b, COL_USER));
 }
 
-GtkListStore *
+nx_store *
 userlist_create_model (session *sess)
 {
-	GtkListStore *store;
-	GtkTreeIterCompareFunc cmp_func;
+	nx_store *store;
+	nx_row_compare_fn cmp_func;
 	GtkSortType sort_type;
 
-	store = gtk_list_store_new (5, GDK_TYPE_PIXBUF, G_TYPE_STRING, G_TYPE_STRING,
-										G_TYPE_POINTER, GDK_TYPE_RGBA);
+	store = nx_store_new (FALSE, 5, GDK_TYPE_PIXBUF, G_TYPE_STRING, G_TYPE_STRING,
+								 G_TYPE_POINTER, GDK_TYPE_RGBA);
 
 	switch (prefs.hex_gui_ulist_sort)
 	{
@@ -489,49 +396,30 @@ userlist_create_model (session *sess)
 		break;
 	default:
 		/* No sorting */
-		gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE(store), NULL, NULL, NULL);
 		return store;
 	}
 
-	gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE(store), cmp_func, sess, NULL);
-	gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE(store),
-						GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID, sort_type);
+	nx_store_set_sort_func (store, cmp_func, sess, sort_type);
 
 	return store;
 }
 
 static void
-userlist_add_columns (GtkTreeView * treeview)
+userlist_add_columns (GtkWidget *view)
 {
-	GtkCellRenderer *renderer;
+	nx_col *col;
 
 	/* icon column */
-	renderer = gtk_cell_renderer_pixbuf_new ();
-	if (prefs.hex_gui_compact)
-		g_object_set (G_OBJECT (renderer), "ypad", 0, NULL);
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeview),
-																-1, NULL, renderer,
-																"pixbuf", 0, NULL);
+	nx_col_set_expand (nx_view_add_column (view, NULL, NX_COL_ICON, COL_PIX), FALSE);
 
 	/* nick column */
-	renderer = gtk_cell_renderer_text_new ();
-	if (prefs.hex_gui_compact)
-		g_object_set (G_OBJECT (renderer), "ypad", 0, NULL);
-	gtk_cell_renderer_text_set_fixed_height_from_font (GTK_CELL_RENDERER_TEXT (renderer), 1);
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeview),
-																-1, NULL, renderer,
-													"text", 1, "foreground-rgba", 4, NULL);
+	col = nx_view_add_column (view, NULL, NX_COL_TEXT, COL_NICK);
+	nx_col_bind (col, NX_BIND_FOREGROUND, COL_GDKCOLOR);
 
 	if (prefs.hex_gui_ulist_show_hosts)
 	{
 		/* hostname column */
-		renderer = gtk_cell_renderer_text_new ();
-		if (prefs.hex_gui_compact)
-			g_object_set (G_OBJECT (renderer), "ypad", 0, NULL);
-		gtk_cell_renderer_text_set_fixed_height_from_font (GTK_CELL_RENDERER_TEXT (renderer), 1);
-		gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeview),
-																	-1, NULL, renderer,
-																	"text", 2, NULL);
+		nx_view_add_column (view, NULL, NX_COL_TEXT, COL_HOST);
 	}
 }
 
@@ -541,8 +429,7 @@ userlist_click_cb (GtkWidget *widget, guint button, int n_press, double x, doubl
 {
 	char **nicks;
 	int i;
-	GtkTreeSelection *sel;
-	GtkTreePath *path;
+	nx_row *row;
 	/* the nick menu positions its popup from the event */
 	GdkEvent *event = nx_current_event ();
 
@@ -585,13 +472,10 @@ userlist_click_cb (GtkWidget *widget, guint button, int n_press, double x, doubl
 			g_free (nicks);
 		}
 
-		sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
-		if (gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (widget),
-			 x, y, &path, 0, 0, 0))
+		if ((row = nx_view_row_at (widget, x, y)))
 		{
-			gtk_tree_selection_unselect_all (sel);
-			gtk_tree_selection_select_path (sel, path);
-			gtk_tree_path_free (path);
+			nx_view_unselect_all (widget);
+			nx_view_select (widget, row);
 			nicks = userlist_selection_list (widget, &i);
 			if (nicks)
 			{
@@ -605,7 +489,7 @@ userlist_click_cb (GtkWidget *widget, guint button, int n_press, double x, doubl
 			}
 		} else
 		{
-			gtk_tree_selection_unselect_all (sel);
+			nx_view_unselect_all (widget);
 		}
 
 		return TRUE;
@@ -636,6 +520,7 @@ GtkWidget *
 userlist_create (GtkWidget *box)
 {
 	GtkWidget *sw, *treeview;
+	nx_store *empty;
 
 	sw = nx_scrolled_window_new ();
 	nx_scrolled_window_set_shadow_etched (sw);
@@ -647,12 +532,17 @@ userlist_create (GtkWidget *box)
 	nx_box_pack_start (box, mg_drop_overlay (sw), TRUE, TRUE, 0);
 	nx_widget_show (sw);
 
-	treeview = gtk_tree_view_new ();
+	/* each tab has its own store (userlist_create_model); this one is
+	   only shown until a tab's is */
+	empty = nx_store_new (FALSE, 5, GDK_TYPE_PIXBUF, G_TYPE_STRING, G_TYPE_STRING,
+								 G_TYPE_POINTER, GDK_TYPE_RGBA);
+	treeview = nx_view_new (empty);
+	g_object_unref (empty);
 	gtk_widget_set_name (treeview, "hexchat-userlist");
-	gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (treeview), FALSE);
-	gtk_tree_selection_set_mode (gtk_tree_view_get_selection
-										  (GTK_TREE_VIEW (treeview)),
-										  GTK_SELECTION_MULTIPLE);
+	nx_view_set_headers_visible (treeview, FALSE);
+	nx_view_set_select_mode (treeview, GTK_SELECTION_MULTIPLE);
+	if (prefs.hex_gui_compact)
+		nx_view_set_compact (treeview, TRUE);
 
 	/* file DND (for DCC), then layout drags of the channel tree; the user
 	   list itself can be dragged around */
@@ -664,7 +554,7 @@ userlist_create (GtkWidget *box)
 	nx_on_click (treeview, userlist_click_cb, 0);
 	nx_on_key (treeview, userlist_key_cb, 0);
 
-	userlist_add_columns (GTK_TREE_VIEW (treeview));
+	userlist_add_columns (treeview);
 
 	gtkutil_container_add (GTK_WIDGET (sw), treeview);
 	nx_widget_show (treeview);
@@ -675,8 +565,7 @@ userlist_create (GtkWidget *box)
 void
 userlist_show (session *sess)
 {
-	gtk_tree_view_set_model (GTK_TREE_VIEW (sess->gui->user_tree),
-									 GTK_TREE_MODEL(sess->res->user_model));
+	nx_view_set_store (sess->gui->user_tree, sess->res->user_model);
 }
 
 void
@@ -684,36 +573,32 @@ fe_uselect (session *sess, char *word[], int do_clear, int scroll_to)
 {
 	int thisname;
 	char *name;
-	GtkTreeIter iter;
-	GtkTreeView *treeview = GTK_TREE_VIEW (sess->gui->user_tree);
-	GtkTreeModel *model = gtk_tree_view_get_model (treeview);
-	GtkTreeSelection *selection = gtk_tree_view_get_selection (treeview);
+	GtkWidget *view = sess->gui->user_tree;
+	nx_row *row = nx_store_first (nx_view_get_store (view));
 	struct User *row_user;
 
-	if (gtk_tree_model_get_iter_first (model, &iter))
-	{
-		if (do_clear)
-			gtk_tree_selection_unselect_all (selection);
+	if (!row)
+		return;
 
-		do
+	if (do_clear)
+		nx_view_unselect_all (view);
+
+	for (; row; row = nx_row_next (row))
+	{
+		if (*word[0])
 		{
-			if (*word[0])
+			row_user = nx_row_get_pointer (row, COL_USER);
+			thisname = 0;
+			while ( *(name = word[thisname++]) )
 			{
-				gtk_tree_model_get (model, &iter, COL_USER, &row_user, -1);
-				thisname = 0;
-				while ( *(name = word[thisname++]) )
+				if (sess->server->p_cmp (row_user->nick, name) == 0)
 				{
-					if (sess->server->p_cmp (row_user->nick, name) == 0)
-					{
-						gtk_tree_selection_select_iter (selection, &iter);
-						if (scroll_to)
-							scroll_to_iter (&iter, treeview, model);
-						break;
-					}
+					nx_view_select (view, row);
+					if (scroll_to)
+						scroll_to_row (row, view);
+					break;
 				}
 			}
-
 		}
-		while (gtk_tree_model_iter_next (model, &iter));
 	}
 }

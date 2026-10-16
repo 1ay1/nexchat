@@ -76,12 +76,19 @@ void nx_row_remove (nx_row *row);
 /* first row whose pointer column col is ptr, at any depth; NULL if none */
 nx_row *nx_store_find_pointer (nx_store *store, int col, gconstpointer ptr);
 
+typedef int (*nx_row_compare_fn) (nx_row *a, nx_row *b, gpointer userdata);
+/* keep the rows in this order (a view's header sort, if any, wins); fn
+   NULL: as inserted */
+void nx_store_set_sort_func (nx_store *store, nx_row_compare_fn fn, gpointer userdata,
+									  GtkSortType order);
+
 /* ---- views ---- */
 
 /* the view widget, not packed anywhere */
 GtkWidget *nx_view_new (nx_store *store);
 /* the view in a scrolled window, added to box like gtkutil_treeview_new did */
 GtkWidget *nx_view_new_scrolled (GtkWidget *box, nx_store *store);
+/* NULL: show nothing */
 void nx_view_set_store (GtkWidget *view, nx_store *store);
 nx_store *nx_view_get_store (GtkWidget *view);
 void nx_view_set_headers_visible (GtkWidget *view, gboolean visible);
@@ -123,7 +130,6 @@ void nx_col_set_xalign (nx_col *col, float xalign);
 /* clicking the header sorts by value_col */
 void nx_col_set_sort_column (nx_col *col, int value_col);
 /* ... or with a compare function */
-typedef int (*nx_row_compare_fn) (nx_row *a, nx_row *b, gpointer userdata);
 void nx_col_set_sort_func (nx_col *col, nx_row_compare_fn fn, gpointer userdata);
 nx_col *nx_view_get_column (GtkWidget *view, int n);
 
@@ -185,8 +191,12 @@ void nx_view_set_search_column (GtkWidget *view, int col);
 void nx_view_set_reorderable (GtkWidget *view, gboolean reorderable);
 /* sort by col now, as if its header was clicked */
 void nx_view_sort_by (GtkWidget *view, nx_col *col, GtkSortType order);
-/* rows without the usual padding (prefs.hex_gui_compact) */
+/* rows without the usual padding (prefs.hex_gui_compact); set it before
+   adding columns */
 void nx_view_set_compact (GtkWidget *view, gboolean compact);
+/* the vertical scroll position, to put back later */
+double nx_view_get_scroll (GtkWidget *view);
+void nx_view_set_scroll (GtkWidget *view, double value);
 
 #if !GTK_CHECK_VERSION(4, 0, 0)
 /* GTK3 only, for the tweaks only GtkTreeView had */
