@@ -34,6 +34,16 @@ jobs:
           cc $(pkg-config --cflags gtk4) -I src/fe-gtk -o gtkcompat4 tests/gtkcompat-test.c $(pkg-config --libs gtk4)
           xvfb-run -a ./gtkcompat4
 
+      # the files whose GTK4 branches are written (input, drag and drop, the
+      # chat view) must keep compiling against GTK4 until the switch
+      - name: GTK4 branches compile
+        run: |
+          for f in gtkevents.c gtkdnd.c xtext.c; do
+            cc -fsyntax-only -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
+              -DGTK_DISABLE_DEPRECATED -DGDK_DISABLE_DEPRECATED \
+              -I build -I build/src/fe-gtk -I src/common -I src/fe-gtk -I src $(pkg-config --cflags gtk4 openssl) src/fe-gtk/$f
+          done
+
       - name: Test
         run: ninja -C build test
 
