@@ -44,8 +44,8 @@ static GtkWidget *urlgrabberwindow = 0;
 
 
 static gboolean
-url_treeview_url_clicked_cb (GtkWidget *view, GdkEventButton *event,
-                             gpointer data)
+url_treeview_url_clicked_cb (GtkWidget *view, guint button, int n_press,
+                             double x, double y, GdkModifierType state, gpointer data)
 {
 	GtkTreeIter iter;
 	gchar *url;
@@ -53,7 +53,7 @@ url_treeview_url_clicked_cb (GtkWidget *view, GdkEventButton *event,
 	GtkTreePath *path;
 	GtkTreeView *tree = GTK_TREE_VIEW (view);
 
-	if (!event || !gtk_tree_view_get_path_at_pos (tree, event->x, event->y, &path, 0, 0, 0))
+	if (!gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
 		return FALSE;
 
 	/* select what they right-clicked on */
@@ -66,14 +66,14 @@ url_treeview_url_clicked_cb (GtkWidget *view, GdkEventButton *event,
 	                                    URL_COLUMN, &url, -1))
 		return FALSE;
 	
-	switch (event->button)
+	switch (button)
 	{
 		case 1:
-			if (event->type == GDK_2BUTTON_PRESS)
+			if (n_press == 2)
 				fe_open_url (url);
 			break;
 		case 3:
-			menu_urlmenu (event, url);
+			menu_urlmenu ((GdkEventButton *) nx_current_event (), url);
 			break;
 		default:
 			break;
@@ -94,8 +94,7 @@ url_treeview_new (GtkWidget *box)
 
 	view = gtkutil_treeview_new (box, GTK_TREE_MODEL (store), NULL,
 	                             URL_COLUMN, _("URL"), -1);
-	g_signal_connect (G_OBJECT (view), "button_press_event",
-	                  G_CALLBACK (url_treeview_url_clicked_cb), NULL);
+	nx_on_click (view, url_treeview_url_clicked_cb, NULL);
 	/* don't want column headers */
 	gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
 	gtk_widget_show (view);

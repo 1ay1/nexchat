@@ -58,8 +58,10 @@ joind_entryenter_cb (GtkWidget *entry, GtkWidget *ok)
 }
 
 static void
-joind_entryfocus_cb (GtkWidget *entry, GdkEventFocus *event, server *serv)
+joind_entryfocus_cb (GtkWidget *entry, gpointer userdata)
 {
+	server *serv = userdata;
+
 	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (serv->gui->joind_radio2), TRUE);
 }
 
@@ -234,8 +236,7 @@ joind_show_dialog (server *serv)
 
 	g_signal_connect (G_OBJECT (dialog1), "destroy",
 							G_CALLBACK (joind_destroy_cb), serv);
-	g_signal_connect (G_OBJECT (entry1), "focus_in_event",
-							G_CALLBACK (joind_entryfocus_cb), serv);
+	nx_on_focus_in (entry1, joind_entryfocus_cb, serv);
 	g_signal_connect (G_OBJECT (entry1), "activate",
 							G_CALLBACK (joind_entryenter_cb), okbutton1);
 	g_signal_connect (G_OBJECT (radiobutton2), "toggled",

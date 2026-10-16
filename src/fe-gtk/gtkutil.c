@@ -646,13 +646,15 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 }
 
 static gboolean
-gtkutil_esc_destroy (GtkWidget * win, GdkEventKey * key, gpointer userdata)
+gtkutil_esc_destroy (GtkWidget * win, guint keyval, GdkModifierType state, gpointer userdata)
 {
 	GtkWidget *wid;
 
 	/* Destroy the window of detached utils */
 	if (!gtk_widget_is_toplevel (win))
 	{
+		/* GTK4: no GdkWindow type hints; needs gtk_window_get_transient_for ()
+		   or similar to detect a detached util's dialog window */
 		if (gdk_window_get_type_hint (gtk_widget_get_window (win)) == GDK_WINDOW_TYPE_HINT_DIALOG)
 			wid = gtk_widget_get_parent (win);
 		else
@@ -661,7 +663,7 @@ gtkutil_esc_destroy (GtkWidget * win, GdkEventKey * key, gpointer userdata)
 	else
 		wid = win;
 
-	if (key->keyval == GDK_KEY_Escape)
+	if (keyval == GDK_KEY_Escape)
 		nx_widget_destroy (wid);
 			
 	return FALSE;
@@ -670,7 +672,7 @@ gtkutil_esc_destroy (GtkWidget * win, GdkEventKey * key, gpointer userdata)
 void
 gtkutil_destroy_on_esc (GtkWidget *win)
 {
-	g_signal_connect (G_OBJECT (win), "key_press_event", G_CALLBACK (gtkutil_esc_destroy), win);
+	nx_on_key (win, gtkutil_esc_destroy, win);
 }
 
 void

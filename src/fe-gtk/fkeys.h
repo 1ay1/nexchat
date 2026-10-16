@@ -44,6 +44,8 @@ typedef enum
 key_result key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess);
 /* GTK3 key_press_event adapter around key_handle() */
 int key_handle_key_press (GtkWidget * wid, GdkEventKey * evt, session *sess);
+/* nx_on_key adapter around key_handle() (GTK3 and GTK4) */
+gboolean key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer unused);
 int key_action_insert (GtkWidget * wid, GdkEventKey * evt, char *d1, char *d2,
 						 session *sess);
 

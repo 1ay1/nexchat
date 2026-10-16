@@ -84,19 +84,20 @@ static const unsigned char table[]=
 0xd1,0x89,0xd1,0x8a,0xd1,0x8b,0xd1,0x8c,0xd1,0x8d,0xd1,0x8e,0xd1,0x8f,0
 };
 
-static gboolean
-ascii_enter (GtkWidget * wid, GdkEventCrossing *event, GtkWidget *label)
+static void
+ascii_enter (GtkWidget * wid, gboolean entered, gpointer userdata)
 {
+	GtkWidget *label = userdata;
 	char buf[64];
 	const char *text;
 	gunichar u;
 
+	if (!entered)
+		return;	/* was only connected to enter-notify */
 	text = gtk_button_get_label (GTK_BUTTON (wid));
 	u = g_utf8_get_char (text);
 	sprintf (buf, "%s U+%04X", text, u);
 	gtk_label_set_text (GTK_LABEL (label), buf);
-
-	return FALSE;
 }
 
 static void
@@ -154,8 +155,7 @@ ascii_open (void)
 		gtk_widget_set_size_request (but, 28, -1);
 		g_signal_connect (G_OBJECT (but), "clicked",
 								G_CALLBACK (ascii_click), NULL);
-		g_signal_connect (G_OBJECT (but), "enter_notify_event",
-								G_CALLBACK (ascii_enter), label);
+		nx_on_crossing (but, ascii_enter, label);
 		nx_box_pack_start (hbox, but, 0, 0, 0);
 		gtk_widget_show (but);
 

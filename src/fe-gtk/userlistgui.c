@@ -544,18 +544,18 @@ userlist_add_columns (GtkTreeView * treeview)
 }
 
 static gint
-userlist_click_cb (GtkWidget *widget, GdkEventButton *event, gpointer userdata)
+userlist_click_cb (GtkWidget *widget, guint button, int n_press, double x, double y,
+						 GdkModifierType state, gpointer userdata)
 {
 	char **nicks;
 	int i;
 	GtkTreeSelection *sel;
 	GtkTreePath *path;
+	/* the nick menu positions its popup from the event */
+	GdkEventButton *event = (GdkEventButton *) nx_current_event ();
 
-	if (!event)
-		return FALSE;
-
-	if (!(event->state & STATE_CTRL) &&
-		event->type == GDK_2BUTTON_PRESS && prefs.hex_gui_ulist_doubleclick[0])
+	if (!(state & STATE_CTRL) &&
+		n_press == 2 && prefs.hex_gui_ulist_doubleclick[0])
 	{
 		nicks = userlist_selection_list (widget, &i);
 		if (nicks)
@@ -572,7 +572,7 @@ userlist_click_cb (GtkWidget *widget, GdkEventButton *event, gpointer userdata)
 		return TRUE;
 	}
 
-	if (event->button == 3)
+	if (button == 3)
 	{
 		/* do we have a multi-selection? */
 		nicks = userlist_selection_list (widget, &i);
@@ -595,7 +595,7 @@ userlist_click_cb (GtkWidget *widget, GdkEventButton *event, gpointer userdata)
 
 		sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
 		if (gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (widget),
-			 event->x, event->y, &path, 0, 0, 0))
+			 x, y, &path, 0, 0, 0))
 		{
 			gtk_tree_selection_unselect_all (sel);
 			gtk_tree_selection_select_path (sel, path);
@@ -623,15 +623,16 @@ userlist_click_cb (GtkWidget *widget, GdkEventButton *event, gpointer userdata)
 }
 
 static gboolean
-userlist_key_cb (GtkWidget *wid, GdkEventKey *evt, gpointer userdata)
+userlist_key_cb (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer userdata)
 {
-	if (evt->keyval >= GDK_KEY_asterisk && evt->keyval <= GDK_KEY_z)
+	if (keyval >= GDK_KEY_asterisk && keyval <= GDK_KEY_z)
 	{
 		/* dirty trick to avoid auto-selection */
 		SPELL_ENTRY_SET_EDITABLE (current_sess->gui->input_box, FALSE);
 		gtk_widget_grab_focus (current_sess->gui->input_box);
 		SPELL_ENTRY_SET_EDITABLE (current_sess->gui->input_box, TRUE);
-		gtk_widget_event (current_sess->gui->input_box, (GdkEvent *)evt);
+		/* GTK4: no gtk_widget_event (); needs re-dispatch some other way */
+		gtk_widget_event (current_sess->gui->input_box, nx_current_event ());
 		return TRUE;
 	}
 
@@ -683,10 +684,8 @@ userlist_create (GtkWidget *box)
 	g_signal_connect (G_OBJECT (treeview), "drag_data_received",
 							G_CALLBACK (userlist_dnd_drop), treeview);
 
-	g_signal_connect (G_OBJECT (treeview), "button_press_event",
-							G_CALLBACK (userlist_click_cb), 0);
-	g_signal_connect (G_OBJECT (treeview), "key_press_event",
-							G_CALLBACK (userlist_key_cb), 0);
+	nx_on_click (treeview, userlist_click_cb, 0);
+	nx_on_key (treeview, userlist_key_cb, 0);
 
 	/* tree/chanview DND */
 	g_signal_connect (G_OBJECT (treeview), "drag_begin",

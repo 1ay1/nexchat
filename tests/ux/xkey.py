@@ -110,8 +110,10 @@ def main(argv):
     while argv[:1] and argv[0].startswith("--"):
         if argv[0] == "--type":
             text = argv[1]
-        if argv[0] == "--click":
-            clicks.append(tuple(int(v) for v in argv[1].split(",")))
+        if argv[0] in ("--click", "--rclick", "--dblclick", "--wheel-up", "--wheel-down"):
+            kind = {"--click": (1, 1), "--rclick": (3, 1), "--dblclick": (1, 2),
+                    "--wheel-up": (4, 1), "--wheel-down": (5, 1)}[argv[0]]
+            clicks.append(tuple(int(v) for v in argv[1].split(",")) + kind)
         if argv[0] == "--delay":
             delay = float(argv[1])
         elif argv[0] == "--at":
@@ -121,17 +123,17 @@ def main(argv):
     if not dpy:
         raise SystemExit("cannot open display")
     focus_at(dpy, *at)
-    for cx, cy in clicks:
+    for cx, cy, button, count in clicks:
         xtst.XTestFakeMotionEvent(dpy, -1, cx, cy, 0)
-        xtst.XTestFakeButtonEvent(dpy, 1, 1, 0)
-        xtst.XTestFakeButtonEvent(dpy, 1, 0, 0)
         x11.XSync(dpy, 0)
+        time.sleep(0.1)
+        for _ in range(count):
+            xtst.XTestFakeButtonEvent(dpy, button, 1, 0)
+            xtst.XTestFakeButtonEvent(dpy, button, 0, 0)
+            x11.XSync(dpy, 0)
+            time.sleep(0.05)
         time.sleep(delay)
-    if clicks:
-        # back to where keys should go
-        xtst.XTestFakeMotionEvent(dpy, -1, at[0], at[1], 0)
-        x11.XSync(dpy, 0)
-        time.sleep(0.3)
+    # pointer stays at the last click so a popup menu opened there stays up
     if text is not None:
         type_text(dpy, text, 0.03)
     for combo in argv:

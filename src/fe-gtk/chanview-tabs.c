@@ -233,21 +233,21 @@ tab_scroll_right_down_clicked (GtkWidget *widget, chanview *cv)
 }
 
 static gboolean
-tab_scroll_cb (GtkWidget *widget, GdkEventScroll *event, gpointer cv)
+tab_scroll_cb (GtkWidget *widget, GdkScrollDirection dir, GdkModifierType state, gpointer cv)
 {
 	if (prefs.hex_gui_tab_scrollchans)
 	{
-		if (event->direction == GDK_SCROLL_DOWN)
+		if (dir == GDK_SCROLL_DOWN)
 			mg_switch_page (1, 1);
-		else if (event->direction == GDK_SCROLL_UP)
+		else if (dir == GDK_SCROLL_UP)
 			mg_switch_page (1, -1);
 	}
 	else
 	{
 		/* mouse wheel scrolling */
-		if (event->direction == GDK_SCROLL_UP)
+		if (dir == GDK_SCROLL_UP)
 			tab_scroll_left_up_clicked (widget, cv);
-		else if (event->direction == GDK_SCROLL_DOWN)
+		else if (dir == GDK_SCROLL_DOWN)
 			tab_scroll_right_down_clicked (widget, cv);
 	}
 
@@ -273,8 +273,7 @@ make_sbutton (const char *icon_name, void *click_cb, void *userdata)
 	gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
 	g_signal_connect (G_OBJECT (button), "clicked",
 							G_CALLBACK (click_cb), userdata);
-	g_signal_connect (G_OBJECT (button), "scroll_event",
-							G_CALLBACK (tab_scroll_cb), userdata);
+	nx_on_scroll (button, tab_scroll_cb, userdata);
 	gtk_widget_show (arrow);
 
 	return button;
@@ -302,8 +301,7 @@ cv_tabs_init (chanview *cv)
 	gtk_viewport_set_shadow_type (GTK_VIEWPORT (viewport), GTK_SHADOW_NONE);
 	g_signal_connect (G_OBJECT (viewport), "size_request",
 							G_CALLBACK (cv_tabs_sizerequest), cv);
-	g_signal_connect (G_OBJECT (viewport), "scroll_event",
-							G_CALLBACK (tab_scroll_cb), cv);
+	nx_on_scroll (viewport, tab_scroll_cb, cv);
 	nx_box_pack_start (outer, viewport, 1, 1, 0);
 	gtk_widget_show (viewport);
 
@@ -505,12 +503,6 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 	gtk_widget_queue_resize (gtk_widget_get_parent(inner));
 }
 
-static gboolean
-tab_ignore_cb (GtkWidget *widget, GdkEventCrossing *event, gpointer user_data)
-{
-	return TRUE;
-}
-
 /* called when a tab is clicked (button down) */
 
 static void
@@ -550,9 +542,13 @@ tab_toggled_cb (GtkToggleButton *tab, chan *ch)
 }
 
 static gboolean
-tab_click_cb (GtkWidget *wid, GdkEventButton *event, chan *ch)
+tab_click_cb (GtkWidget *wid, guint button, int n_press, double x, double y,
+				  GdkModifierType state, gpointer userdata)
 {
-	return ch->cv->cb_contextmenu (ch->cv, ch, ch->tag, ch->userdata, event);
+	chan *ch = userdata;
+	/* the context-menu callback positions its popup from the event */
+	return ch->cv->cb_contextmenu (ch->cv, ch, ch->tag, ch->userdata,
+											 (GdkEventButton *) nx_current_event ());
 }
 
 static void *
@@ -564,13 +560,14 @@ cv_tabs_add (chanview *cv, chan *ch, char *name, GtkTreeIter *parent)
 	gtk_widget_set_name (but, "hexchat-tab");
 	g_object_set_data (G_OBJECT (but), "c", ch);
 	/* used to trap right-clicks */
-	g_signal_connect (G_OBJECT (but), "button_press_event",
-						 	G_CALLBACK (tab_click_cb), ch);
-	/* avoid prelights */
-	g_signal_connect (G_OBJECT (but), "enter_notify_event",
-						 	G_CALLBACK (tab_ignore_cb), NULL);
-	g_signal_connect (G_OBJECT (but), "leave_notify_event",
-						 	G_CALLBACK (tab_ignore_cb), NULL);
+	nx_on_click (but, tab_click_cb, ch);
+	/* avoid prelights: GTK3 suppresses the button's hover by stopping
+	   enter/leave; GTK4 does hover in CSS, see #hexchat-tab:hover in
+	   fe_apply_css */
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	g_signal_connect (G_OBJECT (but), "enter_notify_event", G_CALLBACK (gtk_true), NULL);
+	g_signal_connect (G_OBJECT (but), "leave_notify_event", G_CALLBACK (gtk_true), NULL);
+#endif
 	g_signal_connect (G_OBJECT (but), "pressed",
 							G_CALLBACK (tab_pressed_cb), ch);
 	/* for keyboard */

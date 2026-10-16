@@ -54,19 +54,23 @@ cv_tree_sel_cb (GtkTreeSelection *sel, chanview *cv)
 }
 
 static gboolean
-cv_tree_click_cb (GtkTreeView *tree, GdkEventButton *event, chanview *cv)
+cv_tree_click_cb (GtkWidget *w, guint button, int n_press, double x, double y,
+						GdkModifierType state, gpointer userdata)
 {
+	chanview *cv = userdata;
+	GtkTreeView *tree = GTK_TREE_VIEW (w);
 	chan *ch;
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	int ret = FALSE;
 
-	if (gtk_tree_view_get_path_at_pos (tree, event->x, event->y, &path, 0, 0, 0))
+	if (gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
 	{
 		if (gtk_tree_model_get_iter (GTK_TREE_MODEL (cv->store), &iter, path))
 		{
 			gtk_tree_model_get (GTK_TREE_MODEL (cv->store), &iter, COL_CHAN, &ch, -1);
-			ret = cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata, event);
+			ret = cv->cb_contextmenu (cv, ch, ch->tag, ch->userdata,
+											  (GdkEventButton *) nx_current_event ());
 		}
 		gtk_tree_path_free (path);
 	}
@@ -74,13 +78,13 @@ cv_tree_click_cb (GtkTreeView *tree, GdkEventButton *event, chanview *cv)
 }
 
 static gboolean
-cv_tree_scroll_event_cb (GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
+cv_tree_scroll_event_cb (GtkWidget *widget, GdkScrollDirection dir, GdkModifierType state, gpointer user_data)
 {
 	if (prefs.hex_gui_tab_scrollchans)
 	{
-		if (event->direction == GDK_SCROLL_DOWN)
+		if (dir == GDK_SCROLL_DOWN)
 			mg_switch_page (1, 1);
-		else if (event->direction == GDK_SCROLL_UP)
+		else if (dir == GDK_SCROLL_UP)
 			mg_switch_page (1, -1);
 
 		return TRUE;
@@ -156,12 +160,10 @@ cv_tree_init (chanview *cv)
 
 	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW (view))),
 							"changed", G_CALLBACK (cv_tree_sel_cb), cv);
-	g_signal_connect (G_OBJECT (view), "button-press-event",
-							G_CALLBACK (cv_tree_click_cb), cv);
+	nx_on_click (view, cv_tree_click_cb, cv);
 	g_signal_connect (G_OBJECT (view), "row-activated",
 							G_CALLBACK (cv_tree_activated_cb), NULL);
-	g_signal_connect (G_OBJECT (view), "scroll_event",
-							G_CALLBACK (cv_tree_scroll_event_cb), NULL);
+	nx_on_scroll (view, cv_tree_scroll_event_cb, NULL);
 
 	gtk_drag_dest_set (view, GTK_DEST_DEFAULT_ALL, dnd_dest_target, 1,
 							 GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK);

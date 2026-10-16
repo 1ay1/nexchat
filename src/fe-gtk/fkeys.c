@@ -394,7 +394,7 @@ key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess)
 	return KEY_NOT_HANDLED;
 }
 
-/* GTK3 "key_press_event" handler on the input box */
+/* GTK3 "key_press_event" handler on the input box (kept for API) */
 gboolean
 key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
 {
@@ -408,6 +408,23 @@ key_handle_key_press (GtkWidget *wid, GdkEventKey *evt, session *sess)
 	default:
 		return FALSE;
 	}
+}
+
+/* nx_on_key adapter: returning TRUE stops the event in both GTK3 (signal
+   return value; our handler runs before the entry's own class handler, so
+   that already kept the entry from seeing it) and GTK4 (capture phase) */
+gboolean
+key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer unused)
+{
+	key_result r = key_handle (wid, keyval, state, NULL);
+
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK3: a "stop" binding also has to keep later key_press_event
+	   handlers from running, exactly like before */
+	if (r == KEY_HANDLED_STOP)
+		g_signal_stop_emission_by_name (G_OBJECT (wid), "key-press-event");
+#endif
+	return r != KEY_NOT_HANDLED;
 }
 
 
@@ -518,7 +535,7 @@ key_dialog_entry_edited (GtkCellRendererText *render, gchar *pathstr, gchar *new
 }
 
 static gboolean
-key_dialog_keypress (GtkWidget *wid, GdkEventKey *evt, gpointer userdata)
+key_dialog_keypress (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer userdata)
 {
 	GtkTreeView *view = g_object_get_data (G_OBJECT (key_dialog), "view");
 	GtkTreeModel *store;
@@ -528,14 +545,14 @@ key_dialog_keypress (GtkWidget *wid, GdkEventKey *evt, gpointer userdata)
 	gboolean handled = FALSE;
 	int delta;
 
-	if (evt->state & GDK_SHIFT_MASK)
+	if (state & GDK_SHIFT_MASK)
 	{
-		if (evt->keyval == GDK_KEY_Up)
+		if (keyval == GDK_KEY_Up)
 		{
 			handled = TRUE;
 			delta = -1;
 		}
-		else if (evt->keyval == GDK_KEY_Down)
+		else if (keyval == GDK_KEY_Down)
 		{
 			handled = TRUE;
 			delta = 1;
@@ -713,8 +730,7 @@ key_dialog_treeview_new (GtkWidget *box)
 	gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), FALSE);
 	gtk_tree_view_set_reorderable (GTK_TREE_VIEW (view), TRUE);
 
-	g_signal_connect (G_OBJECT (view), "key-press-event",
-					G_CALLBACK (key_dialog_keypress), NULL);
+	nx_on_key (view, key_dialog_keypress, NULL);
 	g_signal_connect (G_OBJECT (gtk_tree_view_get_selection (GTK_TREE_VIEW(view))),
 					"changed", G_CALLBACK (key_dialog_selection_changed), NULL);
 

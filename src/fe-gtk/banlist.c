@@ -369,15 +369,16 @@ banlist_copyentry (GtkWidget *menuitem, GtkTreeView *view)
 }
 
 static gboolean
-banlist_button_pressed (GtkWidget *wid, GdkEventButton *event, gpointer userdata)
+banlist_button_pressed (GtkWidget *wid, guint button, int n_press, double x, double y,
+								GdkModifierType state, gpointer userdata)
 {
 	GtkTreePath *path;
 	GtkWidget *menu, *maskitem, *allitem;
 
 	/* Check for right click */
-	if (event->type == GDK_BUTTON_PRESS && event->button == 3)
+	if (n_press == 1 && button == 3)
 	{
-		if (gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (wid), event->x, event->y,
+		if (gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (wid), x, y,
 												&path, NULL, NULL, NULL))
 		{
 			/* Must set the row active for use in callback */
@@ -393,7 +394,7 @@ banlist_button_pressed (GtkWidget *wid, GdkEventButton *event, gpointer userdata
 			gtk_menu_shell_append (GTK_MENU_SHELL(menu), allitem);
 			nx_widget_show_all (menu);
 			
-			gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
+			gtk_menu_popup_at_pointer (GTK_MENU (menu), nx_current_event ());
 		}
 		
 		return TRUE;
@@ -726,7 +727,7 @@ banlist_treeview_new (GtkWidget *box, banlist_info *banl)
 										  MASK_COLUMN, _("Mask"),
 										  FROM_COLUMN, _("From"),
 										  DATE_COLUMN, _("Date"), -1);
-	g_signal_connect (G_OBJECT (view), "button-press-event", G_CALLBACK (banlist_button_pressed), NULL);
+	nx_on_click (view, banlist_button_pressed, NULL);
 
 	col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), MASK_COLUMN);
 	gtk_tree_view_column_set_alignment (col, 0.5);

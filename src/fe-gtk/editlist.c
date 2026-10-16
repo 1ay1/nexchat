@@ -223,7 +223,7 @@ editlist_edited (GtkCellRendererText *render, gchar *pathstr, gchar *new_text, g
 }
 
 static gboolean
-editlist_keypress (GtkWidget *wid, GdkEventKey *evt, gpointer userdata)
+editlist_keypress (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer userdata)
 {
 	GtkTreeView *view = g_object_get_data (G_OBJECT (editlist_win), "view");
 	GtkTreeModel *store;
@@ -233,14 +233,14 @@ editlist_keypress (GtkWidget *wid, GdkEventKey *evt, gpointer userdata)
 	gboolean handled = FALSE;
 	int delta;
 
-	if (evt->state & GDK_SHIFT_MASK)
+	if (state & GDK_SHIFT_MASK)
 	{
-		if (evt->keyval == GDK_KEY_Up)
+		if (keyval == GDK_KEY_Up)
 		{
 			handled = TRUE;
 			delta = -1;
 		}
-		else if (evt->keyval == GDK_KEY_Down)
+		else if (keyval == GDK_KEY_Down)
 		{
 			handled = TRUE;
 			delta = 1;
@@ -285,8 +285,7 @@ editlist_treeview_new (GtkWidget *box, char *title1, char *title2)
 	gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), FALSE);
 	gtk_tree_view_set_reorderable (GTK_TREE_VIEW (view), TRUE);
 	
-	g_signal_connect (G_OBJECT (view), "key_press_event",
-						G_CALLBACK (editlist_keypress), NULL);
+	nx_on_key (view, editlist_keypress, NULL);
 
 
 	render = gtk_cell_renderer_text_new ();

@@ -9,6 +9,7 @@ hexchat_gtk_sources = [
   'fe-gtk.c',
   'fkeys.c',
   'gtkutil.c',
+  'gtkevents.c',
   'ignoregui.c',
   'joind.c',
   'menu.c',
@@ -122,6 +123,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-keys', find_program('sh'),
     args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)
+  test('gui-mouse', find_program('sh'),
+    args: [files('../../tests/ux/mouse.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:85'], timeout: 120, is_parallel: false)
   test('gui-menus', find_program('sh'),
     args: [files('../../tests/ux/menus.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:82'], timeout: 180, is_parallel: false)

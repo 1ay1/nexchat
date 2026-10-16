@@ -406,6 +406,8 @@ fe_apply_css (void)
 		/* GTK2 drew the current tab sunken with a dark edge; GTK3's :checked is
 		   only a slightly darker fill. Add the inset edge back. */
 		"#hexchat-tab:checked { box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45); }\n"
+		/* tabs never prelight (GTK3 blocks enter/leave on them) */
+		"#hexchat-tab:hover:not(:checked) { background-image: none; }\n"
 		"#hexchat-tab label { padding: 0; }\n"
 		"#hexchat-nickbutton { padding: 1px 4px; min-height: 0; }\n"
 		/* Character Chart: 28px-wide cells like GTK2 */

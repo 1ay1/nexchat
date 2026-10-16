@@ -22,6 +22,7 @@
 
 #include <gtk/gtk.h>
 #include "gtkcompat.h"
+#include "gtkevents.h"
 #include "../common/fe.h"
 
 typedef void (*filereqcallback) (void *, char *file);

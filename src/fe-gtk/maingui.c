@@ -335,14 +335,15 @@ mg_set_access_icon (session_gui *gui, GdkPixbuf *pix, gboolean away)
 	mg_set_myself_away (gui, away);
 }
 
-static gboolean
-mg_inputbox_focus (GtkWidget *widget, GdkEventFocus *event, session_gui *gui)
+static void
+mg_inputbox_focus (GtkWidget *widget, gpointer userdata)
 {
+	session_gui *gui = userdata;
 	GSList *list;
 	session *sess;
 
 	if (gui->is_tab)
-		return FALSE;
+		return;
 
 	list = sess_list;
 	while (list)
@@ -357,8 +358,6 @@ mg_inputbox_focus (GtkWidget *widget, GdkEventFocus *event, session_gui *gui)
 		}
 		list = list->next;
 	}
-
-	return FALSE;
 }
 
 void
@@ -2939,9 +2938,11 @@ mg_search_toggle(session *sess)
 }
 
 static gboolean
-search_handle_esc (GtkWidget *win, GdkEventKey *key, session *sess)
+search_handle_esc (GtkWidget *win, guint keyval, GdkModifierType state, gpointer userdata)
 {
-	if (key->keyval == GDK_KEY_Escape)
+	session *sess = userdata;
+
+	if (keyval == GDK_KEY_Escape)
 		mg_search_toggle(sess);
 			
 	return FALSE;
@@ -2970,7 +2971,7 @@ mg_create_search(session *sess, GtkWidget *box)
 	nx_box_pack_start (gui->shbox, entry, FALSE, FALSE, 0);
 	gtk_widget_set_size_request (gui->shentry, 180, -1);
 	gui->search_changed_signal = g_signal_connect(G_OBJECT(entry), "changed", G_CALLBACK(search_handle_change), sess);
-	g_signal_connect (G_OBJECT (entry), "key_press_event", G_CALLBACK (search_handle_esc), sess);
+	nx_on_key (entry, search_handle_esc, sess);
 	g_signal_connect(G_OBJECT(entry), "activate", G_CALLBACK(mg_search_handle_next), sess);
 	gtk_entry_set_icon_activatable (GTK_ENTRY (entry), GTK_ENTRY_ICON_SECONDARY, FALSE);
 	gtk_entry_set_icon_tooltip_text (GTK_ENTRY (sess->gui->shentry), GTK_ENTRY_ICON_SECONDARY, _("Search hit end or not found."));
@@ -3042,10 +3043,8 @@ mg_create_entry (session *sess, GtkWidget *box)
 	gtkutil_container_add (GTK_WIDGET (hbox), entry);
 
 	gtk_widget_set_name (entry, "hexchat-inputbox");
-	g_signal_connect (G_OBJECT (entry), "key_press_event",
-							G_CALLBACK (key_handle_key_press), NULL);
-	g_signal_connect (G_OBJECT (entry), "focus_in_event",
-							G_CALLBACK (mg_inputbox_focus), gui);
+	nx_on_key (entry, key_handle_input, NULL);
+	nx_on_focus_in (entry, mg_inputbox_focus, gui);
 	g_signal_connect (G_OBJECT (entry), "populate_popup",
 							G_CALLBACK (mg_inputbox_rightclick), NULL);
 	g_signal_connect (G_OBJECT (entry), "word-check",
@@ -3117,8 +3116,8 @@ mg_create_tabs (session_gui *gui)
 	mg_place_userlist_and_chanview (gui);
 }
 
-static gboolean
-mg_tabwin_focus_cb (GtkWindow * win, GdkEventFocus *event, gpointer userdata)
+static void
+mg_tabwin_focus_cb (GtkWidget * win, gpointer userdata)
 {
 	current_sess = current_tab;
 	if (current_sess)
@@ -3127,19 +3126,19 @@ mg_tabwin_focus_cb (GtkWindow * win, GdkEventFocus *event, gpointer userdata)
 		plugin_emit_dummy_print (current_sess, "Focus Window");
 	}
 	unflash_window (GTK_WIDGET (win));
-	return FALSE;
 }
 
-static gboolean
-mg_topwin_focus_cb (GtkWindow * win, GdkEventFocus *event, session *sess)
+static void
+mg_topwin_focus_cb (GtkWidget * win, gpointer userdata)
 {
+	session *sess = userdata;
+
 	current_sess = sess;
 	if (!sess->server->server_session)
 		sess->server->server_session = sess;
 	gtk_xtext_check_marker_visibility(GTK_XTEXT (current_sess->gui->xtext));
 	unflash_window (GTK_WIDGET (win));
 	plugin_emit_dummy_print (sess, "Focus Window");
-	return FALSE;
 }
 
 static void
@@ -3189,8 +3188,7 @@ mg_create_topwindow (session *sess)
 	nx_set_border_width (win, GUI_BORDER);
 	gtk_widget_set_opacity (GTK_WIDGET (win), (prefs.hex_gui_transparency / 255.));
 
-	g_signal_connect (G_OBJECT (win), "focus_in_event",
-							G_CALLBACK (mg_topwin_focus_cb), sess);
+	nx_on_focus_in (win, mg_topwin_focus_cb, sess);
 	g_signal_connect (G_OBJECT (win), "destroy",
 							G_CALLBACK (mg_topdestroy_cb), sess);
 	g_signal_connect (G_OBJECT (win), "configure_event",
@@ -3318,8 +3316,7 @@ mg_create_tabwindow (session *sess)
 						   G_CALLBACK (mg_tabwindow_de_cb), 0);
 	g_signal_connect (G_OBJECT (win), "destroy",
 						   G_CALLBACK (mg_tabwindow_kill_cb), 0);
-	g_signal_connect (G_OBJECT (win), "focus_in_event",
-							G_CALLBACK (mg_tabwin_focus_cb), NULL);
+	nx_on_focus_in (win, mg_tabwin_focus_cb, NULL);
 	g_signal_connect (G_OBJECT (win), "configure_event",
 							G_CALLBACK (mg_configure_cb), NULL);
 	g_signal_connect (G_OBJECT (win), "window_state_event",

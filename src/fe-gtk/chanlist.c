@@ -594,17 +594,20 @@ chanlist_copytopic (GtkWidget *item, server *serv)
 }
 
 static gboolean
-chanlist_button_cb (GtkTreeView *tree, GdkEventButton *event, server *serv)
+chanlist_button_cb (GtkWidget *w, guint button, int n_press, double x, double y,
+						  GdkModifierType state, gpointer userdata)
 {
+	server *serv = userdata;
+	GtkTreeView *tree = GTK_TREE_VIEW (w);
 	GtkWidget *menu;
 	GtkTreeSelection *sel;
 	GtkTreePath *path;
 	char *chan;
 
-	if (event->button != 3)
+	if (button != 3)
 		return FALSE;
 
-	if (!gtk_tree_view_get_path_at_pos (tree, event->x, event->y, &path, 0, 0, 0))
+	if (!gtk_tree_view_get_path_at_pos (tree, x, y, &path, 0, 0, 0))
 		return FALSE;
 
 	/* select what they right-clicked on */
@@ -614,8 +617,8 @@ chanlist_button_cb (GtkTreeView *tree, GdkEventButton *event, server *serv)
 	gtk_tree_path_free (path);
 
 	menu = gtk_menu_new ();
-	if (event->window)
-		gtk_menu_set_screen (GTK_MENU (menu), gdk_window_get_screen (event->window));
+	/* the menu opens on the clicked widget's screen */
+	gtk_menu_set_screen (GTK_MENU (menu), gtk_widget_get_screen (w));
 	g_object_ref (menu);
 	g_object_ref_sink (menu);
 	g_object_unref (menu);
@@ -632,7 +635,7 @@ chanlist_button_cb (GtkTreeView *tree, GdkEventButton *event, server *serv)
 	menu_addfavoritemenu (serv, menu, chan, FALSE);
 	g_free (chan);
 
-	gtk_menu_popup_at_pointer (GTK_MENU (menu), (GdkEvent *) event);
+	gtk_menu_popup_at_pointer (GTK_MENU (menu), nx_current_event ());
 
 	return TRUE;
 }
@@ -770,8 +773,7 @@ chanlist_opengui (server *serv, int do_refresh)
 
 	g_signal_connect (G_OBJECT (view), "row_activated",
 							G_CALLBACK (chanlist_dclick_cb), serv);
-	g_signal_connect (G_OBJECT (view), "button-press-event",
-							G_CALLBACK (chanlist_button_cb), serv);
+	nx_on_click (view, chanlist_button_cb, serv);
 
 	chanlist_add_column (view, COL_CHANNEL, 96, _("Channel"), FALSE);
 	chanlist_add_column (view, COL_USERS,   50, _("Users"),   TRUE);
