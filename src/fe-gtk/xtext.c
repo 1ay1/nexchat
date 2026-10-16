@@ -1066,7 +1066,7 @@ gtk_xtext_draw_marker (GtkXText * xtext, textentry * ent, int y)
 
 	xtext_draw_line (xtext, &xtext->marker_gc.fg, x, render_y, x + width, render_y);
 
-	if (gtk_window_has_toplevel_focus (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (xtext)))))
+	if (gtk_window_has_toplevel_focus (GTK_WINDOW (nx_widget_get_toplevel (GTK_WIDGET (xtext)))))
 	{
 		xtext->buffer->marker_seen = TRUE;
 	}
@@ -4616,7 +4616,7 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 	buf->num_lines += gtk_xtext_lines_taken (buf, ent);
 
 	if ((buf->marker_pos == NULL || buf->marker_seen) && (buf->xtext->buffer != buf || 
-		!gtk_window_has_toplevel_focus (GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (buf->xtext))))))
+		!gtk_window_has_toplevel_focus (GTK_WINDOW (nx_widget_get_toplevel (GTK_WIDGET (buf->xtext))))))
 	{
 		buf->marker_pos = ent;
 		buf->marker_state = MARKER_IS_SET;

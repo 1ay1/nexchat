@@ -292,7 +292,7 @@ ignore_clear_entry_clicked (GtkWidget * wid)
 					_("Are you sure you want to remove all ignores?"));
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (ignore_clear_cb), NULL);
-	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+	nx_window_set_position_mouse (dialog);
 	gtk_widget_show (dialog);
 }
 
@@ -376,9 +376,8 @@ ignore_gui_open ()
 
 	nx_box_pack_start (vbox, frame, 0, 0, 5);
 
-	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
 	nx_set_border_width (box, 5);
 	gtk_widget_show (box);
 

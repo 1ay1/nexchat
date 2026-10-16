@@ -1042,7 +1042,7 @@ mg_bring_tofront (GtkWidget *vbox)	/* non-IRC tab or window */
 	if (ch)
 		chan_focus (ch);
 	else
-		gtk_window_present (GTK_WINDOW (gtk_widget_get_toplevel (vbox)));
+		gtk_window_present (GTK_WINDOW (nx_widget_get_toplevel (vbox)));
 }
 
 void
@@ -1149,11 +1149,11 @@ mg_tab_close (session *sess)
 								G_CALLBACK (mg_tab_close_cb), sess);
 		if (prefs.hex_gui_tab_layout)
 		{
-			gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+			nx_window_set_position_mouse (dialog);
 		}
 		else
 		{
-			gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_CENTER_ON_PARENT);		
+			nx_window_set_position_center (dialog);		
 		}
 		gtk_widget_show (dialog);
 	}
@@ -1390,7 +1390,7 @@ mg_close_gen (chan *ch, GtkWidget *box)
 		mg_chan_remove (ch);
 	} else
 	{
-		nx_widget_destroy (gtk_widget_get_toplevel (box));
+		nx_widget_destroy (nx_widget_get_toplevel (box));
 	}
 }
 
@@ -3148,7 +3148,7 @@ mg_create_menu (session_gui *gui, GtkWidget *table, int away_state)
 	GtkAccelGroup *accel_group;
 
 	accel_group = gtk_accel_group_new ();
-	gtk_window_add_accel_group (GTK_WINDOW (gtk_widget_get_toplevel (table)),
+	gtk_window_add_accel_group (GTK_WINDOW (nx_widget_get_toplevel (table)),
 										 accel_group);
 	g_object_unref (accel_group);
 
@@ -3259,7 +3259,7 @@ mg_tabwindow_de_cb (GtkWidget *widget, GdkEvent *event, gpointer user_data)
 {
 	GSList *list;
 	session *sess;
-	GtkWindow *win = GTK_WINDOW(gtk_widget_get_toplevel (widget));
+	GtkWindow *win = GTK_WINDOW(nx_widget_get_toplevel (widget));
 
 	if (prefs.hex_gui_tray_close && gtkutil_tray_icon_supported (win) && tray_toggle_visibility (FALSE))
 		return TRUE;

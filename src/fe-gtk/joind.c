@@ -75,7 +75,7 @@ joind_ok_cb (GtkWidget *ok, server *serv)
 {
 	if (!is_server (serv))
 	{
-		nx_widget_destroy (gtk_widget_get_toplevel (ok));
+		nx_widget_destroy (nx_widget_get_toplevel (ok));
 		return;
 	}
 
@@ -133,7 +133,7 @@ joind_show_dialog (server *serv)
 	g_snprintf(buf, sizeof(buf), _("Connection Complete - %s"), _(DISPLAY_NAME));
 	gtk_window_set_title (GTK_WINDOW (dialog1), buf);
 	gtk_window_set_type_hint (GTK_WINDOW (dialog1), GDK_WINDOW_TYPE_HINT_DIALOG);
-	gtk_window_set_position (GTK_WINDOW (dialog1), GTK_WIN_POS_CENTER_ON_PARENT);
+	nx_window_set_position_center (dialog1);
 	gtk_window_set_transient_for (GTK_WINDOW(dialog1), GTK_WINDOW(serv->front_session->gui->window));
 	gtk_window_set_modal (GTK_WINDOW (dialog1), TRUE);
 	gtk_window_set_resizable (GTK_WINDOW (dialog1), FALSE);
@@ -231,7 +231,6 @@ joind_show_dialog (server *serv)
 	okbutton1 = gtkutil_button_new_from_stock ("gtk-ok");
 	gtk_widget_show (okbutton1);
 	gtk_dialog_add_action_widget (GTK_DIALOG (dialog1), okbutton1, GTK_RESPONSE_OK);
-	gtk_widget_set_can_default (okbutton1, TRUE);
 
 	g_signal_connect (G_OBJECT (dialog1), "destroy",
 							G_CALLBACK (joind_destroy_cb), serv);

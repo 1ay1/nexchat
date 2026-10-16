@@ -159,6 +159,7 @@ Goal: it builds with `-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED`. After 
 
 - [x] Step 1, mechanical: `gtk_box_pack_start/end` (exact GTK3 order and expand/fill/padding semantics on GTK4, tested), `gtk_container_set_border_width`, `gtk_widget_show_all`, `gtk_entry_get/set_text`, `gtk_widget_destroy` → `nx_*`. ~250 call sites. GTK3 suite (10 tests incl. GUI) and screenshots unchanged.
 - [x] Step 2, containers: `gtkutil_container_add` has a GTK4 branch (window/frame/scrolled window/viewport/button/expander/paned setters); `gtk_container_get_children` / `gtk_bin_get_child` → `nx_widget_get_children` / `nx_bin_get_child` outside menus (menu.c's go with the menu rewrite).
+- [x] Step 3, small spellings: GtkButtonBox → `nx_button_box_new (orientation, layout)` (GTK4: homogeneous GtkBox + halign; SPREAD/END/START/EDGE all screenshot-checked), scrolled window new/shadow, window position hints (no-op on GTK4, the WM places windows), default button, `gtk_widget_get_toplevel`.
 
 - [ ] meson: `gtk4`. No libadwaita.
 - [ ] `gtk_main` becomes a GtkApplication. The single-instance behaviour of today's D-Bus `hexchat_remote()` (`-e`, `--existing`, `-c` command, URL handling) moves to the GApplication `open`/`command-line` hooks. The same command-line flags keep working.

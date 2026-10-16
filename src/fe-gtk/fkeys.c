@@ -700,9 +700,9 @@ key_dialog_treeview_new (GtkWidget *box)
 	GtkCellRenderer *render;
 	int i;
 
-	scroll = gtk_scrolled_window_new (NULL, NULL);
+	scroll = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scroll), GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scroll, TRUE);
 
 	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
 								G_TYPE_STRING, G_TYPE_STRING);
@@ -864,9 +864,8 @@ key_dialog_show ()
 	g_object_set_data (G_OBJECT (key_dialog), "view", view);
 	g_object_set_data (G_OBJECT (key_dialog), "xtext", xtext);
 
-	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
 	nx_set_border_width (box, 5);
 
 	gtkutil_button (box, NX_STOCK_NEW, NULL, key_dialog_add,

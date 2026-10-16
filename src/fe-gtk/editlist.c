@@ -273,9 +273,9 @@ editlist_treeview_new (GtkWidget *box, char *title1, char *title2)
 	GtkWidget *view;
 	GtkCellRenderer *render;
 
-	scroll = gtk_scrolled_window_new (NULL, NULL);
+	scroll = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scroll), GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scroll, TRUE);
 
 	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING);
 	g_return_val_if_fail (store != NULL, NULL);
@@ -347,9 +347,8 @@ editlist_gui_open (char *title1, char *title2, GSList *list, char *title, char *
 	if (help)
 		gtk_widget_set_tooltip_text (view, help);
 
-	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
 	nx_set_border_width (box, 5);
 	gtk_widget_show (box);
 

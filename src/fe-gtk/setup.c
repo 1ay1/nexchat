@@ -1750,13 +1750,12 @@ setup_create_sound_page (void)
 	gtk_widget_show (vbox2);
 	gtkutil_container_add (GTK_WIDGET (vbox1), vbox2);
 
-	scrolledwindow1 = gtk_scrolled_window_new (NULL, NULL);
+	scrolledwindow1 = nx_scrolled_window_new ();
 	gtk_widget_show (scrolledwindow1);
 	gtkutil_container_add (GTK_WIDGET (vbox2), scrolledwindow1);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolledwindow1),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scrolledwindow1),
-													 GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scrolledwindow1, TRUE);
 
 	sound_tree = gtk_tree_view_new ();
 	sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (sound_tree));
@@ -1835,8 +1834,8 @@ setup_add_page (const char *title, GtkWidget *book, GtkWidget *tab)
 
 	gtkutil_container_add (GTK_WIDGET (vvbox), tab);
 
-	sw = GTK_SCROLLED_WINDOW(gtk_scrolled_window_new (NULL, NULL));
-	gtk_scrolled_window_set_shadow_type (sw, GTK_SHADOW_IN);
+	sw = GTK_SCROLLED_WINDOW(nx_scrolled_window_new ());
+	nx_scrolled_window_set_shadow_in (sw, TRUE);
 	gtk_scrolled_window_set_policy (sw, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtkutil_container_add (GTK_WIDGET (sw), vvbox);
 
@@ -1874,7 +1873,7 @@ static GtkWidget *
 setup_create_pages (GtkWidget *box)
 {
 	GtkWidget *book;
-	GtkWindow *win = GTK_WINDOW(gtk_widget_get_toplevel (box));
+	GtkWindow *win = GTK_WINDOW(nx_widget_get_toplevel (box));
 
 	book = gtk_notebook_new ();
 
@@ -2256,9 +2255,8 @@ setup_window_open (void)
 	setup_create_tree (hbox, setup_create_pages (hbox));
 
 	/* prepare the button box */
-	hbbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbbox), GTK_BUTTONBOX_END);
-	gtk_box_set_spacing (GTK_BOX (hbbox), 4);
+	hbbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_END);
+		gtk_box_set_spacing (GTK_BOX (hbbox), 4);
 	nx_box_pack_end (vbox, hbbox, FALSE, FALSE, 0);
 
 	cancel_button = wid = gtkutil_button_new_from_stock (NX_STOCK_CANCEL);

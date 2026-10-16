@@ -149,6 +149,23 @@ main (int argc, char **argv)
 		CHECK (GTK_IS_LABEL (nx_bin_get_child (btn)), "bin child of a label button is the label");
 		g_object_unref (b);
 	}
+	{
+		GtkWidget *bb = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		GtkWidget *sw = nx_scrolled_window_new ();
+		g_object_ref_sink (bb);
+		g_object_ref_sink (sw);
+		nx_scrolled_window_set_shadow_in (sw, TRUE);
+#if GTK_CHECK_VERSION(4, 0, 0)
+		CHECK (gtk_box_get_homogeneous (GTK_BOX (bb)), "SPREAD button box is homogeneous");
+		CHECK (gtk_scrolled_window_get_has_frame (GTK_SCROLLED_WINDOW (sw)), "shadow in -> has_frame");
+		CHECK (nx_widget_get_toplevel (bb) == NULL, "unparented widget has no toplevel");
+#else
+		CHECK (gtk_button_box_get_layout (GTK_BUTTON_BOX (bb)) == GTK_BUTTONBOX_SPREAD, "button box layout");
+		CHECK (gtk_scrolled_window_get_shadow_type (GTK_SCROLLED_WINDOW (sw)) == GTK_SHADOW_IN, "shadow in");
+#endif
+		g_object_unref (bb);
+		g_object_unref (sw);
+	}
 
 	if (fails)
 	{

@@ -765,8 +765,7 @@ chanlist_opengui (server *serv, int do_refresh)
 
 	store = (GtkListStore *) custom_list_new();
 	view = gtkutil_treeview_new (vbox, GTK_TREE_MODEL (store), NULL, -1);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (gtk_widget_get_parent (view)),
-													 GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (gtk_widget_get_parent (view), TRUE);
 	serv->gui->chanlist_list = view;
 
 	g_signal_connect (G_OBJECT (view), "row_activated",

@@ -107,8 +107,7 @@ cv_tree_init (chanview *cv)
 
 	win = gtk_scrolled_window_new (0, 0);
 	/*nx_set_border_width (win, 1);*/
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (win),
-													 GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (win, TRUE);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
 											  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtkutil_container_add (cv->box, win);

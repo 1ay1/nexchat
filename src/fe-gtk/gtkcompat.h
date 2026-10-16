@@ -128,6 +128,53 @@ nx_widget_get_children (GtkWidget *w)
 /* gtk_bin_get_child: the single child (buttons, frames, windows, ...) */
 #define nx_bin_get_child(w) gtk_widget_get_first_child (GTK_WIDGET (w))
 
+/* GtkScrolledWindow: new(NULL,NULL) -> new(); the inset frame
+   (GTK_SHADOW_IN) is the "frame" style property in GTK4 */
+#define nx_scrolled_window_new() gtk_scrolled_window_new ()
+#define nx_scrolled_window_set_shadow_in(sw, on) \
+	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), (on))
+
+/* GtkButtonBox is gone. Our boxes are all horizontal rows of buttons with
+   a layout: SPREAD (equal gaps, homogeneous) or END (packed right).
+   A homogeneous GtkBox with the right halign gives the same placement. */
+typedef enum { NX_BUTTONBOX_SPREAD, NX_BUTTONBOX_END, NX_BUTTONBOX_START, NX_BUTTONBOX_EDGE } nx_buttonbox_layout;
+static inline GtkWidget *
+nx_button_box_new (GtkOrientation o, nx_buttonbox_layout layout)
+{
+	GtkWidget *box = gtk_box_new (o, 6);
+	gtk_box_set_homogeneous (GTK_BOX (box), layout == NX_BUTTONBOX_SPREAD || layout == NX_BUTTONBOX_EDGE);
+	if (layout == NX_BUTTONBOX_END)
+		gtk_widget_set_halign (box, GTK_ALIGN_END);
+	else if (layout == NX_BUTTONBOX_START)
+		gtk_widget_set_halign (box, GTK_ALIGN_START);
+	return box;
+}
+
+/* window placement hints: GTK4 leaves placement to the window manager */
+#define nx_window_set_position_mouse(win) ((void) (win))
+#define nx_window_set_position_center(win) ((void) (win))
+
+/* toplevel of a widget, NULL if it isn't in a window yet */
+static inline GtkWidget *
+nx_widget_get_toplevel (GtkWidget *w)
+{
+	GtkRoot *r = gtk_widget_get_root (w);
+	return r ? GTK_WIDGET (r) : NULL;
+}
+
+/* default button: GTK4 sets it on the window */
+static inline void
+nx_widget_make_default (GtkWidget *button)
+{
+	GtkRoot *r = gtk_widget_get_root (button);
+	if (r && GTK_IS_WINDOW (r))
+		gtk_window_set_default_widget (GTK_WINDOW (r), button);
+}
+
+/* size of a realized widget (GTK3 read it off the GdkWindow) */
+#define nx_widget_get_width(w) gtk_widget_get_width (GTK_WIDGET (w))
+#define nx_widget_get_height(w) gtk_widget_get_height (GTK_WIDGET (w))
+
 #else
 
 /* ---- GTK3: exactly the old calls ---- */
@@ -144,6 +191,38 @@ nx_widget_get_children (GtkWidget *w)
 #define nx_widget_destroy(w) gtk_widget_destroy (GTK_WIDGET (w))
 #define nx_widget_get_children(w) gtk_container_get_children (GTK_CONTAINER (w))
 #define nx_bin_get_child(w) gtk_bin_get_child (GTK_BIN (w))
+
+#define nx_scrolled_window_new() gtk_scrolled_window_new (NULL, NULL)
+#define nx_scrolled_window_set_shadow_in(sw, on) \
+	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (sw), (on) ? GTK_SHADOW_IN : GTK_SHADOW_NONE)
+
+typedef enum { NX_BUTTONBOX_SPREAD, NX_BUTTONBOX_END, NX_BUTTONBOX_START, NX_BUTTONBOX_EDGE } nx_buttonbox_layout;
+static inline GtkWidget *
+nx_button_box_new (GtkOrientation o, nx_buttonbox_layout layout)
+{
+	GtkWidget *box = gtk_button_box_new (o);
+	static const GtkButtonBoxStyle map[] = {
+		GTK_BUTTONBOX_SPREAD, GTK_BUTTONBOX_END, GTK_BUTTONBOX_START, GTK_BUTTONBOX_EDGE };
+	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), map[layout]);
+	return box;
+}
+
+#define nx_window_set_position_mouse(win) \
+	gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_MOUSE)
+#define nx_window_set_position_center(win) \
+	gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER)
+
+#define nx_widget_get_toplevel(w) gtk_widget_get_toplevel (GTK_WIDGET (w))
+
+static inline void
+nx_widget_make_default (GtkWidget *button)
+{
+	gtk_widget_set_can_default (button, TRUE);
+	gtk_widget_grab_default (button);
+}
+
+#define nx_widget_get_width(w) gdk_window_get_width (gtk_widget_get_window (GTK_WIDGET (w)))
+#define nx_widget_get_height(w) gdk_window_get_height (gtk_widget_get_window (GTK_WIDGET (w)))
 
 #endif
 

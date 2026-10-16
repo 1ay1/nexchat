@@ -377,7 +377,9 @@ gtkutil_dialog_add_stock_button (GtkDialog *dialog, const char *stock_id, int re
 {
 	GtkWidget *button = gtkutil_button_new_from_stock (stock_id);
 
-	gtk_widget_set_can_default (button, TRUE);
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	gtk_widget_set_can_default (button, TRUE);	/* GTK4: any button can be */
+#endif
 	gtk_widget_show (button);
 	gtk_dialog_add_action_widget (dialog, button, response);
 	return button;
@@ -725,11 +727,11 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 
 	if (userdata == (void *)1)	/* nick box is usually on the very bottom, make it centered */
 	{
-		gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_CENTER);
+		nx_window_set_position_center (dialog);
 	}
 	else
 	{
-		gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+		nx_window_set_position_mouse (dialog);
 	}
 
 	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
@@ -814,7 +816,7 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
 	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
-	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 
 	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
@@ -852,7 +854,7 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_NO, GTK_RESPONSE_REJECT);
 	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_YES, GTK_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), TRUE);
-	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 
 
@@ -962,7 +964,7 @@ gtkutil_window_new (char *title, char *role, int width, int height, int flags)
 	gtk_window_set_default_size (GTK_WINDOW (win), width, height);
 	gtk_window_set_role (GTK_WINDOW (win), role);
 	if (flags & 1)
-		gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_MOUSE);
+		nx_window_set_position_mouse (win);
 	if ((flags & 2) && parent_window)
 	{
 		gtk_window_set_type_hint (GTK_WINDOW (win), GDK_WINDOW_TYPE_HINT_DIALOG);
@@ -981,7 +983,7 @@ gtkutil_copy_to_clipboard (GtkWidget *widget, GdkAtom selection,
 	GtkWidget *win;
 	GtkClipboard *clip, *clip2;
 
-	win = gtk_widget_get_toplevel (GTK_WIDGET (widget));
+	win = nx_widget_get_toplevel (GTK_WIDGET (widget));
 	if (gtk_widget_is_toplevel (win))
 	{
 		int len = strlen (str);

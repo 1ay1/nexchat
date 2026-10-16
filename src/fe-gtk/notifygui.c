@@ -348,7 +348,7 @@ fe_notify_ask (char *nick, char *networks)
 	gtkutil_dialog_add_stock_button (GTK_DIALOG (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
 	if (parent_window)
 		gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
-	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+	nx_window_set_position_mouse (dialog);
 
 	table = gtk_grid_new ();
 	nx_set_border_width (table, 12);
@@ -414,9 +414,8 @@ notify_opengui (void)
 	view = notify_treeview_new (vbox);
 	g_object_set_data (G_OBJECT (notify_window), "view", view);
   
-	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	nx_set_border_width (bbox, 5);
+	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_set_border_width (bbox, 5);
 	nx_box_pack_end (vbox, bbox, 0, 0, 0);
 	gtk_widget_show (bbox);
 

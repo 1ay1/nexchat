@@ -204,9 +204,8 @@ url_opengui ()
 	g_object_set_data (G_OBJECT (urlgrabberwindow), "model",
 	                   gtk_tree_view_get_model (GTK_TREE_VIEW (view)));
 
-	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
-	nx_set_border_width (hbox, 5);
+	hbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_set_border_width (hbox, 5);
 	nx_box_pack_end (vbox, hbox, 0, 0, 0);
 	gtk_widget_show (hbox);
 

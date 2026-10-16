@@ -115,9 +115,9 @@ open_rawlog (struct server *serv)
 							 640, 320, &vbox, serv);
 	gtkutil_destroy_on_esc (serv->gui->rawlog_window);
 
-	scrolledwindow = gtk_scrolled_window_new (NULL, NULL);
+	scrolledwindow = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolledwindow), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scrolledwindow), GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scrolledwindow, TRUE);
 	gtkutil_container_add (GTK_WIDGET (vbox), scrolledwindow);
 
 	serv->gui->rawlog_textlist = gtk_xtext_new (colors, 0);
@@ -125,9 +125,8 @@ open_rawlog (struct server *serv)
 	gtk_xtext_set_font (GTK_XTEXT (serv->gui->rawlog_textlist), prefs.hex_text_font);
 	GTK_XTEXT (serv->gui->rawlog_textlist)->ignore_hidden = 1;
 
-	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	nx_box_pack_end (vbox, bbox, 0, 0, 4);
+	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_box_pack_end (vbox, bbox, 0, 0, 4);
 
 	gtkutil_button (bbox, NX_STOCK_CLEAR, NULL, rawlog_clearbutton,
 						 serv, _("Clear Raw Log"));

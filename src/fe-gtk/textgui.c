@@ -345,9 +345,9 @@ pevent_treeview_new (GtkWidget *box)
 	GtkWidget *view;
 	GtkCellRenderer *render;
 
-	scroll = gtk_scrolled_window_new (NULL, NULL);
+	scroll = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scroll), GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scroll, TRUE);
 	gtk_widget_set_size_request (GTK_WIDGET (scroll), -1, 250);
 
 	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
@@ -398,9 +398,9 @@ pevent_hlist_treeview_new (GtkWidget *box)
 	GtkWidget *view;
 	GtkCellRenderer *render;
 
-	scroll = gtk_scrolled_window_new (NULL, NULL);
+	scroll = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scroll), GTK_SHADOW_IN);
+	nx_scrolled_window_set_shadow_in (scroll, TRUE);
 
 	store = gtk_list_store_new (2, G_TYPE_INT, G_TYPE_STRING);
 	g_return_val_if_fail (store != NULL, NULL);
@@ -467,7 +467,7 @@ pevent_dialog_show ()
 			gtk_tree_selection_select_iter (gtk_tree_view_get_selection (GTK_TREE_VIEW (pevent_dialog_list)), &first);
 	}
 
-	wid = gtk_scrolled_window_new (NULL, NULL);
+	wid = nx_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (wid), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 	nx_box_pack_start (vbox, wid, FALSE, TRUE, 0);
 
@@ -477,9 +477,8 @@ pevent_dialog_show ()
 	gtkutil_container_add (GTK_WIDGET (wid), pevent_dialog_twid);
 	gtk_xtext_set_font (GTK_XTEXT (pevent_dialog_twid), prefs.hex_text_font);
 
-	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
-	nx_box_pack_start (vbox, hbox, FALSE, FALSE, 4);
+	hbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_box_pack_start (vbox, hbox, FALSE, FALSE, 4);
 	gtkutil_button (hbox, NX_STOCK_SAVE_AS, NULL, pevent_save_cb,
 						 (void *) 1, _("Save As..."));
 	gtkutil_button (hbox, NX_STOCK_OPEN, NULL, pevent_load_cb,

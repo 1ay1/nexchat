@@ -568,7 +568,7 @@ banlist_clear (GtkWidget * wid, banlist_info *banl)
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (banlist_clear_cb), banl);
-	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
+	nx_window_set_position_mouse (dialog);
 	gtk_widget_show (dialog);
 }
 
@@ -832,9 +832,8 @@ banlist_opengui (struct session *sess)
 		gtkutil_grid_attach (table, banl->checkboxes[i], i+1, i+2, 0, 1, GU_FILL, GU_FILL, 0, 0);
 	}
 
-	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
-	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	nx_set_border_width (bbox, 5);
+	bbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
+		nx_set_border_width (bbox, 5);
 	nx_box_pack_end (vbox, bbox, 0, 0, 0);
 	gtk_widget_show (bbox);
 
