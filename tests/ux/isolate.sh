@@ -1,8 +1,13 @@
 # Sourced by the GUI tests. The app must open on our Xvfb, not on the
 # session's Wayland compositor, and must not pick up the user's GTK theme or
 # fonts: the tests click at fixed coordinates. DejaVu is what CI has.
-unset WAYLAND_DISPLAY
-export GDK_BACKEND=x11
+# Under tests/ux/with-weston.sh (NX_WAYLAND=1) the app goes to that weston.
+if [ -n "${NX_WAYLAND:-}" ]; then
+	export GDK_BACKEND=wayland
+else
+	unset WAYLAND_DISPLAY
+	export GDK_BACKEND=x11
+fi
 # no accessibility bus in a private test session (GTK4 asserts without it)
 export GTK_A11Y=none NO_AT_BRIDGE=1
 XDG_CONFIG_HOME=$(mktemp -d)
@@ -31,6 +36,7 @@ export FONTCONFIG_FILE="$XDG_CONFIG_HOME/fontconfig/fonts.conf"
 # start_xvfb XVFB DISPLAY [W H]: start Xvfb and wait until it takes
 # connections (a fixed sleep wasn't enough on a busy machine). Sets $xv.
 start_xvfb() {
+	if [ -n "${NX_WAYLAND:-}" ]; then xv=; return; fi
 	"$1" "$2" -screen 0 "${3:-1100}x${4:-720}x24" -nolisten tcp >/dev/null 2>&1 &
 	xv=$!
 	DISPLAY=$2 python3 "${NX_UX_DIR:-$(dirname "$0")}/xkey.py" --wait-display

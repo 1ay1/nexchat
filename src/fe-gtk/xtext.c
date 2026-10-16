@@ -591,22 +591,26 @@ gtk_xtext_init (GtkXText * xtext)
 		xtext->dark_gc.fg = dark;
 		xtext->thin_gc.fg = thin;
 	}
+}
 
 #if !GTK_CHECK_VERSION(4, 0, 0)
-	{
-		static const GtkTargetEntry targets[] = {
-			{ "UTF8_STRING", 0, TARGET_UTF8_STRING },
-			{ "STRING", 0, TARGET_STRING },
-			{ "TEXT",   0, TARGET_TEXT }, 
-			{ "COMPOUND_TEXT", 0, TARGET_COMPOUND_TEXT }
-		};
-		static const gint n_targets = sizeof (targets) / sizeof (targets[0]);
+/* GTK3 on Wayland needs a GdkWindow for this, so it's done at realize. */
+static void
+gtk_xtext_add_selection_targets (GtkXText *xtext)
+{
+	static const GtkTargetEntry targets[] = {
+		{ "UTF8_STRING", 0, TARGET_UTF8_STRING },
+		{ "STRING", 0, TARGET_STRING },
+		{ "TEXT",   0, TARGET_TEXT }, 
+		{ "COMPOUND_TEXT", 0, TARGET_COMPOUND_TEXT }
+	};
+	static const gint n_targets = sizeof (targets) / sizeof (targets[0]);
 
-		gtk_selection_add_targets (GTK_WIDGET (xtext), GDK_SELECTION_PRIMARY,
-											targets, n_targets);
-	}
-#endif
+	gtk_selection_clear_targets (GTK_WIDGET (xtext), GDK_SELECTION_PRIMARY);
+	gtk_selection_add_targets (GTK_WIDGET (xtext), GDK_SELECTION_PRIMARY,
+										targets, n_targets);
 }
+#endif
 
 /* GTK2 code poked adj->value / adj->upper directly, which never emitted
    value-changed. GTK3 hides the fields; do the same thing through the API
@@ -850,6 +854,7 @@ gtk_xtext_realize (GtkWidget * widget)
 									 GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL);
 	gtk_widget_set_window (widget, window);
 	gtk_widget_register_window (widget, window);
+	gtk_xtext_add_selection_targets (xtext);
 #endif
 
 	/* for the marker bar (marker) */

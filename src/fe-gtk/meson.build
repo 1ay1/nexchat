@@ -98,6 +98,26 @@ if host_machine.system() == 'windows'
   hexchat_gtk_ldflags += '-Wl,-e,mainCRTStartup'
 endif
 
+# Wayland has no urgency hint: ask through xdg-activation instead
+wl_client = dependency('wayland-client', required: false)
+wl_protocols = dependency('wayland-protocols', required: false)
+wl_scanner = find_program('wayland-scanner', required: false)
+if gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland') and \
+   wl_client.found() and wl_protocols.found() and wl_scanner.found()
+  xml = wl_protocols.get_variable(pkgconfig: 'pkgdatadir') / 'staging/xdg-activation/xdg-activation-v1.xml'
+  hexchat_gtk_sources += [
+    'wlactivate.c',
+    custom_target('xdg-activation-client-header', input: xml,
+      output: 'xdg-activation-v1-client-protocol.h',
+      command: [wl_scanner, 'client-header', '@INPUT@', '@OUTPUT@']),
+    custom_target('xdg-activation-code', input: xml,
+      output: 'xdg-activation-v1-protocol.c',
+      command: [wl_scanner, 'private-code', '@INPUT@', '@OUTPUT@']),
+  ]
+  hexchat_gtk_deps += wl_client
+  hexchat_gtk_cflags += '-DHAVE_WLACTIVATE'
+endif
+
 hexchat_gtk = executable('nexchat',
   sources:  resources + hexchat_gtk_sources,
   dependencies: hexchat_gtk_deps,
@@ -155,6 +175,46 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/smoke-gui.sh'), hexchat_gtk],
     timeout: 60)
+endif
+
+# The tests that only need a display also run on Wayland, under a private
+# headless weston (tests/ux/with-weston.sh).
+weston = find_program('weston', required: false)
+if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland')
+  sh = find_program('sh').full_path()
+  wl_env = ['WESTON=' + weston.full_path(), 'G_DEBUG=fatal-criticals']
+  wl_with = files('../../tests/ux/with-weston.sh')
+  test('wayland-smoke', find_program('sh'),
+    args: [wl_with, sh, files('../../tests/smoke-gui.sh'), hexchat_gtk],
+    env: wl_env, timeout: 60)
+  test('wayland-gtkcompat', find_program('sh'),
+    args: [wl_with, gtkcompat_test], env: wl_env, timeout: 60)
+  if get_option('gtk') == '3'
+    test('wayland-gtkdnd', find_program('sh'),
+      args: [wl_with, gtkdnd_test], env: wl_env, timeout: 60)
+  endif
+  test('wayland-nxmenu', find_program('sh'),
+    args: [wl_with, nxmenu_test], env: wl_env, timeout: 60)
+  if use_dbus
+    test('wayland-dbus-remote', find_program('sh'),
+      args: [wl_with, sh, files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
+      env: wl_env, timeout: 90)
+    if get_option('gtk') == '4'
+      test('wayland-sni', find_program('sh'),
+        args: [wl_with, sh, files('../../tests/sni.sh'), hexchat_gtk],
+        # no seat: a focused window doesn't blink the tray
+        env: wl_env + ['NX_NO_SEAT=1'], timeout: 60)
+    endif
+  endif
+endif
+
+# Urgency on Wayland: sway reports it over IPC, weston doesn't
+sway = find_program('sway', required: false)
+if sway.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland') and use_dbus
+  test('wayland-urgency', find_program('sh'),
+    args: [files('../../tests/ux/with-sway.sh'), find_program('sh').full_path(),
+      files('../../tests/ux/wl-urgency.sh'), hexchat_gtk],
+    env: ['SWAY=' + sway.full_path(), 'G_DEBUG=fatal-criticals'], timeout: 60)
 endif
 
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.

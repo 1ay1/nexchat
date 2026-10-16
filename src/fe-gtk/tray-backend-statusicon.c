@@ -19,6 +19,9 @@
 #include <gtk/gtk.h>
 
 #include "tray-backend.h"
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
 
 struct _tray_backend
 {
@@ -53,7 +56,14 @@ tray_backend *
 tray_backend_new (GdkPixbuf *icon, const tray_backend_callbacks *cb, gpointer userdata)
 {
 	tray_backend *tb;
-	GtkStatusIcon *si = gtk_status_icon_new_from_pixbuf (icon);
+	GtkStatusIcon *si;
+
+#ifdef GDK_WINDOWING_WAYLAND
+	/* XEmbed only: on Wayland there's no tray, as if no panel had one */
+	if (GDK_IS_WAYLAND_DISPLAY (gdk_display_get_default ()))
+		return NULL;
+#endif
+	si = gtk_status_icon_new_from_pixbuf (icon);
 
 	if (!si)
 		return NULL;

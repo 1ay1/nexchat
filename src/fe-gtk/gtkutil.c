@@ -42,6 +42,9 @@
 #include <gdk/gdkwayland.h>
 #endif
 #endif
+#ifdef HAVE_WLACTIVATE
+#include "wlactivate.h"
+#endif
 
 #include "../common/hexchat.h"
 #include "../common/fe.h"
@@ -303,6 +306,26 @@ gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 void
 gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 {
+#ifdef HAVE_WLACTIVATE
+	GdkDisplay *wdpy = gtk_widget_get_display (GTK_WIDGET (win));
+
+	/* no hint on Wayland; the compositor clears it once focused */
+	if (GDK_IS_WAYLAND_DISPLAY (wdpy))
+	{
+#if GTK_CHECK_VERSION(4, 0, 0)
+		GdkSurface *s = gtk_native_get_surface (GTK_NATIVE (win));
+		if (urgent && s)
+			wl_request_attention (gdk_wayland_display_get_wl_display (wdpy),
+										 gdk_wayland_surface_get_wl_surface (s));
+#else
+		GdkWindow *w = gtk_widget_get_window (GTK_WIDGET (win));
+		if (urgent && w)
+			wl_request_attention (gdk_wayland_display_get_wl_display (wdpy),
+										 gdk_wayland_window_get_wl_surface (w));
+#endif
+		return;
+	}
+#endif
 #if GTK_CHECK_VERSION(4, 0, 0)
 #ifdef GDK_WINDOWING_X11
 	Window xid = x11_xid (win);
