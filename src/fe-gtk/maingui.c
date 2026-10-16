@@ -1739,13 +1739,12 @@ mg_dnd_drop_file (session *sess, char *target, char *uri)
 }
 
 static void
-mg_dialog_dnd_drop (GtkWidget * widget, GdkDragContext * context, gint x,
-						  gint y, GtkSelectionData * selection_data, guint info,
-						  guint32 time, gpointer ud)
+mg_dialog_dnd_drop (GtkWidget * widget, double x, double y, const char *uris,
+						  gpointer ud)
 {
 	if (current_sess->type == SESS_DIALOG)
 		/* sess->channel is really the nickname of dialogs */
-		mg_dnd_drop_file (current_sess, current_sess->channel, (char *)gtk_selection_data_get_data (selection_data));
+		mg_dnd_drop_file (current_sess, current_sess->channel, (char *) uris);
 }
 
 /* add a tabbed channel */
@@ -2378,15 +2377,6 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	GtkWidget *inbox, *vbox, *frame;
 	GtkXText *xtext;
 	session_gui *gui = sess->gui;
-	static const GtkTargetEntry dnd_targets[] =
-	{
-		{"text/uri-list", 0, 1}
-	};
-	static const GtkTargetEntry dnd_dest_targets[] =
-	{
-		{"HEXCHAT_CHANVIEW", GTK_TARGET_SAME_APP, 75 },
-		{"HEXCHAT_USERLIST", GTK_TARGET_SAME_APP, 75 }
-	};
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtkutil_container_add (GTK_WIDGET (box), vbox);
@@ -2414,21 +2404,11 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	gtk_widget_set_name (gui->vscrollbar, "hexchat-scrollbar");
 	nx_box_pack_start (inbox, gui->vscrollbar, FALSE, TRUE, 0);
 
-	gtk_drag_dest_set (gui->vscrollbar, 5, dnd_dest_targets, 2,
-							 GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK);
-	g_signal_connect (G_OBJECT (gui->vscrollbar), "drag_begin",
-							G_CALLBACK (mg_drag_begin_cb), NULL);
-	g_signal_connect (G_OBJECT (gui->vscrollbar), "drag_drop",
-							G_CALLBACK (mg_drag_drop_cb), NULL);
-	g_signal_connect (G_OBJECT (gui->vscrollbar), "drag_motion",
-							G_CALLBACK (mg_drag_motion_cb), gui->vscrollbar);
-	g_signal_connect (G_OBJECT (gui->vscrollbar), "drag_end",
-							G_CALLBACK (mg_drag_end_cb), NULL);
+	/* flags 5 (motion|drop) as before: no theme highlight, we paint our own */
+	mg_layout_drop_dest (gui->vscrollbar,
+								NX_DND_CHANVIEW | NX_DND_USERLIST | NX_DND_NO_THEME_HIGHLIGHT);
 
-	gtk_drag_dest_set (gui->xtext, GTK_DEST_DEFAULT_ALL, dnd_targets, 1,
-							 GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK);
-	g_signal_connect (G_OBJECT (gui->xtext), "drag_data_received",
-							G_CALLBACK (mg_dialog_dnd_drop), NULL);
+	nx_dnd_file_dest (gui->xtext, mg_dialog_dnd_drop, NULL, NULL, NULL);
 }
 
 static GtkWidget *
@@ -3803,89 +3783,23 @@ mg_handle_drop (GtkWidget *widget, int y, int *pos, int *other_pos)
 	mg_place_userlist_and_chanview (gui);
 }
 
-static gboolean
-mg_is_gui_target (GdkDragContext *context)
+/* a layout drag was dropped on widget (the drag icon and the kind checks
+   are in gtkdnd.c) */
+
+static void
+mg_drag_drop_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer user_data)
 {
-	char *target_name;
-
-	if (!context || !gdk_drag_context_list_targets (context) || !gdk_drag_context_list_targets (context)->data)
-		return FALSE;
-
-	target_name = gdk_atom_name (gdk_drag_context_list_targets (context)->data);
-	if (target_name)
+	switch (kind)
 	{
-		/* if it's not HEXCHAT_CHANVIEW or HEXCHAT_USERLIST */
-		/* we should ignore it. */
-		if (target_name[0] != 'H')
-		{
-			g_free (target_name);
-			return FALSE;
-		}
-		g_free (target_name);
-	}
-
-	return TRUE;
-}
-
-/* this begin callback just creates an nice of the source */
-
-gboolean
-mg_drag_begin_cb (GtkWidget *widget, GdkDragContext *context, gpointer userdata)
-{
-	int width, height;
-	GdkPixbuf *pix, *pix2;
-
-	/* ignore file drops */
-	if (!mg_is_gui_target (context))
-		return FALSE;
-
-	width = gdk_window_get_width (gtk_widget_get_window (widget));
-	height = gdk_window_get_height (gtk_widget_get_window (widget));
-
-	pix = gdk_pixbuf_get_from_window (gtk_widget_get_window (widget), 0, 0, width, height);
-	pix2 = gdk_pixbuf_scale_simple (pix, width * 4 / 5, height / 2, GDK_INTERP_HYPER);
-	g_object_unref (pix);
-
-	gtk_drag_set_icon_pixbuf (context, pix2, 0, 0);
-	g_object_set_data (G_OBJECT (widget), "ico", pix2);
-
-	return TRUE;
-}
-
-void
-mg_drag_end_cb (GtkWidget *widget, GdkDragContext *context, gpointer userdata)
-{
-	/* ignore file drops */
-	if (!mg_is_gui_target (context))
-		return;
-
-	g_object_unref (g_object_get_data (G_OBJECT (widget), "ico"));
-}
-
-/* drop complete */
-
-gboolean
-mg_drag_drop_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint time, gpointer user_data)
-{
-	/* ignore file drops */
-	if (!mg_is_gui_target (context))
-		return FALSE;
-
-	switch (gdk_drag_context_get_selected_action (context))
-	{
-	case GDK_ACTION_MOVE:
-		/* from userlist */
+	case NX_DND_USERLIST:
 		mg_handle_drop (widget, y, &prefs.hex_gui_ulist_pos, &prefs.hex_gui_tab_pos);
 		break;
-	case GDK_ACTION_COPY:
-		/* from tree - we use GDK_ACTION_COPY for the tree */
+	case NX_DND_CHANVIEW:
 		mg_handle_drop (widget, y, &prefs.hex_gui_tab_pos, &prefs.hex_gui_ulist_pos);
 		break;
 	default:
-		return FALSE;
+		break;
 	}
-
-	return TRUE;
 }
 
 /* draw highlight rectangle in the destination */
@@ -3934,7 +3848,7 @@ mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
 }
 
 static void
-mg_drag_highlight_clear_cb (GtkWidget *widget, GdkDragContext *context, guint time, gpointer userdata)
+mg_drag_highlight_clear_cb (GtkWidget *widget, gpointer userdata)
 {
 	if (g_object_get_data (G_OBJECT (widget), MG_DROP_HALF))
 	{
@@ -3943,24 +3857,19 @@ mg_drag_highlight_clear_cb (GtkWidget *widget, GdkDragContext *context, guint ti
 	}
 }
 
-gboolean
-mg_drag_motion_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint time, gpointer scbar)
+static void
+mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unused)
 {
 	GdkRGBA *col;
 	int which;
 
-	/* ignore file drops */
-	if (!mg_is_gui_target (context))
-		return FALSE;
-
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	/* TODO GTK4: no ::draw to paint the outline from */
 	/* hook up the painter the first time this widget is a drop target */
 	if (!g_object_get_data (G_OBJECT (widget), MG_DROP_COL))
-	{
 		g_signal_connect_after (G_OBJECT (widget), "draw",
 								G_CALLBACK (mg_drag_highlight_draw_cb), NULL);
-		g_signal_connect (G_OBJECT (widget), "drag-leave",
-								G_CALLBACK (mg_drag_highlight_clear_cb), NULL);
-	}
+#endif
 
 	/* a new random colour on every motion, as before */
 	col = g_new (GdkRGBA, 1);
@@ -3975,6 +3884,13 @@ mg_drag_motion_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, gui
 	which = (y < gtk_widget_get_allocated_height (widget) / 2) ? 1 : 2;
 	g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, GINT_TO_POINTER (which));
 	gtk_widget_queue_draw (widget);
+}
 
-	return TRUE;
+/* the channel tree and user list take each other's layout drags (and the
+   chat scrollbar takes both): drop on a pane half to move them there */
+void
+mg_layout_drop_dest (GtkWidget *widget, guint kinds)
+{
+	nx_dnd_layout_dest (widget, kinds, mg_drag_motion_cb, mg_drag_highlight_clear_cb,
+							  mg_drag_drop_cb, NULL);
 }

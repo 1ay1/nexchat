@@ -8,6 +8,8 @@
 #     changes; a crash or a stuck grab fails the test)
 #   - chat view (xtext): drag-select and double-click-word copy the text
 #     (text_autocopy_text=1); pasted and sent, it shows up at the ircd
+#   - layout drag and drop: user list onto the left pane, channel tree onto
+#     the chat scrollbar; checked in the saved gui_ulist_pos / gui_tab_pos
 # usage: tests/ux/mouse.sh BIN   (needs Xvfb + XTest)
 set -eu
 bin=$1
@@ -88,6 +90,27 @@ x ctrl+v Return
 sleep 1
 grep -qa '^PRIVMSG #nexchat :smoke,\{0,1\}$' "$tmp/server.log" && ok "chat view double-click selects a word" \
 	|| bad "chat view double-click word"
+
+# 6. drag the user list onto the bottom half of the left pane (under the
+#    channel tree): gui_ulist_pos becomes 2 (left-bottom); then the channel
+#    tree back onto the right: the layout DnD round trip
+x --drag 840,380:60,450
+sleep 1.5
+# /set writes hexchat.conf, with the positions as they are now
+x --click 450,580
+x --type "/set -quiet gui_tab_small 0" Return
+sleep 1
+grep -q '^gui_ulist_pos = 2$' "$tmp/cfg/hexchat.conf" && ok "drag user list to left-bottom" \
+	|| bad "drag user list: $(grep '^gui_ulist_pos' "$tmp/cfg/hexchat.conf")"
+# the tree onto the chat scrollbar's bottom half (a drop target on the
+# right side): it goes right-bottom
+x --drag 60,68:890,450
+sleep 1.5
+x --click 450,580
+x --type "/set -quiet gui_tab_small 0" Return
+sleep 1
+grep -q '^gui_tab_pos = 4$' "$tmp/cfg/hexchat.conf" && ok "drag channel tree to right-bottom" \
+	|| bad "drag channel tree: $(grep '^gui_tab_pos' "$tmp/cfg/hexchat.conf")"
 
 if [ -n "${KEEP:-}" ]; then /opt/X11/bin/xwd -root -display "$disp" > "$tmp/end.xwd" 2>/dev/null || xwd -root -display "$disp" > "$tmp/end.xwd" || true; fi
 if grep -qiE 'critical' "$tmp/log"; then echo "--- criticals:"; grep -iE 'critical' "$tmp/log" | sort | uniq -c | head; fail=1; fi

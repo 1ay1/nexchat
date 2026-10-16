@@ -20,6 +20,8 @@
 #ifndef HEXCHAT_MAINGUI_H
 #define HEXCHAT_MAINGUI_H
 
+#include "gtkdnd.h"
+
 extern GtkWidget *parent_window;
 
 void fe_check_font (void);
@@ -52,10 +54,7 @@ void mg_inputbox_cb (GtkWidget *igad, session_gui *gui);
 void mg_create_icon_item (char *label, char *stock, GtkWidget *menu, void *callback, void *userdata);
 GtkWidget *mg_submenu (GtkWidget *menu, char *text);
 /* DND */
-gboolean mg_drag_begin_cb (GtkWidget *widget, GdkDragContext *context, gpointer userdata);
-void mg_drag_end_cb (GtkWidget *widget, GdkDragContext *context, gpointer userdata);
-gboolean mg_drag_drop_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint time, gpointer user_data);
-gboolean mg_drag_motion_cb (GtkWidget *widget, GdkDragContext *context, int x, int y, guint time, gpointer user_data);
+void mg_layout_drop_dest (GtkWidget *widget, guint kinds);
 /* search */
 void mg_search_toggle(session *sess);
 void mg_search_handle_previous(GtkWidget *wid, session *sess);

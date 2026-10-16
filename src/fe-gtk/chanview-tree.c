@@ -100,14 +100,6 @@ cv_tree_init (chanview *cv)
 	GtkCellRenderer *renderer;
 	GtkTreeViewColumn *col;
 	int wid1, wid2;
-	static const GtkTargetEntry dnd_src_target[] =
-	{
-		{"HEXCHAT_CHANVIEW", GTK_TARGET_SAME_APP, 75 }
-	};
-	static const GtkTargetEntry dnd_dest_target[] =
-	{
-		{"HEXCHAT_USERLIST", GTK_TARGET_SAME_APP, 75 }
-	};
 
 	win = gtk_scrolled_window_new (0, 0);
 	/*nx_set_border_width (win, 1);*/
@@ -165,18 +157,9 @@ cv_tree_init (chanview *cv)
 							G_CALLBACK (cv_tree_activated_cb), NULL);
 	nx_on_scroll (view, cv_tree_scroll_event_cb, NULL);
 
-	gtk_drag_dest_set (view, GTK_DEST_DEFAULT_ALL, dnd_dest_target, 1,
-							 GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK);
-	gtk_drag_source_set (view, GDK_BUTTON1_MASK, dnd_src_target, 1, GDK_ACTION_COPY);
-
-	g_signal_connect (G_OBJECT (view), "drag_begin",
-							G_CALLBACK (mg_drag_begin_cb), NULL);
-	g_signal_connect (G_OBJECT (view), "drag_drop",
-							G_CALLBACK (mg_drag_drop_cb), NULL);
-	g_signal_connect (G_OBJECT (view), "drag_motion",
-							G_CALLBACK (mg_drag_motion_cb), NULL);
-	g_signal_connect (G_OBJECT (view), "drag_end",
-							G_CALLBACK (mg_drag_end_cb), NULL);
+	/* takes the user list's layout drags, and can be dragged itself */
+	mg_layout_drop_dest (view, NX_DND_USERLIST);
+	nx_dnd_layout_source (view, NX_DND_CHANVIEW);
 
 	((treeview *)cv)->tree = GTK_TREE_VIEW (view);
 	((treeview *)cv)->scrollw = win;
