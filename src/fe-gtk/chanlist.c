@@ -75,14 +75,14 @@ chanlist_match (server *serv, const char *str)
 	switch (serv->gui->chanlist_search_type)
 	{
 	case 1:
-		return match (gtk_entry_get_text (GTK_ENTRY (serv->gui->chanlist_wild)), str);
+		return match (nx_entry_get_text (serv->gui->chanlist_wild), str);
 	case 2:
 		if (!serv->gui->have_regex)
 			return 0;
 
 		return g_regex_match (serv->gui->chanlist_match_regex, str, 0, NULL);
 	default:	/* case 0: */
-		return nocasestrstr (str, gtk_entry_get_text (GTK_ENTRY (serv->gui->chanlist_wild))) ? 1 : 0;
+		return nocasestrstr (str, nx_entry_get_text (serv->gui->chanlist_wild)) ? 1 : 0;
 	}
 }
 
@@ -225,7 +225,7 @@ chanlist_place_row_in_gui (server *serv, chanlistrow *next_row, gboolean force)
 		return;
 	}
 
-	if (gtk_entry_get_text (GTK_ENTRY (serv->gui->chanlist_wild))[0])
+	if (nx_entry_get_text (serv->gui->chanlist_wild)[0])
 	{
 		/* Check what the user wants to match. If both buttons or _neither_
 		 * button is checked, look for match in both by default. 
@@ -404,7 +404,7 @@ chanlist_search_pressed (GtkButton * button, server *serv)
 static void
 chanlist_find_cb (GtkWidget * wid, server *serv)
 {
-	const char *pattern = gtk_entry_get_text (GTK_ENTRY (wid));
+	const char *pattern = nx_entry_get_text (wid);
 
 	/* recompile the regular expression. */
 	if (serv->gui->have_regex)
@@ -567,7 +567,7 @@ chanlist_dclick_cb (GtkTreeView *view, GtkTreePath *path,
 static void
 chanlist_menu_destroy (GtkWidget *menu, gpointer userdata)
 {
-	gtk_widget_destroy (menu);
+	nx_widget_destroy (menu);
 	g_object_unref (menu);
 }
 
@@ -752,12 +752,12 @@ chanlist_opengui (server *serv, int do_refresh)
 								serv, 640, 480, &vbox, serv);
 	gtkutil_destroy_on_esc (serv->gui->chanlist_window);
 
-	gtk_container_set_border_width (GTK_CONTAINER (vbox), 6);
+	nx_set_border_width (vbox, 6);
 	gtk_box_set_spacing (GTK_BOX (vbox), 12);
 
 	/* make a label to store the user/channel info */
 	wid = gtk_label_new (NULL);
-	gtk_box_pack_start (GTK_BOX (vbox), wid, 0, 0, 0);
+	nx_box_pack_start (vbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 	serv->gui->chanlist_label = wid;
 
@@ -786,7 +786,7 @@ chanlist_opengui (server *serv, int do_refresh)
 	table = gtk_grid_new ();
 	gtk_grid_set_column_spacing (GTK_GRID (table), 12);
 	gtk_grid_set_row_spacing (GTK_GRID (table), 3);
-	gtk_box_pack_start (GTK_BOX (vbox), table, 0, 1, 0);
+	nx_box_pack_start (vbox, table, 0, 1, 0);
 	gtk_widget_show (table);
 
 	wid = gtkutil_button (NULL, NX_STOCK_FIND, 0, chanlist_search_pressed, serv,
@@ -828,7 +828,7 @@ chanlist_opengui (server *serv, int do_refresh)
 	gtk_widget_show (hbox);
 
 	wid = gtk_label_new (_("channels with"));
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	wid = gtk_spin_button_new_with_range (1, 999999, 1);
@@ -836,12 +836,12 @@ chanlist_opengui (server *serv, int do_refresh)
 										serv->gui->chanlist_minusers);
 	g_signal_connect (G_OBJECT (wid), "value_changed",
 							G_CALLBACK (chanlist_minusers), serv);
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 	serv->gui->chanlist_min_spin = wid;
 
 	wid = gtk_label_new (_("to"));
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	wid = gtk_spin_button_new_with_range (1, 999999, 1);
@@ -849,11 +849,11 @@ chanlist_opengui (server *serv, int do_refresh)
 										serv->gui->chanlist_maxusers);
 	g_signal_connect (G_OBJECT (wid), "value_changed",
 							G_CALLBACK (chanlist_maxusers), serv);
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	wid = gtk_label_new (_("users."));
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	/* ============================================================= */
@@ -874,7 +874,7 @@ chanlist_opengui (server *serv, int do_refresh)
 	gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (wid), TRUE);
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							  G_CALLBACK(chanlist_match_channel_button_toggled), serv);
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	wid = gtk_check_button_new_with_label (_("Topic"));
@@ -882,7 +882,7 @@ chanlist_opengui (server *serv, int do_refresh)
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							  G_CALLBACK (chanlist_match_topic_button_toggled),
 							  serv);
-	gtk_box_pack_start (GTK_BOX (hbox), wid, 0, 0, 0);
+	nx_box_pack_start (hbox, wid, 0, 0, 0);
 	gtk_widget_show (wid);
 
 	serv->gui->chanlist_match_wants_channel = 1;

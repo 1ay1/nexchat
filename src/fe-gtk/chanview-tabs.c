@@ -295,7 +295,7 @@ cv_tabs_init (chanview *cv)
 	((tabview *)cv)->outer = outer;
 	g_signal_connect (G_OBJECT (outer), "size_allocate",
 							G_CALLBACK (cv_tabs_sizealloc), cv);
-/*	gtk_container_set_border_width (GTK_CONTAINER (outer), 2);*/
+/*	nx_set_border_width (outer, 2);*/
 	gtk_widget_show (outer);
 
 	viewport = gtk_viewport_new (0, 0);
@@ -304,7 +304,7 @@ cv_tabs_init (chanview *cv)
 							G_CALLBACK (cv_tabs_sizerequest), cv);
 	g_signal_connect (G_OBJECT (viewport), "scroll_event",
 							G_CALLBACK (tab_scroll_cb), cv);
-	gtk_box_pack_start (GTK_BOX (outer), viewport, 1, 1, 0);
+	nx_box_pack_start (outer, viewport, 1, 1, 0);
 	gtk_widget_show (viewport);
 
 	if (cv->vertical)
@@ -319,7 +319,7 @@ cv_tabs_init (chanview *cv)
 	if (cv->vertical)
 	{
 		hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
-		gtk_box_pack_start (GTK_BOX (outer), hbox, 0, 0, 0);
+		nx_box_pack_start (outer, hbox, 0, 0, 0);
 		gtk_widget_show (hbox);
 	}
 
@@ -340,8 +340,8 @@ cv_tabs_init (chanview *cv)
 		gtkutil_container_add (GTK_WIDGET (hbox), ((tabview *)cv)->b1);
 	} else
 	{
-		gtk_box_pack_start (GTK_BOX (outer), ((tabview *)cv)->b2, 0, 0, 0);
-		gtk_box_pack_start (GTK_BOX (outer), ((tabview *)cv)->b1, 0, 0, 0);
+		nx_box_pack_start (outer, ((tabview *)cv)->b2, 0, 0, 0);
+		nx_box_pack_start (outer, ((tabview *)cv)->b1, 0, 0, 0);
 	}
 
 	button = gtkutil_button (outer, NX_STOCK_CLOSE, NULL, cv_tabs_xclick_cb,
@@ -367,7 +367,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 
 	if (!cv->sorted)
 	{
-		gtk_box_pack_start (GTK_BOX (box), tab, 0, 0, 0);
+		nx_box_pack_start (box, tab, 0, 0, 0);
 		gtk_widget_show (tab);
 		return;
 	}
@@ -388,7 +388,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 
 			if (ch->tag == 0 && cv->cb_compare (a, b) > 0)
 			{
-				gtk_box_pack_start (GTK_BOX (box), tab, 0, 0, 0);
+				nx_box_pack_start (box, tab, 0, 0, 0);
 				gtk_box_reorder_child (GTK_BOX (box), tab, ++i);
 				gtk_widget_show (tab);
 				return;
@@ -399,7 +399,7 @@ tab_add_sorted (chanview *cv, GtkWidget *box, GtkWidget *tab, chan *ch)
 	}
 
 	/* append */
-	gtk_box_pack_start (GTK_BOX (box), tab, 0, 0, 0);
+	nx_box_pack_start (box, tab, 0, 0, 0);
 	gtk_box_reorder_child (GTK_BOX (box), tab, i);
 	gtk_widget_show (tab);
 }
@@ -436,7 +436,7 @@ cv_tabs_prune (chanview *cv)
 		}
 
 		if (empty)
-			gtk_widget_destroy (box);
+			nx_widget_destroy (box);
 	}
 }
 
@@ -479,7 +479,7 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 		}
 
 		if (empty)
-			gtk_widget_destroy (box);
+			nx_widget_destroy (box);
 	}
 
 	/* create a new family box */
@@ -495,11 +495,11 @@ tab_add_real (chanview *cv, GtkWidget *tab, chan *ch)
 		sep = gtk_separator_new (GTK_ORIENTATION_VERTICAL);
 	}
 
-	gtk_box_pack_end (GTK_BOX (box), sep, 0, 0, 4);
+	nx_box_pack_end (box, sep, 0, 0, 4);
 	gtk_widget_show (sep);
-	gtk_box_pack_start (GTK_BOX (inner), box, 0, 0, 0);
+	nx_box_pack_start (inner, box, 0, 0, 0);
 	g_object_set_data (G_OBJECT (box), "f", ch->family);
-	gtk_box_pack_start (GTK_BOX (box), tab, 0, 0, 0);
+	nx_box_pack_start (box, tab, 0, 0, 0);
 	gtk_widget_show (tab);
 	gtk_widget_show (box);
 	gtk_widget_queue_resize (gtk_widget_get_parent(inner));
@@ -714,7 +714,7 @@ cv_tabs_move_focus (chanview *cv, gboolean relative, int num)
 static void
 cv_tabs_remove (chan *ch)
 {
-	gtk_widget_destroy (ch->impl);
+	nx_widget_destroy (ch->impl);
 	ch->impl = NULL;
 
 	cv_tabs_prune (ch->cv);
@@ -779,7 +779,7 @@ static void
 cv_tabs_cleanup (chanview *cv)
 {
 	if (cv->box)
-		gtk_widget_destroy (((tabview *)cv)->outer);
+		nx_widget_destroy (((tabview *)cv)->outer);
 }
 
 static void

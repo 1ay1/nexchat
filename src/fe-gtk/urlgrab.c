@@ -206,8 +206,8 @@ url_opengui ()
 
 	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
-	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
-	gtk_box_pack_end (GTK_BOX (vbox), hbox, 0, 0, 0);
+	nx_set_border_width (hbox, 5);
+	nx_box_pack_end (vbox, hbox, 0, 0, 0);
 	gtk_widget_show (hbox);
 
 	gtkutil_button (hbox, NX_STOCK_CLEAR,

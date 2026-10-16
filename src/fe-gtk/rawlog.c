@@ -127,7 +127,7 @@ open_rawlog (struct server *serv)
 
 	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 4);
+	nx_box_pack_end (vbox, bbox, 0, 0, 4);
 
 	gtkutil_button (bbox, NX_STOCK_CLEAR, NULL, rawlog_clearbutton,
 						 serv, _("Clear Raw Log"));
@@ -138,7 +138,7 @@ open_rawlog (struct server *serv)
 	/* Copy selection to clipboard when Ctrl+Shift+C is pressed AND text auto-copy is disabled */
 	g_signal_connect (G_OBJECT (serv->gui->rawlog_window), "key_press_event", G_CALLBACK (rawlog_key_cb), serv->gui->rawlog_textlist);
 
-	gtk_widget_show_all (serv->gui->rawlog_window);
+	nx_widget_show_all (serv->gui->rawlog_window);
 }
 
 void

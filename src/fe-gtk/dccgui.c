@@ -804,7 +804,7 @@ fe_dcc_open_recv_win (int passive)
 	dccfwin.window = mg_create_generic_tab ("Transfers", buf, FALSE, TRUE, close_dcc_file_window,
 														 NULL, win_width, win_height, &vbox, 0);
 	gtkutil_destroy_on_esc (dccfwin.window);
-	gtk_container_set_border_width (GTK_CONTAINER (dccfwin.window), 3);
+	nx_set_border_width (dccfwin.window, 3);
 	gtk_box_set_spacing (GTK_BOX (vbox), 3);
 
 	store = gtk_list_store_new (N_COLUMNS, GDK_TYPE_PIXBUF, G_TYPE_STRING,
@@ -845,7 +845,7 @@ fe_dcc_open_recv_win (int passive)
 
 	table = gtk_grid_new ();
 	gtk_grid_set_column_spacing (GTK_GRID (table), 16);
-	gtk_box_pack_start (GTK_BOX (vbox), table, 0, 0, 0);
+	nx_box_pack_start (vbox, table, 0, 0, 0);
 
 	radio = gtk_radio_button_new_with_mnemonic (NULL, _("Both"));
 	g_signal_connect (G_OBJECT (radio), "toggled",
@@ -870,7 +870,7 @@ fe_dcc_open_recv_win (int passive)
 	detailbox = gtk_grid_new ();
 	gtk_grid_set_column_spacing (GTK_GRID (detailbox), 6);
 	gtk_grid_set_row_spacing (GTK_GRID (detailbox), 2);
-	gtk_container_set_border_width (GTK_CONTAINER (detailbox), 6);
+	nx_set_border_width (detailbox, 6);
 	g_signal_connect (G_OBJECT (exp), "activate",
 							G_CALLBACK (dcc_exp_cb), detailbox);
 	gtkutil_grid_attach (table, detailbox, 0, 4, 1, 2, GU_EXPAND | GU_FILL, GU_FILL, 0, 0);
@@ -880,7 +880,7 @@ fe_dcc_open_recv_win (int passive)
 
 	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_end (GTK_BOX (vbox), bbox, FALSE, FALSE, 2);
+	nx_box_pack_end (vbox, bbox, FALSE, FALSE, 2);
 
 	dccfwin.abort_button = gtkutil_button (bbox, NX_STOCK_CANCEL, 0, abort_clicked, 0, _("Abort"));
 	dccfwin.accept_button = gtkutil_button (bbox, NX_STOCK_APPLY, 0, accept_clicked, 0, _("Accept"));
@@ -892,7 +892,7 @@ fe_dcc_open_recv_win (int passive)
 	gtk_widget_set_sensitive (dccfwin.abort_button, FALSE);
 
 	dcc_fill_window (3);
-	gtk_widget_show_all (dccfwin.window);
+	nx_widget_show_all (dccfwin.window);
 	gtk_widget_hide (detailbox);
 
 	return FALSE;
@@ -1051,7 +1051,7 @@ fe_dcc_open_chat_win (int passive)
 			  mg_create_generic_tab ("DCCChat", buf, FALSE, TRUE, dcc_chat_close_cb,
 						NULL, 550, 180, &vbox, 0);
 	gtkutil_destroy_on_esc (dcccwin.window);
-	gtk_container_set_border_width (GTK_CONTAINER (dcccwin.window), 3);
+	nx_set_border_width (dcccwin.window, 3);
 	gtk_box_set_spacing (GTK_BOX (vbox), 3);
 
 	store = gtk_list_store_new (CN_COLUMNS, G_TYPE_STRING, G_TYPE_STRING,
@@ -1080,7 +1080,7 @@ fe_dcc_open_chat_win (int passive)
 
 	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_end (GTK_BOX (vbox), bbox, FALSE, FALSE, 2);
+	nx_box_pack_end (vbox, bbox, FALSE, FALSE, 2);
 
 	dcccwin.abort_button = gtkutil_button (bbox, NX_STOCK_CANCEL, 0, abort_chat_clicked, 0, _("Abort"));
 	dcccwin.accept_button = gtkutil_button (bbox, NX_STOCK_APPLY, 0, accept_chat_clicked, 0, _("Accept"));
@@ -1088,7 +1088,7 @@ fe_dcc_open_chat_win (int passive)
 	gtk_widget_set_sensitive (dcccwin.abort_button, FALSE);
 
 	dcc_chat_fill_win ();
-	gtk_widget_show_all (dcccwin.window);
+	nx_widget_show_all (dcccwin.window);
 
 	return FALSE;
 }

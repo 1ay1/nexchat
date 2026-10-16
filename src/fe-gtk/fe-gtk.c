@@ -110,7 +110,7 @@ create_msg_dialog (gchar *title, gchar *message)
 #endif
 
 	gtkutil_dialog_run_blocking (GTK_DIALOG (dialog));
-	gtk_widget_destroy (dialog);
+	nx_widget_destroy (dialog);
 }
 #endif
 
@@ -644,11 +644,11 @@ fe_set_topic (session *sess, char *topic, char *stripped_topic)
 	{
 		if (prefs.hex_text_stripcolor_topic)
 		{
-			gtk_entry_set_text (GTK_ENTRY (sess->gui->topic_entry), stripped_topic);
+			nx_entry_set_text (sess->gui->topic_entry, stripped_topic);
 		}
 		else
 		{
-			gtk_entry_set_text (GTK_ENTRY (sess->gui->topic_entry), topic);
+			nx_entry_set_text (sess->gui->topic_entry, topic);
 		}
 		mg_set_topic_tip (sess);
 	}
@@ -673,7 +673,7 @@ fe_update_mode_entry (session *sess, GtkWidget *entry, char **text, char *new_te
 	if (!sess->gui->is_tab || sess == current_tab)
 	{
 		if (sess->gui->flag_wid[0])	/* channel mode buttons enabled? */
-			gtk_entry_set_text (GTK_ENTRY (entry), new_text);
+			nx_entry_set_text (entry, new_text);
 	} else
 	{
 		if (sess->gui->is_tab)
@@ -730,7 +730,7 @@ fe_close_window (struct session *sess)
 	if (sess->gui->is_tab)
 		mg_tab_close (sess);
 	else
-		gtk_widget_destroy (sess->gui->window);
+		nx_widget_destroy (sess->gui->window);
 }
 
 void

@@ -21,6 +21,7 @@
 #define HEXCHAT_GTKUTIL_H
 
 #include <gtk/gtk.h>
+#include "gtkcompat.h"
 #include "../common/fe.h"
 
 typedef void (*filereqcallback) (void *, char *file);

@@ -484,7 +484,7 @@ blink_item (unsigned int *setting, GtkWidget *menu, char *label)
 static void
 tray_menu_destroy (GtkWidget *menu, gpointer userdata)
 {
-	gtk_widget_destroy (menu);
+	nx_widget_destroy (menu);
 	g_object_unref (menu);
 #ifdef WIN32
 	g_source_remove (tray_menu_timer);

@@ -587,7 +587,7 @@ key_dialog_selection_changed (GtkTreeSelection *sel, gpointer userdata)
 static void
 key_dialog_close (GtkWidget *wid, gpointer userdata)
 {
-	gtk_widget_destroy (key_dialog);
+	nx_widget_destroy (key_dialog);
 	key_dialog = NULL;
 }
 
@@ -858,7 +858,7 @@ key_dialog_show ()
 
 	view = key_dialog_treeview_new (vbox);
 	xtext = gtk_xtext_new (colors, 0);
-	gtk_box_pack_start (GTK_BOX (vbox), xtext, FALSE, TRUE, 2);
+	nx_box_pack_start (vbox, xtext, FALSE, TRUE, 2);
 	gtk_xtext_set_font (GTK_XTEXT (xtext), prefs.hex_text_font);
 
 	g_object_set_data (G_OBJECT (key_dialog), "view", view);
@@ -866,8 +866,8 @@ key_dialog_show ()
 
 	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
-	gtk_container_set_border_width (GTK_CONTAINER (box), 5);
+	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	nx_set_border_width (box, 5);
 
 	gtkutil_button (box, NX_STOCK_NEW, NULL, key_dialog_add,
 					NULL, _("Add"));
@@ -881,7 +881,7 @@ key_dialog_show ()
 	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view)));
 	key_dialog_load (store);
 
-	gtk_widget_show_all (key_dialog);
+	nx_widget_show_all (key_dialog);
 }
 
 static int

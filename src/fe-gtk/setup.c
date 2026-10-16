@@ -847,7 +847,7 @@ setup_create_spin (GtkWidget *table, int row, const setting *set)
 										setup_get_int (&setup_prefs, set));
 	g_signal_connect (G_OBJECT (wid), "value_changed",
 							G_CALLBACK (setup_spin_cb), (gpointer)set);
-	gtk_box_pack_start (GTK_BOX (rbox), wid, 0, 0, 0);
+	nx_box_pack_start (rbox, wid, 0, 0, 0);
 
 	if (set->list)
 	{
@@ -856,7 +856,7 @@ setup_create_spin (GtkWidget *table, int row, const setting *set)
 			label = setup_create_italic_label (text + 1);
 		else
 			label = gtk_label_new (text);
-		gtk_box_pack_start (GTK_BOX (rbox), label, 0, 0, 6);
+		nx_box_pack_start (rbox, label, 0, 0, 6);
 	}
 
 	return wid;
@@ -1076,7 +1076,7 @@ setup_create_menu (GtkWidget *table, int row, const setting *set)
 							G_CALLBACK (setup_menu_cb), (gpointer)set);
 
 	box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
-	gtk_box_pack_start (GTK_BOX (box), cbox, 0, 0, 0);
+	nx_box_pack_start (box, cbox, 0, 0, 0);
 	gtkutil_grid_attach (table, box, 3, 4, row, row + 1,
 							GU_EXPAND | GU_FILL, GU_SHRINK | GU_FILL, 0, 0);
 }
@@ -1087,7 +1087,7 @@ setup_filereq_cb (GtkWidget *entry, char *file)
 	if (file)
 	{
 		if (file[0])
-			gtk_entry_set_text (GTK_ENTRY (entry), file);
+			nx_entry_set_text (entry, file);
 	}
 }
 
@@ -1121,11 +1121,11 @@ setup_fontsel_response (GtkDialog *dialog, int response, GtkWidget *entry)
 		char *font_name = gtk_font_chooser_get_font (GTK_FONT_CHOOSER (dialog));
 		if (font_name)
 		{
-			gtk_entry_set_text (GTK_ENTRY (entry), font_name);
+			nx_entry_set_text (entry, font_name);
 			g_free (font_name);
 		}
 	}
-	gtk_widget_destroy (GTK_WIDGET (dialog));
+	nx_widget_destroy (GTK_WIDGET (dialog));
 }
 
 static void
@@ -1137,7 +1137,7 @@ setup_fontsel_destroy (GtkWidget *dialog, gpointer unused)
 static void
 setup_browsefolder_cb (GtkWidget *button, GtkEntry *entry)
 {
-	gtkutil_file_req (GTK_WINDOW (setup_window), _("Select Download Folder"), setup_filereq_cb, entry, (char*)gtk_entry_get_text (entry), NULL, FRF_CHOOSEFOLDER|FRF_MODAL);
+	gtkutil_file_req (GTK_WINDOW (setup_window), _("Select Download Folder"), setup_filereq_cb, entry, (char*)nx_entry_get_text (entry), NULL, FRF_CHOOSEFOLDER|FRF_MODAL);
 }
 
 static void
@@ -1149,8 +1149,8 @@ setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 	font_dialog = dialog;	/* global var */
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 
-	if (gtk_entry_get_text (GTK_ENTRY (entry))[0])
-		gtk_font_chooser_set_font (GTK_FONT_CHOOSER (dialog), gtk_entry_get_text (GTK_ENTRY (entry)));
+	if (nx_entry_get_text (entry)[0])
+		gtk_font_chooser_set_font (GTK_FONT_CHOOSER (dialog), nx_entry_get_text (entry));
 
 	g_signal_connect (G_OBJECT (dialog), "destroy",
 							G_CALLBACK (setup_fontsel_destroy), NULL);
@@ -1165,7 +1165,7 @@ setup_entry_cb (GtkEntry *entry, setting *set)
 {
 	int size;
 	int pos;
-	unsigned char *p = (unsigned char*)gtk_entry_get_text (entry);
+	unsigned char *p = (unsigned char*)nx_entry_get_text (entry);
 	int len = strlen (p);
 
 	/* need to truncate? */
@@ -1188,7 +1188,7 @@ setup_entry_cb (GtkEntry *entry, setting *set)
 	}
 	else
 	{
-		setup_set_str (&setup_prefs, set, gtk_entry_get_text (entry));
+		setup_set_str (&setup_prefs, set, nx_entry_get_text (entry));
 	}
 }
 
@@ -1218,7 +1218,7 @@ setup_create_entry (GtkWidget *table, int row, const setting *set)
 	if (set->tooltip)
 		gtk_widget_set_tooltip_text (wid, _(set->tooltip));
 	gtk_entry_set_max_length (GTK_ENTRY (wid), set->extra - 1);
-	gtk_entry_set_text (GTK_ENTRY (wid), setup_get_str (&setup_prefs, set));
+	nx_entry_set_text (wid, setup_get_str (&setup_prefs, set));
 	g_signal_connect (G_OBJECT (wid), "changed",
 							G_CALLBACK (setup_entry_cb), (gpointer)set);
 
@@ -1290,7 +1290,7 @@ setup_create_frame (void)
 	GtkWidget *tab;
 
 	tab = gtk_grid_new ();
-	gtk_container_set_border_width (GTK_CONTAINER (tab), 6);
+	nx_set_border_width (tab, 6);
 	gtk_grid_set_row_spacing (GTK_GRID (tab), 2);
 	gtk_grid_set_column_spacing (GTK_GRID (tab), 3);
 
@@ -1311,7 +1311,7 @@ setup_create_page (const setting *set)
 	GtkWidget *wid = NULL, *parentwid = NULL;
 
 	tab = setup_create_frame ();
-	gtk_container_set_border_width (GTK_CONTAINER (tab), 6);
+	nx_set_border_width (tab, 6);
 
 	i = row = do_disable = 0;
 	while (set[i].type != ST_END)
@@ -1426,7 +1426,7 @@ setup_color_response (GtkDialog *dialog, int response, GtkWidget *button)
 		col->alpha = 1.0;	/* the palette has no transparency */
 		setup_color_button_paint (button, col);
 	}
-	gtk_widget_destroy (GTK_WIDGET (dialog));
+	nx_widget_destroy (GTK_WIDGET (dialog));
 }
 
 static void
@@ -1501,10 +1501,10 @@ setup_create_color_page (void)
 	int i;
 
 	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-	gtk_container_set_border_width (GTK_CONTAINER (box), 6);
+	nx_set_border_width (box, 6);
 
 	tab = gtk_grid_new ();
-	gtk_container_set_border_width (GTK_CONTAINER (tab), 6);
+	nx_set_border_width (tab, 6);
 	gtk_grid_set_row_spacing (GTK_GRID (tab), 2);
 	gtk_grid_set_column_spacing (GTK_GRID (tab), 3);
 	gtkutil_container_add (GTK_WIDGET (box), tab);
@@ -1626,9 +1626,9 @@ setup_snd_row_cb (GtkTreeSelection *sel, gpointer user_data)
 
 	ignore_changed = TRUE;
 	if (sound_files[n])
-		gtk_entry_set_text (GTK_ENTRY (sndfile_entry), sound_files[n]);
+		nx_entry_set_text (sndfile_entry, sound_files[n]);
 	else
-		gtk_entry_set_text (GTK_ENTRY (sndfile_entry), "");
+		nx_entry_set_text (sndfile_entry, "");
 	ignore_changed = FALSE;
 }
 
@@ -1667,11 +1667,11 @@ setup_snd_filereq_cb (GtkWidget *entry, char *file)
 			 */
 			if (!strcmp (g_path_get_dirname (file), g_build_filename (get_xdir (), HEXCHAT_SOUND_DIR, NULL)))
 			{
-				gtk_entry_set_text (GTK_ENTRY (entry), g_path_get_basename (file));
+				nx_entry_set_text (entry, g_path_get_basename (file));
 			}
 			else
 			{
-				gtk_entry_set_text (GTK_ENTRY (entry), file);
+				nx_entry_set_text (entry, file);
 			}
 		}
 	}
@@ -1699,7 +1699,7 @@ setup_snd_browse_cb (GtkWidget *button, GtkEntry *entry)
 static void
 setup_snd_play_cb (GtkWidget *button, GtkEntry *entry)
 {
-	sound_play (gtk_entry_get_text (entry), FALSE);
+	sound_play (nx_entry_get_text (entry), FALSE);
 }
 
 static void
@@ -1720,7 +1720,7 @@ setup_snd_changed_cb (GtkEntry *ent, GtkTreeView *tree)
 
 	/* get the new sound file */
 	g_free (sound_files[n]);
-	sound_files[n] = g_strdup (gtk_entry_get_text (GTK_ENTRY (ent)));
+	sound_files[n] = g_strdup (nx_entry_get_text (ent));
 
 	/* update the TreeView list */
 	store = (GtkListStore *)gtk_tree_view_get_model (tree);
@@ -1743,7 +1743,7 @@ setup_create_sound_page (void)
 	GtkTreeSelection *sel;
 
 	vbox1 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-	gtk_container_set_border_width (GTK_CONTAINER (vbox1), 6);
+	nx_set_border_width (vbox1, 6);
 	gtk_widget_show (vbox1);
 
 	vbox2 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
@@ -1770,7 +1770,7 @@ setup_create_sound_page (void)
 
 	table1 = gtk_grid_new ();
 	gtk_widget_show (table1);
-	gtk_box_pack_start (GTK_BOX (vbox2), table1, FALSE, TRUE, 8);
+	nx_box_pack_start (vbox2, table1, FALSE, TRUE, 8);
 	gtk_grid_set_row_spacing (GTK_GRID (table1), 2);
 	gtk_grid_set_column_spacing (GTK_GRID (table1), 4);
 
@@ -1831,7 +1831,7 @@ setup_add_page (const char *title, GtkWidget *book, GtkWidget *tab)
 	/* was gtk_misc_set_padding (2, 1) */
 	gtk_widget_set_margin_start (label, 2); gtk_widget_set_margin_end (label, 2);
 	gtk_widget_set_margin_top (label, 1); gtk_widget_set_margin_bottom (label, 1);
-	gtk_box_pack_start (GTK_BOX (vvbox), label, FALSE, FALSE, 2);
+	nx_box_pack_start (vvbox, label, FALSE, FALSE, 2);
 
 	gtkutil_container_add (GTK_WIDGET (vvbox), tab);
 
@@ -2000,7 +2000,7 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 
 	frame = gtk_frame_new (NULL);
 	gtkutil_container_add (GTK_WIDGET (frame), tree);
-	gtk_box_pack_start (GTK_BOX (box), frame, 0, 0, 0);
+	nx_box_pack_start (box, frame, 0, 0, 0);
 	gtk_box_reorder_child (GTK_BOX (box), frame, 0);
 
 	if (sel_iter)
@@ -2231,7 +2231,7 @@ setup_apply (struct hexchatprefs *pr)
 static void
 setup_ok_cb (GtkWidget *but, GtkWidget *win)
 {
-	gtk_widget_destroy (win);
+	nx_widget_destroy (win);
 	setup_apply (&setup_prefs);
 	save_config ();
 	palette_save ();
@@ -2247,7 +2247,7 @@ setup_window_open (void)
 	win = gtkutil_window_new (buf, "prefs", 0, 600, 2);
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 5);
-	gtk_container_set_border_width (GTK_CONTAINER (vbox), 6);
+	nx_set_border_width (vbox, 6);
 	gtkutil_container_add (GTK_WIDGET (win), vbox);
 
 	hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 4);
@@ -2259,19 +2259,19 @@ setup_window_open (void)
 	hbbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbbox), GTK_BUTTONBOX_END);
 	gtk_box_set_spacing (GTK_BOX (hbbox), 4);
-	gtk_box_pack_end (GTK_BOX (vbox), hbbox, FALSE, FALSE, 0);
+	nx_box_pack_end (vbox, hbbox, FALSE, FALSE, 0);
 
 	cancel_button = wid = gtkutil_button_new_from_stock (NX_STOCK_CANCEL);
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (gtkutil_destroy), win);
-	gtk_box_pack_start (GTK_BOX (hbbox), wid, FALSE, FALSE, 0);
+	nx_box_pack_start (hbbox, wid, FALSE, FALSE, 0);
 
 	wid = gtkutil_button_new_from_stock (NX_STOCK_OK);
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (setup_ok_cb), win);
-	gtk_box_pack_start (GTK_BOX (hbbox), wid, FALSE, FALSE, 0);
+	nx_box_pack_start (hbbox, wid, FALSE, FALSE, 0);
 
-	gtk_widget_show_all (win);
+	nx_widget_show_all (win);
 
 	return win;
 }
@@ -2283,7 +2283,7 @@ setup_close_cb (GtkWidget *win, GtkWidget **swin)
 
 	if (font_dialog)
 	{
-		gtk_widget_destroy (font_dialog);
+		nx_widget_destroy (font_dialog);
 		font_dialog = NULL;
 	}
 }

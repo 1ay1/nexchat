@@ -30,6 +30,7 @@
 
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
+#include "gtkcompat.h"
 
 #ifdef HAVE_GTK_MAC
 #include <gtkosxapplication.h>
@@ -181,8 +182,8 @@ typedef struct session_gui
 extern GdkPixbuf *channelwin_pix;
 extern GdkPixbuf *dialogwin_pix;
 
-#define SPELL_ENTRY_GET_TEXT(e) ((char *)(gtk_entry_get_text (GTK_ENTRY(e))))
-#define SPELL_ENTRY_SET_TEXT(e,txt) gtk_entry_set_text(GTK_ENTRY(e),txt)
+#define SPELL_ENTRY_GET_TEXT(e) ((char *)(nx_entry_get_text (e)))
+#define SPELL_ENTRY_SET_TEXT(e,txt) nx_entry_set_text(e,txt)
 #define SPELL_ENTRY_SET_EDITABLE(e,v) gtk_editable_set_editable(GTK_EDITABLE(e),v)
 #define SPELL_ENTRY_GET_POS(e) gtk_editable_get_position(GTK_EDITABLE(e))
 #define SPELL_ENTRY_SET_POS(e,p) gtk_editable_set_position(GTK_EDITABLE(e),p);

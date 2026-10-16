@@ -106,7 +106,7 @@ cv_tree_init (chanview *cv)
 	};
 
 	win = gtk_scrolled_window_new (0, 0);
-	/*gtk_container_set_border_width (GTK_CONTAINER (win), 1);*/
+	/*nx_set_border_width (win, 1);*/
 	gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (win),
 													 GTK_SHADOW_IN);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (win),
@@ -345,7 +345,7 @@ cv_tree_cleanup (chanview *cv)
 {
 	if (cv->box)
 		/* kill the scrolled window */
-		gtk_widget_destroy (((treeview *)cv)->scrollw);
+		nx_widget_destroy (((treeview *)cv)->scrollw);
 }
 
 static void

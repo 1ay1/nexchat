@@ -26,6 +26,14 @@ jobs:
       - name: Build
         run: ninja -C build
 
+      # gtkcompat.h's GTK4 branch must keep compiling and give GTK3's
+      # packing semantics (phase 4 step 1: code moves to it while on GTK3)
+      - name: gtkcompat against GTK4
+        run: |
+          sudo apt-get install -y libgtk-4-dev
+          cc $(pkg-config --cflags gtk4) -I src/fe-gtk -o gtkcompat4 tests/gtkcompat-test.c $(pkg-config --libs gtk4)
+          xvfb-run -a ./gtkcompat4
+
       - name: Test
         run: ninja -C build test
 

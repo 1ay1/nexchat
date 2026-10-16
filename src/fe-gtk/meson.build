@@ -99,11 +99,26 @@ test('palette-roundtrip', executable('palette-roundtrip',
   dependencies: libgio_dep,
 ))
 
+# gtkcompat.h must give GTK3's packing order/semantics; run against the
+# GTK this frontend builds with (the GTK4 run is in CI / by hand)
+gtkcompat_test = executable('gtkcompat-test',
+  sources: ['../../tests/gtkcompat-test.c'],
+  include_directories: include_directories('.'),
+  dependencies: gtk_dep,
+)
+if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
+  # native backend (Quartz/Win32): no X server needed
+  test('gtkcompat', gtkcompat_test)
+endif
+
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.
 # Need Xvfb + libXtst (+ xwd for colors); skipped (exit 77) where missing.
 xvfb = find_program('Xvfb', '/opt/X11/bin/Xvfb', required: false)
 if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   gui_env = ['XVFB=' + xvfb.full_path()]
+  test('gtkcompat', find_program('sh'),
+    args: [files('../../tests/ux/with-xvfb.sh'), gtkcompat_test],
+    env: gui_env + ['DISP=:84'], timeout: 60)
   test('gui-keys', find_program('sh'),
     args: [files('../../tests/ux/keys.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:81'], timeout: 120, is_parallel: false)

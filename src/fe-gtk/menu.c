@@ -317,7 +317,7 @@ menu_quick_item (char *cmd, char *label, GtkWidget * menu, int flags,
 								G_CALLBACK (popup_menu_cb), cmd);
 	if (flags & XCMENU_SHADED)
 		gtk_widget_set_sensitive (GTK_WIDGET (item), FALSE);
-	gtk_widget_show_all (item);
+	nx_widget_show_all (item);
 
 	return item;
 }
@@ -496,7 +496,7 @@ menu_create (GtkWidget *menu, GSList *list, char *target, int check_path)
 		{
 			/* empty sub menu due to no programs in PATH? */
 			if (check_path && childcount < 1)
-				gtk_widget_destroy (subitem);
+				nx_widget_destroy (subitem);
 			subitem = NULL;
 
 			if (tempmenu != menu)
@@ -552,7 +552,7 @@ static GtkWidget *nick_submenu = NULL;	/* user info submenu */
 static void
 menu_destroy (GtkWidget *menu, gpointer objtounref)
 {
-	gtk_widget_destroy (menu);
+	nx_widget_destroy (menu);
 	g_object_unref (menu);
 	if (objtounref)
 		g_object_unref (G_OBJECT (objtounref));
@@ -705,7 +705,7 @@ fe_userlist_update (session *sess, struct User *user)
 	/* destroy all the old items */
 	items = gtk_container_get_children (GTK_CONTAINER (nick_submenu));
 	for (next = items; next; next = next->next)
-		gtk_widget_destroy (next->data);
+		nx_widget_destroy (next->data);
 	g_list_free (items);
 
 	/* and re-create them with new info */
@@ -1199,7 +1199,7 @@ usermenu_destroy (GtkWidget * menu)
 	GList *next;
 
 	for (next = items; next; next = next->next)
-		gtk_widget_destroy (next->data);
+		nx_widget_destroy (next->data);
 	g_list_free (items);
 }
 
@@ -1411,7 +1411,7 @@ menu_join_cb (GtkWidget *dialog, gint response, GtkEntry *entry)
 	switch (response)
 	{
 	case GTK_RESPONSE_ACCEPT:
-		menu_chan_join (NULL, (char *) gtk_entry_get_text (entry));
+		menu_chan_join (NULL, (char *) nx_entry_get_text (entry));
 		break;
 
 	case GTK_RESPONSE_HELP:
@@ -1419,7 +1419,7 @@ menu_join_cb (GtkWidget *dialog, gint response, GtkEntry *entry)
 		break;
 	}
 
-	gtk_widget_destroy (dialog);
+	nx_widget_destroy (dialog);
 }
 
 static void
@@ -1445,20 +1445,20 @@ menu_join (GtkWidget * wid, gpointer none)
 
 	entry = gtk_entry_new ();
 	gtk_editable_set_editable (GTK_EDITABLE (entry), FALSE);	/* avoid auto-selection */
-	gtk_entry_set_text (GTK_ENTRY (entry), "#");
+	nx_entry_set_text (entry, "#");
 	g_signal_connect (G_OBJECT (entry), "activate",
 						 	G_CALLBACK (menu_join_entry_cb), dialog);
-	gtk_box_pack_end (GTK_BOX (hbox), entry, 0, 0, 0);
+	nx_box_pack_end (hbox, entry, 0, 0, 0);
 
 	label = gtk_label_new (_("Enter Channel to Join:"));
-	gtk_box_pack_end (GTK_BOX (hbox), label, 0, 0, 0);
+	nx_box_pack_end (hbox, label, 0, 0, 0);
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (menu_join_cb), entry);
 
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
-	gtk_widget_show_all (dialog);
+	nx_widget_show_all (dialog);
 
 	gtk_editable_set_editable (GTK_EDITABLE (entry), TRUE);
 	gtk_editable_set_position (GTK_EDITABLE (entry), 1);
@@ -1742,7 +1742,7 @@ menu_metres_both (GtkWidget *item, gpointer none)
 static void
 about_dialog_close (GtkDialog *dialog, int response, gpointer data)
 {
-	gtk_widget_destroy (GTK_WIDGET(dialog));
+	nx_widget_destroy (GTK_WIDGET(dialog));
 }
 
 static gboolean
@@ -1792,7 +1792,7 @@ menu_about (GtkWidget *wid, gpointer sess)
 	g_signal_connect (G_OBJECT(dialog), "response", G_CALLBACK(about_dialog_close), NULL);
 	g_signal_connect (G_OBJECT(dialog), "activate-link", G_CALLBACK(about_dialog_openurl), NULL);
 	
-	gtk_widget_show_all (GTK_WIDGET(dialog));
+	nx_widget_show_all (GTK_WIDGET(dialog));
 }
 
 static struct mymenu mymenu[] = {
@@ -2206,7 +2206,7 @@ menu_del_cb (GtkWidget *menu, menu_entry *me, char *target)
 {
 	GtkWidget *item = menu_find (menu, me->path + me->root_offset, me->label);
 	if (item)
-		gtk_widget_destroy (item);
+		nx_widget_destroy (item);
 }
 
 static void

@@ -263,7 +263,7 @@ ignore_clear_cb (GtkDialog *dialog, gint response)
 	GtkTreeIter iter;
 	char *mask;
 
-	gtk_widget_destroy (GTK_WIDGET (dialog));
+	nx_widget_destroy (GTK_WIDGET (dialog));
 
 	if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter) && response == GTK_RESPONSE_OK)
 	{
@@ -327,7 +327,7 @@ ignore_stats_entry (GtkWidget * box, char *label, int value)
 	gtk_entry_set_width_chars (GTK_ENTRY (wid), 4);
 	gtk_editable_set_editable (GTK_EDITABLE (wid), FALSE);
 	gtk_widget_set_sensitive (GTK_WIDGET (wid), FALSE);
-	gtk_entry_set_text (GTK_ENTRY (wid), buf);
+	nx_entry_set_text (wid, buf);
 
 	return wid;
 }
@@ -364,7 +364,7 @@ ignore_gui_open ()
 	gtk_widget_show (frame);
 
 	stat_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
-	gtk_container_set_border_width (GTK_CONTAINER (stat_box), 6);
+	nx_set_border_width (stat_box, 6);
 	gtkutil_container_add (GTK_WIDGET (frame), stat_box);
 	gtk_widget_show (stat_box);
 
@@ -374,12 +374,12 @@ ignore_gui_open ()
 	num_ctcp = ignore_stats_entry (stat_box, _("CTCP:"), ignored_ctcp);
 	num_invi = ignore_stats_entry (stat_box, _("Invite:"), ignored_invi);
 
-	gtk_box_pack_start (GTK_BOX (vbox), frame, 0, 0, 5);
+	nx_box_pack_start (vbox, frame, 0, 0, 5);
 
 	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
-	gtk_container_set_border_width (GTK_CONTAINER (box), 5);
+	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	nx_set_border_width (box, 5);
 	gtk_widget_show (box);
 
 	gtkutil_button (box, NX_STOCK_NEW, 0, ignore_new_entry_clicked, 0,
@@ -435,18 +435,18 @@ fe_ignore_update (int level)
 	if (level == 2 && ignorewin)
 	{
 		sprintf (buf, "%d", ignored_ctcp);
-		gtk_entry_set_text (GTK_ENTRY (num_ctcp), buf);
+		nx_entry_set_text (num_ctcp, buf);
 
 		sprintf (buf, "%d", ignored_noti);
-		gtk_entry_set_text (GTK_ENTRY (num_noti), buf);
+		nx_entry_set_text (num_noti, buf);
 
 		sprintf (buf, "%d", ignored_chan);
-		gtk_entry_set_text (GTK_ENTRY (num_chan), buf);
+		nx_entry_set_text (num_chan, buf);
 
 		sprintf (buf, "%d", ignored_invi);
-		gtk_entry_set_text (GTK_ENTRY (num_invi), buf);
+		nx_entry_set_text (num_invi, buf);
 
 		sprintf (buf, "%d", ignored_priv);
-		gtk_entry_set_text (GTK_ENTRY (num_priv), buf);
+		nx_entry_set_text (num_priv, buf);
 	}
 }

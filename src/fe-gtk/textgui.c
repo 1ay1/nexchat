@@ -310,7 +310,7 @@ pevent_load_cb (GtkWidget * wid, void *data)
 static void
 pevent_ok_cb (GtkWidget * wid, void *data)
 {
-	gtk_widget_destroy (pevent_dialog);
+	nx_widget_destroy (pevent_dialog);
 }
 
 static void
@@ -450,7 +450,7 @@ pevent_dialog_show ()
 											 600, 455, &vbox, 0);
 
 	pane = gtk_paned_new (GTK_ORIENTATION_VERTICAL);
-	gtk_box_pack_start (GTK_BOX (vbox), pane, TRUE, TRUE, 0);
+	nx_box_pack_start (vbox, pane, TRUE, TRUE, 0);
 	
 	pevent_dialog_list = pevent_treeview_new (pane);
 	pevent_dialog_fill (pevent_dialog_list);
@@ -469,7 +469,7 @@ pevent_dialog_show ()
 
 	wid = gtk_scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (wid), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
-	gtk_box_pack_start (GTK_BOX (vbox), wid, FALSE, TRUE, 0);
+	nx_box_pack_start (vbox, wid, FALSE, TRUE, 0);
 
 	pevent_dialog_twid = gtk_xtext_new (colors, 0);
 	gtk_widget_set_sensitive (pevent_dialog_twid, FALSE);
@@ -479,7 +479,7 @@ pevent_dialog_show ()
 
 	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 4);
+	nx_box_pack_start (vbox, hbox, FALSE, FALSE, 4);
 	gtkutil_button (hbox, NX_STOCK_SAVE_AS, NULL, pevent_save_cb,
 						 (void *) 1, _("Save As..."));
 	gtkutil_button (hbox, NX_STOCK_OPEN, NULL, pevent_load_cb,
@@ -489,5 +489,5 @@ pevent_dialog_show ()
 	gtkutil_button (hbox, NX_STOCK_OK, NULL, pevent_ok_cb,
 						NULL, _("OK"));
 
-	gtk_widget_show_all (pevent_dialog);
+	nx_widget_show_all (pevent_dialog);
 }

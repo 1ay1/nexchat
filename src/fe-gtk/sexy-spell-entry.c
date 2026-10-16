@@ -23,6 +23,7 @@
 #endif
 
 #include <gtk/gtk.h>
+#include "gtkcompat.h"
 #include "sexy-spell-entry.h"
 #include <string.h>
 #include <fcntl.h>
@@ -67,8 +68,8 @@ sexy_image_menu_item (const char *label, const char *icon_name)
 
 	gtk_widget_set_size_request (img, 16, -1);
 	gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
-	gtk_box_pack_start (GTK_BOX (box), img, FALSE, FALSE, 0);
-	gtk_box_pack_start (GTK_BOX (box), lbl, TRUE, TRUE, 0);
+	nx_box_pack_start (box, img, FALSE, FALSE, 0);
+	nx_box_pack_start (box, lbl, TRUE, TRUE, 0);
 	gtk_container_add (GTK_CONTAINER (item), box);
 	return item;
 }
@@ -487,7 +488,7 @@ get_word_extents_from_position(SexySpellEntry *entry, gint *start, gint *end, gu
 	if (entry->priv->words == NULL)
 		return;
 
-	text = gtk_entry_get_text(GTK_ENTRY(entry));
+	text = nx_entry_get_text (entry);
 	bytes_pos = (gint) (g_utf8_offset_to_pointer(text, position) - text);
 
 	for (i = 0; entry->priv->words[i]; i++) {
@@ -575,7 +576,7 @@ replace_word(GtkWidget *menuitem, SexySpellEntry *entry)
 
 	cursor = gtk_editable_get_position(GTK_EDITABLE(entry));
 	/* is the cursor at the end? If so, restore it there */
-	if (g_utf8_strlen(gtk_entry_get_text(GTK_ENTRY(entry)), -1) == cursor)
+	if (g_utf8_strlen(nx_entry_get_text (entry), -1) == cursor)
 		cursor = -1;
 	else if(cursor > start && cursor <= end)
 		cursor = start;
@@ -615,7 +616,7 @@ build_suggestion_menu(SexySpellEntry *entry, GtkWidget *menu, struct EnchantDict
 
 		mi = gtk_separator_menu_item_new();
 		gtk_container_add(GTK_CONTAINER(mi), label);
-		gtk_widget_show_all(mi);
+		nx_widget_show_all (mi);
 		gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
 	} else {
 		/* build a set of menus with suggestions */
@@ -736,13 +737,13 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 		}
 	}
 
-	gtk_widget_show_all(mi);
+	nx_widget_show_all (mi);
 	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
 
 	/* - Ignore All */
 	mi = sexy_image_menu_item (_("Ignore All"), SEXY_ICON_REMOVE);
 	g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(ignore_all), entry);
-	gtk_widget_show_all(mi);
+	nx_widget_show_all (mi);
 	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
 
 	return topmenu;
@@ -780,7 +781,7 @@ sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer d
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi), build_spelling_menu(entry, word));
 	g_free(word);
 
-	gtk_widget_show_all(mi);
+	nx_widget_show_all (mi);
 	gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
 }
 
@@ -915,7 +916,7 @@ word_misspelled(SexySpellEntry *entry, int start, int end)
 
 	if (start == end)
 		return FALSE;
-	text = gtk_entry_get_text(GTK_ENTRY(entry));
+	text = nx_entry_get_text (entry);
 	word = g_new0(gchar, end - start + 2);
 
 	g_strlcpy(word, text + start, end - start + 1);
@@ -1110,7 +1111,7 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 	if (entry->priv->parseattr)
 	{
 		/* Check for attributes */
-		text = gtk_entry_get_text (GTK_ENTRY (entry));
+		text = nx_entry_get_text (entry);
 		text_len = strlen (text);
 		check_attributes (entry, text, text_len);
 	}
@@ -1204,7 +1205,7 @@ entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
 	PangoLogAttr a;
 
 	layout = gtk_entry_get_layout(GTK_ENTRY(entry));
-	text = gtk_entry_get_text(GTK_ENTRY(entry));
+	text = nx_entry_get_text (entry);
 	log_attrs = pango_layout_get_log_attrs_readonly (layout, &n_attrs);
 
 	/* Find how many words we have */

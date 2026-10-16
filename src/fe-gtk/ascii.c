@@ -125,7 +125,7 @@ ascii_open (void)
 
 	win = mg_create_generic_tab ("charmap", _("Character Chart"), TRUE, TRUE,
 										  NULL, NULL, 0, 0, &vbox, NULL);
-	gtk_container_set_border_width (GTK_CONTAINER (win), 5);
+	nx_set_border_width (win, 5);
 	gtkutil_destroy_on_esc (win);
 
 	label = gtk_label_new (NULL);
@@ -156,7 +156,7 @@ ascii_open (void)
 								G_CALLBACK (ascii_click), NULL);
 		g_signal_connect (G_OBJECT (but), "enter_notify_event",
 								G_CALLBACK (ascii_enter), label);
-		gtk_box_pack_start (GTK_BOX (hbox), but, 0, 0, 0);
+		nx_box_pack_start (hbox, but, 0, 0, 0);
 		gtk_widget_show (but);
 
 		table_pos += len;

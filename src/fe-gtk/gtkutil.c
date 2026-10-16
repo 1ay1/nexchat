@@ -73,7 +73,7 @@ void
 gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 {
 	if (GTK_IS_BOX (container))
-		gtk_box_pack_start (GTK_BOX (container), child, TRUE, TRUE, 0);
+		nx_box_pack_start (container, child, TRUE, TRUE, 0);
 	else
 		gtk_container_add (GTK_CONTAINER (container), child);
 }
@@ -193,11 +193,11 @@ gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidg
 	if (!image)
 		image = gtk_image_new ();
 	gtk_widget_set_size_request (image, 16, -1);
-	gtk_box_pack_start (GTK_BOX (box), image, FALSE, FALSE, 0);
-	gtk_box_pack_start (GTK_BOX (box), lbl, TRUE, TRUE, 0);
+	nx_box_pack_start (box, image, FALSE, FALSE, 0);
+	nx_box_pack_start (box, lbl, TRUE, TRUE, 0);
 	gtk_container_add (GTK_CONTAINER (item), box);
 	g_object_set_data (G_OBJECT (item), "nx-label", lbl);
-	gtk_widget_show_all (box);
+	nx_widget_show_all (box);
 	return item;
 }
 
@@ -503,7 +503,7 @@ gtkutil_file_req_done (GtkWidget * wid, struct file_req *freq)
 	}
 
 	/* this should call the "destroy" cb, where we free(freq) */
-	gtk_widget_destroy (freq->dialog);
+	nx_widget_destroy (freq->dialog);
 }
 
 static void
@@ -517,7 +517,7 @@ gtkutil_file_req_response (GtkWidget *dialog, gint res, struct file_req *freq)
 
 	case GTK_RESPONSE_CANCEL:
 		/* this should call the "destroy" cb, where we free(freq) */
-		gtk_widget_destroy (freq->dialog);
+		nx_widget_destroy (freq->dialog);
 	}
 }
 
@@ -633,7 +633,7 @@ gtkutil_esc_destroy (GtkWidget * win, GdkEventKey * key, gpointer userdata)
 		wid = win;
 
 	if (key->keyval == GDK_KEY_Escape)
-		gtk_widget_destroy (wid);
+		nx_widget_destroy (wid);
 			
 	return FALSE;
 }
@@ -647,7 +647,7 @@ gtkutil_destroy_on_esc (GtkWidget *win)
 void
 gtkutil_destroy (GtkWidget * igad, GtkWidget * dgad)
 {
-	gtk_widget_destroy (dgad);
+	nx_widget_destroy (dgad);
 }
 
 static void
@@ -657,7 +657,7 @@ gtkutil_get_str_response (GtkDialog *dialog, gint arg1, gpointer entry)
 	char *text;
 	void *user_data;
 
-	text = (char *) gtk_entry_get_text (GTK_ENTRY (entry));
+	text = (char *) nx_entry_get_text (entry);
 	callback = g_object_get_data (G_OBJECT (dialog), "cb");
 	user_data = g_object_get_data (G_OBJECT (dialog), "ud");
 
@@ -665,11 +665,11 @@ gtkutil_get_str_response (GtkDialog *dialog, gint arg1, gpointer entry)
 	{
 	case GTK_RESPONSE_REJECT:
 		callback (TRUE, text, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	case GTK_RESPONSE_ACCEPT:
 		callback (FALSE, text, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	}
 }
@@ -713,18 +713,18 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	entry = gtk_entry_new ();
 	g_signal_connect (G_OBJECT (entry), "activate",
 						 	G_CALLBACK (gtkutil_str_enter), dialog);
-	gtk_entry_set_text (GTK_ENTRY (entry), def);
-	gtk_box_pack_end (GTK_BOX (hbox), entry, 0, 0, 0);
+	nx_entry_set_text (entry, def);
+	nx_box_pack_end (hbox, entry, 0, 0, 0);
 
 	label = gtk_label_new (msg);
-	gtk_box_pack_end (GTK_BOX (hbox), label, 0, 0, 0);
+	nx_box_pack_end (hbox, label, 0, 0, 0);
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_str_response), entry);
 
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
-	gtk_widget_show_all (dialog);
+	nx_widget_show_all (dialog);
 }
 
 static void
@@ -742,11 +742,11 @@ gtkutil_get_number_response (GtkDialog *dialog, gint arg1, gpointer spin)
 	{
 	case GTK_RESPONSE_REJECT:
 		callback (TRUE, num, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	case GTK_RESPONSE_ACCEPT:
 		callback (FALSE, num, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	}
 }
@@ -764,11 +764,11 @@ gtkutil_get_bool_response (GtkDialog *dialog, gint arg1, gpointer spin)
 	{
 	case GTK_RESPONSE_REJECT:
 		callback (0, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	case GTK_RESPONSE_ACCEPT:
 		callback (1, user_data);
-		gtk_widget_destroy (GTK_WIDGET (dialog));
+		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
 	}
 }
@@ -801,17 +801,17 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	gtk_adjustment_set_upper (adj, 1024);
 	gtk_adjustment_set_step_increment (adj, 1);
 	gtk_spin_button_set_value ((GtkSpinButton*)spin, def);
-	gtk_box_pack_end (GTK_BOX (hbox), spin, 0, 0, 0);
+	nx_box_pack_end (hbox, spin, 0, 0, 0);
 
 	label = gtk_label_new (msg);
-	gtk_box_pack_end (GTK_BOX (hbox), label, 0, 0, 0);
+	nx_box_pack_end (hbox, label, 0, 0, 0);
 
 	g_signal_connect (G_OBJECT (dialog), "response",
 						   G_CALLBACK (gtkutil_get_number_response), spin);
 
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), hbox);
 
-	gtk_widget_show_all (dialog);
+	nx_widget_show_all (dialog);
 }
 
 void
@@ -839,7 +839,7 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), prompt_label);
 
-	gtk_widget_show_all (dialog);
+	nx_widget_show_all (dialog);
 }
 
 GtkWidget *
@@ -867,7 +867,7 @@ gtkutil_button (GtkWidget *box, char *stock, char *tip, void *callback,
 		img = gtkutil_image_new_from_stock (stock, GTK_ICON_SIZE_MENU);
 		gtkutil_container_add (GTK_WIDGET (bbox), img);
 		gtk_widget_show (img);
-		gtk_box_pack_start (GTK_BOX (box), wid, 0, 0, 0);
+		nx_box_pack_start (box, wid, 0, 0, 0);
 	}
 
 	g_signal_connect (G_OBJECT (wid), "clicked",

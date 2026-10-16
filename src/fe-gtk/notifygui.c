@@ -313,17 +313,17 @@ notifygui_add_cb (GtkDialog *dialog, gint response, gpointer entry)
 	char *networks;
 	char *text;
 
-	text = (char *)gtk_entry_get_text (GTK_ENTRY (entry));
+	text = (char *)nx_entry_get_text (entry);
 	if (text[0] && response == GTK_RESPONSE_ACCEPT)
 	{
-		networks = (char*)gtk_entry_get_text (GTK_ENTRY (g_object_get_data (G_OBJECT (entry), "net")));
+		networks = (char*)nx_entry_get_text (g_object_get_data (G_OBJECT (entry), "net"));
 		if (g_ascii_strcasecmp (networks, "ALL") == 0 || networks[0] == 0)
 			notify_adduser (text, NULL);
 		else
 			notify_adduser (text, networks);
 	}
 
-	gtk_widget_destroy (GTK_WIDGET (dialog));
+	nx_widget_destroy (GTK_WIDGET (dialog));
 }
 
 static void
@@ -351,7 +351,7 @@ fe_notify_ask (char *nick, char *networks)
 	gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_MOUSE);
 
 	table = gtk_grid_new ();
-	gtk_container_set_border_width (GTK_CONTAINER (table), 12);
+	nx_set_border_width (table, 12);
 	gtk_grid_set_row_spacing (GTK_GRID (table), 3);
 	gtk_grid_set_column_spacing (GTK_GRID (table), 8);
 	gtkutil_container_add (gtk_dialog_get_content_area (GTK_DIALOG (dialog)), table);
@@ -360,7 +360,7 @@ fe_notify_ask (char *nick, char *networks)
 	gtkutil_grid_attach (table, label, 0, 1, 0, 1, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	entry = gtk_entry_new ();
-	gtk_entry_set_text (GTK_ENTRY (entry), nick);
+	nx_entry_set_text (entry, nick);
 	g_signal_connect (G_OBJECT (entry), "activate",
 						 	G_CALLBACK (notifygui_add_enter), dialog);
 	gtkutil_grid_attach (table, entry, 1, 2, 0, 1, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
@@ -375,7 +375,7 @@ fe_notify_ask (char *nick, char *networks)
 	g_object_set_data (G_OBJECT (entry), "net", wid);
 	g_signal_connect (G_OBJECT (wid), "activate",
 						 	G_CALLBACK (notifygui_add_enter), dialog);
-	gtk_entry_set_text (GTK_ENTRY (wid), networks ? networks : "ALL");
+	nx_entry_set_text (wid, networks ? networks : "ALL");
 	gtkutil_grid_attach (table, wid, 1, 2, 2, 3, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
 	label = gtk_label_new (NULL);
@@ -383,7 +383,7 @@ fe_notify_ask (char *nick, char *networks)
 	gtk_label_set_markup (GTK_LABEL (label), buf);
 	gtkutil_grid_attach (table, label, 1, 2, 3, 4, GU_EXPAND | GU_FILL, GU_EXPAND | GU_FILL, 0, 0);
 
-	gtk_widget_show_all (dialog);
+	nx_widget_show_all (dialog);
 }
 
 static void
@@ -416,8 +416,8 @@ notify_opengui (void)
   
 	bbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (bbox), GTK_BUTTONBOX_SPREAD);
-	gtk_container_set_border_width (GTK_CONTAINER (bbox), 5);
-	gtk_box_pack_end (GTK_BOX (vbox), bbox, 0, 0, 0);
+	nx_set_border_width (bbox, 5);
+	nx_box_pack_end (vbox, bbox, 0, 0, 0);
 	gtk_widget_show (bbox);
 
 	gtkutil_button (bbox, NX_STOCK_NEW, 0, notify_add_clicked, 0,

@@ -248,8 +248,8 @@ plugingui_open (void)
 
 	hbox = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (hbox), GTK_BUTTONBOX_SPREAD);
-	gtk_container_set_border_width (GTK_CONTAINER (hbox), 5);
-	gtk_box_pack_end (GTK_BOX (vbox), hbox, 0, 0, 0);
+	nx_set_border_width (hbox, 5);
+	nx_box_pack_end (vbox, hbox, 0, 0, 0);
 
 	gtkutil_button (hbox, NX_STOCK_REVERT_TO_SAVED, NULL,
 	                plugingui_loadbutton_cb, NULL, _("_Load..."));
@@ -262,5 +262,5 @@ plugingui_open (void)
 
 	fe_pluginlist_update ();
 
-	gtk_widget_show_all (plugin_window);
+	nx_widget_show_all (plugin_window);
 }

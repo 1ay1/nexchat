@@ -85,7 +85,7 @@ editlist_save (GtkWidget *igad, gchar *file)
 		}
 
 		close (fh);
-		gtk_widget_destroy (editlist_win);
+		nx_widget_destroy (editlist_win);
 		if (editlist_list == replace_list)
 		{
 			list_free (&replace_list);
@@ -204,7 +204,7 @@ editlist_add (GtkWidget *wid, gpointer userdata)
 static void
 editlist_close (GtkWidget *wid, gpointer userdata)
 {
-	gtk_widget_destroy (editlist_win);
+	nx_widget_destroy (editlist_win);
 	editlist_win = NULL;
 }
 
@@ -316,7 +316,7 @@ editlist_treeview_new (GtkWidget *box, char *title1, char *title2)
 
 	gtkutil_container_add (GTK_WIDGET (scroll), view);
 	gtkutil_container_add (GTK_WIDGET (box), scroll);
-	gtk_widget_show_all (box);
+	nx_widget_show_all (box);
 
 	return view;
 }
@@ -349,8 +349,8 @@ editlist_gui_open (char *title1, char *title2, GSList *list, char *title, char *
 
 	box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 	gtk_button_box_set_layout (GTK_BUTTON_BOX (box), GTK_BUTTONBOX_SPREAD);
-	gtk_box_pack_start (GTK_BOX (vbox), box, FALSE, FALSE, 2);
-	gtk_container_set_border_width (GTK_CONTAINER (box), 5);
+	nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
+	nx_set_border_width (box, 5);
 	gtk_widget_show (box);
 
 	gtkutil_button (box, NX_STOCK_NEW, 0, editlist_add,
