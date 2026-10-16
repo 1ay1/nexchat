@@ -145,10 +145,10 @@ Goal: it builds with `-DGDK_DISABLE_DEPRECATED -DGTK_DISABLE_DEPRECATED`. After 
   - mnemonics (`_Server`, `_Window`…) and accelerators must stay exactly the same;
   - `fe_menu_add/del/update` keep the same behaviour for plugins.
 - [x] `GtkUIManager`/`GtkAction`, if any: none used.
-- [ ] Dialogs: stop using `gtk_dialog_run`. Write async versions with the same buttons, the same order and the same default response.
+- [x] Dialogs: stop using `gtk_dialog_run`. The quit dialog is async now (same buttons, order, modality; checked by driving Escape/Cancel/Quit on GTK2 and GTK3). The two message boxes that must block (startup error before the main loop, `FE_MSG_WAIT`) use `gtkutil_dialog_run_blocking()`, a nested main loop with the same semantics.
 - [ ] Key handling in `fkeys.c`: write it as one function that takes (keyval, state) and returns a result, so it doesn't matter how the key event was delivered. Tab completion, history, and the `/KEYBINDING` list stay exactly the same.
 - [x] Hide the tray behind a small interface (`tray-backend.h`): GtkStatusIcon on GTK3 (`tray-backend-statusicon.c`, the only file allowed deprecated API), so phase 4 can swap in the new backends.
-- [ ] Hide window position and urgency behind small functions too (see section 9).
+- [x] Hide window position and urgency behind small functions too (see section 9): `gtkutil_window_move / _get_position / _can_position / _set_urgent`. X11 and Windows behave as before (checked: saved position and size restored and saved again); on Wayland move is a no-op and the saved position is left alone.
 
 ## Phase 4: GTK4
 

@@ -208,7 +208,7 @@ mg_create_tab_colors (void)
 static void
 set_window_urgency (GtkWidget *win, gboolean set)
 {
-	gtk_window_set_urgency_hint (GTK_WINDOW (win), set);
+	gtkutil_window_set_urgent (GTK_WINDOW (win), set);
 }
 
 static void
@@ -535,7 +535,7 @@ mg_configure_cb (GtkWidget *wid, GdkEventConfigure *event, session *sess)
 			if (prefs.hex_gui_win_save && !prefs.hex_gui_win_state && !prefs.hex_gui_win_fullscreen)
 			{
 				sess = current_sess;
-				gtk_window_get_position (GTK_WINDOW (wid), &prefs.hex_gui_win_left,
+				gtkutil_window_get_position (GTK_WINDOW (wid), &prefs.hex_gui_win_left,
 												 &prefs.hex_gui_win_top);
 				gtk_window_get_size (GTK_WINDOW (wid), &prefs.hex_gui_win_width,
 											&prefs.hex_gui_win_height);
@@ -547,7 +547,7 @@ mg_configure_cb (GtkWidget *wid, GdkEventConfigure *event, session *sess)
 	{
 		if (sess->type == SESS_DIALOG && prefs.hex_gui_win_save)
 		{
-			gtk_window_get_position (GTK_WINDOW (wid), &prefs.hex_gui_dialog_left,
+			gtkutil_window_get_position (GTK_WINDOW (wid), &prefs.hex_gui_dialog_left,
 											 &prefs.hex_gui_dialog_top);
 			gtk_window_get_size (GTK_WINDOW (wid), &prefs.hex_gui_dialog_width,
 										&prefs.hex_gui_dialog_height);
@@ -3302,7 +3302,7 @@ mg_create_tabwindow (session *sess)
 	win = gtkutil_window_new (DISPLAY_NAME, NULL, prefs.hex_gui_win_width,
 									  prefs.hex_gui_win_height, 0);
 	sess->gui->window = win;
-	gtk_window_move (GTK_WINDOW (win), prefs.hex_gui_win_left,
+	gtkutil_window_move (GTK_WINDOW (win), prefs.hex_gui_win_left,
 						  prefs.hex_gui_win_top);
 	if (prefs.hex_gui_win_state)
 		gtk_window_maximize (GTK_WINDOW (win));

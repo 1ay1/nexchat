@@ -34,6 +34,9 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
 
 #include "../common/hexchat.h"
 #include "../common/fe.h"
@@ -135,6 +138,38 @@ gtkutil_dialog_run_blocking (GtkDialog *dialog)
 	}
 	g_object_unref (dialog);
 	return ri.response;
+}
+
+gboolean
+gtkutil_window_can_position (GtkWindow *win)
+{
+#ifdef GDK_WINDOWING_WAYLAND
+	if (GDK_IS_WAYLAND_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return FALSE;
+#endif
+	return TRUE;
+}
+
+void
+gtkutil_window_move (GtkWindow *win, int x, int y)
+{
+	if (gtkutil_window_can_position (win))
+		gtk_window_move (win, x, y);
+}
+
+gboolean
+gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
+{
+	if (!gtkutil_window_can_position (win))
+		return FALSE;
+	gtk_window_get_position (win, x, y);
+	return TRUE;
+}
+
+void
+gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
+{
+	gtk_window_set_urgency_hint (win, urgent);
 }
 
 GtkWidget *

@@ -36,6 +36,17 @@ void gtkutil_container_add (GtkWidget *container, GtkWidget *child);
    block - startup messages before the main loop, and FE_MSG_WAIT. */
 int gtkutil_dialog_run_blocking (GtkDialog *dialog);
 
+/* Window position and attention. On X11 and Windows these do what HexChat
+   always did. Wayland doesn't let clients place windows or read their
+   position, so there move is a no-op and get_position returns FALSE (the
+   saved prefs are left alone). GTK4 has no gtk_window_move at all; phase 4
+   implements these per backend (ROADMAP section 9). */
+gboolean gtkutil_window_can_position (GtkWindow *win);
+void gtkutil_window_move (GtkWindow *win, int x, int y);
+gboolean gtkutil_window_get_position (GtkWindow *win, int *x, int *y);
+/* flash the taskbar entry / set urgency (TRUE) or clear it (FALSE) */
+void gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent);
+
 /* GtkImageMenuItem (deprecated in GTK3, gone in GTK4): a GtkMenuItem whose
    child is [image][label] laid out like GtkImageMenuItem did (16px icon
    column, 6px gap). image may be NULL; label is a mnemonic, or markup if

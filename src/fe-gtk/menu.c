@@ -938,7 +938,7 @@ menu_fullscreen_toggle (GtkWidget *wid, gpointer ud)
 			/* other window managers seem to handle this */
 			gtk_window_resize (GTK_WINDOW (parent_window),
 				prefs.hex_gui_win_width, prefs.hex_gui_win_height);
-			gtk_window_move (GTK_WINDOW (parent_window),
+			gtkutil_window_move (GTK_WINDOW (parent_window),
 				prefs.hex_gui_win_left, prefs.hex_gui_win_top);
 		}
 #endif

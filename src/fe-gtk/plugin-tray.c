@@ -343,7 +343,7 @@ tray_toggle_visibility (gboolean force_hide)
 	{
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV AWAY");
-		gtk_window_get_position (win, &x, &y);
+		gtkutil_window_get_position (win, &x, &y);
 		screen = gtk_window_get_screen (win);
 		maximized = prefs.hex_gui_win_state;
 		fullscreen = prefs.hex_gui_win_fullscreen;
@@ -354,7 +354,7 @@ tray_toggle_visibility (gboolean force_hide)
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV BACK");
 		gtk_window_set_screen (win, screen);
-		gtk_window_move (win, x, y);
+		gtkutil_window_move (win, x, y);
 		if (maximized)
 			gtk_window_maximize (win);
 		if (fullscreen)
