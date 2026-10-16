@@ -29,6 +29,7 @@
 #include "../common/cfgfiles.h"
 #include "../common/fe.h"
 #include "gtkutil.h"
+#include "nxlist.h"
 #include "maingui.h"
 
 enum
@@ -52,85 +53,73 @@ static GtkWidget *num_chan;
 static GtkWidget *num_noti;
 static GtkWidget *num_invi;
 
-static GtkTreeModel *
-get_store (void)
+static GtkWidget *
+get_view (void)
 {
-	return gtk_tree_view_get_model (g_object_get_data (G_OBJECT (ignorewin), "view"));
+	return g_object_get_data (G_OBJECT (ignorewin), "view");
 }
 
 static int
-ignore_get_flags (GtkTreeModel *model, GtkTreeIter *iter)
+ignore_get_flags (nx_row *row)
 {
-	gboolean chan, priv, noti, ctcp, dcc, invi, unig;
 	int flags = 0;
 
-	gtk_tree_model_get (model, iter, 1, &chan, 2, &priv, 3, &noti,
-	                    4, &ctcp, 5, &dcc, 6, &invi, 7, &unig, -1);
-	if (chan)
+	if (nx_row_get_bool (row, CHAN_COLUMN))
 		flags |= IG_CHAN;
-	if (priv)
+	if (nx_row_get_bool (row, PRIV_COLUMN))
 		flags |= IG_PRIV;
-	if (noti)
+	if (nx_row_get_bool (row, NOTICE_COLUMN))
 		flags |= IG_NOTI;
-	if (ctcp)
+	if (nx_row_get_bool (row, CTCP_COLUMN))
 		flags |= IG_CTCP;
-	if (dcc)
+	if (nx_row_get_bool (row, DCC_COLUMN))
 		flags |= IG_DCC;
-	if (invi)
+	if (nx_row_get_bool (row, INVITE_COLUMN))
 		flags |= IG_INVI;
-	if (unig)
+	if (nx_row_get_bool (row, UNIGNORE_COLUMN))
 		flags |= IG_UNIG;
 	return flags;
 }
 
 static void
-mask_edited (GtkCellRendererText *render, gchar *path, gchar *new, gpointer dat)
+mask_edited (nx_row *row, const char *new, gpointer dat)
 {
-	GtkListStore *store = GTK_LIST_STORE (get_store ());
-	GtkTreeIter iter;
 	char *old;
 	int flags;
 
-	gtkutil_treemodel_string_to_iter (GTK_TREE_MODEL (store), path, &iter);
-	gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &old, -1);
+	nx_row_get (row, MASK_COLUMN, &old, -1);
 	
 	if (!strcmp (old, new))	/* no change */
 		;
-	else if (ignore_exists (new))	/* duplicate, ignore */
+	else if (ignore_exists ((char *) new))	/* duplicate, ignore */
 		fe_message (_("That mask already exists."), FE_MSG_ERROR);
 	else
 	{
 		/* delete old mask, and add new one with original flags */
 		ignore_del (old, NULL);
-		flags = ignore_get_flags (GTK_TREE_MODEL (store), &iter);
-		ignore_add (new, flags, TRUE);
+		flags = ignore_get_flags (row);
+		ignore_add ((char *) new, flags, TRUE);
 
 		/* update tree */
-		gtk_list_store_set (store, &iter, MASK_COLUMN, new, -1);
+		nx_row_set (row, MASK_COLUMN, new, -1);
 	}
 	g_free (old);
 	
 }
 
 static void
-option_toggled (GtkCellRendererToggle *render, gchar *path, gpointer data)
+option_toggled (nx_row *row, gpointer data)
 {
-	GtkListStore *store = GTK_LIST_STORE (get_store ());
-	GtkTreeIter iter;
 	int col_id = GPOINTER_TO_INT (data);
-	gboolean active;
 	char *mask;
 	int flags;
 
-	gtkutil_treemodel_string_to_iter (GTK_TREE_MODEL (store), path, &iter);
-
 	/* update model */
-	gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, col_id, &active, -1);
-	gtk_list_store_set (store, &iter, col_id, !active, -1);
+	nx_row_set (row, col_id, !nx_row_get_bool (row, col_id), -1);
 
 	/* update ignore list */
-	gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, 0, &mask, -1);
-	flags = ignore_get_flags (GTK_TREE_MODEL (store), &iter);
+	nx_row_get (row, MASK_COLUMN, &mask, -1);
+	flags = ignore_get_flags (row);
 	if (ignore_add (mask, flags, TRUE) != 2)
 		g_warning ("ignore treeview is out of sync!\n");
 	
@@ -140,61 +129,42 @@ option_toggled (GtkCellRendererToggle *render, gchar *path, gpointer data)
 static GtkWidget *
 ignore_treeview_new (GtkWidget *box)
 {
-	GtkListStore *store;
+	static const char *const titles[] = { N_("Mask"), N_("Channel"), N_("Private"), N_("Notice"),
+	                                      N_("CTCP"), N_("DCC"), N_("Invite"), N_("Unignore") };
+	nx_store *store;
 	GtkWidget *view;
-	GtkTreeViewColumn *col;
-	GtkCellRenderer *render;
+	nx_col *col;
 	int col_id;
 
-	store = gtk_list_store_new (N_COLUMNS, G_TYPE_STRING,
-	                            G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
-	                            G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
-	                            G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
-	                            G_TYPE_BOOLEAN, G_TYPE_BOOLEAN);
-	g_return_val_if_fail (store != NULL, NULL);
-
-	view = gtkutil_treeview_new (box, GTK_TREE_MODEL (store),
-	                             NULL,
-	                             MASK_COLUMN, _("Mask"),
-	                             CHAN_COLUMN, _("Channel"),
-	                             PRIV_COLUMN, _("Private"),
-	                             NOTICE_COLUMN, _("Notice"),
-	                             CTCP_COLUMN, _("CTCP"),
-	                             DCC_COLUMN, _("DCC"),
-	                             INVITE_COLUMN, _("Invite"),
-	                             UNIGNORE_COLUMN, _("Unignore"),
-	                             -1);
-
-	gtk_tree_view_column_set_expand (gtk_tree_view_get_column (GTK_TREE_VIEW (view), 0), TRUE);
+	store = nx_store_new (FALSE, N_COLUMNS, G_TYPE_STRING,
+	                      G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
+	                      G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
+	                      G_TYPE_BOOLEAN, G_TYPE_BOOLEAN,
+	                      G_TYPE_BOOLEAN);
+	view = nx_view_new_scrolled (box, store);
+	g_object_unref (store);
 
 	/* attach to signals and customise columns */
-	for (col_id=0; (col = gtk_tree_view_get_column (GTK_TREE_VIEW (view), col_id));
-	     col_id++)
+	for (col_id = 0; col_id < N_COLUMNS; col_id++)
 	{
-		GList *list = gtk_cell_layout_get_cells (GTK_CELL_LAYOUT (col));
-		GList *tmp;
-
-		for (tmp = list; tmp; tmp = tmp->next)
+		if (col_id > 0)	/* it's a toggle button column */
 		{
-			render = tmp->data;
-			if (col_id > 0)	/* it's a toggle button column */
-			{
-				g_signal_connect (render, "toggled", G_CALLBACK (option_toggled),
-				                  GINT_TO_POINTER (col_id));
-			} else	/* mask column */
-			{
-				g_object_set (G_OBJECT (render), "editable", TRUE, NULL);
-				g_signal_connect (render, "edited", G_CALLBACK (mask_edited), NULL);
-				/* make this column sortable */
-				gtk_tree_view_column_set_sort_column_id (col, col_id);
-				gtk_tree_view_column_set_min_width (col, 272);
-			}
-			/* centre titles */
-			gtk_tree_view_column_set_alignment (col, 0.5);
+			col = nx_view_add_column (view, _(titles[col_id]), NX_COL_TOGGLE, col_id);
+			nx_col_on_toggled (col, option_toggled, GINT_TO_POINTER (col_id));
+		} else	/* mask column */
+		{
+			col = nx_view_add_column (view, _(titles[col_id]), NX_COL_TEXT, col_id);
+			nx_col_set_editable (col, TRUE);
+			nx_col_on_edited (col, mask_edited, NULL);
+			/* make this column sortable */
+			nx_col_set_sort_column (col, col_id);
+			nx_col_set_min_width (col, 272);
+			nx_col_set_expand (col, TRUE);
 		}
-
-		g_list_free (list);
+		/* centre titles */
+		nx_col_set_title_align (col, 0.5);
 	}
+	nx_view_set_search_column (view, MASK_COLUMN);
 	
 	nx_widget_show (view);
 	return view;
@@ -203,21 +173,20 @@ ignore_treeview_new (GtkWidget *box)
 static void
 ignore_delete_entry_clicked (GtkWidget * wid, struct session *sess)
 {
-	GtkTreeView *view = g_object_get_data (G_OBJECT (ignorewin), "view");
-	GtkListStore *store = GTK_LIST_STORE (gtk_tree_view_get_model (view));
-	GtkTreeIter iter;
-	GtkTreePath *path;
+	GtkWidget *view = get_view ();
+	nx_row *row = nx_view_get_selected (view), *next;
 	char *mask = NULL;
 
-	if (gtkutil_treeview_get_selected (view, &iter, 0, &mask, -1))
+	if (row)
 	{
+		nx_row_get (row, MASK_COLUMN, &mask, -1);
 		/* delete this row, select next one */
-		if (gtk_list_store_remove (store, &iter))
+		next = nx_row_next (row);
+		nx_row_remove (row);
+		if (next)
 		{
-			path = gtk_tree_model_get_path (GTK_TREE_MODEL (store), &iter);
-			gtk_tree_view_scroll_to_cell (view, path, NULL, TRUE, 1.0, 0.0);
-			gtk_tree_view_set_cursor (view, path, NULL, FALSE);
-			gtk_tree_path_free (path);
+			nx_view_scroll_to (view, next, NX_SCROLL_BOTTOM);
+			nx_view_set_cursor (view, next, NULL);
 		}
 
 		ignore_del (mask, NULL);
@@ -228,10 +197,8 @@ ignore_delete_entry_clicked (GtkWidget * wid, struct session *sess)
 static void
 ignore_store_new (int cancel, char *mask, gpointer data)
 {
-	GtkTreeView *view = g_object_get_data (G_OBJECT (ignorewin), "view");
-	GtkListStore *store = GTK_LIST_STORE (get_store ());
-	GtkTreeIter iter;
-	GtkTreePath *path;
+	GtkWidget *view = get_view ();
+	nx_row *row;
 	int flags = IG_CHAN | IG_PRIV | IG_NOTI | IG_CTCP | IG_DCC | IG_INVI;
 
 	if (cancel)
@@ -245,40 +212,38 @@ ignore_store_new (int cancel, char *mask, gpointer data)
 
 	ignore_add (mask, flags, TRUE);
 
-	gtk_list_store_append (store, &iter);
+	row = nx_store_append (nx_view_get_store (view), NULL);
 	/* ignore everything by default */
-	gtk_list_store_set (store, &iter, 0, mask, 1, TRUE, 2, TRUE, 3, TRUE,
-	                    4, TRUE, 5, TRUE, 6, TRUE, 7, FALSE, -1);
+	nx_row_set (row, 0, mask, 1, TRUE, 2, TRUE, 3, TRUE,
+	            4, TRUE, 5, TRUE, 6, TRUE, 7, FALSE, -1);
 	/* make sure the new row is visible and selected */
-	path = gtk_tree_model_get_path (GTK_TREE_MODEL (store), &iter);
-	gtk_tree_view_scroll_to_cell (view, path, NULL, TRUE, 1.0, 0.0);
-	gtk_tree_view_set_cursor (view, path, NULL, FALSE);
-	gtk_tree_path_free (path);
+	nx_view_scroll_to (view, row, NX_SCROLL_BOTTOM);
+	nx_view_set_cursor (view, row, NULL);
 }
 
 static void
 ignore_clear_cb (GtkWidget *dialog, gint response)
 {
-	GtkListStore *store = GTK_LIST_STORE (get_store ());
-	GtkTreeIter iter;
+	nx_store *store = nx_view_get_store (get_view ());
+	nx_row *row;
 	char *mask;
 
 	nx_widget_destroy (GTK_WIDGET (dialog));
 
-	if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (store), &iter) && response == GTK_RESPONSE_OK)
+	if ((row = nx_store_first (store)) && response == GTK_RESPONSE_OK)
 	{
 		/* remove from ignore_list */
 		do
 		{
 			mask = NULL;
-			gtk_tree_model_get (GTK_TREE_MODEL (store), &iter, MASK_COLUMN, &mask, -1);
+			nx_row_get (row, MASK_COLUMN, &mask, -1);
 			ignore_del (mask, NULL);
 			g_free (mask);
 		}
-		while (gtk_tree_model_iter_next (GTK_TREE_MODEL (store), &iter));
+		while ((row = nx_row_next (row)));
 
 		/* remove from GUI */
-		gtk_list_store_clear (store);
+		nx_store_clear (store);
 	}
 }
 
@@ -336,8 +301,7 @@ ignore_gui_open ()
 {
 	GtkWidget *vbox, *box, *stat_box, *frame;
 	GtkWidget *view;
-	GtkListStore *store;
-	GtkTreeIter iter;
+	nx_store *store;
 	GSList *temp = ignore_list;
 	char *mask;
 	gboolean private, chan, notice, ctcp, dcc, invite, unignore;
@@ -359,11 +323,19 @@ ignore_gui_open ()
 	view = ignore_treeview_new (vbox);
 	g_object_set_data (G_OBJECT (ignorewin), "view", view);
 	
+#if GTK_CHECK_VERSION(4, 0, 0)
+	frame = nx_labelled_frame_new (_("Ignore Stats:"));
+#else
 	frame = gtk_frame_new (_("Ignore Stats:"));
+#endif
 	nx_widget_show (frame);
 
 	stat_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
 	nx_set_border_width (stat_box, 6);
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* below the label's lower half */
+	gtk_widget_set_margin_top (stat_box, 6 + GPOINTER_TO_INT (g_object_get_data (G_OBJECT (frame), "nx-label-h")));
+#endif
 	gtkutil_container_add (GTK_WIDGET (frame), stat_box);
 	nx_widget_show (stat_box);
 
@@ -373,7 +345,11 @@ ignore_gui_open ()
 	num_ctcp = ignore_stats_entry (stat_box, _("CTCP:"), ignored_ctcp);
 	num_invi = ignore_stats_entry (stat_box, _("Invite:"), ignored_invi);
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+	nx_box_pack_start (vbox, gtk_widget_get_parent (frame), 0, 0, 5);
+#else
 	nx_box_pack_start (vbox, frame, 0, 0, 5);
+#endif
 
 	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);
@@ -387,7 +363,7 @@ ignore_gui_open ()
 	gtkutil_button (box, NX_STOCK_CLEAR, 0, ignore_clear_entry_clicked,
 						 0, _("Clear"));
 
-	store = GTK_LIST_STORE (gtk_tree_view_get_model (GTK_TREE_VIEW (view)));
+	store = nx_view_get_store (view);
 
 	while (temp)
 	{
@@ -402,8 +378,7 @@ ignore_gui_open ()
 		invite = (ignore->type & IG_INVI);
 		unignore = (ignore->type & IG_UNIG);
 
-		gtk_list_store_append (store, &iter);
-		gtk_list_store_set (store, &iter,
+		nx_row_set (nx_store_append (store, NULL),
 		                    MASK_COLUMN, mask,
 		                    CHAN_COLUMN, chan,
 		                    PRIV_COLUMN, private,

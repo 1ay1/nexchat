@@ -480,10 +480,38 @@ nx_toggle_set_active (GtkWidget *w, gboolean on)
 		gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (w), on);
 }
 
+/* GTK3's labelled frame: the line runs through the label's middle.
+   GTK4 draws the border round the whole widget, label included, so make
+   it from an unlabelled frame pulled up under a label in the window
+   colour. Returns the frame (add the child to it, with a top margin for
+   the label's lower half); pack gtk_widget_get_parent (frame). */
+static inline GtkWidget *
+nx_labelled_frame_new (const char *text)
+{
+	GtkWidget *ov = gtk_overlay_new ();
+	GtkWidget *frame = gtk_frame_new (NULL);
+	GtkWidget *label = gtk_label_new (text);
+	int h;
+
+	gtk_widget_measure (label, GTK_ORIENTATION_VERTICAL, -1, &h, NULL, NULL, NULL);
+	/* the box line goes through the label's middle */
+	gtk_widget_set_margin_top (frame, h / 2);
+	gtk_overlay_set_child (GTK_OVERLAY (ov), frame);
+	gtk_widget_set_halign (label, GTK_ALIGN_START);
+	gtk_widget_set_valign (label, GTK_ALIGN_START);
+	gtk_widget_add_css_class (label, "nx-frame-label");
+	gtk_overlay_add_overlay (GTK_OVERLAY (ov), label);
+	g_object_set_data (G_OBJECT (frame), "nx-label-h", GINT_TO_POINTER (h - h / 2));
+	return frame;
+}
+
 /* a display that can draw translucent windows */
 #define nx_widget_is_composited(w) gdk_display_is_composited (gtk_widget_get_display (GTK_WIDGET (w)))
 #define nx_css_provider_load(prov, css) gtk_css_provider_load_from_string ((prov), (css))
-#define nx_entry_set_width_chars(e, n) gtk_editable_set_width_chars (GTK_EDITABLE (e), (n))
+/* GTK3's width-chars set the natural width too; GTK4 needs max-width-chars */
+#define nx_entry_set_width_chars(e, n) \
+	(gtk_editable_set_width_chars (GTK_EDITABLE (e), (n)), \
+	 gtk_editable_set_max_width_chars (GTK_EDITABLE (e), (n)))
 
 /* hand the key event being handled to an entry, as if typed there
    (GTK3: gtk_widget_event). GTK4 has no synthetic dispatch: the key's

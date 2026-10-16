@@ -474,6 +474,9 @@ fe_apply_css (void)
 		"popovermenubar > item { padding: 4px 7px; border-radius: 0; }\n"
 		/* frames (the chat view's): GTK3 drew them square */
 		"frame, frame > border { border-radius: 0; }\n"
+		/* a frame's label (nx_labelled_frame_new): on the window colour so
+		   the line stops at it, as GTK3 drew it */
+		"label.nx-frame-label { background: @theme_bg_color; padding-right: 1px; }\n"
 		/* GTK3 lists showed focus with a dotted row, not a blue outline */
 		"scrolledwindow, treeview { outline: none; }\n"
 		/* entries and buttons: GTK3 Adwaita's 4px corners, not GTK4's 6px */
@@ -490,7 +493,8 @@ fe_apply_css (void)
 		"columnview.nx-list > header { box-shadow: inset 0 -1px #d7d2ce; padding: 0; margin: 0; }\n"
 		"columnview.nx-list > header > button { padding: 4px 6px 5px 6px; min-height: 0; border-radius: 0;"
 		" border: none; background: none; box-shadow: inset -1px 0 #d7d2ce; font-weight: bold; }\n"
-		"columnview.nx-list check { margin: 0; }\n"
+		"columnview.nx-list check { margin: 0; min-width: 14px; min-height: 14px; }\n"
+		"columnview.nx-list checkbutton { padding: 0; margin: 0; min-height: 0; }\n"
 		"columnview.nx-list entry { min-height: 0; padding: 0 2px; margin: -2px 0; }\n"
 		/* the About license text: GTK3 showed it a size smaller */
 		"textview.nx-about-license, textview.nx-about-license > text { font-size: 9pt; }\n"
