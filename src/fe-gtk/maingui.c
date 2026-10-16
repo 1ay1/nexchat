@@ -1017,6 +1017,7 @@ mg_populate (session *sess)
 	gtk_widget_set_sensitive (gui->menu_item[MENU_ID_JOIN], sess->server->end_of_motd);
 	gtk_widget_set_sensitive (gui->menu_item[MENU_ID_DISCONNECT],
 									  sess->server->connected || sess->server->recondelay_tag);
+	menu_debug_dump (gui->menu, g_object_get_data (G_OBJECT (gui->menu), "nx-accel"));
 
 	mg_set_topic_tip (sess);
 
@@ -3153,6 +3154,8 @@ mg_create_menu (session_gui *gui, GtkWidget *table, int away_state)
 
 	gui->menu = menu_create_main (accel_group, TRUE, away_state, !gui->is_tab,
 											gui->menu_item);
+	g_object_set_data (G_OBJECT (gui->menu), "nx-accel", accel_group);
+	menu_debug_dump (gui->menu, accel_group);
 	mg_grid_attach (table, gui->menu, 0, 3, 0, 1,
 						 GU_EXPAND | GU_FILL, GU_SHRINK | GU_FILL);
 }

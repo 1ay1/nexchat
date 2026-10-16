@@ -1312,6 +1312,7 @@ fe_server_event (server *serv, int type, int arg)
 				/* close the join-dialog, if one exists */
 				joind_close (serv);
 			}
+			menu_debug_dump (gui->menu, g_object_get_data (G_OBJECT (gui->menu), "nx-accel"));
 		}
 		list = list->next;
 	}

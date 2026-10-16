@@ -85,9 +85,11 @@ def type_text(dpy, text, delay):
     shifted = {"!": "exclam", "@": "at", "#": "numbersign", "$": "dollar",
                "%": "percent", "^": "asciicircum", "&": "ampersand", "*": "asterisk",
                "(": "parenleft", ")": "parenright", "_": "underscore", "+": "plus",
-               ":": "colon", "?": "question", "<": "less", ">": "greater", "~": "asciitilde"}
+               ":": "colon", "?": "question", "<": "less", ">": "greater", "~": "asciitilde",
+               '"': "quotedbl", "{": "braceleft", "}": "braceright", "|": "bar"}
     names = {" ": "space", "/": "slash", ".": "period", ",": "comma", "-": "minus",
-             "=": "equal", ";": "semicolon", "'": "apostrophe"}
+             "=": "equal", ";": "semicolon", "'": "apostrophe", "\\": "backslash",
+             "[": "bracketleft", "]": "bracketright", "`": "grave"}
     for ch in text:
         if ch in names:
             press(dpy, names[ch])

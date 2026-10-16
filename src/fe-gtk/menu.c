@@ -2237,12 +2237,15 @@ menu_add_cb (GtkWidget *menu, menu_entry *me, char *target)
 	}
 }
 
+static void menu_debug_redump (void);
+
 char *
 fe_menu_add (menu_entry *me)
 {
 	char *text;
 
 	menu_foreach_gui (me, menu_add_cb);
+	menu_debug_redump ();
 
 	if (!me->markup)
 		return NULL;
@@ -2254,16 +2257,29 @@ fe_menu_add (menu_entry *me)
 	return text;
 }
 
+/* tests: refresh the dump of the current main menu after /MENU changes */
+static void
+menu_debug_redump (void)
+{
+	if (!g_getenv ("NEXCHAT_MENU_DUMP"))
+		return;
+	if (current_sess && current_sess->gui && current_sess->gui->menu)
+		menu_debug_dump (current_sess->gui->menu,
+							  g_object_get_data (G_OBJECT (current_sess->gui->menu), "nx-accel"));
+}
+
 void
 fe_menu_del (menu_entry *me)
 {
 	menu_foreach_gui (me, menu_del_cb);
+	menu_debug_redump ();
 }
 
 void
 fe_menu_update (menu_entry *me)
 {
 	menu_foreach_gui (me, menu_update_cb);
+	menu_debug_redump ();
 }
 
 /* used to add custom menus to the right-click menu */
@@ -2301,6 +2317,93 @@ menu_add_plugin_items (GtkWidget *menu, char *root, char *target)
 }
 
 /* === END STUFF FOR /MENU === */
+
+/* ---- menu tree dump for tests/ux/menus.sh ----
+   One line per item: indent, kind, label as GTK shows it (mnemonic
+   underscore kept), [accel], state. Walks the widget tree, so it records
+   what the user actually gets, whatever builds it. */
+
+static gboolean
+menu_accel_find_cb (GtkAccelKey *key, GClosure *closure, gpointer data)
+{
+	return closure == data;
+}
+
+static void
+menu_dump_level (FILE *f, GtkWidget *shell, int depth)
+{
+	GList *children = gtk_container_get_children (GTK_CONTAINER (shell)), *l;
+
+	for (l = children; l; l = l->next)
+	{
+		GtkWidget *item = l->data;
+		GtkWidget *lbl, *sub;
+		const char *kind = "item", *text = "";
+		char accel[64] = "";
+
+		if (!gtk_widget_get_visible (item))
+			continue;
+		if (GTK_IS_SEPARATOR_MENU_ITEM (item))
+		{
+			fprintf (f, "%*s---\n", depth * 2, "");
+			continue;
+		}
+		if (GTK_IS_RADIO_MENU_ITEM (item))
+			kind = "radio";
+		else if (GTK_IS_CHECK_MENU_ITEM (item))
+			kind = "check";
+
+		lbl = gtkutil_menu_item_get_label (item);
+		if (lbl)
+			text = gtk_label_get_label (GTK_LABEL (lbl));	/* with _mnemonic */
+
+		/* the item's accelerator, from the accel group it was added to
+		   (an accel label only resolves it when drawn) */
+		{
+			GList *closures = gtk_widget_list_accel_closures (item), *c;
+			for (c = closures; c; c = c->next)
+			{
+				GtkAccelGroup *ag = gtk_accel_group_from_accel_closure (c->data);
+				GtkAccelKey *k = ag ? gtk_accel_group_find (ag, menu_accel_find_cb, c->data) : NULL;
+				if (k && k->accel_key)
+				{
+					char *name = gtk_accelerator_name (k->accel_key, k->accel_mods);
+					g_strlcpy (accel, name, sizeof accel);
+					g_free (name);
+					break;
+				}
+			}
+			g_list_free (closures);
+		}
+
+		fprintf (f, "%*s%s \"%s\"%s%s%s%s\n", depth * 2, "", kind, text,
+					accel[0] ? " [" : "", accel, accel[0] ? "]" : "",
+					!gtk_widget_get_sensitive (item) ? " insensitive" : "");
+		if (GTK_IS_CHECK_MENU_ITEM (item))
+			fprintf (f, "%*s  = %s\n", depth * 2, "",
+						gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item)) ? "on" : "off");
+
+		sub = gtk_menu_item_get_submenu (GTK_MENU_ITEM (item));
+		if (sub)
+			menu_dump_level (f, sub, depth + 1);
+	}
+	g_list_free (children);
+}
+
+void
+menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group)
+{
+	const char *path = g_getenv ("NEXCHAT_MENU_DUMP");
+	FILE *f;
+
+	if (!path || !*path)
+		return;
+	f = fopen (path, "w");
+	if (!f)
+		return;
+	menu_dump_level (f, menu_bar, 0);
+	fclose (f);
+}
 
 GtkWidget *
 menu_create_main (void *accel_group, int bar, int away, int toplevel,

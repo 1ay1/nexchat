@@ -1,0 +1,274 @@
+## 1 startup
+item "ne_xchat"
+  item "Network Li_st" [<Primary>s]
+  ---
+  item "_New"
+    item "Server Tab" [<Primary>t]
+    item "Channel Tab"
+    item "Server Window" [<Primary>n]
+    item "Channel Window"
+  ---
+  item "_Load Plugin or Script…"
+  ---
+  item "_Detach"
+  item "_Close"
+  ---
+  item "_Quit" [<Primary>q]
+item "_View"
+  check "_Menu Bar" [<Primary>F9]
+    = on
+  check "_Topic Bar"
+    = on
+  check "_User List" [<Primary>F7]
+    = on
+  check "U_ser List Buttons"
+    = off
+  check "M_ode Buttons"
+    = off
+  ---
+  item "_Channel Switcher"
+    radio "_Tabs"
+      = off
+    radio "T_ree"
+      = on
+  item "_Network Meters"
+    radio "Off"
+      = off
+    radio "Graph"
+      = on
+    radio "Text"
+      = off
+    radio "Both"
+      = off
+  ---
+  check "_Fullscreen" [F11]
+    = off
+item "_Server"
+  item "_Disconnect" insensitive
+  item "_Reconnect"
+  item "_Join a Channel…" insensitive
+  item "Channel _List"
+  ---
+  check "Marked _Away" [<Alt>a] insensitive
+    = off
+item "S_ettings"
+  item "_Preferences"
+  ---
+  item "Auto Replace"
+  item "CTCP Replies"
+  item "Dialog Buttons"
+  item "Keyboard Shortcuts"
+  item "Text Events"
+  item "URL Handlers"
+  item "User Commands"
+  item "User List Buttons"
+  item "User List Popup"
+item "_Window"
+  item "_Ban List"
+  item "Character Chart"
+  item "Direct Chat"
+  item "File _Transfers"
+  item "Friends List"
+  item "Ignore List"
+  item "_Plugins and Scripts"
+  item "_Raw Log"
+  item "_URL Grabber"
+  ---
+  item "Reset Marker Line" [<Primary>m]
+  item "Move to Marker Line" [<Primary><Shift>m]
+  item "_Copy Selection" [<Primary><Shift>c]
+  item "C_lear Text"
+  item "Save Text…"
+  item "Search"
+    item "Search Text…" [<Primary>f]
+    item "Search Next" [<Primary>g]
+    item "Search Previous" [<Primary><Shift>g]
+item "_Help"
+  item "_Contents" [F1]
+  item "_About"
+## 2 connected
+item "ne_xchat"
+  item "Network Li_st" [<Primary>s]
+  ---
+  item "_New"
+    item "Server Tab" [<Primary>t]
+    item "Channel Tab"
+    item "Server Window" [<Primary>n]
+    item "Channel Window"
+  ---
+  item "_Load Plugin or Script…"
+  ---
+  item "_Detach"
+  item "_Close"
+  ---
+  item "_Quit" [<Primary>q]
+item "_View"
+  check "_Menu Bar" [<Primary>F9]
+    = on
+  check "_Topic Bar"
+    = on
+  check "_User List" [<Primary>F7]
+    = on
+  check "U_ser List Buttons"
+    = off
+  check "M_ode Buttons"
+    = off
+  ---
+  item "_Channel Switcher"
+    radio "_Tabs"
+      = off
+    radio "T_ree"
+      = on
+  item "_Network Meters"
+    radio "Off"
+      = off
+    radio "Graph"
+      = on
+    radio "Text"
+      = off
+    radio "Both"
+      = off
+  ---
+  check "_Fullscreen" [F11]
+    = off
+item "_Server"
+  item "_Disconnect"
+  item "_Reconnect"
+  item "_Join a Channel…"
+  item "Channel _List"
+  ---
+  check "Marked _Away" [<Alt>a]
+    = off
+item "S_ettings"
+  item "_Preferences"
+  ---
+  item "Auto Replace"
+  item "CTCP Replies"
+  item "Dialog Buttons"
+  item "Keyboard Shortcuts"
+  item "Text Events"
+  item "URL Handlers"
+  item "User Commands"
+  item "User List Buttons"
+  item "User List Popup"
+item "_Window"
+  item "_Ban List"
+  item "Character Chart"
+  item "Direct Chat"
+  item "File _Transfers"
+  item "Friends List"
+  item "Ignore List"
+  item "_Plugins and Scripts"
+  item "_Raw Log"
+  item "_URL Grabber"
+  ---
+  item "Reset Marker Line" [<Primary>m]
+  item "Move to Marker Line" [<Primary><Shift>m]
+  item "_Copy Selection" [<Primary><Shift>c]
+  item "C_lear Text"
+  item "Save Text…"
+  item "Search"
+    item "Search Text…" [<Primary>f]
+    item "Search Next" [<Primary>g]
+    item "Search Previous" [<Primary><Shift>g]
+item "_Help"
+  item "_Contents" [F1]
+  item "_About"
+## 3 /MENU
+item "ne_xchat"
+  item "Network Li_st" [<Primary>s]
+  ---
+  item "_New"
+    item "Server Tab" [<Primary>t]
+    item "Channel Tab"
+    item "Server Window" [<Primary>n]
+    item "Channel Window"
+  ---
+  item "_Load Plugin or Script…"
+  ---
+  item "_Detach"
+  item "_Close"
+  ---
+  item "_Quit" [<Primary>q]
+item "_View"
+  check "_Menu Bar" [<Primary>F9]
+    = on
+  check "_Topic Bar"
+    = on
+  check "_User List" [<Primary>F7]
+    = on
+  check "U_ser List Buttons"
+    = off
+  check "M_ode Buttons"
+    = off
+  ---
+  item "_Channel Switcher"
+    radio "_Tabs"
+      = off
+    radio "T_ree"
+      = on
+  item "_Network Meters"
+    radio "Off"
+      = off
+    radio "Graph"
+      = on
+    radio "Text"
+      = off
+    radio "Both"
+      = off
+  ---
+  check "_Fullscreen" [F11]
+    = off
+item "_Server"
+  item "_Disconnect"
+  item "_Reconnect"
+  item "_Join a Channel…"
+  item "Channel _List"
+  ---
+  check "Marked _Away" [<Alt>a]
+    = off
+item "S_ettings"
+  item "_Preferences"
+  ---
+  item "Auto Replace"
+  item "CTCP Replies"
+  item "Dialog Buttons"
+  item "Keyboard Shortcuts"
+  item "Text Events"
+  item "URL Handlers"
+  item "User Commands"
+  item "User List Buttons"
+  item "User List Popup"
+item "_Window"
+  item "_Ban List"
+  item "Character Chart"
+  item "Direct Chat"
+  item "File _Transfers"
+  item "Friends List"
+  item "Ignore List"
+  item "_Plugins and Scripts"
+  item "_Raw Log"
+  item "_URL Grabber"
+  ---
+  item "Reset Marker Line" [<Primary>m]
+  item "Move to Marker Line" [<Primary><Shift>m]
+  item "_Copy Selection" [<Primary><Shift>c]
+  item "C_lear Text"
+  item "Save Text…"
+  item "Search"
+    item "Search Text…" [<Primary>f]
+    item "Search Next" [<Primary>g]
+    item "Search Previous" [<Primary><Shift>g]
+item "_Help"
+  item "_Contents" [F1]
+  item "_About"
+item "Test"
+  item "_Hello"
+  check "Toggle" insensitive
+    = on
+  radio "RadioA"
+    = on
+  radio "RadioB"
+    = off
+  item "WithKey" [<Primary>h]
+  ---

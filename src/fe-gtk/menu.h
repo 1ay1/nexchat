@@ -21,6 +21,10 @@
 #define HEXCHAT_MENU_H
 
 GtkWidget *menu_create_main (void *accel_group, int bar, int away, int toplevel, GtkWidget **menu_widgets);
+/* NEXCHAT_MENU_DUMP=path: write the main menu tree (labels with mnemonics,
+   accelerators, toggle/radio state, sensitivity) to path as text. Used by
+   tests/ux/menus.sh to catch menu regressions; does nothing otherwise. */
+void menu_debug_dump (GtkWidget *menu_bar, GtkAccelGroup *accel_group);
 void menu_urlmenu (GdkEventButton * event, char *url);
 void menu_chanmenu (session *sess, GdkEventButton * event, char *chan);
 void menu_addfavoritemenu (server *serv, GtkWidget *menu, char *channel, gboolean istree);
