@@ -485,6 +485,7 @@ struct _nx_col
 	gpointer sort_ud;
 	float title_align;
 	gboolean expand_set;
+	int min_width;
 };
 
 /* GtkTreeView gave the last column the space left over unless some column
@@ -841,6 +842,8 @@ factory_setup (GtkSignalListItemFactory *f, GtkListItem *li, nx_col *col)
 	GtkWidget *top = box;
 
 	c->col = col;
+	if (col->min_width > 0)
+		gtk_widget_set_size_request (box, col->min_width - 8, -1);	/* less the cell padding */
 	if (p->compact)
 		gtk_widget_add_css_class (box, "nx-compact");
 	if (p->tree && col == g_list_nth_data (p->cols, 0))
@@ -1139,9 +1142,8 @@ nx_col_set_resizable (nx_col *col, gboolean resizable)
 void
 nx_col_set_min_width (nx_col *col, int width)
 {
-	/* GtkColumnView has no minimum; fixing it is the closest */
-	if (gtk_column_view_column_get_fixed_width (col->col) < width)
-		gtk_column_view_column_set_fixed_width (col->col, width);
+	/* GtkColumnView has no minimum: the cells ask for it instead */
+	col->min_width = width;
 }
 
 void

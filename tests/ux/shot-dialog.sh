@@ -11,17 +11,27 @@ xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
 xwd=${XWD:-$(command -v xwd || echo /opt/X11/bin/xwd)}
 disp=${SHOT_DISPLAY:-:94}
 tmp=$(mktemp -d)
-trap 'kill $app $xv 2>/dev/null || true; rm -rf "$tmp"' EXIT
+app=; ircd=
+trap 'kill $app $xv $ircd 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
 start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\n%s\n' "$extra" > "$tmp/cfg/hexchat.conf"
 # SHOT_FILES=dir: more config files (notify.conf, ...) copied in
 if [ -n "${SHOT_FILES:-}" ]; then cp "$SHOT_FILES"/* "$tmp/cfg/"; fi
+# SHOT_CONNECT=1: join #nexchat on tests/fake_ircd.py --demo first
+url=
+if [ -n "${SHOT_CONNECT:-}" ]; then
+	printf 'net_throttle = 0\n' >> "$tmp/cfg/hexchat.conf"
+	python3 "$here/../fake_ircd.py" --demo --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &
+	ircd=$!
+	i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+	url="irc://127.0.0.1:-$(cat "$tmp/port")/#nexchat"
+fi
 if [ -n "$cmd" ]; then
-	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" -c "$cmd" >"$tmp/log" 2>&1 &
+	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" -c "$cmd" $url >"$tmp/log" 2>&1 &
 else
-	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
+	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" $url >"$tmp/log" 2>&1 &
 fi
 app=$!
 sleep "${SHOT_WAIT:-5}"

@@ -100,6 +100,11 @@ try:
                             send(l)
             elif cmd == "MODE" and len(parts) == 2 and parts[1].startswith("#"):
                 send(f":fake 324 {nick} {parts[1]} +nt")
+            elif cmd == "MODE" and len(parts) == 3 and parts[2] in ("+b", "b"):
+                if a.demo:
+                    send(f":fake 367 {nick} {parts[1]} *!*@spam.example alice 1700000000")
+                    send(f":fake 367 {nick} {parts[1]} troll!*@* bob 1710000000")
+                send(f":fake 368 {nick} {parts[1]} :End of Channel Ban List")
             elif cmd == "LIST":
                 send(f":fake 321 {nick} Channel :Users  Name")
                 if a.demo:

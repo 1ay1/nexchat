@@ -346,6 +346,7 @@ nx_button_set_image (GtkWidget *button, GtkWidget *image)
 		gtk_box_append (GTK_BOX (box), lbl);
 		gtk_widget_set_halign (box, GTK_ALIGN_CENTER);
 		gtk_button_set_child (GTK_BUTTON (button), box);
+		gtk_widget_add_css_class (button, "nx-image-text");
 	}
 	else
 		gtk_button_set_child (GTK_BUTTON (button), image);
