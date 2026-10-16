@@ -499,6 +499,10 @@ fe_apply_css (void)
 		" border: none; background: none; box-shadow: inset -1px 0 #d7d2ce; font-weight: bold; }\n"
 		"columnview.nx-list check { margin: 0; min-width: 14px; min-height: 14px; }\n"
 		"columnview.nx-list checkbutton { padding: 0; margin: 0; min-height: 0; }\n"
+		/* trees: GTK3's 16px expander + 2px separator per level, arrow 2px in */
+		"columnview.nx-list treeexpander { border-spacing: 2px; margin-left: -2px; }\n"
+		"columnview.nx-list treeexpander indent { min-width: 17px; -gtk-icon-size: 16px; }\n"
+		"columnview.nx-list treeexpander expander { min-width: 16px; min-height: 16px; }\n"
 		"columnview.nx-list entry { min-height: 0; padding: 0 2px; margin: -2px 0; }\n"
 		/* the About license text: GTK3 showed it a size smaller */
 		"textview.nx-about-license, textview.nx-about-license > text { font-size: 9pt; }\n"

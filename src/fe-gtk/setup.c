@@ -32,6 +32,7 @@
 #include "../common/outbound.h"
 #include "fe-gtk.h"
 #include "gtkutil.h"
+#include "nxlist.h"
 #include "maingui.h"
 #include "palette.h"
 #include "pixmaps.h"
@@ -1621,58 +1622,41 @@ extern struct text_event te[]; /* text.c */
 extern char *sound_files[];
 
 static void
-setup_snd_populate (GtkTreeView * treeview)
+setup_snd_populate (GtkWidget *view)
 {
-	GtkListStore *store;
-	GtkTreeIter iter;
-	GtkTreeSelection *sel;
-	GtkTreePath *path;
+	nx_store *store = nx_view_get_store (view);
+	nx_row *row;
 	int i;
-
-	sel = gtk_tree_view_get_selection (treeview);
-	store = (GtkListStore *)gtk_tree_view_get_model (treeview);
 
 	for (i = NUM_XP-1; i >= 0; i--)
 	{
-		gtk_list_store_prepend (store, &iter);
-		if (sound_files[i])
-			gtk_list_store_set (store, &iter, 0, te[i].name, 1, sound_files[i], 2, i, -1);
-		else
-			gtk_list_store_set (store, &iter, 0, te[i].name, 1, "", 2, i, -1);
+		row = nx_store_prepend (store, NULL);
+		nx_row_set (row, 0, te[i].name, 1, sound_files[i] ? sound_files[i] : "", 2, i, -1);
 		if (i == last_selected_row)
 		{
-			gtk_tree_selection_select_iter (sel, &iter);
-			path = gtk_tree_model_get_path (GTK_TREE_MODEL (store), &iter);
-			if (path)
-			{
-				gtk_tree_view_scroll_to_cell (treeview, path, NULL, TRUE, 0.5, 0.5);
-				gtk_tree_view_set_cursor (treeview, path, NULL, FALSE);
-				gtk_tree_path_free (path);
-			}
+			nx_view_select (view, row);
+			nx_view_scroll_to (view, row, NX_SCROLL_CENTER);
+			nx_view_set_cursor (view, row, NULL);
 		}
 	}
 }
 
 static int
-setup_snd_get_selected (GtkTreeSelection *sel, GtkTreeIter *iter)
+setup_snd_get_selected (GtkWidget *view, nx_row **row)
 {
-	int n;
-	GtkTreeModel *model;
-
-	if (!gtk_tree_selection_get_selected (sel, &model, iter))
+	*row = nx_view_get_selected (view);
+	if (!*row)
 		return -1;
-
-	gtk_tree_model_get (model, iter, 2, &n, -1);
-	return n;
+	return nx_row_get_int (*row, 2);
 }
 
 static void
-setup_snd_row_cb (GtkTreeSelection *sel, gpointer user_data)
+setup_snd_row_cb (GtkWidget *view, gpointer user_data)
 {
 	int n;
-	GtkTreeIter iter;
+	nx_row *row;
 
-	n = setup_snd_get_selected (sel, &iter);
+	n = setup_snd_get_selected (view, &row);
 	if (n == -1)
 		return;
 	last_selected_row = n;
@@ -1683,29 +1667,6 @@ setup_snd_row_cb (GtkTreeSelection *sel, gpointer user_data)
 	else
 		nx_entry_set_text (sndfile_entry, "");
 	ignore_changed = FALSE;
-}
-
-static void
-setup_snd_add_columns (GtkTreeView * treeview)
-{
-	GtkCellRenderer *renderer;
-	GtkTreeModel *model;
-
-	/* event column */
-	renderer = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeview),
-																-1, _("Event"), renderer,
-																"text", 0, NULL);
-
-	/* file column */
-	renderer = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeview),
-																-1, _("Sound file"), renderer,
-																"text", 1, NULL);
-
-	model = GTK_TREE_MODEL (gtk_list_store_new (3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT));
-	gtk_tree_view_set_model (GTK_TREE_VIEW (treeview), model);
-	g_object_unref (model);
 }
 
 static void
@@ -1756,18 +1717,15 @@ setup_snd_play_cb (GtkWidget *button, GtkEntry *entry)
 }
 
 static void
-setup_snd_changed_cb (GtkEntry *ent, GtkTreeView *tree)
+setup_snd_changed_cb (GtkEntry *ent, GtkWidget *view)
 {
 	int n;
-	GtkTreeIter iter;
-	GtkListStore *store;
-	GtkTreeSelection *sel;
+	nx_row *row;
 
 	if (ignore_changed)
 		return;
 
-	sel = gtk_tree_view_get_selection (tree);
-	n = setup_snd_get_selected (sel, &iter);
+	n = setup_snd_get_selected (view, &row);
 	if (n == -1)
 		return;
 
@@ -1776,8 +1734,7 @@ setup_snd_changed_cb (GtkEntry *ent, GtkTreeView *tree)
 	sound_files[n] = g_strdup (nx_entry_get_text (ent));
 
 	/* update the TreeView list */
-	store = (GtkListStore *)gtk_tree_view_get_model (tree);
-	gtk_list_store_set (store, &iter, 1, sound_files[n], -1);
+	nx_row_set (row, 1, sound_files[n], -1);
 
 	gtk_widget_set_sensitive (cancel_button, FALSE);
 }
@@ -1787,13 +1744,12 @@ setup_create_sound_page (void)
 {
 	GtkWidget *vbox1;
 	GtkWidget *vbox2;
-	GtkWidget *scrolledwindow1;
 	GtkWidget *sound_tree;
 	GtkWidget *table1;
 	GtkWidget *sound_label;
 	GtkWidget *sound_browse;
 	GtkWidget *sound_play;
-	GtkTreeSelection *sel;
+	nx_store *store;
 
 	vbox1 = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	nx_set_border_width (vbox1, 6);
@@ -1803,22 +1759,18 @@ setup_create_sound_page (void)
 	nx_widget_show (vbox2);
 	gtkutil_container_add (GTK_WIDGET (vbox1), vbox2);
 
-	scrolledwindow1 = nx_scrolled_window_new ();
-	nx_widget_show (scrolledwindow1);
-	gtkutil_container_add (GTK_WIDGET (vbox2), scrolledwindow1);
-	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolledwindow1),
+	store = nx_store_new (FALSE, 3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
+	sound_tree = nx_view_new_scrolled (vbox2, store);
+	g_object_unref (store);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (gtk_widget_get_parent (sound_tree)),
 											  GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-	nx_scrolled_window_set_shadow_in (scrolledwindow1, TRUE);
-
-	sound_tree = gtk_tree_view_new ();
-	sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (sound_tree));
-	gtk_tree_selection_set_mode (sel, GTK_SELECTION_SINGLE);
-	setup_snd_add_columns (GTK_TREE_VIEW (sound_tree));
-	setup_snd_populate (GTK_TREE_VIEW (sound_tree));
-	g_signal_connect (G_OBJECT (sel), "changed",
-							G_CALLBACK (setup_snd_row_cb), NULL);
+	nx_scrolled_window_set_shadow_in (gtk_widget_get_parent (sound_tree), TRUE);
+	nx_view_add_column (sound_tree, _("Event"), NX_COL_TEXT, 0);
+	nx_view_add_column (sound_tree, _("Sound file"), NX_COL_TEXT, 1);
+	nx_view_set_search_column (sound_tree, 0);
+	setup_snd_populate (sound_tree);
+	nx_view_on_select (sound_tree, setup_snd_row_cb, NULL);
 	nx_widget_show (sound_tree);
-	gtkutil_container_add (GTK_WIDGET (scrolledwindow1), sound_tree);
 
 	table1 = gtk_grid_new ();
 	nx_widget_show (table1);
@@ -1861,7 +1813,7 @@ setup_create_sound_page (void)
 							(GU_FILL),
 							(0), 0, 0);
 
-	setup_snd_row_cb (sel, NULL);
+	setup_snd_row_cb (sound_tree, NULL);
 
 	return vbox1;
 }
@@ -1971,19 +1923,14 @@ setup_create_pages (GtkWidget *box)
 }
 
 static void
-setup_tree_cb (GtkTreeView *treeview, GtkWidget *book)
+setup_tree_cb (GtkWidget *view, gpointer book)
 {
-	GtkTreeSelection *selection = gtk_tree_view_get_selection (treeview);
-	GtkTreeIter iter;
-	GtkTreeModel *model;
+	nx_row *row = nx_view_get_selected (view);
 	int page;
 
-	/* GTK4 emits this once more while the dialog is destroyed */
-	if (!selection)
-		return;
-	if (gtk_tree_selection_get_selected (selection, &model, &iter))
+	if (row)
 	{
-		gtk_tree_model_get (model, &iter, 1, &page, -1);
+		page = nx_row_get_int (row, 1);
 		if (page != -1)
 		{
 			gtk_notebook_set_current_page (GTK_NOTEBOOK (book), page);
@@ -1992,14 +1939,11 @@ setup_tree_cb (GtkTreeView *treeview, GtkWidget *book)
 	}
 }
 
+/* the category headings can't be chosen, only the pages under them */
 static gboolean
-setup_tree_select_filter (GtkTreeSelection *selection, GtkTreeModel *model,
-								  GtkTreePath *path, gboolean path_selected,
-								  gpointer data)
+setup_tree_select_filter (nx_row *row, gpointer data)
 {
-	if (gtk_tree_path_get_depth (path) > 1)
-		return TRUE;
-	return FALSE;
+	return nx_row_parent (row) != NULL;
 }
 
 static void
@@ -2007,30 +1951,26 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 {
 	GtkWidget *tree;
 	GtkWidget *frame;
-	GtkTreeStore *model;
-	GtkTreeIter iter;
-	GtkTreeIter child_iter;
-	GtkTreeIter *sel_iter = NULL;
-	GtkCellRenderer *renderer;
-	GtkTreeSelection *sel;
+	nx_store *model;
+	nx_row *row, *child, *sel_row = NULL;
 	int i, page;
 
-	model = gtk_tree_store_new (2, G_TYPE_STRING, G_TYPE_INT);
+	model = nx_store_new (TRUE, 2, G_TYPE_STRING, G_TYPE_INT);
 
 	i = 0;
 	page = 0;
 	do
 	{
-		gtk_tree_store_append (model, &iter, NULL);
-		gtk_tree_store_set (model, &iter, 0, _(cata[i]), 1, -1, -1);
+		row = nx_store_append (model, NULL);
+		nx_row_set (row, 0, _(cata[i]), 1, -1, -1);
 		i++;
 
 		do
 		{
-			gtk_tree_store_append (model, &child_iter, &iter);
-			gtk_tree_store_set (model, &child_iter, 0, _(cata[i]), 1, page, -1);
+			child = nx_store_append (model, row);
+			nx_row_set (child, 0, _(cata[i]), 1, page, -1);
 			if (page == last_selected_page)
-				sel_iter = gtk_tree_iter_copy (&child_iter);
+				sel_row = child;
 			page++;
 			i++;
 		} while (cata[i]);
@@ -2039,30 +1979,22 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 
 	} while (cata[i]);
 
-	tree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (model));
-	g_object_unref (G_OBJECT (model));
-	sel = gtk_tree_view_get_selection (GTK_TREE_VIEW (tree));
-	gtk_tree_selection_set_mode (sel, GTK_SELECTION_BROWSE);
-	gtk_tree_selection_set_select_function (sel, setup_tree_select_filter,
-														 NULL, NULL);
-	g_signal_connect (G_OBJECT (tree), "cursor_changed",
-							G_CALLBACK (setup_tree_cb), book);
-
-	renderer = gtk_cell_renderer_text_new ();
-	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (tree),
-							    -1, _("Categories"), renderer, "text", 0, NULL);
-	gtk_tree_view_expand_all (GTK_TREE_VIEW (tree));
+	tree = nx_view_new (model);
+	g_object_unref (model);
+	nx_view_set_select_mode (tree, GTK_SELECTION_BROWSE);
+	nx_view_set_select_filter (tree, setup_tree_select_filter, NULL);
+	nx_view_on_select (tree, setup_tree_cb, book);
+	nx_view_add_column (tree, _("Categories"), NX_COL_TEXT, 0);
+	nx_view_set_search_column (tree, 0);
+	nx_view_expand_all (tree);
 
 	frame = gtk_frame_new (NULL);
 	gtkutil_container_add (GTK_WIDGET (frame), tree);
 	nx_box_pack_start (box, frame, 0, 0, 0);
 	nx_box_reorder_child (box, frame, 0);
 
-	if (sel_iter)
-	{
-		gtk_tree_selection_select_iter (sel, sel_iter);
-		gtk_tree_iter_free (sel_iter);
-	}
+	if (sel_row)
+		nx_view_select (tree, sel_row);
 }
 
 static void

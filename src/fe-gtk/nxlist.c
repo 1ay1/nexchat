@@ -470,6 +470,7 @@ typedef struct
 	gboolean in_select;		/* our own selection changes */
 	gboolean reorderable;
 	gboolean had_cursor;		/* got focus once */
+	nx_row *last_ok;			/* the last row the select filter allowed */
 	GString *typeahead;
 	gint64 typeahead_time;
 } view_priv;
@@ -564,8 +565,10 @@ tree_children (gpointer item, gpointer data)
 {
 	nx_row *r = item;
 
-	if (!r->children)
-		r->children = g_list_store_new (NX_TYPE_ROW);
+	/* NULL: a leaf, no expander (children added later get one when the
+	   view is rebuilt; nexchat fills trees before showing them) */
+	if (!r->children || g_list_model_get_n_items (G_LIST_MODEL (r->children)) == 0)
+		return NULL;
 	return g_object_ref (G_LIST_MODEL (r->children));
 }
 
@@ -576,11 +579,20 @@ selection_changed (GtkSelectionModel *sm, guint pos, guint n, GtkWidget *view)
 
 	if (p->filter && !p->in_select)
 	{
-		/* a row the filter refuses: put the selection back on another */
+		/* a row the filter refuses: back to the last allowed one, as
+		   GtkTreeSelection's select function never let it change */
 		nx_row *r = nx_view_get_selected (view);
 		if (r && !p->filter (r, p->filter_ud))
+		{
+			if (p->last_ok && nx_row_index (p->last_ok) >= 0)
+				nx_view_select (view, p->last_ok);
+			else
+				nx_view_unselect_all (view);
 			return;
+		}
 	}
+	if (p->filter)
+		p->last_ok = nx_view_get_selected (view);
 	if (p->select_cb)
 		p->select_cb (view, p->select_ud);
 }
