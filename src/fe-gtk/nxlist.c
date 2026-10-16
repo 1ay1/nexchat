@@ -50,6 +50,9 @@ struct _NxStore
 	int n_values;
 	GType *types;
 	GListStore *top;			/* of nx_row */
+	GPtrArray *pending;		/* frozen: top-level appends not in top yet */
+	guint auto_thaw;			/* idle that puts them in */
+	gboolean in_auto;
 };
 
 struct _nx_row
@@ -107,6 +110,10 @@ nx_store_finalize (GObject *o)
 	nx_store *s = (nx_store *) o;
 
 	nx_store_clear (s);
+	if (s->auto_thaw)
+		g_source_remove (s->auto_thaw);
+	if (s->pending)
+		g_ptr_array_free (s->pending, TRUE);
 	g_object_unref (s->top);
 	g_free (s->types);
 	G_OBJECT_CLASS (nx_store_parent_class)->finalize (o);
@@ -141,11 +148,30 @@ nx_store_new (gboolean tree, int n_values, ...)
 	return s;
 }
 
+/* put queued rows into the list; still frozen (or still waiting for the
+   idle) afterwards */
+static void
+store_flush (nx_store *s)
+{
+	GPtrArray *p = s->pending;
+
+	if (!p || !p->len)
+		return;
+	s->pending = g_ptr_array_new_with_free_func (g_object_unref);
+	g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
+								p->pdata, p->len);
+	g_ptr_array_free (p, TRUE);
+}
+
 static GListStore *
 siblings (nx_store *s, nx_row *parent)
 {
 	if (!parent)
+	{
+		/* queued rows count as in the list once anything looks */
+		store_flush (s);
 		return s->top;
+	}
 	if (!parent->children)
 		parent->children = g_list_store_new (NX_TYPE_ROW);
 	return parent->children;
@@ -165,18 +191,78 @@ row_new (nx_store *s, nx_row *parent)
 	return r;
 }
 
+static gboolean
+store_idle_thaw (gpointer data)
+{
+	nx_store *s = data;
+
+	s->auto_thaw = 0;
+	nx_store_thaw (s);
+	return G_SOURCE_REMOVE;
+}
+
 nx_row *
 nx_store_insert (nx_store *s, nx_row *parent, int pos)
 {
-	GListStore *l = siblings (s, parent);
+	GListStore *l;
 	nx_row *r = row_new (s, parent);
-	guint n = g_list_model_get_n_items (G_LIST_MODEL (l));
+	guint n;
 
+	if (s->pending && !parent && pos < 0)
+	{
+		g_ptr_array_add (s->pending, r);	/* takes the ref */
+		return r;
+	}
+	/* top-level appends go in together at the next idle: one change for
+	   the view instead of one per row (thousands, for a channel list) */
+	if (!parent && pos < 0 && !s->pending)
+	{
+		s->in_auto = TRUE;
+		nx_store_freeze (s);
+		s->in_auto = FALSE;
+		s->auto_thaw = g_idle_add_full (G_PRIORITY_HIGH_IDLE, store_idle_thaw, s, NULL);
+		g_ptr_array_add (s->pending, r);
+		return r;
+	}
+	l = siblings (s, parent);	/* flushes queued rows, stays frozen */
+	n = g_list_model_get_n_items (G_LIST_MODEL (l));
 	if (pos < 0 || (guint) pos > n)
 		pos = n;
 	g_list_store_insert (l, pos, r);
 	g_object_unref (r);		/* the list holds it */
 	return r;
+}
+
+void
+nx_store_freeze (nx_store *s)
+{
+	if (!s->pending)
+		s->pending = g_ptr_array_new_with_free_func (g_object_unref);
+	/* frozen on purpose: wait for nx_store_thaw, not the idle */
+	if (s->auto_thaw && !s->in_auto)
+	{
+		g_source_remove (s->auto_thaw);
+		s->auto_thaw = 0;
+	}
+}
+
+void
+nx_store_thaw (nx_store *s)
+{
+	GPtrArray *p = s->pending;
+
+	if (!p)
+		return;
+	s->pending = NULL;
+	if (s->auto_thaw)
+	{
+		g_source_remove (s->auto_thaw);
+		s->auto_thaw = 0;
+	}
+	if (p->len)
+		g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
+									p->pdata, p->len);
+	g_ptr_array_free (p, TRUE);
 }
 
 nx_row *
@@ -215,6 +301,8 @@ mark_removed (GListStore *l)
 void
 nx_store_clear (nx_store *s)
 {
+	if (s->pending)
+		g_ptr_array_set_size (s->pending, 0);
 	mark_removed (s->top);
 	g_list_store_remove_all (s->top);
 }
@@ -445,7 +533,7 @@ find_pointer (GListStore *l, int col, gconstpointer ptr)
 nx_row *
 nx_store_find_pointer (nx_store *s, int col, gconstpointer ptr)
 {
-	return find_pointer (s->top, col, ptr);
+	return find_pointer (siblings (s, NULL), col, ptr);
 }
 
 /* ---- views ---- */
@@ -541,8 +629,11 @@ item_row (gpointer item)
 static nx_row *
 pos_row (view_priv *p, guint pos)
 {
-	gpointer item = g_list_model_get_item (G_LIST_MODEL (p->sel), pos);
+	gpointer item;
 	nx_row *r;
+
+	store_flush (p->store);
+	item = g_list_model_get_item (G_LIST_MODEL (p->sel), pos);
 
 	if (!item)
 		return NULL;
@@ -555,7 +646,10 @@ pos_row (view_priv *p, guint pos)
 static guint
 row_pos (view_priv *p, nx_row *r)
 {
-	guint i, n = g_list_model_get_n_items (G_LIST_MODEL (p->sel));
+	guint i, n;
+
+	store_flush (p->store);
+	n = g_list_model_get_n_items (G_LIST_MODEL (p->sel));
 
 	for (i = 0; i < n; i++)
 		if (pos_row (p, i) == r)
@@ -1100,6 +1194,7 @@ view_key (GtkEventControllerKey *k, guint keyval, guint code, GdkModifierType st
 		g_string_truncate (p->typeahead, 0);
 	p->typeahead_time = now;
 	g_string_append_unichar (p->typeahead, ch);
+	store_flush (p->store);
 	n = g_list_model_get_n_items (G_LIST_MODEL (p->sel));
 	for (i = 0; i < n; i++)
 	{
@@ -1738,6 +1833,7 @@ tree_row_for (view_priv *p, nx_row *row)
 
 	if (!p->tree)
 		return NULL;
+	store_flush (p->store);
 	n = g_list_model_get_n_items (G_LIST_MODEL (p->tree));
 	for (i = 0; i < n; i++)
 	{
@@ -1766,6 +1862,7 @@ nx_view_expand_all (GtkWidget *view)
 	if (!p->tree)
 		return;
 	/* rows appear as their parents open, so walk until the end */
+	store_flush (p->store);
 	for (i = 0; i < g_list_model_get_n_items (G_LIST_MODEL (p->tree)); i++)
 	{
 		GtkTreeListRow *tr = gtk_tree_list_model_get_row (p->tree, i);
@@ -2018,6 +2115,17 @@ nx_row *
 nx_store_append (nx_store *s, nx_row *parent)
 {
 	return nx_store_insert (s, parent, -1);
+}
+
+/* GtkListStore appends are cheap enough as they come */
+void
+nx_store_freeze (nx_store *s)
+{
+}
+
+void
+nx_store_thaw (nx_store *s)
+{
 }
 
 nx_row *

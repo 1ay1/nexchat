@@ -42,6 +42,10 @@ nx_row *nx_store_insert (nx_store *store, nx_row *parent, int pos);
 /* before sibling (NULL: at the end) */
 nx_row *nx_store_insert_before (nx_store *store, nx_row *parent, nx_row *sibling);
 void nx_store_clear (nx_store *store);
+/* many appends: between freeze and thaw, top-level appends are queued and
+   go in as one change at thaw (a 50k channel list fills in a blink) */
+void nx_store_freeze (nx_store *store);
+void nx_store_thaw (nx_store *store);
 int nx_store_n_rows (nx_store *store, nx_row *parent);
 nx_row *nx_store_nth (nx_store *store, nx_row *parent, int n);
 #define nx_store_first(s) nx_store_nth ((s), NULL, 0)
