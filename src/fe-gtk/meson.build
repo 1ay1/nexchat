@@ -154,6 +154,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-mouse', find_program('sh'),
     args: [files('../../tests/ux/mouse.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:85'], timeout: 120, is_parallel: false)
+  test('gui-spell', find_program('sh'),
+    args: [files('../../tests/ux/spell.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:76'], timeout: 90, is_parallel: false)
   test('gui-menus', find_program('sh'),
     args: [files('../../tests/ux/menus.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:82'], timeout: 180, is_parallel: false)

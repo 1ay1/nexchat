@@ -2764,15 +2764,12 @@ mg_change_layout (int type)
 	}
 }
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
+/* the input box's right-click menu: the colour codes go at the end */
 static void
-mg_inputbox_rightclick (GtkEntry *entry, GtkWidget *menu)
+mg_inputbox_rightclick (SexySpellEntry *entry, nx_menu *menu, gpointer unused)
 {
-	/* GTK3: GtkEntry's own popup is a GtkMenu, i.e. an nx_menu.
-	   TODO GTK4: GtkText's extra-menu (with the spell entry) */
-	mg_create_color_menu (NX_MENU (menu), NULL);
+	mg_create_color_menu (menu, NULL);
 }
-#endif
 
 /* Search bar adapted from Conspire's by William Pitcock */
 
@@ -2992,10 +2989,7 @@ mg_create_entry (session *sess, GtkWidget *box)
 	gtk_widget_set_name (entry, "hexchat-inputbox");
 	nx_on_key (entry, key_handle_input, NULL);
 	nx_on_focus_in (entry, mg_inputbox_focus, gui);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	g_signal_connect (G_OBJECT (entry), "populate_popup",
-							G_CALLBACK (mg_inputbox_rightclick), NULL);
-#endif
+	sexy_spell_entry_set_menu_hook (SEXY_SPELL_ENTRY (entry), mg_inputbox_rightclick, NULL);
 	g_signal_connect (G_OBJECT (entry), "word-check",
 							G_CALLBACK (mg_spellcheck_cb), NULL);
 	gtk_widget_grab_focus (entry);

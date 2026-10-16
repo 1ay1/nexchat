@@ -38,7 +38,10 @@ enum
 {
 	NX_ITEM_MNEMONIC = 1 << 0,	/* "_x" marks the mnemonic */
 	NX_ITEM_MARKUP = 1 << 1,	/* the label is Pango markup */
-	NX_ITEM_INSENSITIVE = 1 << 2
+	NX_ITEM_INSENSITIVE = 1 << 2,
+	/* an icon item whose label is NOT a mnemonic (icon items default to
+	   mnemonic labels, like gtk_image_menu_item_new_with_mnemonic) */
+	NX_ITEM_PLAIN_ICON = 1 << 3
 };
 
 #define NX_MENU_APPEND (-1)
@@ -67,6 +70,9 @@ nx_menu *nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int fla
    NULL for an empty one; the label is a mnemonic) */
 nx_menu *nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
 											  const char *icon, nx_item **item_ret);
+/* the same with a plain (non-mnemonic) label */
+nx_menu *nx_menu_add_submenu_icon_plain (nx_menu *menu, int pos, const char *label,
+													  const char *icon);
 
 /* number of entries (separators included) */
 int nx_menu_get_n_items (nx_menu *menu);

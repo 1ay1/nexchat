@@ -245,7 +245,7 @@ model_label (nx_item *it)
 	GString *s;
 	const char *p;
 
-	if (it->flags & NX_ITEM_MNEMONIC || it->icon)
+	if (it->flags & NX_ITEM_MNEMONIC || (it->icon && !(it->flags & NX_ITEM_PLAIN_ICON)))
 		return g_strdup (it->label);
 	s = g_string_new (NULL);
 	for (p = it->label; *p; p++)
@@ -508,6 +508,17 @@ nx_menu_add_submenu_icon (nx_menu *m, int pos, const char *label,
 	return sub;
 }
 
+nx_menu *
+nx_menu_add_submenu_icon_plain (nx_menu *m, int pos, const char *label, const char *icon)
+{
+	nx_item *it;
+	nx_menu *sub = nx_menu_add_submenu (m, pos, label, NX_ITEM_PLAIN_ICON, &it);
+
+	it->icon = g_strdup (icon);
+	changed (m);
+	return sub;
+}
+
 int
 nx_menu_get_n_items (nx_menu *m)
 {
@@ -645,7 +656,7 @@ nx_item_get_text (nx_item *it)
 		return NULL;
 	if (!it->text)
 	{
-		gboolean mnemonic = (it->flags & NX_ITEM_MNEMONIC) || it->icon;
+		gboolean mnemonic = (it->flags & NX_ITEM_MNEMONIC) || (it->icon && !(it->flags & NX_ITEM_PLAIN_ICON));
 
 		if (it->flags & NX_ITEM_MARKUP)
 		{
@@ -950,6 +961,8 @@ nx_menu_add_item (nx_menu *menu, int pos, const char *label, int flags,
 		else
 			img = gtkutil_image_new_from_stock (icon, NX_ICON_MENU);
 		item = gtkutil_menu_item_new_with_image (label, (flags & NX_ITEM_MARKUP) != 0, img);
+		if (flags & NX_ITEM_PLAIN_ICON)
+			gtk_label_set_text (GTK_LABEL (gtkutil_menu_item_get_label (item)), label);
 	}
 	else
 		item = label_item (label, flags);
@@ -1034,6 +1047,16 @@ nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
 	if (item_ret)
 		*item_ret = NX_ITEM (item);
 	return NX_MENU (sub);
+}
+
+nx_menu *
+nx_menu_add_submenu_icon_plain (nx_menu *menu, int pos, const char *label, const char *icon)
+{
+	nx_item *it;
+	nx_menu *sub = nx_menu_add_submenu_icon (menu, pos, label, icon, &it);
+
+	gtk_label_set_text (GTK_LABEL (gtkutil_menu_item_get_label (NX_ITEM_WIDGET (it))), label);
+	return sub;
 }
 
 int

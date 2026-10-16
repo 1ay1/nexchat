@@ -23,6 +23,7 @@ typedef struct _SexySpellEntryClass SexySpellEntryClass;
 typedef struct _SexySpellEntryPriv  SexySpellEntryPriv;
 
 #include <gtk/gtk.h>
+#include "nxmenu.h"
 
 #define SEXY_TYPE_SPELL_ENTRY            (sexy_spell_entry_get_type())
 #define SEXY_SPELL_ENTRY(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj), SEXY_TYPE_SPELL_ENTRY, SexySpellEntry))
@@ -79,6 +80,11 @@ gboolean   sexy_spell_entry_is_checked(SexySpellEntry *entry);
 void       sexy_spell_entry_set_checked(SexySpellEntry *entry, gboolean checked);
 void       sexy_spell_entry_set_parse_attributes (SexySpellEntry *entry, gboolean parse);
 void       sexy_spell_entry_activate_default_languages(SexySpellEntry *entry);
+
+/* more items for the entry's right-click menu (after the entry's own);
+   GTK3 used GtkEntry::populate-popup for this */
+typedef void (*SexySpellEntryMenuHook) (SexySpellEntry *entry, nx_menu *menu, gpointer data);
+void       sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntryMenuHook hook, gpointer data);
 
 G_END_DECLS
 

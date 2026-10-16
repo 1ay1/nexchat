@@ -24,6 +24,8 @@
 
 #include <gtk/gtk.h>
 #include "gtkcompat.h"
+#include "nxmenu.h"
+#include "gtkevents.h"
 #include "sexy-spell-entry.h"
 #include <string.h>
 #include <fcntl.h>
@@ -55,24 +57,6 @@
 #define SEXY_ICON_ADD "list-add"
 #define SEXY_ICON_REMOVE "list-remove"
 #define SEXY_ICON_SPELL_CHECK "tools-check-spelling"
-
-/* GtkImageMenuItem is deprecated; same look: [16px icon][6px][label].
-   Plain (non-mnemonic) label, like gtk_image_menu_item_new_with_label. */
-static GtkWidget *
-sexy_image_menu_item (const char *label, const char *icon_name)
-{
-	GtkWidget *item = gtk_menu_item_new ();
-	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-	GtkWidget *img = nx_image_new_from_icon_name (icon_name, NX_ICON_MENU);
-	GtkWidget *lbl = gtk_label_new (label);
-
-	gtk_widget_set_size_request (img, 16, -1);
-	gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
-	nx_box_pack_start (box, img, FALSE, FALSE, 0);
-	nx_box_pack_start (box, lbl, TRUE, TRUE, 0);
-	gtk_container_add (GTK_CONTAINER (item), box);
-	return item;
-}
 
 /*
  * Bunch of poop to make enchant into a runtime dependency rather than a
@@ -117,6 +101,8 @@ struct _SexySpellEntryPriv
 	gboolean              checked;
 	gboolean              parseattr;
 	gint                  preedit_length;	/* chars of IM preedit; GtkEntry hides its own in GTK3 */
+	SexySpellEntryMenuHook menu_hook;
+	gpointer              menu_hook_data;
 };
 
 static void sexy_spell_entry_class_init(SexySpellEntryClass *klass);
@@ -124,19 +110,20 @@ static void sexy_spell_entry_editable_init (GtkEditableInterface *iface);
 static void sexy_spell_entry_init(SexySpellEntry *entry);
 static void sexy_spell_entry_finalize(GObject *obj);
 static void sexy_spell_entry_destroy(GObject *obj);
+#if !GTK_CHECK_VERSION(4, 0, 0)
 static gboolean sexy_spell_entry_draw(GtkWidget *widget, cairo_t *cr);
 static gint sexy_spell_entry_button_press(GtkWidget *widget, GdkEventButton *event);
 static void sexy_spell_entry_preedit_changed(GtkEntry *entry, gchar *preedit, gpointer data);
+static gboolean sexy_spell_entry_popup_menu(GtkWidget *widget, SexySpellEntry *entry);
+static gint       gtk_entry_find_position                     (GtkEntry             *entry,
+                                                               gint                  x);
+#endif
+static void sexy_spell_entry_menu_init (SexySpellEntry *entry);
 
 /* GtkEditable handlers */
 static void sexy_spell_entry_changed(GtkEditable *editable, gpointer data);
 
-/* Other handlers */
-static gboolean sexy_spell_entry_popup_menu(GtkWidget *widget, SexySpellEntry *entry);
-
 /* Internal utility functions */
-static gint       gtk_entry_find_position                     (GtkEntry             *entry,
-                                                               gint                  x);
 static gboolean   word_misspelled                             (SexySpellEntry       *entry,
                                                                int                   start,
                                                                int                   end);
@@ -196,6 +183,7 @@ initialize_enchant (void)
         "libenchant-2.so.2",
 #endif
 #ifdef __APPLE__
+        "libenchant-2.dylib",	/* Homebrew / MacPorts enchant 2 */
         "libenchant.dylib",
 #endif
     };
@@ -269,8 +257,12 @@ sexy_spell_entry_class_init(SexySpellEntryClass *klass)
 
 	object_class->dispose = sexy_spell_entry_destroy;
 
+#if !GTK_CHECK_VERSION(4, 0, 0)
 	widget_class->draw = sexy_spell_entry_draw;
 	widget_class->button_press_event = sexy_spell_entry_button_press;
+#else
+	(void) widget_class;
+#endif
 
 	/**
 	 * SexySpellEntry::word-check:
@@ -305,6 +297,8 @@ sexy_spell_entry_editable_init (GtkEditableInterface *iface)
 {
 }
 
+#if !GTK_CHECK_VERSION(4, 0, 0)
+/* the character under x (GTK3 button presses); GTK4 moves the cursor there */
 static gint
 gtk_entry_find_position (GtkEntry *entry, gint x)
 {
@@ -345,6 +339,7 @@ gtk_entry_find_position (GtkEntry *entry, gint x)
 
 	return pos;
 }
+#endif
 
 static void
 insert_hiddenchar (SexySpellEntry *entry, guint start, guint end)
@@ -502,8 +497,9 @@ get_word_extents_from_position(SexySpellEntry *entry, gint *start, gint *end, gu
 }
 
 static void
-add_to_dictionary(GtkWidget *menuitem, SexySpellEntry *entry)
+add_to_dictionary(nx_item *menuitem, gpointer data)
 {
+	SexySpellEntry *entry = data;
 	char *word;
 	gint start, end;
 	struct EnchantDict *dict;
@@ -514,7 +510,7 @@ add_to_dictionary(GtkWidget *menuitem, SexySpellEntry *entry)
 	get_word_extents_from_position(entry, &start, &end, entry->priv->mark_character);
 	word = gtk_editable_get_chars(GTK_EDITABLE(entry), start, end);
 
-	dict = (struct EnchantDict *) g_object_get_data(G_OBJECT(menuitem), "enchant-dict");
+	dict = (struct EnchantDict *) nx_item_get_data(menuitem, "enchant-dict");
 	if (dict)
 		enchant_dict_add_to_personal(dict, word, -1);
 
@@ -530,8 +526,9 @@ add_to_dictionary(GtkWidget *menuitem, SexySpellEntry *entry)
 }
 
 static void
-ignore_all(GtkWidget *menuitem, SexySpellEntry *entry)
+ignore_all(nx_item *menuitem, gpointer data)
 {
+	SexySpellEntry *entry = data;
 	char *word;
 	gint start, end;
 	GSList *li;
@@ -559,8 +556,9 @@ ignore_all(GtkWidget *menuitem, SexySpellEntry *entry)
 }
 
 static void
-replace_word(GtkWidget *menuitem, SexySpellEntry *entry)
+replace_word(nx_item *menuitem, gpointer data)
 {
+	SexySpellEntry *entry = data;
 	char *oldword;
 	const char *newword;
 	gint start, end;
@@ -572,7 +570,7 @@ replace_word(GtkWidget *menuitem, SexySpellEntry *entry)
 
 	get_word_extents_from_position(entry, &start, &end, entry->priv->mark_character);
 	oldword = gtk_editable_get_chars(GTK_EDITABLE(entry), start, end);
-	newword = gtk_label_get_text(GTK_LABEL(gtk_bin_get_child (GTK_BIN(menuitem))));
+	newword = nx_item_get_text (menuitem);
 
 	cursor = gtk_editable_get_position(GTK_EDITABLE(entry));
 	/* is the cursor at the end? If so, restore it there */
@@ -587,7 +585,7 @@ replace_word(GtkWidget *menuitem, SexySpellEntry *entry)
 							 &start);
 	gtk_editable_set_position(GTK_EDITABLE(entry), cursor);
 
-	dict = (struct EnchantDict *) g_object_get_data(G_OBJECT(menuitem), "enchant-dict");
+	dict = (struct EnchantDict *) nx_item_get_data(menuitem, "enchant-dict");
 
         if (dict)
 		enchant_dict_store_replacement(dict,
@@ -598,9 +596,9 @@ replace_word(GtkWidget *menuitem, SexySpellEntry *entry)
 }
 
 static void
-build_suggestion_menu(SexySpellEntry *entry, GtkWidget *menu, struct EnchantDict *dict, const gchar *word)
+build_suggestion_menu(SexySpellEntry *entry, nx_menu *menu, struct EnchantDict *dict, const gchar *word)
 {
-	GtkWidget *mi;
+	nx_item *mi;
 	gchar **suggestions;
 	size_t n_suggestions, i;
 
@@ -610,55 +608,40 @@ build_suggestion_menu(SexySpellEntry *entry, GtkWidget *menu, struct EnchantDict
 	suggestions = enchant_dict_suggest(dict, word, -1, &n_suggestions);
 
 	if (suggestions == NULL || n_suggestions == 0) {
-		/* no suggestions.  put something in the menu anyway... */
-		GtkWidget *label = gtk_label_new("");
-		gtk_label_set_markup(GTK_LABEL(label), _("<i>(no suggestions)</i>"));
-
-		mi = gtk_separator_menu_item_new();
-		gtk_container_add(GTK_CONTAINER(mi), label);
-		nx_widget_show_all (mi);
-		gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
+		/* no suggestions.  put something in the menu anyway (shaded, as the
+		   old label-in-a-separator was) */
+		nx_menu_add_item (menu, 0, _("<i>(no suggestions)</i>"),
+								NX_ITEM_MARKUP | NX_ITEM_INSENSITIVE, NULL, NULL, NULL);
 	} else {
 		/* build a set of menus with suggestions */
 		for (i = 0; i < n_suggestions; i++) {
 			if ((i != 0) && (i % 10 == 0)) {
-				mi = gtk_separator_menu_item_new();
-				gtk_widget_show(mi);
-				gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
-
-				mi = gtk_menu_item_new_with_label(_("More..."));
-				gtk_widget_show(mi);
-				gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
-
-				menu = gtk_menu_new();
-				gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi), menu);
+				nx_menu_add_separator (menu, NX_MENU_APPEND);
+				menu = nx_menu_add_submenu (menu, NX_MENU_APPEND, _("More..."), 0, NULL);
 			}
 
-			mi = gtk_menu_item_new_with_label(suggestions[i]);
-			g_object_set_data(G_OBJECT(mi), "enchant-dict", dict);
-			g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(replace_word), entry);
-			gtk_widget_show(mi);
-			gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
+			mi = nx_menu_add_item (menu, NX_MENU_APPEND, suggestions[i], 0, NULL,
+										  replace_word, entry);
+			nx_item_set_data (mi, "enchant-dict", dict);
 		}
 	}
 
 	enchant_dict_free_suggestions(dict, suggestions);
 }
 
-static GtkWidget *
-build_spelling_menu(SexySpellEntry *entry, const gchar *word)
+/* the "Spelling Suggestions" submenu's contents, into topmenu */
+static void
+build_spelling_menu(SexySpellEntry *entry, nx_menu *topmenu, const gchar *word)
 {
 	struct EnchantDict *dict;
-	GtkWidget *topmenu, *mi;
+	nx_item *mi;
 	gchar *label;
 
 	if (!have_enchant)
-		return NULL;
-
-	topmenu = gtk_menu_new();
+		return;
 
 	if (entry->priv->dict_list == NULL)
-		return topmenu;
+		return;
 
 	/* Suggestions */
 	if (g_slist_length(entry->priv->dict_list) == 1) {
@@ -666,93 +649,64 @@ build_spelling_menu(SexySpellEntry *entry, const gchar *word)
 		build_suggestion_menu(entry, topmenu, dict, word);
 	} else {
 		GSList *li;
-		GtkWidget *menu;
+		nx_menu *menu;
 		gchar *lang, *lang_name;
 
 		for (li = entry->priv->dict_list; li; li = g_slist_next (li)) {
 			dict = (struct EnchantDict *) li->data;
 			lang = get_lang_from_dict(dict);
 			lang_name = sexy_spell_entry_get_language_name (entry, lang);
-			if (lang_name)
-			{
-				mi = gtk_menu_item_new_with_label(lang_name);
-				g_free (lang_name);
-			}
-			else
-			{
-				mi = gtk_menu_item_new_with_label(lang);
-			}
+			menu = nx_menu_add_submenu (topmenu, NX_MENU_APPEND, lang_name ? lang_name : lang, 0, NULL);
+			g_free (lang_name);
 			g_free(lang);
-
-			gtk_widget_show(mi);
-			gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
-			menu = gtk_menu_new();
-			gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi), menu);
 			build_suggestion_menu(entry, menu, dict, word);
 		}
 	}
 
 	/* Separator */
-	mi = gtk_separator_menu_item_new ();
-	gtk_widget_show(mi);
-	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
+	nx_menu_add_separator (topmenu, NX_MENU_APPEND);
 
-	/* + Add to Dictionary */
+	/* + Add to Dictionary (an icon item; its label is plain, not a mnemonic:
+	   the word may contain underscores) */
 	label = g_strdup_printf(_("Add \"%s\" to Dictionary"), word);
-	mi = sexy_image_menu_item (label, SEXY_ICON_ADD);
-	g_free(label);
 
 	if (g_slist_length(entry->priv->dict_list) == 1) {
 		dict = (struct EnchantDict *) entry->priv->dict_list->data;
-		g_object_set_data(G_OBJECT(mi), "enchant-dict", dict);
-		g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(add_to_dictionary), entry);
+		mi = nx_menu_add_item (topmenu, NX_MENU_APPEND, label, NX_ITEM_PLAIN_ICON, SEXY_ICON_ADD,
+									  add_to_dictionary, entry);
+		nx_item_set_data (mi, "enchant-dict", dict);
 	} else {
 		GSList *li;
-		GtkWidget *menu, *submi;
+		nx_menu *menu;
+		nx_item *submi;
 		gchar *lang, *lang_name;
 
-		menu = gtk_menu_new();
-		gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi), menu);
+		menu = nx_menu_add_submenu_icon_plain (topmenu, NX_MENU_APPEND, label, SEXY_ICON_ADD);
 
 		for (li = entry->priv->dict_list; li; li = g_slist_next(li)) {
 			dict = (struct EnchantDict *)li->data;
 			lang = get_lang_from_dict(dict);
 			lang_name = sexy_spell_entry_get_language_name (entry, lang);
-			if (lang_name)
-			{
-				submi = gtk_menu_item_new_with_label(lang_name);
-				g_free (lang_name);
-			}
-			else 
-			{
-				submi = gtk_menu_item_new_with_label(lang);
-			}
+			submi = nx_menu_add_item (menu, NX_MENU_APPEND, lang_name ? lang_name : lang, 0, NULL,
+											  add_to_dictionary, entry);
+			g_free (lang_name);
 			g_free(lang);
-			g_object_set_data(G_OBJECT(submi), "enchant-dict", dict);
-
-			g_signal_connect(G_OBJECT(submi), "activate", G_CALLBACK(add_to_dictionary), entry);
-
-			gtk_widget_show(submi);
-			gtk_menu_shell_append(GTK_MENU_SHELL(menu), submi);
+			nx_item_set_data (submi, "enchant-dict", dict);
 		}
 	}
-
-	nx_widget_show_all (mi);
-	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
+	g_free(label);
 
 	/* - Ignore All */
-	mi = sexy_image_menu_item (_("Ignore All"), SEXY_ICON_REMOVE);
-	g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(ignore_all), entry);
-	nx_widget_show_all (mi);
-	gtk_menu_shell_append(GTK_MENU_SHELL(topmenu), mi);
-
-	return topmenu;
+	nx_menu_add_item (topmenu, NX_MENU_APPEND, _("Ignore All"), NX_ITEM_PLAIN_ICON, SEXY_ICON_REMOVE,
+							ignore_all, entry);
 }
 
+/* the entry's right-click menu: when the word under the click is
+   misspelled, "Spelling Suggestions" and a separator go on top */
 static void
-sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer data)
+sexy_spell_entry_add_spelling (SexySpellEntry *entry, nx_menu *menu)
 {
-	GtkWidget *mi;
+	nx_menu *sub;
 	gint start, end;
 	gchar *word;
 
@@ -768,21 +722,135 @@ sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer d
 	if (!word_misspelled(entry, start, end))
 		return;
 
-	/* separator */
-	mi = gtk_separator_menu_item_new();
-	gtk_widget_show(mi);
-	gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
-
-	/* Above the separator, show the suggestions menu */
-	mi = sexy_image_menu_item (_("Spelling Suggestions"), SEXY_ICON_SPELL_CHECK);
+	/* separator, then above it the suggestions menu */
+	nx_menu_add_separator (menu, 0);
+	sub = nx_menu_add_submenu_icon_plain (menu, 0, _("Spelling Suggestions"), SEXY_ICON_SPELL_CHECK);
 
 	word = gtk_editable_get_chars(GTK_EDITABLE(entry), start, end);
 	g_assert(word != NULL);
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi), build_spelling_menu(entry, word));
+	build_spelling_menu (entry, sub, word);
 	g_free(word);
+}
 
-	nx_widget_show_all (mi);
-	gtk_menu_shell_prepend(GTK_MENU_SHELL(menu), mi);
+#if !GTK_CHECK_VERSION(4, 0, 0)
+static void
+sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer data)
+{
+	/* GTK3: GtkEntry's own popup is a GtkMenu, i.e. an nx_menu */
+	sexy_spell_entry_add_spelling (entry, NX_MENU (menu));
+	if (entry->priv->menu_hook)
+		entry->priv->menu_hook (entry, NX_MENU (menu), entry->priv->menu_hook_data);
+}
+
+static void
+sexy_spell_entry_menu_init (SexySpellEntry *entry)
+{
+	g_signal_connect(G_OBJECT(entry), "popup-menu", G_CALLBACK(sexy_spell_entry_popup_menu), entry);
+	g_signal_connect(G_OBJECT(entry), "populate-popup", G_CALLBACK(sexy_spell_entry_populate_popup), NULL);
+}
+#else
+/* GTK4: GtkText's own context menu can only take a GMenuModel appended at
+   the end, so the whole menu is ours, laid out as GTK3's was: spelling,
+   Cut/Copy/Paste/Delete, Select All, Insert Emoji, then the hook's items.
+   The labels are GtkEntry's own, from GTK's gtk30 catalogue (GTK4 ships
+   gtk40, which the user may not have) */
+
+/* the character position whose cursor is nearest to x (GtkText
+   coordinates, scrolling included): cursor x grows with the position in
+   left-to-right text, so a binary search over the positions */
+static int
+nx_text_position_at (GtkText *text, double x)
+{
+	int lo = 0, hi = g_utf8_strlen (gtk_editable_get_text (GTK_EDITABLE (text)), -1);
+	graphene_rect_t strong;
+
+	while (lo < hi)
+	{
+		int mid = (lo + hi) / 2;
+		double mx, nx;
+
+		gtk_text_compute_cursor_extents (text, mid, &strong, NULL);
+		mx = strong.origin.x;
+		gtk_text_compute_cursor_extents (text, mid + 1, &strong, NULL);
+		nx = strong.origin.x;
+		if (x < (mx + nx) / 2)
+			hi = mid;
+		else
+			lo = mid + 1;
+	}
+	return lo;
+}
+
+static void
+menu_text_action (nx_item *item, gpointer name)
+{
+	GtkWidget *w = nx_item_get_widget (item);
+	if (w)
+		gtk_widget_activate_action (w, name, NULL);
+}
+
+static void
+sexy_spell_entry_menu_popup (SexySpellEntry *entry, double x, double y)
+{
+	nx_menu *menu = nx_menu_new ();
+	GtkEditable *ed = GTK_EDITABLE (entry);
+	gboolean has_sel = gtk_editable_get_selection_bounds (ed, NULL, NULL);
+	gboolean editable = gtk_editable_get_editable (ed);
+
+	sexy_spell_entry_add_spelling (entry, menu);
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "Cu_t"), NX_ITEM_MNEMONIC |
+							(has_sel && editable ? 0 : NX_ITEM_INSENSITIVE), NULL, menu_text_action, "clipboard.cut");
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "_Copy"), NX_ITEM_MNEMONIC |
+							(has_sel ? 0 : NX_ITEM_INSENSITIVE), NULL, menu_text_action, "clipboard.copy");
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "_Paste"), NX_ITEM_MNEMONIC |
+							(editable ? 0 : NX_ITEM_INSENSITIVE), NULL, menu_text_action, "clipboard.paste");
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "_Delete"), NX_ITEM_MNEMONIC |
+							(has_sel && editable ? 0 : NX_ITEM_INSENSITIVE), NULL, menu_text_action, "selection.delete");
+	nx_menu_add_separator (menu, NX_MENU_APPEND);
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "Select _All"), NX_ITEM_MNEMONIC, NULL,
+							menu_text_action, "selection.select-all");
+	nx_menu_add_item (menu, NX_MENU_APPEND, g_dgettext ("gtk30", "Insert _Emoji"), NX_ITEM_MNEMONIC, NULL,
+							menu_text_action, "misc.insert-emoji");
+	if (entry->priv->menu_hook)
+		entry->priv->menu_hook (entry, menu, entry->priv->menu_hook_data);
+	nx_menu_popup (menu, GTK_WIDGET (entry), nx_current_event (), NULL, NULL);
+}
+
+static gboolean
+sexy_spell_entry_click (GtkWidget *w, guint button, int n_press, double x, double y,
+								GdkModifierType state, gpointer unused)
+{
+	SexySpellEntry *entry = SEXY_SPELL_ENTRY (w);
+	GtkEditable *text = gtk_editable_get_delegate (GTK_EDITABLE (w));
+	int pos = -1;
+
+	if (button != 3)
+		return FALSE;
+	/* the character under the click marks the word (GTK3's
+	   gtk_entry_find_position): GtkText puts the cursor there on press */
+	if (GTK_IS_TEXT (text))
+	{
+		graphene_point_t in = GRAPHENE_POINT_INIT ((float) x, (float) y), out;
+		if (gtk_widget_compute_point (w, GTK_WIDGET (text), &in, &out))
+			pos = nx_text_position_at (GTK_TEXT (text), out.x);
+	}
+	entry->priv->mark_character = pos >= 0 ? pos : gtk_editable_get_position (GTK_EDITABLE (w));
+	sexy_spell_entry_menu_popup (entry, x, y);
+	return TRUE;
+}
+
+static void
+sexy_spell_entry_menu_init (SexySpellEntry *entry)
+{
+	nx_on_click (GTK_WIDGET (entry), sexy_spell_entry_click, NULL);
+}
+#endif
+
+void
+sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntryMenuHook hook, gpointer data)
+{
+	entry->priv->menu_hook = hook;
+	entry->priv->menu_hook_data = data;
 }
 
 static void
@@ -807,10 +875,11 @@ sexy_spell_entry_init(SexySpellEntry *entry)
 	entry->priv->checked = TRUE;
 	entry->priv->parseattr = TRUE;
 
-	g_signal_connect(G_OBJECT(entry), "popup-menu", G_CALLBACK(sexy_spell_entry_popup_menu), entry);
-	g_signal_connect(G_OBJECT(entry), "populate-popup", G_CALLBACK(sexy_spell_entry_populate_popup), NULL);
+	sexy_spell_entry_menu_init (entry);
 	g_signal_connect(G_OBJECT(entry), "changed", G_CALLBACK(sexy_spell_entry_changed), NULL);
+#if !GTK_CHECK_VERSION(4, 0, 0)
 	g_signal_connect(G_OBJECT(entry), "preedit-changed", G_CALLBACK(sexy_spell_entry_preedit_changed), NULL);
+#endif
 }
 
 static void
@@ -1129,6 +1198,11 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 		}
 	}
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* GtkText applies them (and leaves them off while there's IM preedit) */
+	gtk_entry_set_attributes (GTK_ENTRY (entry), entry->priv->attr_list);
+	(void) layout; (void) allocation; (void) rect; (void) widget;
+#else
 	layout = gtk_entry_get_layout(GTK_ENTRY(entry));
 	pango_layout_set_attributes(layout, entry->priv->attr_list);
 
@@ -1141,8 +1215,10 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 		rect.height = allocation.height;
 		gdk_window_invalidate_rect(gtk_widget_get_window (widget), &rect, TRUE);
 	}
+#endif
 }
 
+#if !GTK_CHECK_VERSION(4, 0, 0)
 /* GtkEntry's preedit_length field is private in GTK3, but it tells us
    through this signal. Old GTK2 code compared bytes of the preedit string
    against layout indices, so keep it in bytes too. */
@@ -1194,6 +1270,7 @@ sexy_spell_entry_popup_menu(GtkWidget *widget, SexySpellEntry *entry)
 	entry->priv->mark_character = gtk_editable_get_position (GTK_EDITABLE (entry));
 	return FALSE;
 }
+#endif
 
 static void
 entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
@@ -1204,8 +1281,16 @@ entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
 	gint           n_attrs, n_strings, i, j;
 	PangoLogAttr a;
 
+#if GTK_CHECK_VERSION(4, 0, 0)
+	/* the word breaks of the text alone (GtkText's own layout is private) */
+	PangoContext *ctx = gtk_widget_get_pango_context (GTK_WIDGET (entry));
+	layout = pango_layout_new (ctx);
+	text = nx_entry_get_text (entry);
+	pango_layout_set_text (layout, text, -1);
+#else
 	layout = gtk_entry_get_layout(GTK_ENTRY(entry));
 	text = nx_entry_get_text (entry);
+#endif
 	log_attrs = pango_layout_get_log_attrs_readonly (layout, &n_attrs);
 
 	/* Find how many words we have */
@@ -1249,6 +1334,9 @@ entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
 			j++;
 		}
 	}
+#if GTK_CHECK_VERSION(4, 0, 0)
+	g_object_unref (layout);
+#endif
 }
 
 static void
