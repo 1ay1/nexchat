@@ -20,6 +20,8 @@ p.add_argument("--showcase", action="store_true",
                help="a believable network for the README screenshot: "
                     "several channels with their own people and conversation")
 p.add_argument("--timeout", type=int, default=60)
+p.add_argument("--script",
+               help="a file of raw lines sent after the first JOIN ({nick} is the client's nick)")
 a = p.parse_args()
 
 DEMO_USERS = ["~founder", "&admin", "@alice", "@carol", "%helper", "+bob", "+dave",
@@ -200,6 +202,11 @@ try:
                         send(f":fake 332 {nick} {chan} :fake topic")
                         send(f":fake 353 {nick} = {chan} :@{nick} bob")
                     send(f":fake 366 {nick} {chan} :End of NAMES")
+                    if a.script:
+                        with open(a.script) as f:
+                            for l in f.read().splitlines():
+                                send(l.format(nick=nick))
+                        a.script = None
                     if a.demo:
                         for l in demo_chatter(nick, chan):
                             send(l)

@@ -11,6 +11,11 @@ test('smoke-text', find_program('sh'),
   timeout: 60,
 )
 
+test('hostile-text', find_program('sh'),
+  args: [files('../../tests/hostile-text.sh'), hexchat_text],
+  timeout: 60,
+)
+
 test('migrate-config', find_program('sh'),
   args: [files('../../tests/migrate-config.sh'), hexchat_text],
   timeout: 30,

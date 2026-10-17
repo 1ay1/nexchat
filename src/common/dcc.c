@@ -2424,6 +2424,27 @@ dcc_add_chat (session *sess, char *nick, int port, guint32 addr, int pasvid)
 	return dcc;
 }
 
+/* make a name from the network safe as one path component, in place: no
+   separators or control chars, no leading dot ("..", hidden files) */
+static char *
+dcc_safe_name (char *name)
+{
+	char *p;
+
+	for (p = name; *p; p++)
+	{
+		if ((unsigned char) *p < 0x20 || *p == 0x7f || *p == '/' || *p == '\\'
+#ifdef WIN32
+			 || strchr (":*?\"<>|", *p)
+#endif
+			 )
+			*p = '_';
+	}
+	if (name[0] == '.')
+		name[0] = '_';
+	return name[0] ? name : "_";
+}
+
 static struct DCC *
 dcc_add_file (session *sess, char *file, guint64 size, int port, char *nick, guint32 addr, int pasvid)
 {
@@ -2443,18 +2464,10 @@ dcc_add_file (session *sess, char *file, guint64 size, int port, char *nick, gui
 			strcat (dcc->destfile, G_DIR_SEPARATOR_S);
 		if (prefs.hex_dcc_save_nick)
 		{
-#ifdef WIN32
+			/* the server picks the nick: it goes in the path, so clean it too */
 			char *t = strlen (dcc->destfile) + dcc->destfile;
 			strcpy (t, nick);
-			while (*t)
-			{
-				if (*t == '\\' || *t == '|')
-					*t = '_';
-				t++;
-			}
-#else
-			strcat (dcc->destfile, nick);
-#endif
+			dcc_safe_name (t);
 			strcat (dcc->destfile, ".");
 		}
 		strcat (dcc->destfile, file);
@@ -2613,7 +2626,7 @@ handle_dcc (struct session *sess, char *nick, char *word[], char *word_eol[],
 	}
 	if (!g_ascii_strcasecmp (type, "SEND"))
 	{
-		char *file = file_part (word[6]);
+		char *file = dcc_safe_name (file_part (word[6]));
 
 		port = atoi (word[8]);
 		addr = strtoul (word[7], NULL, 10);

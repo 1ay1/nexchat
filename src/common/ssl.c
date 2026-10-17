@@ -95,6 +95,12 @@ _SSL_context_init (void (*info_cb_func))
 							  |SSL_OP_SINGLE_DH_USE|SSL_OP_SINGLE_ECDH_USE
 							  |SSL_OP_NO_TICKET
 							  |SSL_OP_CIPHER_SERVER_PREFERENCE);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	/* TLS 1.0 and 1.1 are deprecated (RFC 8996) */
+	SSL_CTX_set_min_proto_version (ctx, TLS1_2_VERSION);
+#else
+	SSL_CTX_set_options (ctx, SSL_OP_NO_TLSv1|SSL_OP_NO_TLSv1_1);
+#endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x00908000L && !defined (OPENSSL_NO_COMP) /* workaround for OpenSSL 0.9.8 */
 	sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());

@@ -1523,10 +1523,35 @@ handle_message_tag_time (const char *time, message_tags_data *tags_data)
 	}
 }
 
-/* Handle message tags.
- *
- * See http://ircv3.atheme.org/specification/message-tags-3.2 
- */
+/* undo the tag value escaping (\: \s \\ \r \n) in place; a lone trailing
+   backslash is dropped and an unknown escape gives the char itself */
+static void
+unescape_tag_value (char *v)
+{
+	char *out = v;
+
+	for (; *v; v++)
+	{
+		if (*v != '\\')
+		{
+			*out++ = *v;
+			continue;
+		}
+		v++;
+		switch (*v)
+		{
+		case ':': *out++ = ';'; break;
+		case 's': *out++ = ' '; break;
+		case 'r': *out++ = '\r'; break;
+		case 'n': *out++ = '\n'; break;
+		case '\0': v--; break;
+		default: *out++ = *v; break;
+		}
+	}
+	*out = '\0';
+}
+
+/* Handle message tags: https://ircv3.net/specs/extensions/message-tags */
 static void
 handle_message_tags (server *serv, const char *tags_str,
 							message_tags_data *tags_data)
@@ -1544,19 +1569,21 @@ handle_message_tags (server *serv, const char *tags_str,
 		char *key = tags[i];
 		char *value = strchr (tags[i], '=');
 
-		if (!value)
-			continue;
+		/* a tag with no value (or an empty one) is still set */
+		if (value)
+		{
+			*value = '\0';
+			value++;
+			unescape_tag_value (value);
+		}
 
-		*value = '\0';
-		value++;
-
-		if (serv->have_account_tag && !strcmp (key, "account"))
+		if (serv->have_account_tag && value && !strcmp (key, "account"))
 			tags_data->account = g_strdup (value);
 
-		if (serv->have_idmsg && strcmp (key, "solanum.chat/identified"))
+		if (serv->have_idmsg && !strcmp (key, "solanum.chat/identified"))
 			tags_data->identified = TRUE;
 
-		if (serv->have_server_time && !strcmp (key, "time"))
+		if (serv->have_server_time && value && !strcmp (key, "time"))
 			handle_message_tag_time (value, tags_data);
 	}
 	
