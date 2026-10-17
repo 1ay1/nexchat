@@ -699,6 +699,22 @@ fe_self_shot (gpointer data)
 	return G_SOURCE_REMOVE;
 }
 
+/* NEXCHAT_TIMING: the first frame GTK drew for a window (what the user
+   sees), and the first time the main loop had nothing else to do */
+static gboolean
+fe_timing_first_frame (GtkWidget *w, GdkFrameClock *clock, gpointer d)
+{
+	nx_mark ("first frame drawn");
+	return G_SOURCE_REMOVE;
+}
+
+static gboolean
+fe_timing_idle (gpointer d)
+{
+	nx_mark ("main loop idle");
+	return G_SOURCE_REMOVE;
+}
+
 void
 fe_main (void)
 {
@@ -742,6 +758,18 @@ fe_main (void)
 			gtk_window_present (front);
 	}
 #endif
+
+	if (g_getenv ("NEXCHAT_TIMING"))
+	{
+		GListModel *tl = gtk_window_get_toplevels ();
+		GtkWidget *w = g_list_model_get_n_items (tl) ? g_list_model_get_item (tl, 0) : NULL;
+		if (w)
+		{
+			gtk_widget_add_tick_callback (w, fe_timing_first_frame, NULL, NULL);
+			g_object_unref (w);
+		}
+		g_idle_add_full (G_PRIORITY_LOW, fe_timing_idle, NULL, NULL);
+	}
 
 	nx_main ();
 
@@ -1645,16 +1673,16 @@ fe_open_chan_list (server *serv, char *filter, int do_refresh)
 const char *
 fe_get_default_font (void)
 {
+	/* Not looked up: listing every installed font (pango_font_map_list_families)
+	   took ~47 ms of every start on macOS, before GTK was even up -- for a
+	   font every system ships. Consolas has come with Windows since Vista,
+	   Menlo with macOS since 10.6; if one were missing, Pango substitutes
+	   another monospace font when the text box loads it. */
 #ifdef WIN32
-	if (gtkutil_find_font ("Consolas"))
-		return "Consolas 10";
-	else
+	return "Consolas 10";
+#elif defined(__APPLE__)
+	return "Menlo 13";
 #else
-#ifdef __APPLE__
-	if (gtkutil_find_font ("Menlo"))
-		return "Menlo 13";
-	else
+	return NULL;
 #endif
-#endif
-		return NULL;
 }

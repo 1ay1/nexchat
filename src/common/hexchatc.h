@@ -59,4 +59,8 @@ void lag_check (void);
 void hexchat_exit (void);
 void hexchat_exec (const char *cmd);
 
+/* NEXCHAT_TIMING=1: print the time since process start at a named point
+   of startup (to stderr), to find what startup spends its time on */
+void nx_mark (const char *what);
+
 #endif

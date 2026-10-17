@@ -434,8 +434,10 @@ irc_init (session *sess)
 	plugin_add (sess, NULL, NULL, identd_plugin_init, identd_plugin_deinit, NULL, FALSE);
 
 #ifdef USE_PLUGIN
+	nx_mark ("  first session made");
 	if (!arg_skip_plugins)
 		plugin_auto_load (sess);	/* autoload ~/.xchat *.so */
+	nx_mark ("  plugins autoloaded");
 #endif
 
 #ifdef USE_DBUS
@@ -844,6 +846,7 @@ xchat_init (void)
 	sound_load ();
 	notify_load ();
 	ignore_load ();
+	nx_mark ("  text events, sounds, notify, ignore");
 
 	g_snprintf (buf, sizeof (buf),
 		"NAME %s~%s~\n"				"CMD query %%s\n\n"\
@@ -951,8 +954,10 @@ xchat_init (void)
 	list_loadconf ("replace.conf", &replace_list, defaultconf_replace);
 	list_loadconf ("urlhandlers.conf", &urlhandler_list,
 						defaultconf_urlhandlers);
+	nx_mark ("  menus/buttons/commands lists");
 
 	servlist_init ();							/* load server list */
+	nx_mark ("  server list loaded");
 
 	/* if we got a URL, don't open the server list GUI */
 	if (!prefs.hex_gui_slist_skip && !arg_url && !arg_urls)
@@ -977,6 +982,7 @@ xchat_init (void)
 		if (prefs.hex_gui_slist_skip || arg_url || arg_urls)
 			new_ircwindow (NULL, NULL, SESS_SERVER, 0);
 	}
+	nx_mark ("  windows created");
 }
 
 void
@@ -1026,6 +1032,52 @@ set_locale (void)
 #endif
 }
 
+/* time since the process was created, not since main(): dyld loading the
+   ~60 GTK/GLib libraries happens before main and is part of startup too */
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+static gint64
+process_start_us (void)
+{
+	struct kinfo_proc kp;
+	size_t len = sizeof kp;
+	int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid () };
+
+	if (sysctl (mib, 4, &kp, &len, NULL, 0) != 0)
+		return 0;
+	return (gint64) kp.kp_proc.p_starttime.tv_sec * G_USEC_PER_SEC + kp.kp_proc.p_starttime.tv_usec;
+}
+#else
+static gint64
+process_start_us (void)
+{
+	return 0;
+}
+#endif
+
+void
+nx_mark (const char *what)
+{
+	static int on = -1;
+	static gint64 start, last;
+	gint64 now;
+
+	if (on < 0)
+	{
+		on = g_getenv ("NEXCHAT_TIMING") != NULL;
+		start = process_start_us ();
+		last = 0;
+	}
+	if (!on)
+		return;
+	now = g_get_real_time ();
+	if (!start)
+		start = now;
+	g_printerr ("timing %7.1f ms  (+%6.1f)  %s\n", (now - start) / 1000.0,
+					last ? (now - last) / 1000.0 : (now - start) / 1000.0, what);
+	last = now;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -1036,6 +1088,7 @@ main (int argc, char *argv[])
 	HRESULT coinit_result;
 #endif
 
+	nx_mark ("main (libraries loaded)");
 	srand ((unsigned int) time (NULL)); /* CL: do this only once! */
 
 	/* We must check for the config dir parameter, otherwise load_config() will behave incorrectly.
@@ -1082,6 +1135,7 @@ main (int argc, char *argv[])
 		make_config_dirs ();
 		make_dcc_dirs ();
 	}
+	nx_mark ("config loaded");
 
 	/* we MUST do this after load_config () AND before fe_init (thus gtk_init) otherwise it will fail */
 	set_locale ();
@@ -1089,9 +1143,11 @@ main (int argc, char *argv[])
 	ret = fe_args (argc, argv);
 	if (ret != -1)
 		return ret;
+	nx_mark ("fe_args (GTK initialised)");
 	
 #ifdef USE_DBUS
 	hexchat_remote ();
+	nx_mark ("dbus remote check");
 #endif
 
 #ifdef WIN32
@@ -1103,6 +1159,7 @@ main (int argc, char *argv[])
 #endif
 
 	fe_init ();
+	nx_mark ("fe_init (palette, fonts, CSS, icons)");
 
 	/* This is done here because cfgfiles.c is too early in
 	* the startup process to use gtk functions. */
@@ -1126,6 +1183,7 @@ main (int argc, char *argv[])
 #endif /* !WIN32 */
 
 	xchat_init ();
+	nx_mark ("xchat_init (lists, plugins, windows)");
 
 	fe_main ();
 

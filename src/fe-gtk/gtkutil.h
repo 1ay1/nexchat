@@ -149,8 +149,6 @@ GtkWidget *gtkutil_window_new (char *title, char *role, int width, int height, i
 void gtkutil_copy_to_clipboard (GtkWidget *widget, const gchar *str);
 gboolean gtkutil_tray_icon_supported (GtkWindow *window);
 
-#if defined (WIN32) || defined (__APPLE__)
-gboolean gtkutil_find_font (const char *fontname);
-#endif
+
 
 #endif
