@@ -1,0 +1,9 @@
+# Crawlers only read robots.txt at a host's root, and the root of
+# 1ay1.github.io is not this repo, so this file is only used if the site
+# moves to its own domain (CNAME). Until then, submit the sitemap
+# directly in Google Search Console / Bing Webmaster Tools:
+#   https://1ay1.github.io/nexchat/sitemap.xml
+User-agent: *
+Allow: /
+
+Sitemap: https://1ay1.github.io/nexchat/sitemap.xml

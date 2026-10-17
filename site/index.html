@@ -1,17 +1,112 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nexchat — the IRC client</title>
-<meta name="description" content="nexchat is an IRC client for Linux, BSD, Windows and macOS. The HexChat layout, menus and keybindings on GTK4; your config, plugins and scripts carry over.">
+<title>nexchat: IRC client for Linux, Windows &amp; macOS — HexChat on GTK4</title>
+<meta name="description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued on GTK4 — your config, plugins and scripts carry over.">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="author" content="nexchat contributors">
+<link rel="canonical" href="https://1ay1.github.io/nexchat/">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0e0f10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta property="og:title" content="nexchat — the IRC client">
-<meta property="og:description" content="The HexChat you know, on GTK4. Linux, BSD, Windows and macOS.">
-<meta property="og:image" content="https://1ay1.github.io/nexchat/nexchat-dark.png">
+<link rel="icon" href="img/icon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<link rel="manifest" href="site.webmanifest">
+<link rel="sitemap" type="application/xml" href="sitemap.xml">
+<!-- the hero image is the largest paint: fetch it first -->
+<link rel="preload" as="image" href="img/nexchat-dark.webp" type="image/webp" media="(prefers-color-scheme: dark)" fetchpriority="high">
+<link rel="preload" as="image" href="img/nexchat-light.webp" type="image/webp" media="(prefers-color-scheme: light)" fetchpriority="high">
+
+<!-- link previews (Open Graph: Discord, Slack, Mastodon, Facebook...) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="nexchat">
+<meta property="og:title" content="nexchat — the IRC client you know, on GTK4">
+<meta property="og:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued: same layout, your config and scripts carry over.">
 <meta property="og:url" content="https://1ay1.github.io/nexchat/">
+<meta property="og:image" content="https://1ay1.github.io/nexchat/img/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The nexchat window: channel tree, a conversation with coloured nicks, and the user list">
+<meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="nexchat — the IRC client you know, on GTK4">
+<meta name="twitter:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued.">
+<meta name="twitter:image" content="https://1ay1.github.io/nexchat/img/og.png">
+<meta name="twitter:image:alt" content="The nexchat window: channel tree, a conversation with coloured nicks, and the user list">
+
+<!-- structured data: what this is, for search engines' rich results -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://1ay1.github.io/nexchat/#app",
+      "name": "nexchat",
+      "alternateName": ["nexchat IRC client", "HexChat GTK4"],
+      "description": "A free, open source IRC client for Linux, BSD, Windows and macOS. It continues HexChat on GTK4, keeping its layout, menus and keybindings; HexChat configs, plugins and scripts carry over.",
+      "applicationCategory": "CommunicationApplication",
+      "applicationSubCategory": "IRC client",
+      "operatingSystem": "Linux, BSD, Windows, macOS",
+      "url": "https://1ay1.github.io/nexchat/",
+      "image": "https://1ay1.github.io/nexchat/img/og.png",
+      "screenshot": "https://1ay1.github.io/nexchat/img/nexchat-dark.webp",
+      "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "codeRepository": "https://github.com/1ay1/nexchat",
+      "programmingLanguage": "C",
+      "isBasedOn": { "@type": "SoftwareApplication", "name": "HexChat", "url": "https://hexchat.github.io/" },
+      "featureList": [
+        "Channel tree or tabs, user list with mode icons",
+        "GTK4 on every platform, HiDPI and Wayland",
+        "Follows the system light/dark mode",
+        "Native macOS menu bar and app bundle",
+        "Python, Perl and Lua scripting",
+        "FiSH encryption, DCC, logging",
+        "Imports HexChat configuration, plugins and scripts"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://1ay1.github.io/nexchat/#site",
+      "name": "nexchat",
+      "url": "https://1ay1.github.io/nexchat/",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is HexChat discontinued?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. HexChat's repository was archived in 2024 and it stayed on GTK2. nexchat continues it on GTK4 with the same layout, menus and keybindings." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I keep my HexChat settings, plugins and scripts?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. On first start nexchat copies your HexChat configuration folder and leaves the original untouched. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names." }
+        },
+        {
+          "@type": "Question",
+          "name": "Which platforms does nexchat run on?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Linux, the BSDs, Windows and macOS. On macOS it uses the system menu bar and builds into a self-contained app." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is nexchat free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. nexchat is free and open source software under the GPL v2, like HexChat and X-Chat before it." }
+        }
+      ]
+    }
+  ]
+}
+</script>
 <style>
   /* dark first: IRC lives at night. The palette is nexchat's own dark
      palette (Tango tones), so the page and the screenshot match. */
@@ -203,7 +298,20 @@
   footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; }
   footer a { color: var(--fg-2); text-decoration: none; }
   footer a:hover { color: var(--fg); }
-  footer .links { display: flex; gap: 22px; }
+  footer .links { display: flex; gap: 22px; flex-wrap: wrap; }
+
+  /* faq */
+  .faq { margin-top: 40px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary {
+    list-style: none; cursor: pointer; padding: 22px 40px 22px 0; position: relative;
+    font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 4px; top: 18px; font: 400 24px var(--mono); color: var(--fg-3); }
+  .faq details[open] summary::after { content: "−"; }
+  .faq details p { margin: -6px 0 24px; color: var(--fg-2); max-width: 760px; }
+  .faq a { color: var(--blue); }
 
   @media (max-width: 900px) {
     .features { grid-template-columns: 1fr; }
@@ -228,16 +336,16 @@
 </head>
 <body>
 
-<div class="bar">
+<div class="bar" role="banner">
   <div class="wrap">
-    <a class="logo" href="./"><img src="icon.svg" alt="">nexchat</a>
-    <nav>
+    <a class="logo" href="./" aria-label="nexchat home"><img src="icon.svg" alt="" width="24" height="24">nexchat</a>
+    <nav aria-label="Sections">
       <a href="#features">Features</a>
       <a href="#hexchat">From HexChat</a>
       <a href="#install">Install</a>
-      <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a>
+      <a href="#faq">FAQ</a>
     </nav>
-    <a class="gh" href="https://github.com/1ay1/nexchat">
+    <a class="gh" href="https://github.com/1ay1/nexchat" rel="noopener" aria-label="nexchat on GitHub">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
@@ -248,7 +356,7 @@
   <div class="wrap">
     <span class="kicker"><span class="dot"></span>HexChat was archived in 2024. nexchat carries on.</span>
     <h1>The IRC client you know. <span class="soft">Built for today.</span></h1>
-    <p class="sub">nexchat is the HexChat layout, menus, dialogs and keybindings, moved onto GTK4. It runs on Linux, BSD, Windows and macOS, and your config, plugins and scripts come with you.</p>
+    <p class="sub">nexchat is a free, open source IRC client for Linux, BSD, Windows and macOS. It's HexChat &mdash; the layout, menus, dialogs and keybindings &mdash; moved onto GTK4, and your config, plugins and scripts come with you.</p>
     <div class="cta">
       <a class="btn primary" href="#install">Install nexchat</a>
       <a class="btn" href="https://github.com/1ay1/nexchat">View source</a>
@@ -259,9 +367,9 @@
       <div class="window">
         <div class="titlebar"><i></i><i></i><i></i><span>nexchat — #nexchat</span></div>
         <picture>
-          <source media="(prefers-color-scheme: light)" srcset="nexchat-light.png">
-          <img src="nexchat-dark.png" width="2360" height="1120"
-               alt="nexchat: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
+          <source media="(prefers-color-scheme: light)" srcset="img/nexchat-light.webp">
+          <img src="img/nexchat-dark.webp" width="2360" height="1120" fetchpriority="high" decoding="async"
+               alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
         </picture>
       </div>
     </div>
@@ -352,6 +460,31 @@
     </div>
   </section>
 
+  <section id="faq">
+    <div class="wrap">
+      <div class="eyebrow">faq</div>
+      <h2>Questions</h2>
+      <div class="faq">
+        <details open>
+          <summary>Is HexChat discontinued?</summary>
+          <p>Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings.</p>
+        </details>
+        <details>
+          <summary>Can I keep my HexChat settings, plugins and scripts?</summary>
+          <p>Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names.</p>
+        </details>
+        <details>
+          <summary>Which platforms does nexchat run on?</summary>
+          <p>Linux, the BSDs, Windows and macOS. On macOS it uses the system menu bar and builds into a self-contained <code>nexchat.app</code>.</p>
+        </details>
+        <details>
+          <summary>Is nexchat free?</summary>
+          <p>Yes. It's free and open source under the GPL v2, like HexChat and X-Chat before it. The source is on <a href="https://github.com/1ay1/nexchat">GitHub</a>.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <div class="closing">
     <div class="wrap">
       <h2>IRC isn't going anywhere. Neither is your client.</h2>
@@ -367,9 +500,10 @@
   <div class="wrap">
     <span>Free software under the GPL v2. Built on HexChat (Berke Viktor) and X-Chat (Peter Železný).</span>
     <span class="links">
-      <a href="https://github.com/1ay1/nexchat">GitHub</a>
-      <a href="https://github.com/1ay1/nexchat/issues">Issues</a>
-      <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a>
+      <a href="https://github.com/1ay1/nexchat" rel="noopener">GitHub</a>
+      <a href="https://github.com/1ay1/nexchat/issues" rel="noopener">Issues</a>
+      <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md" rel="noopener">Roadmap</a>
+      <a href="https://hexchat.readthedocs.org/en/latest/" rel="noopener">HexChat docs</a>
     </span>
   </div>
 </footer>

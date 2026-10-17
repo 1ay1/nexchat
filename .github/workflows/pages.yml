@@ -28,13 +28,25 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # git log for the sitemap's lastmod
 
       - name: Assemble
         run: |
           mkdir -p _site
           cp -r site/. _site/
-          cp docs/screenshots/nexchat-light.png docs/screenshots/nexchat-dark.png _site/
+          # the sitemap's lastmod: the last commit that touched the site
+          sed -i "s/@LASTMOD@/$(git log -1 --format=%cs -- site docs/screenshots)/" _site/sitemap.xml
           touch _site/.nojekyll
+
+      - name: Check
+        run: |
+          # every local file the page references exists
+          grep -oE '(src|href|srcset)="[^"#:]+"' _site/index.html | cut -d'"' -f2 | sort -u |
+            while read -r f; do test -e "_site/$f" || { echo "missing: $f"; exit 1; }; done
+          # the structured data parses
+          python3 -c "import json,re,sys; json.loads(re.search(r'<script type=\"application/ld\+json\">(.*?)</script>', open('_site/index.html').read(), re.S).group(1))"
+          grep -q '<lastmod>20' _site/sitemap.xml
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
