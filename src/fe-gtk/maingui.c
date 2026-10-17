@@ -247,6 +247,7 @@ fe_set_tab_color (struct session *sess, tabcolor col)
 		{
 		case 0:	/* no particular color (theme default) */
 			sess->tab_state = TAB_STATE_NONE;
+			sess->unread = sess->unread_hilight = 0;
 			chan_set_color (sess->res->tab, plain_list);
 			break;
 		case 1:	/* new data has been displayed (dark red) */
@@ -293,6 +294,8 @@ fe_set_tab_color (struct session *sess, tabcolor col)
 
 			break;
 		}
+		/* the count after the name changes with the colour */
+		mg_update_tab_label (sess);
 		lastact_update (sess);
 		sess->last_tab_state = sess->tab_state; /* For plugins handling future prints */
 	}
@@ -3608,8 +3611,40 @@ fe_set_away (server *serv)
 void
 fe_set_channel (session *sess)
 {
-	if (sess->res->tab != NULL)
-		chan_rename (sess->res->tab, sess->channel, prefs.hex_gui_tab_trunc);
+	mg_update_tab_label (sess);
+}
+
+/* the tab's text: the channel, then "(3)" while 3 messages are unread
+   (gui_tab_unread), the highlights apart: "(3, 1!)" */
+void
+mg_update_tab_label (session *sess)
+{
+	int max = prefs.hex_gui_tab_trunc;
+	char *name, *label;
+
+	if (!sess->res->tab || !sess->channel[0])
+		return;
+	if (!prefs.hex_gui_tab_unread || (!sess->unread && !sess->unread_hilight))
+	{
+		chan_rename (sess->res->tab, sess->channel, max);
+		return;
+	}
+	/* the name is cut to gui_tab_trunc, the count never is */
+	if (max > 2 && g_utf8_strlen (sess->channel, -1) > max)
+	{
+		char *cut = g_utf8_substring (sess->channel, 0, max);
+		name = g_strconcat (cut, "..", NULL);
+		g_free (cut);
+	}
+	else
+		name = g_strdup (sess->channel);
+	if (sess->unread_hilight)
+		label = g_strdup_printf ("%s (%u, %u!)", name, sess->unread, sess->unread_hilight);
+	else
+		label = g_strdup_printf ("%s (%u)", name, sess->unread);
+	chan_rename (sess->res->tab, label, 0);
+	g_free (name);
+	g_free (label);
 }
 
 void

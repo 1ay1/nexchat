@@ -525,6 +525,7 @@ const struct prefs vars[] =
 	{"gui_tab_small", P_OFFINT (hex_gui_tab_small), TYPE_INT},
 	{"gui_tab_sort", P_OFFINT (hex_gui_tab_sort), TYPE_BOOL},
 	{"gui_tab_trunc", P_OFFINT (hex_gui_tab_trunc), TYPE_INT},
+	{"gui_tab_unread", P_OFFINT (hex_gui_tab_unread), TYPE_BOOL},
 	{"gui_tab_utils", P_OFFINT (hex_gui_tab_utils), TYPE_BOOL},
 	{"gui_throttlemeter", P_OFFINT (hex_gui_throttlemeter), TYPE_INT},
 	{"gui_topicbar", P_OFFINT (hex_gui_topicbar), TYPE_BOOL},
@@ -914,6 +915,7 @@ load_default_config(void)
 	prefs.hex_gui_tab_newtofront = 2;
 	prefs.hex_gui_tab_pos = 1;
 	prefs.hex_gui_tab_trunc = 20;
+	prefs.hex_gui_tab_unread = 1;
 	prefs.hex_gui_throttlemeter = 1;
 	prefs.hex_gui_ulist_pos = 3;
 	prefs.hex_gui_win_height = 400;

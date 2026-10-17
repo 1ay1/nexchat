@@ -457,6 +457,15 @@ chan_rename (chan *ch, char *name, int trunc_len)
 		g_free (new_name);
 }
 
+char *
+chan_get_name (chan *ch)
+{
+	char *name = NULL;
+
+	nx_row_get (ch->row, COL_NAME, &name, -1);
+	return name;
+}
+
 /* this thing is overly complicated */
 
 static int

@@ -45,6 +45,7 @@
 #include "../common/userlist.h"
 #include "gtkutil.h"
 #include "maingui.h"
+#include "chanview.h"
 #include "pixmaps.h"
 #include "chanlist.h"
 #include "joind.h"
@@ -619,6 +620,27 @@ fe_init (void)
 }
 
 
+/* tests: NEXCHAT_TABS_DUMP=1 prints every tab's text on stderr each second,
+   each round after a "tabs:" line */
+static gboolean
+fe_tabs_dump (gpointer d)
+{
+	GSList *l;
+
+	g_printerr ("tabs:\n");
+	for (l = sess_list; l; l = l->next)
+	{
+		session *s = l->data;
+		if (s->res && s->res->tab)
+		{
+			char *name = chan_get_name (s->res->tab);
+			g_printerr ("tab: %s\n", name ? name : "");
+			g_free (name);
+		}
+	}
+	return G_SOURCE_CONTINUE;
+}
+
 /* NEXCHAT_SHOT=path[:seconds]: write the main window to path as a PNG after
    the given time (default 4s), then go on. For comparing GTK3 and GTK4
    builds on systems where a screen grab isn't possible (macOS without the
@@ -781,6 +803,8 @@ fe_main (void)
 		}
 		g_timeout_add_seconds (secs, fe_self_shot, path);
 	}
+	if (g_getenv ("NEXCHAT_TABS_DUMP"))
+		g_timeout_add_seconds (1, fe_tabs_dump, NULL);
 
 #ifdef __APPLE__
 	/* Started from a terminal (not through Launch Services) the app and every

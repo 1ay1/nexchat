@@ -265,6 +265,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-jumpto', find_program('sh'),
     args: [files('../../tests/ux/jumpto.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:93'], timeout: 120)
+  test('gui-unread', find_program('sh'),
+    args: [files('../../tests/ux/unread.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:94'], timeout: 120)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],

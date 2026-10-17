@@ -262,8 +262,8 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 - [ ] Later, behind preferences: `+typing`, `+draft/reply`, `draft/multiline`.
 
 Everyday use (already there: search bar, marker line, Alt+\` to the most active tab, last-spoke completion):
-- [ ] Quick switcher: Ctrl+K, type part of a channel or nick, Enter. A small classic window, not a modern overlay.
-- [ ] Unread counts on tabs and tree rows (`(3)` after the name), highlights counted apart.
+- [x] Quick switcher: Window > Jump To (Ctrl+J; Ctrl+K stays the colour code). A small classic window: type part of a channel, query or network, Enter. `tests/ux/jumpto.sh`.
+- [x] Unread counts on tabs and tree rows: `#chan (3)`, `(3, 1!)` when one mentions you; cleared when you look (`gui_tab_unread`, on). `tests/ux/unread.sh`.
 - [x] Smart join/part filter: `irc_smart_filter` hides joins, parts and quits of people who haven't spoken in N minutes (off by default). `tests/smart-filter.sh`.
 - [ ] Search across all open buffers and in logs.
 - [ ] Jump to first unread.

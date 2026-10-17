@@ -328,6 +328,7 @@ static const setting tabs_settings[] =
 	{ST_MENU,	N_("Placement of notices:"), P_OFFINTNL(hex_irc_notice_pos), 0, noticeposmenu, 0},
 	{ST_MENU,	N_("Show channel switcher at:"), P_OFFINTNL(hex_gui_tab_pos), 0, cspos, 1},
 	{ST_NUMBER,	N_("Shorten tab labels to:"), P_OFFINTNL(hex_gui_tab_trunc), 0, (const char **)N_("letters."), 99},
+	{ST_TOGGLE,	N_("Show the number of unread messages on tabs"), P_OFFINTNL(hex_gui_tab_unread), N_("\"#nexchat (3)\": three new messages; \"(3, 1!)\": one of them mentions you."), 0, 0},
 
 	{ST_HEADER,	N_("Tabs or Windows"),0,0,0},
 	{ST_MENU,	N_("Open channels in:"), P_OFFINTNL(hex_gui_tab_chans), 0, tabwin, 0},
@@ -2065,6 +2066,7 @@ setup_apply_real (int new_pix, int do_ulist, int do_layout, int do_identd)
 
 		if (do_ulist)
 			userlist_rehash (sess);
+		mg_update_tab_label (sess);
 
 		list = list->next;
 	}

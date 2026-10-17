@@ -132,6 +132,7 @@ struct hexchatprefs
 	unsigned int hex_gui_tab_chans;
 	unsigned int hex_gui_tab_dialogs;
 	unsigned int hex_gui_tab_dots;
+	unsigned int hex_gui_tab_unread;	/* "(3)" after a tab's name */
 	unsigned int hex_gui_tab_icons;
 	unsigned int hex_gui_tab_scrollchans;
 	unsigned int hex_gui_tab_server;
@@ -428,6 +429,8 @@ typedef struct session
 	int done_away_check:1;	/* done checking for away status changes */
 	tab_state_flags tab_state;
 	tab_state_flags last_tab_state; /* before event is handled */
+	unsigned int unread;		/* messages since the tab was last looked at */
+	unsigned int unread_hilight;	/* of those, highlights */
 	gtk_xtext_search_flags lastlog_flags;
 	void (*scrollback_replay_marklast) (struct session *sess);
 } session;
