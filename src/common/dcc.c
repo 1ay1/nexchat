@@ -2583,11 +2583,15 @@ handle_dcc (struct session *sess, char *nick, char *word[], char *word_eol[],
 		}
 		if (!dcc)
 			dcc = find_dcc (nick, word[6], TYPE_SEND);
-		if (dcc)
+		/* only the person we're sending to can move where the send starts
+		   (a port or id alone matched anyone's RESUME) */
+		if (dcc && !dcc->serv->p_cmp (dcc->nick, nick))
 		{
 			size = g_ascii_strtoull (word[8], NULL, 10);
+			/* 0 isn't a resume; size or more has nothing left to send */
+			if (size == 0 || size >= dcc->size)
+				return;
 			dcc->resumable = size;
-			if (dcc->resumable < dcc->size)
 			{
 				dcc->pos = dcc->resumable;
 				dcc->ack = dcc->resumable;

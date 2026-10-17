@@ -250,7 +250,8 @@ Security, done (4cf8e986):
 - [x] Message tags: `solanum.chat/identified` was inverted (`strcmp` without `!`, so any other tag set it), values weren't unescaped, value-less tags were skipped.
 
 Security, left:
-- [ ] DCC: refuse offers that point at private/loopback addresses from a public server, and check RESUME offsets against the size.
+- [x] DCC RESUME: only from the nick we're sending to (a matching port or id from anyone was enough), and only for an offset inside the file.
+- [ ] DCC: refuse offers that point at private/loopback addresses from a public server.
 - [ ] STS (`sts` cap): remember the TLS port per host and upgrade plain connections.
 - [x] Bidi: a nick, channel or other event argument with bidi controls (U+202A..U+202E, U+2066..U+2069) is wrapped in FSI..PDI, so `<mallory\u202e>` can't reverse the message after it. `tests/hostile-text.sh`.
 
