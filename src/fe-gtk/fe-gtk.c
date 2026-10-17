@@ -359,9 +359,6 @@ fe_apply_css (void)
 					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 	}
 
-	/* Windows/macOS look first; nexchat's own rules below override it */
-	platform_style_css (css);
-
 	if (prefs.hex_gui_input_style)
 	{
 		g_string_append (css, "#hexchat-inputbox {");
@@ -524,7 +521,6 @@ fe_apply_css (void)
 		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"
 		/* NxDialog message dialogs: GTK3's full-width buttons */
 		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n");
-	platform_style_css_late (css);
 
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))
@@ -565,9 +561,9 @@ fe_scheme_changed (GObject *o, GParamSpec *p, gpointer d)
 	fe_apply_scheme ();
 }
 
-#ifdef __APPLE__
-/* macOS doesn't tell GTK when the appearance changes: look again every
-   couple of seconds (cheap: nothing happens unless it flipped) */
+#if defined(G_OS_WIN32) || defined(__APPLE__)
+/* Windows and macOS don't tell GTK when light/dark changes: look again
+   every couple of seconds (cheap: nothing happens unless it flipped) */
 static gboolean
 fe_scheme_poll (gpointer d)
 {
@@ -575,7 +571,9 @@ fe_scheme_poll (gpointer d)
 	fe_apply_scheme ();
 	return G_SOURCE_CONTINUE;
 }
+#endif
 
+#ifdef __APPLE__
 /* tests: NEXCHAT_NSMENU_ACTIVATE="Menu/Item" clicks it in the real menu
    bar after startup */
 static gboolean
@@ -611,8 +609,10 @@ fe_init (void)
 		g_signal_connect (gs, "notify::gtk-application-prefer-dark-theme", G_CALLBACK (fe_scheme_changed), NULL);
 		g_signal_connect (gs, "notify::gtk-theme-name", G_CALLBACK (fe_scheme_changed), NULL);
 	}
-#ifdef __APPLE__
+#if defined(G_OS_WIN32) || defined(__APPLE__)
 	g_timeout_add_seconds (2, fe_scheme_poll, NULL);
+#endif
+#ifdef __APPLE__
 	if (g_getenv ("NEXCHAT_NSMENU_ACTIVATE"))
 		g_timeout_add (1500, fe_nsmenu_activate, NULL);
 #endif

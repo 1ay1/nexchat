@@ -408,20 +408,3 @@ macos_is_dark (void)
 	}
 	return FALSE;
 }
-
-gboolean
-macos_accent (double *r, double *g, double *b)
-{
-	if (@available (macOS 10.14, *))
-	{
-		NSColor *c = [[NSColor controlAccentColor] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-		if (c)
-		{
-			*r = [c redComponent];
-			*g = [c greenComponent];
-			*b = [c blueComponent];
-			return TRUE;
-		}
-	}
-	return FALSE;
-}

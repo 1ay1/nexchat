@@ -7,13 +7,11 @@
  * (at your option) any later version.
  */
 
-/* An nx_menu shown as a real Win32 popup menu: the tray menu and, with
-   the native look on, every right-click menu. Same items, mnemonics,
-   checks, radios, greyed items and shortcut labels; Windows draws it,
-   light or dark like the rest of the system. */
+/* An nx_menu shown as a real Win32 popup menu (the tray menu). Same
+   items, mnemonics, checks, radios, greyed items and shortcut labels;
+   Windows draws it, light or dark like the rest of the system. */
 
 #include <windows.h>
-#include <commdlg.h>
 #include <string.h>
 
 #include "win32-menu.h"
@@ -128,70 +126,6 @@ win32_menu_track (nx_menu *menu, void *owner)
 		chosen = g_ptr_array_index (cmds, cmd - CMD_BASE);
 	g_ptr_array_free (cmds, TRUE);
 	return chosen;
-}
-
-/* the Pango font string for font, in the Windows font dialog; NULL if
-   cancelled. owner is the HWND to be modal to. */
-char *
-win32_choose_font (void *owner, const char *font)
-{
-	PangoFontDescription *fd = pango_font_description_from_string (font ? font : "Consolas 10");
-	LOGFONTW lf = { 0 };
-	CHOOSEFONTW cf = { sizeof cf };
-	HDC dc = GetDC (NULL);
-	const char *fam = pango_font_description_get_family (fd);
-	wchar_t *wf = g_utf8_to_utf16 (fam ? fam : "Consolas", -1, NULL, NULL, NULL);
-	int pt = pango_font_description_get_size (fd) / PANGO_SCALE;
-	char *ret = NULL;
-
-	if (wf)
-		wcsncpy (lf.lfFaceName, wf, LF_FACESIZE - 1);
-	g_free (wf);
-	/* fontconfig names ("Monospace", "Sans") mean nothing to Windows */
-	if (!fam || !g_ascii_strcasecmp (fam, "monospace"))
-		wcscpy (lf.lfFaceName, L"Consolas");
-	else if (!g_ascii_strcasecmp (fam, "sans") || !g_ascii_strcasecmp (fam, "sans-serif"))
-		wcscpy (lf.lfFaceName, L"Segoe UI");
-	else if (!g_ascii_strcasecmp (fam, "serif"))
-		wcscpy (lf.lfFaceName, L"Times New Roman");
-	lf.lfHeight = -MulDiv (pt > 0 ? pt : 10, GetDeviceCaps (dc, LOGPIXELSY), 72);
-	lf.lfWeight = pango_font_description_get_weight (fd) >= PANGO_WEIGHT_BOLD ? FW_BOLD : FW_NORMAL;
-	lf.lfItalic = pango_font_description_get_style (fd) != PANGO_STYLE_NORMAL;
-	lf.lfCharSet = DEFAULT_CHARSET;
-	cf.hwndOwner = owner;
-	cf.lpLogFont = &lf;
-	cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_NOVERTFONTS;
-	if (ChooseFontW (&cf))
-	{
-		char *face = g_utf16_to_utf8 (lf.lfFaceName, -1, NULL, NULL, NULL);
-		ret = g_strdup_printf ("%s%s%s %d", face ? face : "Consolas",
-									  lf.lfWeight >= FW_BOLD ? " Bold" : "",
-									  lf.lfItalic ? " Italic" : "", cf.iPointSize / 10);
-		g_free (face);
-	}
-	ReleaseDC (NULL, dc);
-	pango_font_description_free (fd);
-	return ret;
-}
-
-/* the Windows colour dialog; FALSE if cancelled */
-gboolean
-win32_choose_color (void *owner, GdkRGBA *c)
-{
-	static COLORREF custom[16];
-	CHOOSECOLORW cc = { sizeof cc };
-
-	cc.hwndOwner = owner;
-	cc.rgbResult = RGB ((int) (c->red * 255), (int) (c->green * 255), (int) (c->blue * 255));
-	cc.lpCustColors = custom;
-	cc.Flags = CC_RGBINIT | CC_FULLOPEN | CC_ANYCOLOR;
-	if (!ChooseColorW (&cc))
-		return FALSE;
-	c->red = GetRValue (cc.rgbResult) / 255.0;
-	c->green = GetGValue (cc.rgbResult) / 255.0;
-	c->blue = GetBValue (cc.rgbResult) / 255.0;
-	c->alpha = 1;
-	return TRUE;
 }
 
 /* Windows 10 1903+ draws popup menus dark only when the app opts in.

@@ -502,7 +502,6 @@ const struct prefs vars[] =
 	{"gui_lagometer", P_OFFINT (hex_gui_lagometer), TYPE_INT},
 	{"gui_lang", P_OFFINT (hex_gui_lang), TYPE_INT},
 	{"gui_mode_buttons", P_OFFINT (hex_gui_mode_buttons), TYPE_BOOL},
-	{"gui_native_look", P_OFFINT (hex_gui_native_look), TYPE_BOOL},
 	{"gui_pane_divider_position", P_OFFINT (hex_gui_pane_divider_position), TYPE_INT},
 	{"gui_pane_left_size", P_OFFINT (hex_gui_pane_left_size), TYPE_INT},
 	{"gui_pane_right_size", P_OFFINT (hex_gui_pane_right_size), TYPE_INT},
@@ -842,7 +841,6 @@ load_default_config(void)
 	prefs.hex_gui_input_style = 1;
 	prefs.hex_gui_join_dialog = 1;
 	prefs.hex_gui_jump_button = 1;
-	prefs.hex_gui_native_look = 1;
 	prefs.hex_gui_zoom_keys = 1;
 	prefs.hex_gui_quit_dialog = 1;
 	/* prefs.hex_gui_slist_skip = 1; */

@@ -42,7 +42,6 @@
 
 #ifdef WIN32
 #include "../common/fe.h"
-#include "win32-menu.h"
 #endif
 #include "sexy-spell-entry.h"
 
@@ -164,9 +163,6 @@ static const setting appearance_settings[] =
 	{ST_NUMBER, N_("Text zoom:"), P_OFFINTNL(hex_text_zoom), N_("Size of the chat text, in percent. Ctrl+wheel and Ctrl+=/-/0 change it."), (const char **)N_("%"), 300},
 
 	{ST_HEADER, N_("Modern Features"), 0,0,0},
-#if defined(WIN32) || defined(__APPLE__)
-	{ST_TOGGLE, N_("Native look"), P_OFFINTNL(hex_gui_native_look), N_("Draw buttons, fields, menus and the title bar like the system does, with its font, accent colour and light/dark mode."),0,0},
-#endif
 	{ST_TOGGLE, N_("Jump to latest button"), P_OFFINTNL(hex_gui_jump_button), N_("While scrolled up, show a button with the number of new lines that takes you back down."),0,0},
 	{ST_TOGGLR, N_("Zoom with Ctrl+wheel and Ctrl+=/-/0"), P_OFFINTNL(hex_gui_zoom_keys),0,0,0},
 
@@ -1165,21 +1161,6 @@ setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
 	GtkWidget *dialog;
 
-#if defined(G_OS_WIN32)
-	/* the Windows font dialog */
-	if (prefs.hex_gui_native_look)
-	{
-		char *f = win32_choose_font (gtkutil_window_hwnd (GTK_WINDOW (setup_window)),
-											  nx_entry_get_text (entry));
-		if (f)
-		{
-			nx_entry_set_text (entry, f);
-			g_free (f);
-		}
-		return;
-	}
-#endif
-
 	/* GtkFontDialog makes this same dialog underneath; kept for the
 	   synchronous response flow (deprecation known, ROADMAP step 22) */
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
@@ -1494,19 +1475,6 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 	GdkRGBA *color;
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
-
-#if defined(G_OS_WIN32)
-	/* the Windows colour dialog */
-	if (prefs.hex_gui_native_look)
-	{
-		if (win32_choose_color (gtkutil_window_hwnd (GTK_WINDOW (setup_window)), color))
-		{
-			color_change = TRUE;
-			setup_color_button_paint (button, color);
-		}
-		return;
-	}
-#endif
 
 	/* GtkColorDialog makes this same dialog but can't open it in the editor,
 	   which is how this always opened (deprecation known, ROADMAP step 22) */

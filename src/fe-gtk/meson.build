@@ -68,10 +68,8 @@ hexchat_gtk_ldflags = []
 if host_machine.system() == 'windows'
   hexchat_gtk_sources += ['notifications/notification-windows.c',
                           'notifications/notification-balloon.c']
-  # dark title bar, accent colour
+  # dark title bar
   hexchat_gtk_deps += cc.find_library('dwmapi')
-  # the font and colour dialogs
-  hexchat_gtk_deps += cc.find_library('comdlg32')
 
   # TODO: mingw doesn't have these headers or libs
   # add_languages('cpp')

@@ -18,8 +18,5 @@
 nx_item *win32_menu_track (nx_menu *menu, void *owner);
 /* popup menus go dark with the system's dark mode */
 void win32_menu_follow_dark_mode (void);
-/* the Windows font / colour dialogs (NULL / FALSE: cancelled) */
-char *win32_choose_font (void *owner, const char *font);
-gboolean win32_choose_color (void *owner, GdkRGBA *color);
 
 #endif
