@@ -131,6 +131,9 @@ hexchat_gtk = executable('nexchat',
   sources:  resources + hexchat_gtk_sources,
   dependencies: hexchat_gtk_deps,
   c_args: hexchat_gtk_cflags,
+  # the AppKit glue is written for ARC: without it the NSStatusItem is never
+  # retained, gets freed, and the first icon update crashes
+  objc_args: hexchat_gtk_cflags + ['-fobjc-arc'],
   link_args: hexchat_gtk_ldflags,
   pie: true,
   install: true,
