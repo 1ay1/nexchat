@@ -41,6 +41,8 @@ jobs:
       - name: GTK4 branches compile
         run: |
           todo="sexy-iso-codes.c tray-backend-statusicon.c chanview-tabs.c chanview-tree.c"
+          # windows/macos only: the msys2 and macos jobs build these
+          todo="$todo tray-backend-win32.c win32-menu.c"
           for p in src/fe-gtk/*.c; do
             f=$(basename $p)
             case " $todo " in *" $f "*) continue;; esac
