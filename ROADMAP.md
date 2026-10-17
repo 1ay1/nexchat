@@ -60,15 +60,15 @@ Rebrand surface: about 6400 matches for `hexchat`/`xchat` in 310 files. Most are
 
 You can't keep the UX the same if you haven't recorded what it is first.
 
-- [ ] Get the unchanged GTK2 build running. gtk2 isn't installed on this machine. Install it, or use the Flathub HexChat build (`io.github.Hexchat`) as the reference.
-- [ ] Make a **UX reference pack** in `docs/ux-reference/`:
+- [x] Get the unchanged GTK2 build running: built from `b544ac33` against a private GTK 2.24 (`tests/ux/build-gtk2-reference.sh`). On macOS, MacPorts' `hexchat` 2.16.2 (GTK2, X11) runs under Xvfb as a second reference.
+- [x] Make a **UX reference pack** in `docs/ux-reference/`:
   - a screenshot of every window, dialog, preferences page and menu (main menu, tab menu, user list menu, nick menu, URL menu, channel menu, tray menu), in both tab and tree mode, light and dark theme;
   - the default keybindings, dumped from `default_kb_cfg` in `fkeys.c`;
   - the full menu tree with its mnemonics and accelerators;
   - every pref in `vars[]` (`cfgfiles.c`) and the widget that edits it in `setup.c`.
-- [ ] Write a **parity checklist** from that pack. Each port step ticks items off it.
-- [ ] CI: keep the Ubuntu, MSYS2 and Flatpak builds green the whole way. Drop the MSVC `.vcxproj` files and build Windows with meson only, because GTK4 on Windows is built with meson/gvsbuild anyway.
-- [ ] Add a smoke test: start the client against a small fake IRC server (a Python script), connect, join, send and receive a message, quit. Run it once with `fe-text` and once with the GTK frontend under `xvfb`/`weston --headless`. There are no tests right now, so this is the safety net.
+- [x] Write a **parity checklist** from that pack (`docs/ux-reference/README.md`). Ticking it off, item by item, is the exit criterion of phase 4 and still open.
+- [~] CI: Ubuntu, MSYS2, macOS and Flatpak build GTK4. The MSVC `.vcxproj` files are still in `win32/` and go with phase 6's packaging.
+- [x] Smoke test: `tests/fake_ircd.py` + `smoke-text` (fe-text) and `smoke-gui` (GTK, under Xvfb, headless weston, sway, and natively on macOS with `NEXCHAT_SHOT`).
 
 ## Phase 1: rebrand (no toolkit changes)
 
@@ -201,9 +201,10 @@ Order matters: first make the GTK4 build trustworthy (tests and CI), then make i
 - [ ] Step 23, other platforms: run smoke-gui and the GUI tests under a headless Wayland compositor (weston `--backend=headless`, or mutter `--headless`) with tests that don't need XTest; build and smoke on Windows (MSYS2 GTK4) and macOS. Fill the section 9 table with what's actually different on each.
   - Wayland done, both builds. `tests/ux/with-weston.sh` runs a test under a private headless weston (own bus, memory gsettings, no portals, so the desktop's theme and fonts stay out); `with-sway.sh` does the same with sway. Under them run `wayland-smoke`, `wayland-gtkcompat`, `wayland-nxmenu`, `wayland-gtkdnd` (GTK3), `wayland-dbus-remote`, `wayland-sni` (GTK4) and `wayland-urgency`; CI installs weston and sway. Fixed on the way: GTK3 xtext added its PRIMARY targets before it had a GdkWindow (a critical on Wayland), and GtkStatusIcon is skipped on Wayland (it's XEmbed). Taskbar flashing on Wayland goes through xdg-activation (`wlactivate.c`): a token without a serial can't take focus, so the compositor marks the window urgent instead; it clears on focus. Window placement on Wayland can't be done (section 9). Windows and macOS still to do.
   - Windows done (GTK4), checked under wine. Real title bars (`GTK_CSD=0`); window move, saved position and placement through the HWND; `FlashWindowEx` urgency; native tray (`tray-backend-win32.c`, Shell_NotifyIcon with a real Win32 popup menu); notifications as tray balloons (toasts on 10/11) when the WinRT DLL isn't built; `--help` in a MessageBox. Native look (`platform-style.c`, `gui_native_look`): Windows 11 controls, menus and lists in CSS, the user's accent colour, light/dark from "app mode", the system UI font, dark title bar and rounded corners through DWM. Cross build on Linux: `tests/win/` (llvm-mingw + MSYS2 ucrt64 sysroot, `wine-shot.sh`). CI builds GTK3 and GTK4 on MSYS2 ucrt64.
-  - macOS written, not yet run on a Mac (a macos CI job builds it): global menu bar (the bar's model in `gtk_application_set_menubar`), Cmd as the shortcut key, Dock bounce for urgency, a menu bar icon (`tray-backend-macos.m`, NSStatusItem with an NSMenu), Aqua look following the system's dark mode and accent colour.
-- [ ] Step 24, switch: `-Dgtk=4` becomes the default once the parity checklist and all tests pass on GTK4. Keep `-Dgtk=3` for one release as the fallback, then delete the GTK3 branches and fold `gtkcompat.h`/`gtkevents.h`/`gtkdnd.h` into plain GTK4 calls.
-  - Linux/BSD and Windows done: `-Dgtk` is `auto` by default, which means 4 there and 3 on macOS until it's checked on a Mac. The meson summary prints which. The Ubuntu GTK3 CI job pins `-Dgtk=3`; Flatpak (GNOME 47, GTK 4.16) builds GTK4; MSYS2 builds both. Left: macOS, then one release with `-Dgtk=3` as the fallback, then dropping GTK3.
+  - macOS done, run on a Mac (Homebrew GTK 4.24, Apple Silicon, Retina). Global menu bar, Cmd as the shortcut key, Dock bounce for urgency, a menu bar icon (`tray-backend-macos.m`), Aqua look following the system's dark mode and accent colour. Fixed once it ran: the AppKit glue wasn't built with ARC, so the NSStatusItem was freed and the first focus change crashed; GTK's application menu and the bar's own "nexchat" menu were two menus of the same name (the bar's items now go into the application menu, whose About/Settings/Quit run ours); started from a terminal the app and its first window (main window or Network List) stayed behind it; in dark mode entries had black text on dark fields (GTK's own scheme now follows the system's). Checked natively, without X: `NEXCHAT_SHOT` (+ `NEXCHAT_SHOT_WIN` for dialogs), `NEXCHAT_NSMENU_DUMP` / `NEXCHAT_NSMENU_ACTIVATE` for the real menu bar, `NEXCHAT_WINDOWS_DUMP` for windows and focus; `tests/ux/mac-scene.sh` renders the reference scene.
+- [x] Step 24, switch. GTK4 is the only frontend on every platform (b446ea59): no `-Dgtk` option, no GTK3 fallback release. Every GTK3 branch was resolved to its GTK4 side, and the GTK3-only pieces (GtkStatusIcon tray, `tray-backend-none.c`, the GTK3 drag test and probes) removed. The build is gnu11, GLib 2.76, meson 0.59.
+  - Left: fold `gtkcompat.h`/`gtkevents.h`/`gtkdnd.h` into plain GTK4 calls. They no longer have a GTK3 side, so this is cleanup, not a behaviour change.
+- [x] Colours follow the system's light/dark mode by default: HexChat's palette in light mode, a matching dark one in dark mode, switched live; colours the user picked stay. `colors.conf` keeps only those.
 
 Tree views moved off GtkTreeView in phase 5.
 
@@ -221,16 +222,30 @@ After phase 4 it runs on GTK4, but it still uses GtkTreeView, which is deprecate
 ## Phase 6: release
 
 - [ ] Rebuild the Windows (MSVC `win32/*.sln`, Inno Setup installer) and macOS (`osx/`, gtk-mac-bundler) packaging for GTK4. Phase 1 left their HexChat names alone because those scripts get rewritten here anyway.
+  - macOS: a self-contained `nexchat.app` (GTK and its libraries inside, relocated), built by meson.
 - [ ] Packages: Flatpak, AUR (`nexchat-git` and a release package), Windows installer (meson + gvsbuild GTK4), and a macOS bundle if there's demand.
 - [ ] A migration note for HexChat users: config import, plugin compatibility, and the small differences that couldn't be avoided (from section 9).
 - [ ] Version: start at nexchat 3.0 so it's obviously after HexChat 2.16.
+
+## Phase 7: speed
+
+Startup is measured with `NEXCHAT_TIMING=1` (ms since the process was created, so library loading counts): config, GTK init, window creation, first frame, first idle. `tests/perf/tp-summary.py` summarises an Instruments time profile.
+
+On an M-series Mac (Homebrew GTK 4.24), first frame is ~430 ms and idle ~700 ms. A bare GTK4 window with one label takes ~290 ms to its first frame on the same machine, so most of it is GTK; nexchat's own config, lists and plugins take under 10 ms.
+
+- [x] Don't list every installed font to find Menlo/Consolas at startup (−47 ms).
+- [ ] macOS: GTK's GL renderer compiles its shaders on every start (~220 ms of samples, through Apple's deprecated OpenGL). The cairo renderer reached idle in ~450 ms instead of ~680 ms in measurements; check scrolling and resizing before making it the default there.
+- [ ] Build the main window in less than ~150 ms: defer what isn't visible in the first frame (user list contents, menus, popups).
+- [ ] Show the window first, load the rest after it (plugins, sounds, the server list).
 
 ## 9. Places where GTK4/Wayland fight the HexChat UX
 
 | HexChat behaviour | Problem | Plan |
 |---|---|---|
-| Tray icon (`plugin-tray.c`) | GtkStatusIcon is gone in GTK4 | Linux/BSD: done (step 21), our own StatusNotifierItem + dbusmenu over GDBus; same icons, blinking, tooltip and menu. Windows: done, `Shell_NotifyIcon` with a native popup menu. macOS: an NSStatusItem menu bar icon (not run yet). GTK3 on Wayland has no tray (GtkStatusIcon is XEmbed); same as an X11 desktop without one. |
-| Remembers where the window was | `gtk_window_move` is gone; Wayland doesn't allow it | X11: done (step 20), Xlib through `gdk_x11`, moves seen through ConfigureNotify. Windows: done, `SetWindowPos`/`GetWindowRect` on the HWND, placement kept in the monitor's work area. Wayland: not possible, the compositor decides. macOS: done (not run yet), through the NSWindow. Window size is still remembered everywhere. |
+| Tray icon (`plugin-tray.c`) | GtkStatusIcon is gone in GTK4 | Linux/BSD: done (step 21), our own StatusNotifierItem + dbusmenu over GDBus; same icons, blinking, tooltip and menu. Windows: done, `Shell_NotifyIcon` with a native popup menu. macOS: done, an NSStatusItem menu bar icon with an NSMenu. |
+| Remembers where the window was | `gtk_window_move` is gone; Wayland doesn't allow it | X11: done (step 20), Xlib through `gdk_x11`, moves seen through ConfigureNotify. Windows: done, `SetWindowPos`/`GetWindowRect` on the HWND, placement kept in the monitor's work area. Wayland: not possible, the compositor decides. macOS: done, through the NSWindow. Window size is still remembered everywhere. |
+| The HexChat menu | macOS's application menu always comes first, named after the app | The bar's "nexchat" menu goes into the application menu (as HexChat's gtk-mac-integration build did); its About, Settings and Quit run Help > About, Settings > Preferences and nexchat > Quit. |
+| Coming to the front at startup | macOS only activates an app opened through Launch Services | Started from a terminal, nexchat activates itself and presents its newest window. |
 | Taskbar flashing on highlight (urgency hint) | `gtk_window_set_urgency_hint` is gone | X11: done (step 20), `XSetWMHints`, cleared when the window is active again (needs a WM). Windows: done, `FlashWindowEx` until the window is activated. macOS: Dock bounce (`requestUserAttention`). Wayland: done (step 23), an xdg-activation request without a serial; the compositor marks the window urgent and clears it on focus (both builds). |
 | Menus look like menus | GTK4 menus are popovers | Done (step 17): CSS makes them square with a 1px border, GTK3 row height, real check/radio boxes; item icons shown next to labels; no arrow; at the pointer. The first Down selects the first item as in GTK3. Mnemonics kept. |
 | Button icons (OK, Cancel, Connect, ...) | GTK4 has no stock icons | Done (step 17): GTK3's own icons for these ship in our resources (GTK4 build only). |
