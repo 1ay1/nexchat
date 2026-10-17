@@ -629,6 +629,26 @@ fe_self_shot (gpointer data)
 	if (g_getenv ("NEXCHAT_NSMENU_DUMP"))
 		macos_dump_main_menu (g_getenv ("NEXCHAT_NSMENU_DUMP"));
 #endif
+	/* NEXCHAT_WINDOWS_DUMP=1: every toplevel on stderr, for "what is that
+	   window" questions */
+	if (g_getenv ("NEXCHAT_WINDOWS_DUMP"))
+	{
+		GListModel *tl = gtk_window_get_toplevels ();
+		guint i, n = g_list_model_get_n_items (tl);
+		for (i = 0; i < n; i++)
+		{
+			GtkWidget *w = g_list_model_get_item (tl, i);
+			GtkWidget *child = GTK_IS_WINDOW (w) ? gtk_window_get_child (GTK_WINDOW (w)) : NULL;
+			g_printerr ("window %u: %s title=\"%s\" visible=%d mapped=%d %dx%d child=%s%s\n", i,
+							G_OBJECT_TYPE_NAME (w),
+							GTK_IS_WINDOW (w) && gtk_window_get_title (GTK_WINDOW (w)) ? gtk_window_get_title (GTK_WINDOW (w)) : "",
+							gtk_widget_get_visible (w), gtk_widget_get_mapped (w),
+							gtk_widget_get_width (w), gtk_widget_get_height (w),
+							child ? G_OBJECT_TYPE_NAME (child) : "(none)",
+							w == (current_sess && current_sess->gui ? current_sess->gui->window : NULL) ? " [main]" : "");
+			g_object_unref (w);
+		}
+	}
 
 	/* NEXCHAT_SHOT_WIN=1: the newest other toplevel instead (the dialog
 	   NEXCHAT_MENU_ACTIVATE or -c opened), for checking dialogs natively */
