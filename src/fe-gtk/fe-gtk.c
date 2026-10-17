@@ -635,6 +635,9 @@ fe_self_shot (gpointer data)
 	{
 		GListModel *tl = gtk_window_get_toplevels ();
 		guint i, n = g_list_model_get_n_items (tl);
+#ifdef __APPLE__
+		macos_dump_focus ();
+#endif
 		for (i = 0; i < n; i++)
 		{
 			GtkWidget *w = g_list_model_get_item (tl, i);
@@ -714,6 +717,31 @@ fe_main (void)
 		g_timeout_add_seconds (secs, fe_self_shot, path);
 	}
 
+#ifdef __APPLE__
+	/* Started from a terminal (not through Launch Services) the app and every
+	   window it opened -- main window, Network List, or both -- would stay
+	   behind the terminal: become a regular app and take the front, so the
+	   last window opened (the Network List when it's shown) is key. Not
+	   with --minimize, which asks for the opposite. */
+	if (!arg_minimize)
+	{
+		GListModel *tl = gtk_window_get_toplevels ();
+		guint i, n = g_list_model_get_n_items (tl);
+		GtkWindow *front = NULL;
+
+		macos_activate ();
+		/* the list is newest first: the Network List over the main window */
+		for (i = 0; i < n && !front; i++)
+		{
+			GtkWidget *w = g_list_model_get_item (tl, i);
+			if (GTK_IS_WINDOW (w) && gtk_widget_get_visible (w))
+				front = GTK_WINDOW (w);
+			g_object_unref (w);
+		}
+		if (front)
+			gtk_window_present (front);
+	}
+#endif
 
 	nx_main ();
 
@@ -793,16 +821,6 @@ fe_idle (gpointer data)
 		nx_window_iconify (sess->gui->window);
 	else if (arg_minimize == 2)
 		tray_toggle_visibility (FALSE);
-#ifdef __APPLE__
-	else
-	{
-		/* started from a terminal, the app and its window would stay behind
-		   it; an .app opened from Finder/Dock is already in front */
-		macos_activate ();
-		if (gtk_widget_get_visible (sess->gui->window))
-			gtk_window_present (GTK_WINDOW (sess->gui->window));
-	}
-#endif
 
 	return 0;
 }

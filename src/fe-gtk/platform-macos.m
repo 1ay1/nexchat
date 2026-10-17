@@ -13,6 +13,7 @@
 
 #import <AppKit/AppKit.h>
 #include <string.h>
+#include <unistd.h>
 #include <glib.h>
 #include <gtk/gtk.h>
 
@@ -328,6 +329,17 @@ macos_activate_menu_path (const char *path)
 	}
 	g_strfreev (parts);
 	return ok;
+}
+
+/* tests: the frontmost app's pid and the title of our key window */
+void
+macos_dump_focus (void)
+{
+	NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+	NSWindow *key = [NSApp keyWindow];
+	g_printerr ("focus: front-app-pid=%d ours=%d key-window=\"%s\"\n",
+					(int) [front processIdentifier], (int) getpid (),
+					key ? [[key title] UTF8String] : "(none)");
 }
 
 static NSInteger attention_req;
