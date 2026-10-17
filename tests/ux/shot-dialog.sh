@@ -14,7 +14,7 @@ tmp=$(mktemp -d)
 app=; ircd=
 trap 'kill $app $xv $ircd 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-start_xvfb "$xvfb" "$disp"
+start_xvfb "$xvfb" "$disp" ${SHOT_SIZE:-1100 720}
 mkdir -p "$tmp/cfg"
 printf 'gui_slist_skip = 1\nirc_nick1 = shot\ngui_win_left = 0\ngui_win_top = 0\n%s\n' "$extra" > "$tmp/cfg/hexchat.conf"
 # SHOT_FILES=dir: more config files (notify.conf, ...) copied in
@@ -27,6 +27,8 @@ if [ -n "${SHOT_CONNECT:-}" ]; then
 	ircd=$!
 	i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 	url="irc://127.0.0.1:-$(cat "$tmp/port")/#nexchat"
+	# SHOT_CONNECT=nochan: no channel, so the "connection complete" dialog opens
+	[ "$SHOT_CONNECT" = nochan ] && url="irc://127.0.0.1:-$(cat "$tmp/port")"
 fi
 if [ -n "$cmd" ]; then
 	DISPLAY=$disp "$bin" -a -d "$tmp/cfg" -c "$cmd" $url >"$tmp/log" 2>&1 &

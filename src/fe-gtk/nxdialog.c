@@ -63,6 +63,11 @@ nx_dialog_init (NxDialog *d)
 	d->content = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
 	gtk_widget_set_vexpand (d->content, TRUE);
 	gtk_widget_add_css_class (d->content, "dialog-vbox");
+	/* GTK3 GtkDialog's content-area-border */
+	gtk_widget_set_margin_start (d->content, 2);
+	gtk_widget_set_margin_end (d->content, 2);
+	gtk_widget_set_margin_top (d->content, 2);
+	gtk_widget_set_margin_bottom (d->content, 2);
 	/* GTK3: buttons at the end, 6px apart, a 6px border round the row */
 	d->action = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
 	gtk_widget_set_halign (d->action, GTK_ALIGN_END);

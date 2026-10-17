@@ -501,6 +501,8 @@ fe_apply_css (void)
 		"button.nx-image-text label { padding: 0; }\n"
 		/* check/radio buttons: GTK3's 23px rows (GTK4 Adwaita pads them to 26) */
 		"checkbutton { padding: 2px 2px; min-height: 0; }\n"
+		/* GTK3: 3px from the edge to the box, 4px box to label */
+		"checkbutton > check, checkbutton > radio { margin-left: 3px; }\n"
 		/* a lone check box (no label, the alerts grid): GTK3 drew it 19px */
 		"checkbutton.nx-lone { padding: 1px 2px 0 2px; }\n"
 		/* nxlist views: GTK3 tree view look. GTK3 rows were the text plus the

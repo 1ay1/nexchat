@@ -10,7 +10,8 @@ mkdir -p "$out/g3" "$out/g4" "$out/files"
 printf 'alice\nbob\n' > "$out/files/notify.conf"
 printf 'mask = spam!*@*\ntype = 63\n\nmask = troll!*@*\ntype = 1\n\n' > "$out/files/ignore.conf"
 
-# name|menu path|connect (1/0)
+# name|menu path|connect (1/0, nochan: connected but no channel, which
+# opens the "connection complete" dialog)
 cat > "$out/cases" <<'EOF'
 main||1
 netlist|nexchat/Network List|0
@@ -36,13 +37,14 @@ urlgrab|Window/URL Grabber|1
 chanlist|Server/Channel List|1
 join|Server/Join a Channel…|1
 about|Help/About|0
+joindialog||nochan
 EOF
 
 n=0
 while IFS='|' read -r name item conn; do
 	[ -n "$name" ] || continue
 	n=$((n + 1))
-	c=; [ "$conn" = 1 ] && c=1
+	c=; [ "$conn" = 1 ] && c=1; [ "$conn" = nochan ] && c=nochan
 	SHOT_CONNECT=$c SHOT_WAIT=7 SHOT_FILES="$out/files" NEXCHAT_MENU_ACTIVATE="$item" \
 		SHOT_DISPLAY=":$((40 + 2 * n))" sh "$here/shot-dialog.sh" "$g3" "$out/g3/$name.png" "" "" \
 		>"$out/g3/$name.log" 2>&1 &
