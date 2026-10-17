@@ -540,6 +540,7 @@ static const setting general_settings[] =
 	{ST_TOGGLE,	N_("Display MODEs in raw form"), P_OFFINTNL(hex_irc_raw_modes), 0, 0, 0},
 	{ST_TOGGLE,	N_("WHOIS on notify"), P_OFFINTNL(hex_notify_whois_online), N_("Sends a /WHOIS when a user comes online in your notify list."), 0, 0},
 	{ST_TOGGLE,	N_("Hide join and part messages"), P_OFFINTNL(hex_irc_conf_mode), N_("Hide channel join/part messages by default."), 0, 0},
+	{ST_NUMBER,	N_("Only show joins and parts of people who spoke in the last:"), P_OFFINTNL(hex_irc_smart_filter), N_("Hide joins, parts and quits of everyone else. 0 shows them all."), (const char **)N_("minutes."), 1440},
 	{ST_TOGGLE,	N_("Hide nick change messages"), P_OFFINTNL(hex_irc_hide_nickchange), 0, 0, 0},
 
 	{ST_END, 0, 0, 0, 0, 0}

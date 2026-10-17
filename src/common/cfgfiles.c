@@ -585,6 +585,7 @@ const struct prefs vars[] =
 	{"irc_ban_type", P_OFFINT (hex_irc_ban_type), TYPE_INT},
 	{"irc_cap_server_time", P_OFFINT (hex_irc_cap_server_time), TYPE_BOOL},
 	{"irc_conf_mode", P_OFFINT (hex_irc_conf_mode), TYPE_BOOL},
+	{"irc_smart_filter", P_OFFINT (hex_irc_smart_filter), TYPE_INT},
 	{"irc_extra_hilight", P_OFFSET (hex_irc_extra_hilight), TYPE_STR},
 	{"irc_hide_nickchange", P_OFFINT (hex_irc_hide_nickchange), TYPE_BOOL},
 	{"irc_hide_version", P_OFFINT (hex_irc_hide_version), TYPE_BOOL},

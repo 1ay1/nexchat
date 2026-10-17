@@ -264,7 +264,7 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 Everyday use (already there: search bar, marker line, Alt+\` to the most active tab, last-spoke completion):
 - [ ] Quick switcher: Ctrl+K, type part of a channel or nick, Enter. A small classic window, not a modern overlay.
 - [ ] Unread counts on tabs and tree rows (`(3)` after the name), highlights counted apart.
-- [ ] Smart join/part filter: hide joins, parts and quits of people who haven't spoken in N minutes (`irc_conf_mode` today is all or nothing).
+- [x] Smart join/part filter: `irc_smart_filter` hides joins, parts and quits of people who haven't spoken in N minutes (off by default). `tests/smart-filter.sh`.
 - [ ] Search across all open buffers and in logs.
 - [ ] Jump to first unread.
 - [ ] Multi-line paste: confirm before sending more than N lines.

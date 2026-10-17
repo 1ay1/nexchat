@@ -42,6 +42,7 @@
 #include "outbound.h"
 #include "hexchatc.h"
 #include "text.h"
+#include "userlist.h"
 #include "typedef.h"
 #ifdef WIN32
 #include <windows.h>
@@ -2082,6 +2083,14 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 		/* implement ConfMode / Hide Join and Part Messages */
 		if (chanopt_is_set (prefs.hex_irc_conf_mode, sess->text_hidejoinpart))
 			return;
+		/* smart filter: only people who spoke in the last N minutes */
+		if (prefs.hex_irc_smart_filter && sess->type == SESS_CHANNEL)
+		{
+			struct User *u = index == XP_TE_JOIN ? NULL : userlist_find (sess, word[1]);
+			if (!u || !u->lasttalk ||
+				 time (NULL) - u->lasttalk > (time_t) prefs.hex_irc_smart_filter * 60)
+				return;
+		}
 		break;
 
 	/* ===Private message=== */
