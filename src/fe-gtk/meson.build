@@ -37,11 +37,11 @@ hexchat_gtk_sources = [
 if gtk_version == '4'
   gtk_dep = dependency('gtk4', version: '>= 4.14.0')
   # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
-  # desktops; Windows: Shell_NotifyIcon; macOS has no tray on GTK4 yet
+  # desktops; Windows: Shell_NotifyIcon; macOS: NSStatusItem
   if host_machine.system() == 'windows'
     hexchat_gtk_sources += 'tray-backend-win32.c'
   elif host_machine.system() == 'darwin'
-    hexchat_gtk_sources += ['tray-backend-none.c', 'platform-macos.m']
+    hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m']
     add_languages('objc', native: false)
   else
     hexchat_gtk_sources += 'tray-backend-sni.c'
