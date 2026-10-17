@@ -238,6 +238,42 @@ On an M-series Mac (Homebrew GTK 4.24), first frame is ~430 ms and idle ~700 ms.
 - [ ] Build the main window in less than ~150 ms: defer what isn't visible in the first frame (user list contents, menus, popups).
 - [ ] Show the window first, load the rest after it (plugins, sounds, the server list).
 
+## Phase 8: the best IRC client, with HexChat's soul
+
+Same window, menus, dialogs and classic look; one look on every platform, only light/dark from the system. What changes is what's underneath and what's missing next to WeeChat, irssi, Textual, Halloy and The Lounge. Every new behaviour gets a preference, and the default keeps HexChat's behaviour unless the old one is broken.
+
+Found by reading the code (Oct 2026), most important first in each group.
+
+Security, done (4cf8e986):
+- [x] DCC SEND from a nick like `../../evil` wrote outside `dcc_dir` with `dcc_save_nick` on, and file names starting with a dot were kept. Nick and name are now one safe path component. `tests/hostile-text.sh`.
+- [x] TLS 1.0/1.1 refused (RFC 8996).
+- [x] Message tags: `solanum.chat/identified` was inverted (`strcmp` without `!`, so any other tag set it), values weren't unescaped, value-less tags were skipped.
+
+Security, left:
+- [ ] DCC: refuse offers that point at private/loopback addresses from a public server, and check RESUME offsets against the size.
+- [ ] STS (`sts` cap): remember the TLS port per host and upgrade plain connections.
+- [ ] Strip bidi overrides (U+202A..U+202E, U+2066..U+2069) at the end of nicks and messages so they can't reverse the rest of the line.
+
+IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
+- [ ] `message-tags` + `batch`: the base for everything below. Tags are parsed but only `time`/`account` are kept, `message-tags` itself is never requested, and `BATCH` isn't handled.
+- [ ] `echo-message` + `labeled-response`: your own lines shown as the server saw them (and from your other clients on a bouncer).
+- [ ] `draft/chathistory` + `draft/read-marker` (soju, Ergo): scrollback on join, and the marker line in the same place on every device.
+- [ ] Skip `irc_who_join` on servers with `away-notify` + `extended-join` (the TODO in `cfgfiles.c`); big channel lists get kicked for it.
+- [ ] Later, behind preferences: `+typing`, `+draft/reply`, `draft/multiline`.
+
+Everyday use (already there: search bar, marker line, Alt+\` to the most active tab, last-spoke completion):
+- [ ] Quick switcher: Ctrl+K, type part of a channel or nick, Enter. A small classic window, not a modern overlay.
+- [ ] Unread counts on tabs and tree rows (`(3)` after the name), highlights counted apart.
+- [ ] Smart join/part filter: hide joins, parts and quits of people who haven't spoken in N minutes (`irc_conf_mode` today is all or nothing).
+- [ ] Search across all open buffers and in logs.
+- [ ] Jump to first unread.
+- [ ] Multi-line paste: confirm before sending more than N lines.
+- [ ] URL hover shows the full target before you click.
+
+Speed (phase 7 continues):
+- [ ] `find_channel`/`find_dialog` walk every session of every server per incoming line; a per-server hash.
+- [ ] xtext rewraps the whole scrollback on every width change; rewrap what's on screen first and the rest when idle.
+
 ## 9. Places where GTK4/Wayland fight the HexChat UX
 
 | HexChat behaviour | Problem | Plan |
