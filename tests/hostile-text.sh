@@ -26,9 +26,11 @@ pport=$(cat "$tmp/peerport")
 
 # 2130706433 = 127.0.0.1
 c=$(printf '\001')
+rlo=$(printf '\342\200\256')
 cat > "$tmp/script" <<EOF
 :../../evil!e@h PRIVMSG {nick} :${c}DCC SEND ../../../.escape 2130706433 $pport 5${c}
 @solanum.chat/identified;time=2026-01-01T00:00:00.000Z :bob!b@h PRIVMSG #t :tagged-hello
+:mal${rlo}!m@h PRIVMSG #t :bidi-tail
 EOF
 
 python3 "$here/fake_ircd.py" --log "$tmp/server.log" --portfile "$tmp/port" --script "$tmp/script" &
@@ -51,6 +53,10 @@ if [ -n "$outside" ]; then echo "FAIL: written outside the DCC dir: $outside"; f
 if ls -A "$tmp/dl/sub" | grep -q '^\.'; then echo "FAIL: dot file in the DCC dir"; fail=1; fi
 if ! ls "$tmp/dl/sub" | grep -q escape; then echo "FAIL: the file wasn't received at all"; fail=1; fi
 grep -q "tagged-hello" "$tmp/client.log" || { echo "FAIL: tagged message not shown"; fail=1; }
+# a nick ending in RIGHT-TO-LEFT OVERRIDE is wrapped in FSI..PDI, so it
+# can't reverse the message after it
+fsi=$(printf '\342\201\250'); pdi=$(printf '\342\201\251')
+grep -q "${fsi}mal${rlo}${pdi}.*bidi-tail" "$tmp/client.log" || { echo "FAIL: bidi nick not isolated"; grep -a bidi-tail "$tmp/client.log" | od -c | head; fail=1; }
 
 if [ $fail -ne 0 ]; then
 	echo "--- dl:"; ls -laR "$tmp/dl"

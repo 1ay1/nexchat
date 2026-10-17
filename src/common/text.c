@@ -1736,6 +1736,20 @@ load_text_events (void)
 */
 #define ARG_FLAG(argn) (1 << (argn))
 
+/* U+202A..U+202E (embeddings, overrides) or U+2066..U+2069 (isolates) */
+static gboolean
+has_bidi_controls (const char *s)
+{
+	for (; (s = strchr (s, '\xe2')); s++)
+	{
+		if ((unsigned char) s[1] == 0x80 && (unsigned char) s[2] >= 0xaa && (unsigned char) s[2] <= 0xae)
+			return TRUE;
+		if ((unsigned char) s[1] == 0x81 && (unsigned char) s[2] >= 0xa6 && (unsigned char) s[2] <= 0xa9)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 void
 format_event (session *sess, int index, char **args, char *o, gsize sizeofo, unsigned int stripcolor_args)
 {
@@ -1785,11 +1799,26 @@ format_event (session *sess, int index, char **args, char *o, gsize sizeofo, uns
 				printf ("arg[%d] is NULL in print event\n", a + 1);
 			} else
 			{
-				if (strlen (ar) > sizeofo - oi - 4)
-					ar[sizeofo - oi - 4] = 0;	/* Avoid buffer overflow */
+				/* an argument with bidi controls (a nick ending in U+202E
+				   RIGHT-TO-LEFT OVERRIDE) would reverse the rest of the line:
+				   wrap it in FSI..PDI so it can't reach past itself */
+				gboolean isolate = has_bidi_controls (ar);
+
+				if (strlen (ar) > sizeofo - oi - 10)
+					ar[sizeofo - oi - 10] = 0;	/* Avoid buffer overflow */
+				if (isolate)
+				{
+					memcpy (&o[oi], "\xe2\x81\xa8", 3);	/* U+2068 FSI */
+					oi += 3;
+				}
 				if (stripcolor_args & ARG_FLAG(a + 1)) len = strip_color2 (ar, -1, &o[oi], STRIP_ALL);
 				else len = strip_hidden_attribute (ar, &o[oi]);
 				oi += len;
+				if (isolate)
+				{
+					memcpy (&o[oi], "\xe2\x81\xa9", 3);	/* U+2069 PDI */
+					oi += 3;
+				}
 			}
 			break;
 		case 2:

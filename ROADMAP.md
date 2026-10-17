@@ -252,7 +252,7 @@ Security, done (4cf8e986):
 Security, left:
 - [ ] DCC: refuse offers that point at private/loopback addresses from a public server, and check RESUME offsets against the size.
 - [ ] STS (`sts` cap): remember the TLS port per host and upgrade plain connections.
-- [ ] Strip bidi overrides (U+202A..U+202E, U+2066..U+2069) at the end of nicks and messages so they can't reverse the rest of the line.
+- [x] Bidi: a nick, channel or other event argument with bidi controls (U+202A..U+202E, U+2066..U+2069) is wrapped in FSI..PDI, so `<mallory\u202e>` can't reverse the message after it. `tests/hostile-text.sh`.
 
 IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 - [ ] `message-tags` + `batch`: the base for everything below. Tags are parsed but only `time`/`account` are kept, `message-tags` itself is never requested, and `BATCH` isn't handled.
