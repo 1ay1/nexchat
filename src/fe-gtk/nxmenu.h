@@ -146,6 +146,10 @@ GActionGroup *nx_menu_get_actions (nx_menu *menu);
 /* the popover while the popup is up, else NULL; for tests */
 GtkWidget *nx_menu_get_popover (nx_menu *menu);
 void nx_menu_free (nx_menu *menu);
+#ifdef __APPLE__
+/* macOS: menu bars made after this go in the global menu bar of app */
+void nx_menu_use_global_menubar (GtkApplication *app);
+#endif
 #else
 /* GTK3 only, during the move: the widgets behind the handles */
 #define NX_MENU_WIDGET(m) ((GtkWidget *) (m))

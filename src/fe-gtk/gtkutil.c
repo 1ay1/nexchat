@@ -49,6 +49,9 @@
 #include <gdk/win32/gdkwin32.h>
 #include <windows.h>
 #endif
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#include "platform-macos.h"
+#endif
 
 #include "../common/hexchat.h"
 #include "../common/fe.h"
@@ -524,6 +527,11 @@ gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 	}
 #endif
 #if GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
+	/* the Dock icon bounces until nexchat is brought to the front */
+	macos_request_attention (urgent);
+	return;
+#endif
 #ifdef GDK_WINDOWING_WIN32
 	/* the taskbar button flashes until the window is activated */
 	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))

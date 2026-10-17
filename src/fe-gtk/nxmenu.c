@@ -19,6 +19,12 @@
 #include "nxmenu.h"
 #include "gtkcompat.h"
 
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+/* set: the bar goes in the macOS global menu bar (nx_menu_use_global_menubar) */
+static GtkApplication *macos_global_app;
+void nx_menu_bar_export_macos (nx_menu *m);
+#endif
+
 /* from gtkutil.c (not its header, which drags in the whole client) */
 const char *gtkutil_stock_icon_name (const char *stock_id);
 #if !GTK_CHECK_VERSION(4, 0, 0)
@@ -957,9 +963,94 @@ nx_menu_bar_get_widget (nx_menu *m)
 		/* the bar owns the menu: freed with it */
 		g_object_set_data_full (G_OBJECT (m->bar_widget), "nx-menu", m,
 										(GDestroyNotify) nx_menu_free);
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+		if (macos_global_app)
+			nx_menu_bar_export_macos (m);
+#endif
 	}
 	return m->bar_widget;
 }
+
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+/* macOS: the menu is the global one at the top of the screen, not a bar
+   in the window. GtkApplication shows a GMenuModel there and runs "app."
+   actions, so the bar's model goes in with its actions added to the app
+   (renamed nx.x -> app.x through a copy of the model). The in-window bar
+   is hidden. */
+void
+nx_menu_use_global_menubar (GtkApplication *app)
+{
+	macos_global_app = app;
+}
+
+static GMenuModel *
+macos_copy_model (GMenuModel *src)
+{
+	GMenu *dst = g_menu_new ();
+	int i, n = g_menu_model_get_n_items (src);
+
+	for (i = 0; i < n; i++)
+	{
+		GMenuItem *mi = g_menu_item_new_from_model (src, i);
+		GMenuModel *sub;
+		char *action = NULL;
+
+		if (g_menu_item_get_attribute (mi, G_MENU_ATTRIBUTE_ACTION, "s", &action) &&
+			 g_str_has_prefix (action, "nx."))
+		{
+			GVariant *target = g_menu_item_get_attribute_value (mi, G_MENU_ATTRIBUTE_TARGET, NULL);
+			char *app_action = g_strconcat ("app.", action + 3, NULL);
+			g_menu_item_set_action_and_target_value (mi, app_action, target);
+			g_free (app_action);
+			if (target)
+				g_variant_unref (target);
+		}
+		g_free (action);
+		if ((sub = g_menu_item_get_link (mi, G_MENU_LINK_SUBMENU)))
+		{
+			GMenuModel *c = macos_copy_model (sub);
+			g_menu_item_set_submenu (mi, c);
+			g_object_unref (c);
+			g_object_unref (sub);
+		}
+		if ((sub = g_menu_item_get_link (mi, G_MENU_LINK_SECTION)))
+		{
+			GMenuModel *c = macos_copy_model (sub);
+			g_menu_item_set_section (mi, c);
+			g_object_unref (c);
+			g_object_unref (sub);
+		}
+		g_menu_append_item (dst, mi);
+		g_object_unref (mi);
+	}
+	return G_MENU_MODEL (dst);
+}
+
+void
+nx_menu_bar_export_macos (nx_menu *m)
+{
+	GtkApplication *app = macos_global_app;
+	char **names;
+	int i;
+	GMenuModel *model;
+
+	if (!app)
+		return;
+	names = g_action_group_list_actions (G_ACTION_GROUP (m->actions));
+	for (i = 0; names && names[i]; i++)
+	{
+		GAction *a = g_action_map_lookup_action (G_ACTION_MAP (m->actions), names[i]);
+		if (a)
+			g_action_map_add_action (G_ACTION_MAP (app), a);
+	}
+	g_strfreev (names);
+	model = macos_copy_model (G_MENU_MODEL (m->model));
+	gtk_application_set_menubar (app, model);
+	g_object_unref (model);
+	gtk_widget_set_visible (m->bar_widget, FALSE);
+	g_object_set_data (G_OBJECT (m->bar_widget), "nx-macos-global", GINT_TO_POINTER (1));
+}
+#endif
 
 void
 nx_menu_set_accel_window (nx_menu *m, GtkWidget *window)

@@ -1,0 +1,36 @@
+name: macOS Build
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  macos_build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: brew install meson ninja pkg-config gtk4 openssl@3 gettext adwaita-icon-theme
+
+      - name: Configure
+        run: >-
+          meson setup build
+          -Dgtk=4
+          -Dtext-frontend=true
+          -Ddbus=disabled
+          -Dwith-upd=false
+          -Dwith-perl=false
+          -Dwith-python=false
+          -Dwith-lua=false
+          -Dplugin=false
+
+      - name: Build
+        run: ninja -C build
+
+      - name: Test
+        run: meson test -C build --print-errorlogs

@@ -20,6 +20,11 @@
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"
 #include "platform-style.h"
+#include "gtkcompat.h"
+#include "nxmenu.h"
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#include "platform-macos.h"
+#endif
 
 #ifdef G_OS_WIN32
 #include <windows.h>
@@ -105,6 +110,8 @@ platform_style_dark (void)
 {
 #ifdef G_OS_WIN32
 	return win32_apps_dark ();
+#elif defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+	return macos_is_dark ();
 #else
 	return FALSE;
 #endif
@@ -261,10 +268,12 @@ fluent_css (GString *s, gboolean dark, const GdkRGBA *accent)
 		"notebook > header > tabs > tab:checked { color: @nx_win_text; box-shadow: inset 0 -2px @nx_win_accent; }\n");
 }
 
-/* macOS (Aqua): system blue accent, 13pt UI font, rounded controls */
+/* macOS (Aqua): the user's accent, 13pt UI font, rounded controls */
 static void
 aqua_css (GString *s, gboolean dark)
 {
+	double r, g, b;
+
 	if (dark)
 		g_string_append (s,
 			"@define-color nx_mac_bg #323232;\n"
@@ -281,6 +290,13 @@ aqua_css (GString *s, gboolean dark)
 			"@define-color nx_mac_text #000000;\n"
 			"@define-color nx_mac_border rgba(0,0,0,0.15);\n"
 			"@define-color nx_mac_accent #007aff;\n");
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+	if (macos_accent (&r, &g, &b))
+		g_string_append_printf (s, "@define-color nx_mac_accent rgb(%d,%d,%d);\n",
+										(int) (r * 255), (int) (g * 255), (int) (b * 255));
+#else
+	(void) r; (void) g; (void) b;
+#endif
 	g_string_append (s,
 		"@define-color theme_bg_color @nx_mac_bg;\n"
 		"@define-color window_bg_color @nx_mac_bg;\n"
@@ -332,7 +348,7 @@ platform_style_css (GString *s)
 		g_free (font);
 	}
 #elif defined(__APPLE__)
-	aqua_css (s, FALSE);
+	aqua_css (s, platform_style_dark ());
 	g_string_append (s, "window { font-family: \".AppleSystemUIFont\", \"Helvetica Neue\"; font-size: 13px; }\n");
 #else
 	(void) fluent_css;
@@ -417,6 +433,11 @@ map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
 void
 platform_style_init (void)
 {
+#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+	/* the menu goes in the menu bar at the top of the screen */
+	if (prefs.hex_gui_native_look)
+		nx_menu_use_global_menubar (nx_app ());
+#endif
 #if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
 	g_type_class_unref (g_type_class_ref (GTK_TYPE_WINDOW));
 	g_signal_add_emission_hook (g_signal_lookup ("map", GTK_TYPE_WIDGET), 0, map_hook, NULL, NULL);

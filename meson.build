@@ -56,10 +56,10 @@ config_h.set('GTK_DISABLE_DEPRECATED', true)
 config_h.set('GDK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
-# GTK4 is the default; Windows and macOS stay on GTK3 until they're ported
+# GTK4 is the default; macOS stays on GTK3 until it's checked on a Mac
 gtk_version = get_option('gtk')
 if gtk_version == 'auto'
-  gtk_version = host_machine.system() in ['windows', 'darwin'] ? '3' : '4'
+  gtk_version = host_machine.system() == 'darwin' ? '3' : '4'
 endif
 
 # GTK4 needs GLib 2.76 itself (GTK 4.14), so its build may use what 2.76 has

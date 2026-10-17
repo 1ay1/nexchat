@@ -43,7 +43,9 @@
 #include "../common/text.h"
 #include "../common/plugin.h"
 #include "../common/typedef.h"
-#ifdef GDK_WINDOWING_QUARTZ
+#if defined(GDK_WINDOWING_MACOS) && GTK_CHECK_VERSION(4, 0, 0)
+#include <gdk/macos/gdkmacos.h>
+#elif defined(GDK_WINDOWING_QUARTZ)
 #include <gdk/gdkquartz.h>
 #endif
 #include "gtkutil.h"
@@ -290,7 +292,18 @@ key_free (gpointer data)
 GdkModifierType
 key_primary_modifier (void)
 {
-#ifdef GDK_WINDOWING_QUARTZ
+#if defined(GDK_WINDOWING_MACOS) && GTK_CHECK_VERSION(4, 0, 0)
+	static int is_macos = -1;
+
+	if (is_macos == -1)
+	{
+		GdkDisplay *display = gdk_display_get_default ();
+		if (!display)
+			return GDK_META_MASK;
+		is_macos = GDK_IS_MACOS_DISPLAY (display) ? 1 : 0;
+	}
+	return is_macos ? GDK_META_MASK : GDK_CONTROL_MASK;
+#elif defined(GDK_WINDOWING_QUARTZ)
 	static int is_quartz = -1;
 
 	if (is_quartz == -1)

@@ -41,7 +41,8 @@ if gtk_version == '4'
   if host_machine.system() == 'windows'
     hexchat_gtk_sources += 'tray-backend-win32.c'
   elif host_machine.system() == 'darwin'
-    hexchat_gtk_sources += 'tray-backend-none.c'
+    hexchat_gtk_sources += ['tray-backend-none.c', 'platform-macos.m']
+    add_languages('objc', native: false)
   else
     hexchat_gtk_sources += 'tray-backend-sni.c'
   endif
@@ -54,6 +55,9 @@ hexchat_gtk_deps = [
   libgmodule_dep, # used by libsexy
   gtk_dep
 ]
+if gtk_version == '4' and host_machine.system() == 'darwin'
+  hexchat_gtk_deps += dependency('appleframeworks', modules: ['AppKit'])
+endif
 
 # GTK2 exposed a single 'target'; GTK3 builds several backends, see 'targets'
 if gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
