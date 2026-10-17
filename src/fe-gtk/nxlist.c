@@ -166,6 +166,49 @@ store_sort_ptr_cb (gconstpointer a, gconstpointer b, gpointer data)
 
 static void row_resort (nx_row *r);
 
+/* where r goes in a sorted list l: after its equals */
+static guint
+sorted_pos (nx_store *s, GListStore *l, nx_row *r, guint lo)
+{
+	guint hi = g_list_model_get_n_items (G_LIST_MODEL (l)), mid;
+	nx_row *o;
+
+	while (lo < hi)
+	{
+		mid = (lo + hi) / 2;
+		o = g_list_model_get_item (G_LIST_MODEL (l), mid);
+		g_object_unref (o);
+		if (store_cmp (s, o, r) <= 0)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
+}
+
+/* put rows (owned refs) into the sorted top list: sort the batch, then
+   each goes straight to its place, one change each (was append + move,
+   two). Into an empty list it's one change for all. */
+static void
+sorted_merge (nx_store *s, GPtrArray *p)
+{
+	guint i, at = 0;
+
+	g_ptr_array_sort_with_data (p, store_sort_ptr_cb, s);
+	if (g_list_model_get_n_items (G_LIST_MODEL (s->top)) == 0)
+	{
+		g_list_store_splice (s->top, 0, 0, p->pdata, p->len);
+		return;
+	}
+	for (i = 0; i < p->len; i++)
+	{
+		/* the batch is sorted: the next one goes at or after the last */
+		at = sorted_pos (s, s->top, p->pdata[i], at);
+		g_list_store_insert (s->top, at, p->pdata[i]);
+		at++;
+	}
+}
+
 /* put queued rows into the list; still frozen (or still waiting for the
    idle) afterwards */
 static void
@@ -177,14 +220,7 @@ store_flush (nx_store *s)
 		return;
 	s->pending = g_ptr_array_new_with_free_func (g_object_unref);
 	if (s->sort_fn)
-	{
-		guint i;
-		for (i = 0; i < p->len; i++)
-		{
-			g_list_store_append (s->top, p->pdata[i]);
-			row_resort (p->pdata[i]);
-		}
-	}
+		sorted_merge (s, p);
 	else
 		g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
 									p->pdata, p->len);
@@ -292,20 +328,8 @@ nx_store_thaw (nx_store *s)
 	}
 	if (p->len)
 	{
-		/* sorted store: the batch goes in sorted, then merges */
 		if (s->sort_fn)
-		{
-			guint i;
-			g_ptr_array_sort_with_data (p, store_sort_ptr_cb, s);
-			if (g_list_model_get_n_items (G_LIST_MODEL (s->top)) == 0)
-				g_list_store_splice (s->top, 0, 0, p->pdata, p->len);
-			else
-				for (i = 0; i < p->len; i++)
-				{
-					g_list_store_append (s->top, p->pdata[i]);
-					row_resort (p->pdata[i]);
-				}
-		}
+			sorted_merge (s, p);
 		else
 			g_list_store_splice (s->top, g_list_model_get_n_items (G_LIST_MODEL (s->top)), 0,
 										p->pdata, p->len);

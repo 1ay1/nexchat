@@ -828,6 +828,12 @@ gtk_xtext_destroy (GtkWidget * object)
 	}
 
 #if GTK_CHECK_VERSION(4, 0, 0)
+	/* a right-click menu still open (or not freed yet) hangs off us */
+	{
+		GtkWidget *c;
+		while ((c = gtk_widget_get_first_child (GTK_WIDGET (xtext))))
+			gtk_widget_unparent (c);
+	}
 	if (G_OBJECT_CLASS (parent_class)->dispose)
 		(*G_OBJECT_CLASS (parent_class)->dispose) (object);
 #else

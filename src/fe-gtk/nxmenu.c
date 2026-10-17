@@ -173,7 +173,10 @@ nx_menu_free (nx_menu *m)
 	g_object_unref (m->model);
 	g_object_unref (m->actions);
 	if (m->popover)
+	{
+		g_object_remove_weak_pointer (G_OBJECT (m->popover), (gpointer *) &m->popover);
 		gtk_widget_unparent (m->popover);
+	}
 	if (m->shortcuts)
 		g_object_unref (m->shortcuts);
 	g_free (m);
@@ -895,6 +898,8 @@ G_GNUC_END_IGNORE_DEPRECATIONS
 	sync_models (m);
 	p = gtk_popover_menu_new_from_model_full (G_MENU_MODEL (m->model), GTK_POPOVER_MENU_NESTED);
 	m->popover = p;
+	/* it can go away with its parent first (window closed, menu open) */
+	g_object_add_weak_pointer (G_OBJECT (p), (gpointer *) &m->popover);
 	m->done = done;
 	m->done_data = done_data;
 	gtk_widget_insert_action_group (p, "nxp", G_ACTION_GROUP (m->actions));

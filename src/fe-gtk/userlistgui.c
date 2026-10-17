@@ -284,8 +284,12 @@ fe_userlist_insert (session *sess, struct User *newuser, gboolean sel)
 		pix = NULL;
 	}
 
-	/* sorted stores put it in its place; unsorted, at the top as before */
-	row = nx_store_prepend (sess->res->user_model, NULL);
+	/* sorted stores put it in its place; unsorted, at the top as before.
+	   Sorted: append, so a burst of joins (or a big NAMES) goes in as one
+	   sorted batch at the next idle instead of one view update each */
+	row = prefs.hex_gui_ulist_sort <= 3
+		? nx_store_append (sess->res->user_model, NULL)
+		: nx_store_prepend (sess->res->user_model, NULL);
 	nx_row_set (row,
 					COL_PIX, pix,
 					COL_NICK, nick,
