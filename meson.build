@@ -56,8 +56,14 @@ config_h.set('GTK_DISABLE_DEPRECATED', true)
 config_h.set('GDK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
+# GTK4 is the default; Windows and macOS stay on GTK3 until they're ported
+gtk_version = get_option('gtk')
+if gtk_version == 'auto'
+  gtk_version = host_machine.system() in ['windows', 'darwin'] ? '3' : '4'
+endif
+
 # GTK4 needs GLib 2.76 itself (GTK 4.14), so its build may use what 2.76 has
-if get_option('gtk') == '4'
+if gtk_version == '4'
   config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_76')
   config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_76')
 else
@@ -194,6 +200,7 @@ if meson.version().version_compare('>= 0.53.0')
   }, section: 'Directories')
 
   summary({
+    'GTK': get_option('gtk-frontend') ? gtk_version : 'none',
     'TLS (openssl)': libssl_dep.found(),
     'Plugin Support': get_option('plugin'),
     'DBus Support': use_dbus,

@@ -33,7 +33,7 @@ hexchat_gtk_sources = [
   'xtext.c'
 ]
 
-if get_option('gtk') == '4'
+if gtk_version == '4'
   gtk_dep = dependency('gtk4', version: '>= 4.14.0')
   # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
   # desktops; Windows/macOS have no tray on GTK4 yet
@@ -61,7 +61,7 @@ hexchat_gtk_cflags = []
 # phase 5: no deprecated GTK4 API either; the few kept on purpose (X11
 # getters, the font/colour chooser dialogs) sit behind
 # G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-if get_option('gtk') == '4'
+if gtk_version == '4'
   hexchat_gtk_cflags += cc.get_supported_arguments('-Werror=deprecated-declarations')
 endif
 
@@ -154,7 +154,7 @@ endif
 
 # gtkdnd.c must set up the same drag targets the old code did (GTK3 only)
 gtkdnd_test = disabler ()
-if get_option('gtk') == '3'
+if gtk_version == '3'
 gtkdnd_test = executable('gtkdnd-test',
   sources: ['../../tests/gtkdnd-test.c', 'gtkdnd.c'],
   include_directories: include_directories('.'),
@@ -205,7 +205,7 @@ if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contain
     env: wl_env, timeout: 60)
   test('wayland-gtkcompat', find_program('sh'),
     args: [wl_with, gtkcompat_test], env: wl_env, timeout: 60)
-  if get_option('gtk') == '3'
+  if gtk_version == '3'
     test('wayland-gtkdnd', find_program('sh'),
       args: [wl_with, gtkdnd_test], env: wl_env, timeout: 60)
   endif
@@ -217,7 +217,7 @@ if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contain
     test('wayland-dbus-remote', find_program('sh'),
       args: [wl_with, sh, files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
       env: wl_env, timeout: 90)
-    if get_option('gtk') == '4'
+    if gtk_version == '4'
       test('wayland-sni', find_program('sh'),
         args: [wl_with, sh, files('../../tests/sni.sh'), hexchat_gtk],
         # no seat: a focused window doesn't blink the tray
@@ -247,7 +247,7 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     test('dbus-remote', find_program('sh'),
       args: [files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
       env: gui_env + ['DISP=:89'], timeout: 90)
-    if get_option('gtk') == '4'
+    if gtk_version == '4'
       test('gui-sni', find_program('sh'),
         args: [files('../../tests/sni.sh'), hexchat_gtk],
         env: gui_env + ['DISP=:72'], timeout: 60)
