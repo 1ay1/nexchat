@@ -215,6 +215,10 @@ weston = find_program('weston', required: false)
 if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland')
   sh = find_program('sh').full_path()
   wl_env = ['WESTON=' + weston.full_path(), 'G_DEBUG=fatal-criticals']
+  if gtk_version == '3'
+    # GTK3 asserts without a seat: skip on westons that can't fake one
+    wl_env += 'NX_NEEDS_SEAT=1'
+  endif
   wl_with = files('../../tests/ux/with-weston.sh')
   test('wayland-smoke', find_program('sh'),
     args: [wl_with, sh, files('../../tests/smoke-gui.sh'), hexchat_gtk],
