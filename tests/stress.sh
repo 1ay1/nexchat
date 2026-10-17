@@ -39,10 +39,37 @@ x() { DISPLAY=$disp python3 "$here/ux/xkey.py" --delay 0.05 --at 450,580 "$@" 2>
 
 # random UI actions until the flood is over. Coordinates: channel tree at
 # x 60, chat 200-700 x 80-520, user list x 840, input box y 580.
+# Halfway through, measure input latency: Enter on a typed line until the
+# PRIVMSG reaches the server.
 end=$(( $(date +%s) + secs ))
+half=$(( $(date +%s) + secs / 2 ))
+probed=
 n=0
 while [ "$(date +%s)" -lt "$end" ]; do
 	kill -0 "$app" 2>/dev/null || break
+	if [ -z "$probed" ] && [ "$(date +%s)" -ge "$half" ]; then
+		probed=1
+		# close a menu the last random action may have left open, then /msg:
+		# always goes out, whatever channel the flood just kicked us from
+		x Escape Escape
+		x --click 450,580
+		x --type "/msg probe latency-probe"
+		t0=$(date +%s.%N)
+		x Return
+		i=0; while ! [ -s "$tmp/sent.probe" ] && [ $i -lt 300 ]; do sleep 0.05; i=$((i+1)); done
+		if [ -s "$tmp/sent.probe" ]; then
+			t1=$(head -1 "$tmp/sent.probe" | cut -d' ' -f1)
+			# xkey.py waits 0.5s for focus before pressing Return
+			lat=$(awk -v a="$t0" -v b="$t1" 'BEGIN { v = (b - a - 0.5) * 1000; printf "%d", v < 0 ? 0 : v }')
+			echo "info: Enter -> server under flood: ${lat}ms"
+			if [ "$lat" -gt "${MAX_LAT:-500}" ]; then
+				echo "FAIL: input lags more than ${MAX_LAT:-500}ms under the flood"; lagfail=1
+			fi
+		else
+			echo "FAIL: typed line never reached the server (15s)"; lagfail=1
+		fi
+		continue
+	fi
 	n=$((n + 1))
 	r=$(awk -v s="$n" 'BEGIN { srand(s * 7919); print int(rand() * 14) }')
 	y=$(awk -v s="$n" 'BEGIN { srand(s * 104729); print 80 + int(rand() * 440) }')
@@ -65,9 +92,10 @@ done
 
 alive=1
 kill -0 "$app" 2>/dev/null || alive=0
-fail=0
+fail=${lagfail:-0}
 if [ $alive = 1 ]; then
 	echo "ok:   alive after $n UI actions under $(cat "$tmp/sent" 2>/dev/null || echo '?') lines flood"
+	echo "info: memory (RSS) at the end: $(( $(awk '/VmRSS/ {print $2}' /proc/$app/status 2>/dev/null || echo 0) / 1024 ))MB"
 	if [ -n "${SHOT:-}" ]; then
 		DISPLAY=$disp "$xwd" -root -silent -out "$tmp/s.xwd" && python3 "$here/ux/xwd2png.py" "$tmp/s.xwd" "$SHOT"
 	fi

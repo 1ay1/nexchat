@@ -645,8 +645,18 @@ nx_row_swap (nx_row *a, nx_row *b)
 void
 nx_row_remove (nx_row *r)
 {
-	int i = nx_row_index (r);
+	int i;
 
+	/* still queued (joined and gone before the idle): just drop it. The
+	   array holds the only ref, so mark it first */
+	if (!r->parent_row && r->store->pending && !r->removed &&
+		 g_ptr_array_find (r->store->pending, r, NULL))
+	{
+		r->removed = TRUE;
+		g_ptr_array_remove (r->store->pending, r);
+		return;
+	}
+	i = nx_row_index (r);
 	if (i < 0)
 		return;
 	r->removed = TRUE;
@@ -676,7 +686,19 @@ find_pointer (GListStore *l, int col, gconstpointer ptr)
 nx_row *
 nx_store_find_pointer (nx_store *s, int col, gconstpointer ptr)
 {
-	return find_pointer (siblings (s, NULL), col, ptr);
+	/* look in the queued rows too, without putting them in: a burst of
+	   joins and parts stays one batch */
+	if (s->pending)
+	{
+		guint i;
+		for (i = 0; i < s->pending->len; i++)
+		{
+			nx_row *r = s->pending->pdata[i];
+			if (nx_row_get_pointer (r, col) == ptr)
+				return r;
+		}
+	}
+	return find_pointer (s->top, col, ptr);
 }
 
 /* ---- views ---- */
@@ -1914,8 +1936,13 @@ gboolean
 nx_view_is_selected (GtkWidget *view, nx_row *row)
 {
 	view_priv *p = vp (view);
-	guint pos = row_pos (p, row);
+	guint pos;
 
+	/* still queued: not shown yet, so not selected */
+	if (row->removed || (!row->parent_row && row->store->pending &&
+								 g_ptr_array_find (row->store->pending, row, NULL)))
+		return FALSE;
+	pos = row_pos (p, row);
 	return pos != G_MAXUINT && gtk_selection_model_is_selected (p->sel, pos);
 }
 

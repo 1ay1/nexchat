@@ -194,7 +194,11 @@ def drain():
         pass
     while b"\n" in buf:
         raw, buf = buf.split(b"\n", 1)
-        parts = raw.decode(errors="replace").rstrip("\r").split(" ")
+        line = raw.decode(errors="replace").rstrip("\r")
+        parts = line.split(" ")
+        if parts[0].upper() == "PRIVMSG" and "latency-probe" in line:
+            with open(a.log + ".probe", "a") as f:
+                f.write(f"{time.time():.3f} {line}\n")
         if parts[0].upper() == "PING":
             send_blocking(f":fake PONG fake {parts[1] if len(parts) > 1 else ''}")
         elif parts[0].upper() == "QUIT":
