@@ -178,8 +178,12 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
 endif
 
 # nxmenu.c: the same menu semantics on GTK3 (GtkMenu) and GTK4 (GMenu)
+nxmenu_test_sources = ['../../tests/nxmenu-test.c', 'nxmenu.c']
+if gtk_version == '4' and host_machine.system() == 'windows'
+  nxmenu_test_sources += 'win32-menu.c'
+endif
 nxmenu_test = executable('nxmenu-test',
-  sources: ['../../tests/nxmenu-test.c', 'nxmenu.c'],
+  sources: nxmenu_test_sources,
   include_directories: include_directories('.'),
   dependencies: gtk_dep,
 )

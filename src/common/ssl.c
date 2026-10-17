@@ -354,7 +354,10 @@ _SSL_close (SSL * ssl)
 	ERR_remove_thread_state (NULL);
 #endif
 #else
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	/* gone in OpenSSL 4; 1.1+ cleans up by itself */
 	ERR_remove_state (0);
+#endif
 #endif
 }
 

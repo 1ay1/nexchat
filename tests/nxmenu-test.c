@@ -311,6 +311,13 @@ main (int argc, char **argv)
 
 		gtk_window_set_child (GTK_WINDOW (win), anchor);
 		gtk_window_present (GTK_WINDOW (win));
+		/* a popover on an unmapped window asks GDK for a monitor it hasn't
+		   got yet (a critical on slower machines) */
+		{
+			gint64 until = g_get_monotonic_time () + 5 * G_USEC_PER_SEC;
+			while (!gtk_widget_get_mapped (win) && g_get_monotonic_time () < until)
+				g_main_context_iteration (NULL, TRUE);
+		}
 		nx_menu_add_item (pm, NX_MENU_APPEND, "top", 0, NULL, cb, "t");
 		ps = nx_menu_add_submenu (pm, NX_MENU_APPEND, "some_nick", 0, NULL);
 		nx_menu_add_item (ps, NX_MENU_APPEND, "info", 0, NULL, cb, "i");
