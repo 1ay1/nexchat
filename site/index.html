@@ -3,181 +3,374 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nexchat — HexChat, continued</title>
-<meta name="description" content="nexchat is an IRC client for Linux, BSD, Windows and macOS: HexChat, continued on GTK4. Same layout, menus and keybindings; your config and scripts keep working.">
-<meta name="color-scheme" content="light dark">
+<title>nexchat — the IRC client</title>
+<meta name="description" content="nexchat is an IRC client for Linux, BSD, Windows and macOS. The HexChat layout, menus and keybindings on GTK4; your config, plugins and scripts carry over.">
+<meta name="color-scheme" content="dark light">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta property="og:title" content="nexchat — HexChat, continued">
-<meta property="og:description" content="An IRC client for Linux, BSD, Windows and macOS. HexChat, moved onto GTK4.">
+<meta property="og:title" content="nexchat — the IRC client">
+<meta property="og:description" content="The HexChat you know, on GTK4. Linux, BSD, Windows and macOS.">
 <meta property="og:image" content="https://1ay1.github.io/nexchat/nexchat-dark.png">
 <meta property="og:url" content="https://1ay1.github.io/nexchat/">
 <meta name="twitter:card" content="summary_large_image">
 <style>
+  /* dark first: IRC lives at night. The palette is nexchat's own dark
+     palette (Tango tones), so the page and the screenshot match. */
   :root {
-    --bg: #fafaf8; --fg: #25292b; --muted: #5d6366; --line: #e2e2dd;
-    --card: #ffffff; --accent: #2a5d9a; --accent-fg: #ffffff; --code: #f0f0ec;
+    --bg: #0e0f10;
+    --bg-2: #141517;
+    --panel: #18191b;
+    --line: #26282b;
+    --line-2: #34373b;
+    --fg: #e8e8e6;
+    --fg-2: #b4b7b9;
+    --fg-3: #7d8184;
+    --blue: #729fcf;
+    --green: #8ae234;
+    --orange: #fcaf3e;
+    --pink: #e07bb0;
+    --aqua: #34e2e2;
+    --sel: #2a5d9a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
+  @media (prefers-color-scheme: light) {
     :root {
-      --bg: #161718; --fg: #e4e4e2; --muted: #a2a6a8; --line: #2c2e30;
-      --card: #1e1f21; --accent: #729fcf; --accent-fg: #101112; --code: #24262a;
+      --bg: #fbfbfa; --bg-2: #f3f3f1; --panel: #ffffff;
+      --line: #e6e6e3; --line-2: #d6d6d2;
+      --fg: #16181a; --fg-2: #464b4f; --fg-3: #7a7f83;
+      --blue: #2a5d9a; --green: #3f7d06; --orange: #b85c00; --pink: #a23a76; --aqua: #0e7c7b;
+      --sel: #2a5d9a;
     }
   }
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
     margin: 0; background: var(--bg); color: var(--fg);
-    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Cantarell, "Noto Sans", sans-serif;
+    font: 16px/1.65 var(--sans);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
-  a { color: var(--accent); }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-  header { padding: 28px 0 0; }
-  nav { display: flex; align-items: center; gap: 22px; font-size: 15px; }
-  nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--fg); text-decoration: none; margin-right: auto; }
-  nav .brand img { width: 30px; height: 30px; }
-  nav a:not(.brand) { color: var(--muted); text-decoration: none; }
-  nav a:not(.brand):hover { color: var(--fg); }
+  a { color: inherit; }
+  ::selection { background: var(--sel); color: #fff; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  .mono { font-family: var(--mono); }
 
-  .hero { text-align: center; padding: 64px 0 36px; }
-  .hero h1 { font-size: clamp(34px, 5.4vw, 56px); line-height: 1.1; margin: 0 0 18px; letter-spacing: -0.02em; }
-  .hero p { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto 30px; }
-  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  /* ---- top bar ---- */
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: saturate(140%) blur(12px); -webkit-backdrop-filter: saturate(140%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar .wrap { display: flex; align-items: center; height: 60px; gap: 28px; }
+  .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 650; font-size: 17px; letter-spacing: -0.01em; }
+  .logo img { width: 24px; height: 24px; }
+  .bar nav { display: flex; gap: 26px; margin-left: auto; font-size: 14px; }
+  .bar nav a { color: var(--fg-2); text-decoration: none; }
+  .bar nav a:hover { color: var(--fg); }
+  .bar .gh {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 14px; text-decoration: none;
+    border: 1px solid var(--line-2); border-radius: 7px; padding: 6px 12px; color: var(--fg);
+  }
+  .bar .gh:hover { border-color: var(--fg-3); }
+  .gh svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* ---- hero ---- */
+  .hero { padding: 96px 0 0; position: relative; overflow: hidden; }
+  .hero::before {
+    /* a faint grid, like a terminal's cell lattice */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
+    opacity: .55;
+  }
+  .hero .wrap { position: relative; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 10px;
+    font: 500 13px/1 var(--mono); color: var(--fg-2);
+    border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 14px 7px 10px;
+    background: var(--bg-2);
+  }
+  .kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+  .hero h1 {
+    font-size: clamp(42px, 7vw, 84px); line-height: 1.02; letter-spacing: -0.035em;
+    font-weight: 700; margin: 26px 0 22px; max-width: 900px;
+  }
+  .hero h1 .soft { color: var(--fg-3); }
+  .hero p.sub { font-size: clamp(17px, 1.6vw, 20px); color: var(--fg-2); max-width: 620px; margin: 0 0 36px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .btn {
-    display: inline-block; padding: 11px 22px; border-radius: 8px; font-weight: 600;
-    text-decoration: none; border: 1px solid var(--line); color: var(--fg); background: var(--card);
+    display: inline-flex; align-items: center; gap: 9px; height: 44px; padding: 0 20px;
+    border-radius: 8px; font-weight: 600; font-size: 15px; text-decoration: none;
+    border: 1px solid var(--line-2); color: var(--fg); background: var(--bg-2);
+    transition: border-color .15s, background .15s;
   }
-  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-
-  .shot { margin: 40px auto 0; }
-  .shot img {
-    display: block; width: 100%; height: auto; border-radius: 10px;
-    border: 1px solid var(--line);
-    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 18px 50px rgba(0,0,0,.14);
+  .btn:hover { border-color: var(--fg-3); }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .btn.primary:hover { background: color-mix(in srgb, var(--fg) 88%, var(--bg)); }
+  .cmd {
+    font: 14px/1 var(--mono); color: var(--fg-2); display: inline-flex; align-items: center; gap: 10px;
+    height: 44px; padding: 0 16px; border: 1px dashed var(--line-2); border-radius: 8px;
   }
+  .cmd b { color: var(--green); font-weight: 500; }
 
-  section { padding: 64px 0 8px; }
-  section h2 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.01em; }
-  section > .wrap > p.lead { color: var(--muted); margin: 0 0 28px; max-width: 700px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; }
-  .card h3 { margin: 0 0 6px; font-size: 18px; }
-  .card p { margin: 0; color: var(--muted); font-size: 16px; }
+  /* the app, in a window frame */
+  .stage { margin-top: 64px; position: relative; }
+  .stage::after {
+    /* glow under the window, in the nick colours */
+    content: ""; position: absolute; left: 8%; right: 8%; bottom: -40px; height: 120px; z-index: -1;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--blue) 35%, transparent), transparent);
+    filter: blur(30px); opacity: .7;
+  }
+  .window {
+    border-radius: 12px; overflow: hidden; background: var(--panel);
+    border: 1px solid var(--line-2);
+    box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 30px 80px -20px rgba(0,0,0,.6), 0 12px 24px -12px rgba(0,0,0,.4);
+  }
+  .titlebar {
+    height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+    background: var(--bg-2); border-bottom: 1px solid var(--line);
+  }
+  .titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .titlebar i:nth-child(1) { background: #ff5f57; } .titlebar i:nth-child(2) { background: #febc2e; } .titlebar i:nth-child(3) { background: #28c840; }
+  .titlebar span { margin: 0 auto; transform: translateX(-26px); font: 12.5px var(--sans); color: var(--fg-3); }
+  .window img { display: block; width: 100%; height: auto; }
 
-  pre, code { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 14.5px; }
-  code { background: var(--code); padding: 1px 6px; border-radius: 4px; }
-  pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; overflow-x: auto; line-height: 1.5; margin: 0; }
-  pre code { background: none; padding: 0; }
-  .platforms { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-  .platforms h3 { margin: 0 0 10px; font-size: 17px; }
+  /* ---- sections ---- */
+  section { padding: 128px 0 0; }
+  .eyebrow { font: 500 13px/1 var(--mono); color: var(--blue); letter-spacing: .02em; margin-bottom: 18px; }
+  .eyebrow::before { content: "# "; color: var(--fg-3); }
+  h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.1; letter-spacing: -0.025em; margin: 0 0 18px; font-weight: 700; max-width: 760px; }
+  .lead { color: var(--fg-2); font-size: 18px; max-width: 640px; margin: 0; }
 
-  ul.check { list-style: none; padding: 0; margin: 0; }
-  ul.check li { padding: 7px 0 7px 30px; position: relative; border-bottom: 1px solid var(--line); }
-  ul.check li:last-child { border-bottom: none; }
-  ul.check li::before { content: "✓"; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+  /* features: a two-column list with hairlines, not cards */
+  .features { margin-top: 56px; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+  .feature { padding: 30px 30px 34px 0; border-bottom: 1px solid var(--line); }
+  .feature + .feature { padding-left: 30px; border-left: 1px solid var(--line); }
+  .feature:nth-child(3n+1) { padding-left: 0; border-left: none; }
+  .feature .tag { font: 12.5px var(--mono); color: var(--fg-3); }
+  .feature h3 { font-size: 18px; margin: 10px 0 8px; letter-spacing: -0.01em; }
+  .feature p { margin: 0; color: var(--fg-2); font-size: 15px; }
 
-  footer { padding: 72px 0 48px; color: var(--muted); font-size: 14px; }
-  footer .wrap { border-top: 1px solid var(--line); padding-top: 24px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  /* migration: a fake chat log */
+  .split { display: grid; grid-template-columns: 1fr 1.15fr; gap: 64px; align-items: center; }
+  .log {
+    font: 14px/1.75 var(--mono); background: var(--panel); border: 1px solid var(--line-2);
+    border-radius: 12px; padding: 22px 24px; overflow-x: auto;
+  }
+  .log .row { display: grid; grid-template-columns: 52px 90px 1fr; gap: 12px; white-space: nowrap; }
+  .log .t { color: var(--fg-3); }
+  .log .n { text-align: right; }
+  .log .m { color: var(--fg); white-space: normal; }
+  .log .ev { color: var(--fg-3); }
+  .c1 { color: var(--blue); } .c2 { color: var(--green); } .c3 { color: var(--orange); } .c4 { color: var(--pink); } .c5 { color: var(--aqua); }
+  .log .sep { border-left: 1px solid var(--line-2); }
+  ul.points { list-style: none; padding: 0; margin: 28px 0 0; }
+  ul.points li { padding: 14px 0; border-top: 1px solid var(--line); color: var(--fg-2); display: grid; grid-template-columns: 26px 1fr; }
+  ul.points li:last-child { border-bottom: 1px solid var(--line); }
+  ul.points li::before { content: "→"; color: var(--blue); font-family: var(--mono); }
+  code { font: 13.5px var(--mono); background: var(--bg-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; color: var(--fg); }
 
+  /* install: tabs without JS (radio + labels) */
+  .install { margin-top: 48px; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; background: var(--panel); }
+  .install input { position: absolute; opacity: 0; pointer-events: none; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+  .tabs label { padding: 13px 20px; font: 500 14px var(--sans); color: var(--fg-3); cursor: pointer; border-right: 1px solid var(--line); }
+  .tabs label:hover { color: var(--fg); }
+  .pane { display: none; padding: 26px 28px; }
+  #t-linux:checked ~ .tabs label[for=t-linux],
+  #t-mac:checked ~ .tabs label[for=t-mac],
+  #t-win:checked ~ .tabs label[for=t-win] { color: var(--fg); background: var(--panel); box-shadow: inset 0 -2px 0 var(--blue); }
+  #t-linux:checked ~ .p-linux, #t-mac:checked ~ .p-mac, #t-win:checked ~ .p-win { display: block; }
+  pre { margin: 0; font: 14px/1.85 var(--mono); color: var(--fg); overflow-x: auto; }
+  pre .p { color: var(--fg-3); user-select: none; }
+  pre .k { color: var(--green); }
+  .pane .note { margin: 18px 0 0; color: var(--fg-3); font-size: 14px; }
+  .pane .note a { color: var(--fg-2); }
+
+  .status { margin-top: 18px; color: var(--fg-3); font-size: 14px; }
+  .status a { color: var(--fg-2); }
+
+  /* closing */
+  .closing { padding: 140px 0 0; text-align: center; }
+  .closing h2 { margin: 0 auto 26px; }
+  .closing .cta { justify-content: center; }
+
+  footer { margin-top: 140px; border-top: 1px solid var(--line); padding: 34px 0 48px; color: var(--fg-3); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; }
+  footer a { color: var(--fg-2); text-decoration: none; }
+  footer a:hover { color: var(--fg); }
+  footer .links { display: flex; gap: 22px; }
+
+  @media (max-width: 900px) {
+    .features { grid-template-columns: 1fr; }
+    .feature, .feature + .feature { padding: 26px 0; border-left: none; }
+    .split { grid-template-columns: 1fr; gap: 40px; }
+  }
   @media (max-width: 640px) {
-    body { font-size: 16px; }
-    nav a.sect { display: none; }
-    .hero { padding: 40px 0 24px; }
-    .hero p { font-size: 17px; }
-    section { padding: 44px 0 4px; }
-    pre, code { font-size: 13px; }
+    .wrap { padding: 0 20px; }
+    .bar nav { display: none; }
+    .bar .gh { margin-left: auto; }
+    .hero { padding-top: 64px; }
+    .kicker { font-size: 11.5px; padding: 6px 12px 6px 9px; border-radius: 8px; line-height: 1.4; }
+    .cmd { display: none; }
+    .titlebar span { display: none; }
+    section { padding-top: 96px; }
+    .log { font-size: 12.5px; padding: 16px; }
+    .log .row { grid-template-columns: 42px 64px 1fr; gap: 8px; }
+    .pane { padding: 20px; }
+    pre { font-size: 12.5px; }
   }
 </style>
 </head>
 <body>
 
-<header>
-  <nav class="wrap">
-    <a class="brand" href="./"><img src="icon.svg" alt="">nexchat</a>
-    <a class="sect" href="#features">Features</a>
-    <a class="sect" href="#hexchat">From HexChat</a>
-    <a class="sect" href="#get">Get it</a>
-    <a href="https://github.com/1ay1/nexchat">GitHub</a>
-  </nav>
+<div class="bar">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="icon.svg" alt="">nexchat</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#hexchat">From HexChat</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a>
+    </nav>
+    <a class="gh" href="https://github.com/1ay1/nexchat">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker"><span class="dot"></span>HexChat was archived in 2024. nexchat carries on.</span>
+    <h1>The IRC client you know. <span class="soft">Built for today.</span></h1>
+    <p class="sub">nexchat is the HexChat layout, menus, dialogs and keybindings, moved onto GTK4. It runs on Linux, BSD, Windows and macOS, and your config, plugins and scripts come with you.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Install nexchat</a>
+      <a class="btn" href="https://github.com/1ay1/nexchat">View source</a>
+      <span class="cmd"><b>$</b> /server irc.libera.chat</span>
+    </div>
+
+    <div class="stage">
+      <div class="window">
+        <div class="titlebar"><i></i><i></i><i></i><span>nexchat — #nexchat</span></div>
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="nexchat-light.png">
+          <img src="nexchat-dark.png" width="2360" height="1120"
+               alt="nexchat: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
+        </picture>
+      </div>
+    </div>
+  </div>
 </header>
 
 <main>
-  <div class="hero wrap">
-    <h1>HexChat, continued.</h1>
-    <p>nexchat is an IRC client for Linux, BSD, Windows and macOS. The same HexChat you know &mdash; layout, menus, dialogs and keybindings &mdash; moved onto GTK4.</p>
-    <div class="buttons">
-      <a class="btn primary" href="#get">Get nexchat</a>
-      <a class="btn" href="https://github.com/1ay1/nexchat">Source on GitHub</a>
-    </div>
-    <div class="shot">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="nexchat-dark.png">
-        <img src="nexchat-light.png" width="2360" height="1120"
-             alt="nexchat: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
-      </picture>
-    </div>
-  </div>
-
   <section id="features">
     <div class="wrap">
-      <h2>Familiar, on a current toolkit</h2>
-      <p class="lead">HexChat was archived in 2024, still on GTK2. nexchat keeps what people liked about it and fixes what got old.</p>
-      <div class="grid">
-        <div class="card"><h3>The layout you know</h3><p>Channel tree or tabs, topic bar, user list with op and voice icons, the nick button and input box. Every change is checked against screenshots of HexChat.</p></div>
-        <div class="card"><h3>GTK4</h3><p>One modern frontend on every platform, with no deprecated GTK calls. HiDPI and Wayland work properly.</p></div>
-        <div class="card"><h3>Follows your system</h3><p>Light and dark mode switch with the system, live. Colours you picked yourself stay yours.</p></div>
-        <div class="card"><h3>At home on macOS</h3><p>The real menu bar, ⌘ shortcuts, a menu bar icon, the Dock, and a self-contained <code>nexchat.app</code>.</p></div>
-        <div class="card"><h3>Native tray everywhere</h3><p>StatusNotifierItem on Linux and BSD, the notification area on Windows, a menu bar item on macOS.</p></div>
-        <div class="card"><h3>Still a power tool</h3><p>Scripting in Python, Perl and Lua, FiSH encryption, DCC, logging, URL grabber, user commands &mdash; all of it.</p></div>
+      <div class="eyebrow">features</div>
+      <h2>Everything HexChat did. On a toolkit that's still maintained.</h2>
+      <p class="lead">Nothing was redesigned for the sake of it. Every window and menu is checked against screenshots of HexChat; what changed is underneath.</p>
+      <div class="features">
+        <div class="feature"><div class="tag">layout</div><h3>Tree or tabs, as you had it</h3><p>Channel tree, topic bar, user list with mode icons and counts, nick button, input box. Same places, same shortcuts.</p></div>
+        <div class="feature"><div class="tag">gtk4</div><h3>One modern frontend</h3><p>GTK4 on every platform, with no deprecated calls. Sharp on HiDPI, at home on Wayland.</p></div>
+        <div class="feature"><div class="tag">appearance</div><h3>Light and dark, live</h3><p>The palette follows your system as it switches. Colours you chose yourself stay yours.</p></div>
+        <div class="feature"><div class="tag">macos</div><h3>A real Mac app</h3><p>The system menu bar, ⌘ shortcuts, a menu bar icon, a Dock bounce for highlights, and a self-contained <code>nexchat.app</code>.</p></div>
+        <div class="feature"><div class="tag">tray</div><h3>Native notifications area</h3><p>StatusNotifierItem on Linux and BSD, the Windows notification area, a macOS menu bar item.</p></div>
+        <div class="feature"><div class="tag">power</div><h3>Nothing taken away</h3><p>Python, Perl and Lua scripting, FiSH encryption, DCC, logging, the URL grabber, user commands and popups.</p></div>
       </div>
     </div>
   </section>
 
   <section id="hexchat">
-    <div class="wrap">
-      <h2>Coming from HexChat</h2>
-      <p class="lead">Nothing to redo.</p>
-      <ul class="check">
-        <li>On first start, nexchat copies <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>) to its own folder. Your HexChat folder is left alone.</li>
-        <li>Plugins keep working: the C API is unchanged (<code>hexchat-plugin.h</code>, or the new <code>nexchat-plugin.h</code>).</li>
-        <li>Scripts keep working: Python has <code>import hexchat</code> and <code>import nexchat</code>, Lua both names, Perl <code>HexChat::</code> and <code>Nexchat::</code>.</li>
-        <li>Themes (<code>.hct</code>) and <code>colors.conf</code> work the same.</li>
-        <li>The <a href="https://hexchat.readthedocs.org/en/latest/">HexChat documentation</a> still applies.</li>
-      </ul>
+    <div class="wrap split">
+      <div>
+        <div class="eyebrow">migration</div>
+        <h2>Coming from HexChat? Just open it.</h2>
+        <p class="lead">There's nothing to convert and nothing to re-learn.</p>
+        <ul class="points">
+          <li><span>Your <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>) is copied on first start. The original is left untouched.</span></li>
+          <li><span>C plugins build unchanged against <code>hexchat-plugin.h</code>, or the new <code>nexchat-plugin.h</code>.</span></li>
+          <li><span>Scripts run as they are: <code>import hexchat</code> and <code>import nexchat</code> both work, as do Lua's two names and Perl's <code>HexChat::</code>.</span></li>
+          <li><span>Themes (<code>.hct</code>), <code>colors.conf</code> and the HexChat docs all still apply.</span></li>
+        </ul>
+      </div>
+      <div class="log" aria-label="An example conversation">
+        <div class="row"><span class="t">14:02</span><span class="n c1">lena</span><span class="m">just built it on my mac — the global menu bar is a nice touch</span></div>
+        <div class="row"><span class="t">14:03</span><span class="n c4">dmitri</span><span class="m">does it still read my old <b>colors.conf</b>?</span></div>
+        <div class="row"><span class="t">14:03</span><span class="n c5">rin</span><span class="m">yes — HexChat configs are copied over on first start</span></div>
+        <div class="row"><span class="t">14:04</span><span class="n ev">*</span><span class="m ev"><span class="c3">ana</span> has joined #nexchat</span></div>
+        <div class="row"><span class="t">14:05</span><span class="n c3">ana</span><span class="m">is fishlim still bundled?</span></div>
+        <div class="row"><span class="t">14:05</span><span class="n ev">*</span><span class="m"><span class="c4">maya</span> nods — FiSHLiM, Sysinfo and Checksum ship with it</span></div>
+        <div class="row"><span class="t">14:08</span><span class="n c2">noor</span><span class="m">my perl scripts use <span class="c5">HexChat::</span> everywhere</span></div>
+        <div class="row"><span class="t">14:09</span><span class="n c5">rin</span><span class="m">noor: both work. same for python and lua</span></div>
+      </div>
     </div>
   </section>
 
-  <section id="get">
+  <section id="install">
     <div class="wrap">
-      <h2>Get it</h2>
-      <p class="lead">There are no release packages yet; nexchat builds from source with meson. Packages (Flatpak, AUR, a Windows installer and a signed macOS app) are on the <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">roadmap</a>.</p>
-      <div class="platforms">
-        <div>
-          <h3>Linux / BSD</h3>
-<pre><code>git clone https://github.com/1ay1/nexchat
-cd nexchat
-meson setup build
-ninja -C build
-./build/src/fe-gtk/nexchat</code></pre>
+      <div class="eyebrow">install</div>
+      <h2>Build it in a minute.</h2>
+      <p class="lead">There are no release packages yet; nexchat builds from source with meson. Flatpak, AUR, a Windows installer and a signed Mac app are on the roadmap.</p>
+
+      <div class="install">
+        <input type="radio" name="os" id="t-linux" checked>
+        <input type="radio" name="os" id="t-mac">
+        <input type="radio" name="os" id="t-win">
+        <div class="tabs">
+          <label for="t-linux">Linux / BSD</label>
+          <label for="t-mac">macOS</label>
+          <label for="t-win">Windows</label>
         </div>
-        <div>
-          <h3>macOS</h3>
-<pre><code>brew install meson gtk4 openssl@3
-git clone https://github.com/1ay1/nexchat
-cd nexchat
-meson setup build -Ddbus=disabled
-ninja -C build app
-open build/nexchat.app</code></pre>
+        <div class="pane p-linux">
+<pre><span class="p">$ </span>git clone https://github.com/1ay1/nexchat && cd nexchat
+<span class="p">$ </span>meson setup build
+<span class="p">$ </span>ninja -C build
+<span class="p">$ </span><span class="k">./build/src/fe-gtk/nexchat</span></pre>
+          <p class="note">Needs GTK 4.14+, GLib 2.76, OpenSSL and meson 0.59 — every current distribution has them.</p>
+        </div>
+        <div class="pane p-mac">
+<pre><span class="p">$ </span>brew install meson gtk4 openssl@3
+<span class="p">$ </span>git clone https://github.com/1ay1/nexchat && cd nexchat
+<span class="p">$ </span>meson setup build -Ddbus=disabled
+<span class="p">$ </span>ninja -C build app
+<span class="p">$ </span><span class="k">open build/nexchat.app</span></pre>
+          <p class="note"><code>ninja -C build app</code> makes a self-contained app you can drag into Applications.</p>
+        </div>
+        <div class="pane p-win">
+<pre><span class="p">$ </span>pacman -S mingw-w64-ucrt-x86_64-{gcc,pkg-config,meson,gtk4,gettext,openssl}
+<span class="p">$ </span>git clone https://github.com/1ay1/nexchat && cd nexchat
+<span class="p">$ </span>meson setup build -Ddbus=disabled -Dwith-perl=false
+<span class="p">$ </span><span class="k">ninja -C build</span></pre>
+          <p class="note">In an MSYS2 UCRT64 shell, the same steps the Windows CI runs. An installer is coming; see the <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">roadmap</a>.</p>
         </div>
       </div>
-      <p style="color:var(--muted);margin-top:18px">Needs GTK 4.14 or newer, GLib 2.76, OpenSSL and meson 0.59. Windows builds with MSYS2; see the <a href="https://github.com/1ay1/nexchat#building">README</a>.</p>
     </div>
   </section>
+
+  <div class="closing">
+    <div class="wrap">
+      <h2>IRC isn't going anywhere. Neither is your client.</h2>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install nexchat</a>
+        <a class="btn" href="https://github.com/1ay1/nexchat/issues">Report an issue</a>
+      </div>
+    </div>
+  </div>
 </main>
 
 <footer>
   <div class="wrap">
-    <span>nexchat is free software under the GPL v2. Based on HexChat (Berke Viktor) and X-Chat (Peter Železný).</span>
-    <span><a href="https://github.com/1ay1/nexchat">GitHub</a> · <a href="https://github.com/1ay1/nexchat/issues">Issues</a> · <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a></span>
+    <span>Free software under the GPL v2. Built on HexChat (Berke Viktor) and X-Chat (Peter Železný).</span>
+    <span class="links">
+      <a href="https://github.com/1ay1/nexchat">GitHub</a>
+      <a href="https://github.com/1ay1/nexchat/issues">Issues</a>
+      <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a>
+    </span>
   </div>
 </footer>
 
