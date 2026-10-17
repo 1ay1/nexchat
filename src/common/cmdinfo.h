@@ -42,4 +42,23 @@ cmdinfo *cmdinfo_lookup (const char *name);
 cmdinfo *cmdinfo_nearest (const char *name);
 void cmdinfo_free (cmdinfo *c);
 
+/* what kind of value argument n (1 = the first after the name) of c takes,
+   read off its usage ("KICK <nick> [reason]" -> 1 is a nick) */
+typedef enum
+{
+	ARG_NONE,
+	ARG_NICK,
+	ARG_CHANNEL,
+	ARG_SETTING,	/* /set */
+	ARG_NETWORK,	/* /server, /connect: from the network list */
+	ARG_COMMAND		/* /help */
+} cmdinfo_arg;
+cmdinfo_arg cmdinfo_arg_kind (cmdinfo *c, int n);
+/* the place of argument n in c's usage as byte offsets into c->usage
+   (for showing it bold); FALSE if the usage doesn't have one */
+gboolean cmdinfo_arg_span (cmdinfo *c, int n, int *start, int *end);
+/* setting names (from /set's table) starting with prefix, sorted; free
+   with g_ptr_array_unref */
+GPtrArray *cmdinfo_settings (const char *prefix);
+
 #endif

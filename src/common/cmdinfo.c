@@ -18,7 +18,10 @@
 #include "hexchatc.h"
 #include "outbound.h"
 #include "plugin.h"
+#include "cfgfiles.h"
 #include "cmdinfo.h"
+
+extern const struct prefs vars[];	/* cfgfiles.c */
 
 void
 cmdinfo_free (cmdinfo *c)
@@ -274,4 +277,87 @@ cmdinfo_lookup (const char *name)
 	}
 	cmdinfo_list_free (all);
 	return hit;
+}
+
+/* where argument n sits in usage: the n-th <...> or [...] after the name */
+gboolean
+cmdinfo_arg_span (cmdinfo *c, int n, int *start, int *end)
+{
+	const char *u = c->usage, *p;
+	int i = 0;
+
+	if (!u || !*u || n < 1)
+		return FALSE;
+	p = u;
+	if (!g_ascii_strncasecmp (p, c->name, strlen (c->name)))
+		p += strlen (c->name);
+	while (*p)
+	{
+		if (*p == '<' || *p == '[')
+		{
+			char close = *p == '<' ? '>' : ']';
+			const char *q = strchr (p, close);
+			if (!q)
+				return FALSE;
+			if (++i == n)
+			{
+				*start = p - u;
+				*end = q - u + 1;
+				return TRUE;
+			}
+			p = q + 1;
+		}
+		else
+			p++;
+	}
+	return FALSE;
+}
+
+cmdinfo_arg
+cmdinfo_arg_kind (cmdinfo *c, int n)
+{
+	int s, e;
+	char *word;
+	cmdinfo_arg kind = ARG_NONE;
+
+	/* commands whose first argument is known whatever the help says */
+	if (n == 1)
+	{
+		if (!strcmp (c->name, "SET"))
+			return ARG_SETTING;
+		if (!strcmp (c->name, "HELP"))
+			return ARG_COMMAND;
+		/* /server freenode-style: a network from the list (or a host) */
+		if (!strcmp (c->name, "SERVER") || !strcmp (c->name, "NEWSERVER"))
+			return ARG_NETWORK;
+	}
+	if (!cmdinfo_arg_span (c, n, &s, &e))
+		return ARG_NONE;
+	word = g_ascii_strdown (c->usage + s + 1, e - s - 2);
+	if (strstr (word, "nick"))
+		kind = ARG_NICK;
+	else if (strstr (word, "channel") || !strcmp (word, "#chan"))
+		kind = ARG_CHANNEL;
+	g_free (word);
+	return kind;
+}
+
+static int
+strcmp_p (gconstpointer a, gconstpointer b)
+{
+	return strcmp (*(char **) a, *(char **) b);
+}
+
+GPtrArray *
+cmdinfo_settings (const char *prefix)
+{
+	GPtrArray *out = g_ptr_array_new ();
+	gsize plen = strlen (prefix);
+	int i;
+
+	for (i = 0; vars[i].name; i++)
+		if (!g_ascii_strncasecmp (vars[i].name, prefix, plen))
+			g_ptr_array_add (out, vars[i].name);
+	g_ptr_array_sort (out, strcmp_p);
+	return out;
 }

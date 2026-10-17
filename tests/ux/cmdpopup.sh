@@ -31,7 +31,11 @@ t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 --type "$1
 # the popup / input as of a full dump taken after the last keys
 state() {
 	n0=$(grep -c '^tabs:$' "$tmp/log")
-	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do sleep 0.1; done
+	_i=0
+	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
+		_i=$((_i+1)); [ $_i -gt 100 ] && { echo "(no dump: app gone?)"; return; }
+		sleep 0.1
+	done
 	awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log" | grep -E "^($1):" | head -1
 }
 
@@ -74,7 +78,7 @@ k Up
 t "o"
 k Tab
 check input 'input: /join ' 'Tab fills in "/join " (lower case, as typed)'
-check cmdpopup 'cmdpopup: hint: /JOIN <channel>*' 'with the name typed: a usage hint'
+check cmdpopup 'cmdpopup: list: \[#t\] | hint: /JOIN <channel>*' 'after /join: your channels, under the usage line'
 k Escape
 check cmdpopup 'cmdpopup: ' 'Escape closes it'
 t "#x"
@@ -93,12 +97,31 @@ check input 'input: ' 'box empty after sending'
 t "//"
 check cmdpopup 'cmdpopup: ' '"//" (a plain slash) shows nothing'
 k ctrl+a BackSpace
+
+# a nick argument: the people in the channel (the fake server has bob)
+t "/kick b"
+check cmdpopup 'cmdpopup: list: \[bob\] | hint: /KICK <nick>*' '/kick b offers bob'
+k Tab
+check input 'input: /kick bob ' 'Tab puts the nick in, then a space'
+check cmdpopup 'cmdpopup: hint: /KICK <nick> \[reason\]*' 'on to the reason: just the usage'
+k ctrl+a BackSpace
+
+# /set: the setting names
+t "/set gui_tab_u"
+check cmdpopup 'cmdpopup: list: \[gui_tab_unread\]*' '/set gui_tab_u offers gui_tab_unread'
+k ctrl+a BackSpace
+
+# /help: the commands
+t "/help joi"
+check cmdpopup 'cmdpopup: list: \[JOIN\]*' '/help joi offers JOIN'
+k ctrl+a BackSpace
 t "hello"
 check cmdpopup 'cmdpopup: ' 'plain text shows nothing'
 
 if [ $fail -ne 0 ]; then
 	echo "--- last dump"; awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log"
-	grep -iE 'critical|warning' "$tmp/log" | sort | uniq -c | head
+	grep -iE 'critical|warning|segfault|abort' "$tmp/log" | sort | uniq -c | head
+	tail -5 "$tmp/log"
 	exit 1
 fi
 if grep -qiE 'gtk-critical|criticals' "$tmp/log"; then grep -iE 'critical' "$tmp/log" | sort | uniq -c | head; exit 1; fi

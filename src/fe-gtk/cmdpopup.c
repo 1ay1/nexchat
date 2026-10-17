@@ -7,13 +7,15 @@
  * (at your option) any later version.
  */
 
-/* Typing "/" in the input box opens a list of commands above it: the name,
-   what to type after it and what it does, narrowed with each letter. Up and
-   Down pick, Tab or Enter fill it in, Escape closes. Once the command is
-   typed (after the space) the list gives way to a one-line hint with its
-   usage. Built-ins, user commands and plugin commands all show, from
-   common/cmdinfo.c. Classic look: a plain bordered list, no rounding.
-   gui_input_cmdhelp turns it off. */
+/* Typing "/" in the input box opens a list right on top of the input row:
+   the commands that match, each with what to type after it and what it
+   does. Once the command is typed, the same list offers values for the
+   argument the cursor is on: people for <nick>, your channels for
+   <channel>, setting names for /set, networks for /server, commands for
+   /help; above it a line with the command's usage, the current argument in
+   bold. Up and Down pick, Tab or Enter fill in, Escape closes. Built-ins,
+   user commands and plugin commands come from common/cmdinfo.c. Classic
+   look: a plain bordered list. gui_input_cmdhelp turns it off. */
 
 #include <string.h>
 
@@ -21,11 +23,23 @@
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"
 #include "../common/cmdinfo.h"
+#include "../common/userlist.h"
+#include "../common/servlist.h"
 #include "gtkcompat.h"
 #include "gtkutil.h"
 #include "cmdpopup.h"
 
 #define MAX_ROWS 10
+
+/* one row: a command, or a value for an argument */
+typedef struct
+{
+	char *name;		/* shown in bold: "/JOIN", "alice", "#nexchat" */
+	char *middle;	/* second column: a command's arguments, a person's mode */
+	char *desc;		/* dim, last: what a command does, a setting's value... */
+	char *tip;		/* tooltip */
+	char *insert;	/* what replaces the word being typed */
+} item;
 
 typedef struct
 {
@@ -33,11 +47,37 @@ typedef struct
 	GtkWidget *popover;
 	GtkWidget *list;		/* GtkListBox */
 	GtkWidget *hint;		/* the usage line while typing arguments */
-	int last_width, last_x;	/* where the chat area was when last placed */
-	GPtrArray *cmds;		/* the cmdinfo shown, in list order */
-	gboolean suppress;	/* Escape: stay closed until the text changes shape */
-	char *suppressed_for;	/* ...the word it was closed on */
+	int last_width, last_x;	/* where the input row was when last placed */
+	GPtrArray *items;		/* item *, in list order */
+	gboolean args;			/* the items are values for an argument */
+	int word_start;		/* byte offset in the text of the word they replace */
+	gboolean suppress;	/* Escape: stay closed for this command */
+	char *suppressed_for;	/* ...the command it was closed on */
 } cmdpopup;
+
+static void
+item_free (item *it)
+{
+	g_free (it->name);
+	g_free (it->middle);
+	g_free (it->desc);
+	g_free (it->tip);
+	g_free (it->insert);
+	g_free (it);
+}
+
+static item *
+item_new (const char *name, const char *middle, const char *desc, const char *tip, const char *insert)
+{
+	item *it = g_new0 (item, 1);
+
+	it->name = g_strdup (name);
+	it->middle = g_strdup (middle ? middle : "");
+	it->desc = g_strdup (desc ? desc : "");
+	it->tip = g_strdup (tip ? tip : "");
+	it->insert = g_strdup (insert);
+	return it;
+}
 
 static gboolean
 is_cmd_char (char c)
@@ -45,12 +85,12 @@ is_cmd_char (char c)
 	return c && c == prefs.hex_input_command_char[0];
 }
 
-/* the text is "/word" with the cursor in word: the word, else NULL */
+/* "/word ..." -> the command word, else NULL; has_space when the command
+   is typed and arguments follow */
 static char *
 typed_command (const char *text, int cursor, gboolean *has_space)
 {
 	const char *sp;
-	glong chars;
 
 	*has_space = FALSE;
 	if (!is_cmd_char (text[0]) || is_cmd_char (text[1]))	/* "//" sends a plain "/" */
@@ -61,29 +101,173 @@ typed_command (const char *text, int cursor, gboolean *has_space)
 		*has_space = TRUE;
 		return g_strndup (text + 1, sp - text - 1);
 	}
-	chars = g_utf8_strlen (text, -1);
-	if (cursor < chars)
+	if (cursor < g_utf8_strlen (text, -1))
 		return NULL;	/* editing in the middle of a bare word: leave it be */
 	return g_strdup (text + 1);
 }
 
-/* each row is name | arguments | what it does, the first two columns a
-   fixed width so they line up down the list */
+/* with the cursor after the command: which argument it's on (1 = first)
+   and the word typed so far, from *start (byte offset) to the cursor */
+static int
+current_arg (const char *text, int cursor_chars, int *start, char **word)
+{
+	const char *cur = g_utf8_offset_to_pointer (text, cursor_chars);
+	const char *p, *ws;
+	int n = 0;
+
+	p = strchr (text, ' ');
+	if (!p || p >= cur + 1)
+		return 0;
+	ws = p;
+	while (p < cur)
+	{
+		if (*p == ' ')
+		{
+			while (p < cur && *p == ' ')
+				p++;
+			n++;
+			ws = p;
+		}
+		else
+			p++;
+	}
+	*start = ws - text;
+	*word = g_strndup (ws, cur - ws);
+	return n;
+}
+
+/* ---- the values an argument can take ---- */
+
+static void
+add_nicks (GPtrArray *out, const char *prefix)
+{
+	GList *users, *l;
+	gsize plen = strlen (prefix);
+
+	if (!current_sess || current_sess->type != SESS_CHANNEL)
+	{
+		/* a query: the other person */
+		if (current_sess && current_sess->type == SESS_DIALOG &&
+			 !g_ascii_strncasecmp (current_sess->channel, prefix, plen))
+			g_ptr_array_add (out, item_new (current_sess->channel, NULL, NULL, NULL, current_sess->channel));
+		return;
+	}
+	/* most recently talking first, then the rest by name (as Tab completes) */
+	users = userlist_double_list (current_sess);
+	for (l = users; l; l = l->next)
+	{
+		struct User *u = l->data;
+		char mode[2] = { u->prefix[0], 0 };
+		if (u->me || g_ascii_strncasecmp (u->nick, prefix, plen))
+			continue;
+		g_ptr_array_add (out, item_new (u->nick, mode, u->away ? _("away") : NULL,
+												  u->hostname, u->nick));
+	}
+	g_list_free (users);
+}
+
+static int
+by_lasttalk (gconstpointer a, gconstpointer b)
+{
+	const item *x = *(item **) a, *y = *(item **) b;
+	struct User *ux = current_sess ? userlist_find (current_sess, x->name) : NULL;
+	struct User *uy = current_sess ? userlist_find (current_sess, y->name) : NULL;
+	time_t tx = ux ? ux->lasttalk : 0, ty = uy ? uy->lasttalk : 0;
+
+	if (tx != ty)
+		return tx > ty ? -1 : 1;
+	return g_ascii_strcasecmp (x->name, y->name);
+}
+
+static void
+add_channels (GPtrArray *out, const char *prefix)
+{
+	GSList *l;
+	gsize plen = strlen (prefix);
+	GHashTable *seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+	/* open channels on this network, then its saved favourites */
+	for (l = sess_list; l; l = l->next)
+	{
+		session *s = l->data;
+		if (s->type != SESS_CHANNEL || !s->channel[0] || !current_sess ||
+			 s->server != current_sess->server || g_ascii_strncasecmp (s->channel, prefix, plen))
+			continue;
+		g_hash_table_add (seen, g_ascii_strdown (s->channel, -1));
+		g_ptr_array_add (out, item_new (s->channel, NULL, s->topic ? s->topic : "", s->topic, s->channel));
+	}
+	if (current_sess && current_sess->server->network)
+	{
+		ircnet *net = current_sess->server->network;
+		for (l = net->favchanlist; l; l = l->next)
+		{
+			favchannel *f = l->data;
+			char *k = g_ascii_strdown (f->name, -1);
+			if (g_ascii_strncasecmp (f->name, prefix, plen) || g_hash_table_contains (seen, k))
+			{
+				g_free (k);
+				continue;
+			}
+			g_hash_table_add (seen, k);
+			g_ptr_array_add (out, item_new (f->name, NULL, _("favorite"), NULL, f->name));
+		}
+	}
+	g_hash_table_destroy (seen);
+}
+
+static void
+add_settings (GPtrArray *out, const char *prefix)
+{
+	GPtrArray *names = cmdinfo_settings (prefix);
+	guint i;
+
+	for (i = 0; i < names->len; i++)
+		g_ptr_array_add (out, item_new (g_ptr_array_index (names, i), NULL, NULL, NULL,
+												  g_ptr_array_index (names, i)));
+	g_ptr_array_unref (names);
+}
+
+static void
+add_networks (GPtrArray *out, const char *prefix)
+{
+	GSList *l;
+	gsize plen = strlen (prefix);
+
+	for (l = network_list; l; l = l->next)
+	{
+		ircnet *net = l->data;
+		if (!g_ascii_strncasecmp (net->name, prefix, plen))
+			g_ptr_array_add (out, item_new (net->name, NULL, NULL, NULL, net->name));
+	}
+}
+
+static void
+add_commands (GPtrArray *out, const char *prefix)
+{
+	GPtrArray *cmds = cmdinfo_find (prefix);
+	guint i;
+
+	for (i = 0; i < cmds->len; i++)
+	{
+		cmdinfo *c = g_ptr_array_index (cmds, i);
+		char *lower = g_ascii_strdown (c->name, -1);
+		g_ptr_array_add (out, item_new (c->name, NULL, c->desc, c->help, lower));
+		g_free (lower);
+	}
+	cmdinfo_list_free (cmds);
+}
+
+/* ---- the list ---- */
+
+/* name | middle | desc; the first two columns line up down the list */
 static GtkWidget *
-row_new (cmdinfo *c, GtkSizeGroup *names, GtkSizeGroup *args_group)
+row_new (item *it, GtkSizeGroup *names, GtkSizeGroup *middles)
 {
 	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
-	GtkWidget *name, *usage, *desc;
+	GtkWidget *name, *middle, *desc;
 	char *m;
-	const char *args = c->usage;
 
-	/* the usage repeats the name: show just what comes after it */
-	if (!g_ascii_strncasecmp (args, c->name, strlen (c->name)))
-		args += strlen (c->name);
-	while (*args == ' ')
-		args++;
-
-	m = g_markup_printf_escaped ("<b>/%s</b>", c->name);
+	m = g_markup_printf_escaped ("<b>%s</b>", it->name);
 	name = gtk_label_new (NULL);
 	gtk_label_set_markup (GTK_LABEL (name), m);
 	g_free (m);
@@ -91,26 +275,25 @@ row_new (cmdinfo *c, GtkSizeGroup *names, GtkSizeGroup *args_group)
 	gtk_size_group_add_widget (names, name);
 	gtk_box_append (GTK_BOX (box), name);
 
-	usage = gtk_label_new (args);
-	gtk_label_set_xalign (GTK_LABEL (usage), 0);
-	gtk_label_set_ellipsize (GTK_LABEL (usage), PANGO_ELLIPSIZE_END);
-	gtk_label_set_width_chars (GTK_LABEL (usage), 10);
-	gtk_label_set_max_width_chars (GTK_LABEL (usage), 30);
-	gtk_widget_add_css_class (usage, "nx-cmd-usage");
-	gtk_size_group_add_widget (args_group, usage);
-	gtk_box_append (GTK_BOX (box), usage);
+	middle = gtk_label_new (it->middle);
+	gtk_label_set_xalign (GTK_LABEL (middle), 0);
+	gtk_label_set_ellipsize (GTK_LABEL (middle), PANGO_ELLIPSIZE_END);
+	gtk_label_set_max_width_chars (GTK_LABEL (middle), 30);
+	gtk_widget_add_css_class (middle, "nx-cmd-usage");
+	gtk_size_group_add_widget (middles, middle);
+	gtk_box_append (GTK_BOX (box), middle);
 
-	desc = gtk_label_new (c->kind == CMD_PLUGIN && !*c->desc ? _("(plugin)") : c->desc);
+	desc = gtk_label_new (it->desc);
 	gtk_label_set_xalign (GTK_LABEL (desc), 0);
 	gtk_label_set_ellipsize (GTK_LABEL (desc), PANGO_ELLIPSIZE_END);
-	/* takes what's left of the chat area's width, cut short with "..." */
-	gtk_label_set_width_chars (GTK_LABEL (desc), 1);
+	gtk_label_set_width_chars (GTK_LABEL (desc), 1);	/* takes what's left, "..." */
 	gtk_widget_set_hexpand (desc, TRUE);
 	gtk_widget_add_css_class (desc, "nx-cmd-desc");
 	gtk_widget_add_css_class (desc, "dim-label");
 	gtk_box_append (GTK_BOX (box), desc);
 
-	gtk_widget_set_tooltip_text (box, c->help);
+	if (*it->tip)
+		gtk_widget_set_tooltip_text (box, it->tip);
 	return box;
 }
 
@@ -122,9 +305,8 @@ popup_hide (cmdpopup *p)
 }
 
 /* the popover sits right on top of the box that holds the composer (nick
-   button + entry), exactly as wide as it: that row spans the chat column,
-   text and scrollbar. Pointed at a 1px strip along the row's top edge, in
-   the entry's coordinates. */
+   button + entry), exactly as wide as it. Pointed at a 1px strip along the
+   row's top edge, in the entry's coordinates. */
 static void
 popup_show (cmdpopup *p)
 {
@@ -152,46 +334,110 @@ popup_show (cmdpopup *p)
 		gtk_popover_popup (GTK_POPOVER (p->popover));
 }
 
+/* show these items (taken over), the first selected */
 static void
-popup_fill (cmdpopup *p, const char *word)
+popup_set_items (cmdpopup *p, GPtrArray *items)
 {
 	GtkWidget *child;
 	GtkSizeGroup *names = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
-	GtkSizeGroup *args = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
+	GtkSizeGroup *middles = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
 	guint i, n;
 
 	while ((child = gtk_widget_get_first_child (p->list)))
 		gtk_list_box_remove (GTK_LIST_BOX (p->list), child);
-	cmdinfo_list_free (p->cmds);
-	p->cmds = cmdinfo_find (word);
-	n = MIN (p->cmds->len, MAX_ROWS);
+	if (p->items)
+		g_ptr_array_unref (p->items);
+	p->items = items;
+	n = MIN (items->len, MAX_ROWS);
 	for (i = 0; i < n; i++)
-		gtk_list_box_append (GTK_LIST_BOX (p->list),
-									row_new (g_ptr_array_index (p->cmds, i), names, args));
-	/* the rows keep the groups alive */
-	g_object_unref (names);
-	g_object_unref (args);
+		gtk_list_box_append (GTK_LIST_BOX (p->list), row_new (g_ptr_array_index (items, i), names, middles));
+	g_object_unref (names);	/* the rows keep the groups alive */
+	g_object_unref (middles);
 	if (n)
 		gtk_list_box_select_row (GTK_LIST_BOX (p->list),
 										 gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), 0));
+	gtk_widget_set_visible (gtk_widget_get_parent (p->list), n > 0);
 }
 
-/* the text changed: decide what to show */
+/* the commands matching word */
+static GPtrArray *
+command_items (const char *word)
+{
+	GPtrArray *cmds = cmdinfo_find (word);
+	GPtrArray *out = g_ptr_array_new_with_free_func ((GDestroyNotify) item_free);
+	guint i;
+
+	for (i = 0; i < cmds->len; i++)
+	{
+		cmdinfo *c = g_ptr_array_index (cmds, i);
+		const char *args = c->usage;
+		char *name = g_strdup_printf ("/%s", c->name);
+
+		/* the usage repeats the name: show just what comes after it */
+		if (!g_ascii_strncasecmp (args, c->name, strlen (c->name)))
+			args += strlen (c->name);
+		while (*args == ' ')
+			args++;
+		g_ptr_array_add (out, item_new (name, args,
+			c->kind == CMD_PLUGIN && !*c->desc ? _("(plugin)") : c->desc, c->help, c->name));
+		g_free (name);
+	}
+	cmdinfo_list_free (cmds);
+	return out;
+}
+
+/* the usage line, argument n in bold */
+static void
+set_hint (cmdpopup *p, cmdinfo *c, int n)
+{
+	GString *m = g_string_new (NULL);
+	const char *u = c->usage;
+	int s, e;
+	char *t;
+
+	t = g_markup_printf_escaped ("<b>/%s</b>", c->name);
+	g_string_append (m, t);
+	g_free (t);
+	if (*u)
+	{
+		const char *after = u;
+		if (!g_ascii_strncasecmp (u, c->name, strlen (c->name)))
+			after = u + strlen (c->name);
+		if (n > 0 && cmdinfo_arg_span (c, n, &s, &e) && s >= after - u)
+		{
+			char *a = g_markup_escape_text (after, s - (after - u));
+			char *b = g_markup_escape_text (u + s, e - s);
+			char *z = g_markup_escape_text (u + e, -1);
+			g_string_append_printf (m, "%s<u><b>%s</b></u>%s", a, b, z);
+			g_free (a); g_free (b); g_free (z);
+		}
+		else
+		{
+			char *a = g_markup_escape_text (after, -1);
+			g_string_append (m, a);
+			g_free (a);
+		}
+	}
+	if (*c->desc)
+	{
+		t = g_markup_printf_escaped ("  <span alpha=\"60%%\">%s</span>", c->desc);
+		g_string_append (m, t);
+		g_free (t);
+	}
+	gtk_label_set_markup (GTK_LABEL (p->hint), m->str);
+	g_string_free (m, TRUE);
+}
+
+/* the text or cursor changed: decide what to show */
 static void
 popup_update (cmdpopup *p)
 {
 	const char *text = gtk_editable_get_text (GTK_EDITABLE (p->entry));
 	int cursor = gtk_editable_get_position (GTK_EDITABLE (p->entry));
 	gboolean has_space;
-	char *word;
+	char *cmd;
 
-	if (!prefs.hex_gui_input_cmdhelp)
-	{
-		popup_hide (p);
-		return;
-	}
-	word = typed_command (text, cursor, &has_space);
-	if (!word)
+	if (!prefs.hex_gui_input_cmdhelp || !(cmd = typed_command (text, cursor, &has_space)))
 	{
 		p->suppress = FALSE;
 		popup_hide (p);
@@ -202,48 +448,80 @@ popup_update (cmdpopup *p)
 	if (p->suppress)
 	{
 		const char *was = p->suppressed_for ? p->suppressed_for : "";
-		if ((has_space && !g_ascii_strcasecmp (word, was)) ||
-			 (!has_space && g_str_has_prefix (word, was)))
+		if ((has_space && !g_ascii_strcasecmp (cmd, was)) || (!has_space && g_str_has_prefix (cmd, was)))
 		{
-			g_free (word);
+			g_free (cmd);
 			return;
 		}
 		p->suppress = FALSE;
 	}
 
-	if (has_space)
+	if (!has_space)
 	{
-		/* arguments: one line with the usage of the command typed */
-		cmdinfo *c = cmdinfo_lookup (word);
+		/* the command name: the commands that match */
+		GPtrArray *items = command_items (cmd);
+		p->args = FALSE;
+		p->word_start = 1;
+		gtk_widget_set_visible (p->hint, FALSE);
+		popup_set_items (p, items);
+		if (items->len)
+			popup_show (p);
+		else
+			popup_hide (p);
+	}
+	else
+	{
+		/* its arguments: the usage line, and values for the one under the cursor */
+		cmdinfo *c = cmdinfo_lookup (cmd);
+		char *word = NULL;
+		int start = 0, n = current_arg (text, cursor, &start, &word);
+		GPtrArray *items = g_ptr_array_new_with_free_func ((GDestroyNotify) item_free);
+
+		p->args = TRUE;
+		p->word_start = start;
+		if (c && n > 0)
+		{
+			switch (cmdinfo_arg_kind (c, n))
+			{
+			case ARG_NICK:
+				add_nicks (items, word);
+				g_ptr_array_sort (items, by_lasttalk);
+				break;
+			case ARG_CHANNEL:
+				add_channels (items, word);
+				break;
+			case ARG_SETTING:
+				add_settings (items, word);
+				break;
+			case ARG_NETWORK:
+				add_networks (items, word);
+				break;
+			case ARG_COMMAND:
+				add_commands (items, word);
+				break;
+			default:
+				break;
+			}
+			/* the whole value typed already: nothing to offer */
+			if (items->len == 1 && !g_ascii_strcasecmp (((item *) items->pdata[0])->insert, word))
+				g_ptr_array_set_size (items, 0);
+		}
 		if (c && (*c->usage || *c->desc))
 		{
-			char *m = g_markup_printf_escaped ("<b>/%s</b>%s%s  <span alpha=\"60%%\">%s</span>",
-				c->name, *c->usage ? " " : "",
-				*c->usage && !g_ascii_strncasecmp (c->usage, c->name, strlen (c->name))
-					? c->usage + strlen (c->name) + (c->usage[strlen (c->name)] == ' ')
-					: c->usage,
-				c->desc);
-			gtk_label_set_markup (GTK_LABEL (p->hint), m);
-			g_free (m);
+			set_hint (p, c, n);
 			gtk_widget_set_visible (p->hint, TRUE);
-			gtk_widget_set_visible (gtk_widget_get_parent (p->list), FALSE);
-			popup_show (p);
 		}
+		else
+			gtk_widget_set_visible (p->hint, FALSE);
+		popup_set_items (p, items);
+		if (gtk_widget_get_visible (p->hint) || items->len)
+			popup_show (p);
 		else
 			popup_hide (p);
 		cmdinfo_free (c);
 		g_free (word);
-		return;
 	}
-
-	popup_fill (p, word);
-	gtk_widget_set_visible (p->hint, FALSE);
-	gtk_widget_set_visible (gtk_widget_get_parent (p->list), TRUE);
-	if (p->cmds->len)
-		popup_show (p);
-	else
-		popup_hide (p);
-	g_free (word);
+	g_free (cmd);
 }
 
 static void
@@ -252,9 +530,9 @@ popup_changed_cb (GtkEditable *e, cmdpopup *p)
 	popup_update (p);
 }
 
-/* while the list is up, keep it the chat area's width and on the input row
-   whatever moves them (window resized, user list shown/hidden, a pane
-   dragged); a frame clock tick costs nothing when nothing changed */
+/* while it's up, keep it on the input row whatever moves it (window
+   resized, user list shown/hidden, a pane dragged); a frame clock tick
+   costs nothing when nothing changed */
 static gboolean
 refit_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
 {
@@ -268,30 +546,54 @@ refit_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
-/* fill in the chosen command: "/JOIN " (or "/join " if typed lower case) */
+/* put it in the box: a command as "/join " (lower case if that's how it
+   was typed), a value in place of the word being typed, then a space */
 static void
-popup_complete (cmdpopup *p, cmdinfo *c)
+popup_complete (cmdpopup *p, item *it)
 {
-	const char *text = gtk_editable_get_text (GTK_EDITABLE (p->entry));
-	gboolean lower = text[1] && g_ascii_islower (text[1]);
-	char *name = lower ? g_ascii_strdown (c->name, -1) : g_strdup (c->name);
-	char *t = g_strdup_printf ("%c%s ", prefs.hex_input_command_char[0], name);
+	/* a copy: setting the text frees the entry's own buffer */
+	char *text = g_strdup (gtk_editable_get_text (GTK_EDITABLE (p->entry)));
+	int cursor = gtk_editable_get_position (GTK_EDITABLE (p->entry));
+	const char *cur = g_utf8_offset_to_pointer (text, cursor);
+	char *t, *ins;
 
-	gtk_editable_set_text (GTK_EDITABLE (p->entry), t);
-	gtk_editable_set_position (GTK_EDITABLE (p->entry), -1);
+	if (!p->args)
+	{
+		gboolean lower = text[1] && g_ascii_islower (text[1]);
+		ins = lower ? g_ascii_strdown (it->insert, -1) : g_strdup (it->insert);
+		t = g_strdup_printf ("%c%s %s", prefs.hex_input_command_char[0], ins,
+									strchr (text, ' ') ? strchr (text, ' ') + 1 : "");
+		gtk_editable_set_text (GTK_EDITABLE (p->entry), t);
+		gtk_editable_set_position (GTK_EDITABLE (p->entry), g_utf8_strlen (ins, -1) + 2);
+	}
+	else
+	{
+		/* keep what's after the cursor; add a space unless one follows. The
+		   item goes away when setting the text rebuilds the list: copy it */
+		gboolean space_after = *cur == ' ';
+		char *before = g_strndup (text, p->word_start);
+		int pos;
+		ins = g_strdup (it->insert);
+		pos = g_utf8_strlen (before, -1) + g_utf8_strlen (ins, -1) + 1;
+		t = g_strdup_printf ("%s%s%s%s", before, ins, space_after ? "" : " ", cur);
+		gtk_editable_set_text (GTK_EDITABLE (p->entry), t);
+		gtk_editable_set_position (GTK_EDITABLE (p->entry), pos);
+		g_free (before);
+	}
 	g_free (t);
-	g_free (name);
+	g_free (ins);
+	g_free (text);
 	popup_update (p);
 }
 
-static cmdinfo *
+static item *
 selected (cmdpopup *p)
 {
 	GtkListBoxRow *row = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
 
-	if (!row || !p->cmds)
+	if (!row || !p->items || !gtk_widget_get_visible (gtk_widget_get_parent (p->list)))
 		return NULL;
-	return g_ptr_array_index (p->cmds, gtk_list_box_row_get_index (row));
+	return g_ptr_array_index (p->items, gtk_list_box_row_get_index (row));
 }
 
 static void
@@ -299,7 +601,7 @@ move (cmdpopup *p, int by)
 {
 	GtkListBoxRow *row = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
 	int i = row ? gtk_list_box_row_get_index (row) : -1;
-	int n = MIN ((int) p->cmds->len, MAX_ROWS);
+	int n = MIN ((int) p->items->len, MAX_ROWS);
 
 	if (!n)
 		return;
@@ -308,19 +610,18 @@ move (cmdpopup *p, int by)
 									 gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), i));
 }
 
-/* keys while the list is up; FALSE lets the entry (and fkeys.c) have them */
+/* keys while it's up; FALSE lets the entry (and fkeys.c) have them */
 gboolean
 cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 {
 	cmdpopup *p = g_object_get_data (G_OBJECT (entry), "nx-cmdpopup");
-	gboolean list_up;
-	cmdinfo *c;
+	item *it;
 
 	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
 		return FALSE;
-	list_up = gtk_widget_get_visible (gtk_widget_get_parent (p->list));
 	if (state & (GDK_CONTROL_MASK | GDK_ALT_MASK))
 		return FALSE;
+	it = selected (p);
 
 	switch (keyval)
 	{
@@ -336,33 +637,33 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 		return TRUE;
 	case GDK_KEY_Up:
 	case GDK_KEY_KP_Up:
-		if (!list_up)
-			return FALSE;
-		move (p, -1);
-		return TRUE;
 	case GDK_KEY_Down:
 	case GDK_KEY_KP_Down:
-		if (!list_up)
-			return FALSE;
-		move (p, 1);
+		if (!it)
+			return FALSE;	/* just the hint: Up/Down stay history */
+		move (p, keyval == GDK_KEY_Up || keyval == GDK_KEY_KP_Up ? -1 : 1);
 		return TRUE;
 	case GDK_KEY_Tab:
 	case GDK_KEY_ISO_Left_Tab:
-		if (!list_up || !(c = selected (p)))
+		if (!it)
 			return FALSE;
-		popup_complete (p, c);
+		popup_complete (p, it);
 		return TRUE;
 	case GDK_KEY_Return:
 	case GDK_KEY_KP_Enter:
-		/* Enter on a full name sends it as it is (/away, /quit); on a part of
-		   one it fills in the pick first */
-		if (!list_up || !(c = selected (p)))
+		/* Enter sends the line as it is once it's whole: a full command name
+		   (/away), or arguments being typed; on part of a command name it
+		   fills in the pick first */
+		if (!it || p->args)
+		{
+			popup_hide (p);
 			return FALSE;
+		}
 		{
 			gboolean sp;
 			char *word = typed_command (gtk_editable_get_text (GTK_EDITABLE (entry)),
 												 gtk_editable_get_position (GTK_EDITABLE (entry)), &sp);
-			gboolean exact = word && !g_ascii_strcasecmp (word, c->name);
+			gboolean exact = word && !g_ascii_strcasecmp (word, it->insert);
 			g_free (word);
 			if (exact)
 			{
@@ -370,7 +671,7 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 				return FALSE;
 			}
 		}
-		popup_complete (p, c);
+		popup_complete (p, it);
 		return TRUE;
 	}
 	return FALSE;
@@ -379,7 +680,7 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 static void
 row_activated_cb (GtkListBox *box, GtkListBoxRow *row, cmdpopup *p)
 {
-	popup_complete (p, g_ptr_array_index (p->cmds, gtk_list_box_row_get_index (row)));
+	popup_complete (p, g_ptr_array_index (p->items, gtk_list_box_row_get_index (row)));
 	gtk_widget_grab_focus (p->entry);
 }
 
@@ -392,7 +693,8 @@ focus_out_cb (GtkEventControllerFocus *f, cmdpopup *p)
 static void
 cmdpopup_free (cmdpopup *p)
 {
-	cmdinfo_list_free (p->cmds);
+	if (p->items)
+		g_ptr_array_unref (p->items);
 	g_free (p->suppressed_for);
 	if (p->popover)
 		gtk_widget_unparent (p->popover);
@@ -419,6 +721,14 @@ cmdpopup_attach (GtkWidget *entry)
 	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtk_popover_set_child (GTK_POPOVER (p->popover), box);
 
+	/* the usage line on top, the list of values under it (nearest the box) */
+	p->hint = gtk_label_new (NULL);
+	gtk_label_set_xalign (GTK_LABEL (p->hint), 0);
+	gtk_label_set_ellipsize (GTK_LABEL (p->hint), PANGO_ELLIPSIZE_END);
+	gtk_label_set_width_chars (GTK_LABEL (p->hint), 1);
+	gtk_widget_add_css_class (p->hint, "nx-cmd-hint");
+	gtk_box_append (GTK_BOX (box), p->hint);
+
 	p->list = gtk_list_box_new ();
 	gtk_list_box_set_selection_mode (GTK_LIST_BOX (p->list), GTK_SELECTION_BROWSE);
 	gtk_list_box_set_activate_on_single_click (GTK_LIST_BOX (p->list), TRUE);
@@ -430,16 +740,10 @@ cmdpopup_attach (GtkWidget *entry)
 	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), p->list);
 	gtk_box_append (GTK_BOX (box), sw);
 
-	p->hint = gtk_label_new (NULL);
-	gtk_label_set_xalign (GTK_LABEL (p->hint), 0);
-	gtk_label_set_ellipsize (GTK_LABEL (p->hint), PANGO_ELLIPSIZE_END);
-	gtk_label_set_max_width_chars (GTK_LABEL (p->hint), 90);
-	gtk_widget_add_css_class (p->hint, "nx-cmd-hint");
-	gtk_box_append (GTK_BOX (box), p->hint);
-
 	g_signal_connect (entry, "changed", G_CALLBACK (popup_changed_cb), p);
-	/* runs only while the popover is mapped */
-	gtk_widget_add_tick_callback (p->popover, refit_tick, p, NULL);
+	/* moving the cursor to another argument changes what's offered */
+	g_signal_connect_swapped (entry, "notify::cursor-position", G_CALLBACK (popup_update), p);
+	gtk_widget_add_tick_callback (p->popover, refit_tick, p, NULL);	/* only while mapped */
 	f = gtk_event_controller_focus_new ();
 	g_signal_connect (f, "leave", G_CALLBACK (focus_out_cb), p);
 	gtk_widget_add_controller (entry, f);
@@ -455,7 +759,9 @@ cmdpopup_geometry (GtkWidget *entry)
 	GtkWidget *win, *row;
 	graphene_rect_t pop, rb;
 	GtkNative *native;
-	double px, py, ex, ey;
+	GdkSurface *ps;
+	double px, py, ex, ey, sx, sy;
+	int ox = 0, oy = 0;
 
 	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
 		return g_strdup ("");
@@ -467,25 +773,19 @@ cmdpopup_geometry (GtkWidget *entry)
 	native = GTK_NATIVE (p->popover);
 	gtk_native_get_surface_transform (native, &px, &py);
 	gtk_native_get_surface_transform (GTK_NATIVE (win), &ex, &ey);
-	if (!gtk_widget_compute_bounds (gtk_popover_get_child (GTK_POPOVER (p->popover)),
-											  p->popover, &pop))
+	if (!gtk_widget_compute_bounds (gtk_popover_get_child (GTK_POPOVER (p->popover)), p->popover, &pop))
 		return g_strdup ("");
+	ps = gtk_native_get_surface (native);
+	if (GDK_IS_POPUP (ps))
 	{
-		GdkSurface *ps = gtk_native_get_surface (native);
-		int ox = 0, oy = 0;
-		double sx, sy;
-		/* the popup's position relative to its parent surface */
-		if (GDK_IS_POPUP (ps))
-		{
-			ox = gdk_popup_get_position_x (GDK_POPUP (ps));
-			oy = gdk_popup_get_position_y (GDK_POPUP (ps));
-		}
-		sx = ox + px + pop.origin.x - ex;
-		sy = oy + py + pop.origin.y - ey;
-		return g_strdup_printf ("pop x=%d w=%d bottom=%d | row x=%d w=%d top=%d",
-			(int) sx, (int) pop.size.width, (int) (sy + pop.size.height),
-			(int) rb.origin.x, (int) rb.size.width, (int) rb.origin.y);
+		ox = gdk_popup_get_position_x (GDK_POPUP (ps));
+		oy = gdk_popup_get_position_y (GDK_POPUP (ps));
 	}
+	sx = ox + px + pop.origin.x - ex;
+	sy = oy + py + pop.origin.y - ey;
+	return g_strdup_printf ("pop x=%d w=%d bottom=%d | row x=%d w=%d top=%d",
+		(int) sx, (int) pop.size.width, (int) (sy + pop.size.height),
+		(int) rb.origin.x, (int) rb.size.width, (int) rb.origin.y);
 }
 
 GtkWidget *
@@ -495,8 +795,8 @@ cmdpopup_widget (GtkWidget *entry)
 	return p ? p->popover : NULL;
 }
 
-/* tests: what the popup shows ("" when closed): "list: NAME|NAME..." with
-   the selected one in [], or "hint: text" */
+/* tests: what it shows ("" when closed): "list: A [B] C" (the selected one
+   in []) and/or "hint: text" */
 char *
 cmdpopup_describe (GtkWidget *entry)
 {
@@ -507,16 +807,22 @@ cmdpopup_describe (GtkWidget *entry)
 
 	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
 		return g_strdup ("");
-	if (gtk_widget_get_visible (p->hint))
-		return g_strdup_printf ("hint: %s", gtk_label_get_text (GTK_LABEL (p->hint)));
-	s = g_string_new ("list:");
-	sel = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
-	n = MIN (p->cmds->len, MAX_ROWS);
-	for (i = 0; i < n; i++)
+	s = g_string_new (NULL);
+	if (gtk_widget_get_visible (gtk_widget_get_parent (p->list)) && p->items)
 	{
-		cmdinfo *c = g_ptr_array_index (p->cmds, i);
-		gboolean is_sel = sel && gtk_list_box_row_get_index (sel) == (int) i;
-		g_string_append_printf (s, " %s%s%s", is_sel ? "[" : "", c->name, is_sel ? "]" : "");
+		g_string_append (s, "list:");
+		sel = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
+		n = MIN (p->items->len, MAX_ROWS);
+		for (i = 0; i < n; i++)
+		{
+			item *it = g_ptr_array_index (p->items, i);
+			gboolean is_sel = sel && gtk_list_box_row_get_index (sel) == (int) i;
+			/* commands without their slash, as before */
+			const char *name = !p->args && it->name[0] == '/' ? it->name + 1 : it->name;
+			g_string_append_printf (s, " %s%s%s", is_sel ? "[" : "", name, is_sel ? "]" : "");
+		}
 	}
+	if (gtk_widget_get_visible (p->hint))
+		g_string_append_printf (s, "%shint: %s", s->len ? " | " : "", gtk_label_get_text (GTK_LABEL (p->hint)));
 	return g_string_free (s, FALSE);
 }
