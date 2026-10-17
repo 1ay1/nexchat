@@ -123,6 +123,11 @@ fe_args (int argc, char *argv[])
 	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 	textdomain (GETTEXT_PACKAGE);
 #endif
+#ifdef __APPLE__
+	/* inside nexchat.app: plugins, translations, icons, schemas and pixbuf
+	   loaders come from the bundle, wherever it was copied to */
+	macos_bundle_setup (GETTEXT_PACKAGE);
+#endif
 
 	context = g_option_context_new (NULL);
 #ifdef WIN32

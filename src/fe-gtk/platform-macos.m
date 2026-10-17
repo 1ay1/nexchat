@@ -15,6 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <glib.h>
+#include <glib/gi18n.h>
 #include <gtk/gtk.h>
 
 #include "platform-macos.h"
@@ -340,6 +341,43 @@ macos_dump_focus (void)
 	g_printerr ("focus: front-app-pid=%d ours=%d key-window=\"%s\"\n",
 					(int) [front processIdentifier], (int) getpid (),
 					key ? [[key title] UTF8String] : "(none)");
+}
+
+/* Running from nexchat.app (Contents/MacOS/nexchat): point GLib, GTK,
+   gettext and the plugin loader at Contents/Resources, so the bundle works
+   wherever it is copied to. Variables already set by the user win. */
+void
+macos_bundle_setup (const char *textdomain)
+{
+	NSString *res;
+	const char *r;
+	char *p;
+
+	if (![[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"])
+		return;
+	res = [[NSBundle mainBundle] resourcePath];
+	if (!res)
+		return;
+	r = [res fileSystemRepresentation];
+
+#define SET(var, ...) \
+	if (!g_getenv (var)) \
+	{ \
+		p = g_build_filename (r, __VA_ARGS__, NULL); \
+		g_setenv (var, p, TRUE); \
+		g_free (p); \
+	}
+	SET ("NEXCHAT_LIBDIR", "lib", "nexchat", "plugins");
+	SET ("XDG_DATA_DIRS", "share");
+	SET ("GSETTINGS_SCHEMA_DIR", "share", "glib-2.0", "schemas");
+	SET ("GDK_PIXBUF_MODULE_FILE", "lib", "gdk-pixbuf-2.0", "2.10.0", "loaders.cache");
+	SET ("GIO_MODULE_DIR", "lib", "gio", "modules");
+	SET ("OPENSSL_MODULES", "lib", "ossl-modules");
+#undef SET
+
+	p = g_build_filename (r, "share", "locale", NULL);
+	bindtextdomain (textdomain, p);
+	g_free (p);
 }
 
 static NSInteger attention_req;

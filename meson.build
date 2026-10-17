@@ -174,6 +174,15 @@ if cc.get_id() != 'msvc'
   )
 endif
 
+# macOS: `ninja -C build app` makes a self-contained build/nexchat.app
+# (osx/make-app.py); osx/check-app.sh checks it runs on its own
+if host_machine.system() == 'darwin' and get_option('gtk-frontend')
+  run_target('app',
+    command: [find_program('python3'), files('osx/make-app.py'), meson.current_build_dir()],
+    depends: [hexchat_gtk],
+  )
+endif
+
 summary({
   'prefix': get_option('prefix'),
   'bindir': get_option('bindir'),

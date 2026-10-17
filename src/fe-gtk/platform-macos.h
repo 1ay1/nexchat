@@ -14,6 +14,9 @@
 
 /* bring the app to the front (started from a terminal it stays behind) */
 void macos_activate (void);
+/* inside nexchat.app: use the bundle's Resources for plugins, data and
+   translations (textdomain is rebound there) */
+void macos_bundle_setup (const char *textdomain);
 /* tests: write the menu bar macOS shows to path */
 void macos_dump_main_menu (const char *path);
 /* tests: click "Menu/Item" in that menu bar */
