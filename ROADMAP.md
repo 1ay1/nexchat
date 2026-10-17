@@ -272,7 +272,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 - [ ] URL hover shows the full target before you click.
 
 Speed (phase 7 continues):
-- [ ] `find_channel`/`find_dialog` walk every session of every server per incoming line; a per-server hash.
+- [x] Channel lookups: measured, not a problem. `find_channel` walks every session, but `tests/bench-lines.py` gets ~90k lines/s in fe-text and ~66k in the GUI with 5 channels or 1000 alike. No hash needed.
 - [ ] xtext rewraps the whole scrollback on every width change; rewrap what's on screen first and the rest when idle.
 
 ## 9. Places where GTK4/Wayland fight the HexChat UX
