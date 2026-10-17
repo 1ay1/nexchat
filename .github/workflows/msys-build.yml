@@ -11,6 +11,11 @@ on:
 jobs:
   msys2_build:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gtk: ['3', '4']
+    name: msys2_build (gtk${{ matrix.gtk }})
     defaults:
       run:
         shell: msys2 {0}
@@ -20,20 +25,22 @@ jobs:
 
       - uses: msys2/setup-msys2@v2
         with:
+          msystem: UCRT64
           install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-python-cffi
-            mingw-w64-x86_64-meson
-            mingw-w64-x86_64-gtk3
-            mingw-w64-x86_64-gtk-update-icon-cache
-            mingw-w64-x86_64-luajit
-            mingw-w64-x86_64-gettext
-            mingw-w64-x86_64-openssl
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-python-cffi
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-gtk${{ matrix.gtk }}
+            mingw-w64-ucrt-x86_64-gtk-update-icon-cache
+            mingw-w64-ucrt-x86_64-luajit
+            mingw-w64-ucrt-x86_64-gettext
+            mingw-w64-ucrt-x86_64-openssl
 
       - name: Configure
         run: >-
           meson build
+          -Dgtk=${{ matrix.gtk }}
           -Dtext-frontend=true
           -Ddbus=disabled
           -Dwith-upd=false
