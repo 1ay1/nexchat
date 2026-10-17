@@ -815,6 +815,7 @@ gtk_xtext_unrealize (GtkWidget * widget)
 {
 	backend_deinit (GTK_XTEXT (widget));
 	xtext_backing_free (GTK_XTEXT (widget));
+	GTK_XTEXT (widget)->cursor_name = NULL;
 
 	/* GTK3: GtkWidget's unrealize unregisters and destroys our GdkWindow */
 	if (GTK_WIDGET_CLASS (parent_class)->unrealize)
@@ -1805,6 +1806,39 @@ gtk_xtext_unrender_hilight (GtkXText *xtext)
 	xtext->un_hilight = FALSE;
 }
 
+/* pointer shape, set only when it changes */
+static void
+xtext_set_cursor (GtkXText *xtext, const char *name)
+{
+	if (xtext->cursor_name == name)
+		return;
+	xtext->cursor_name = name;
+	nx_widget_set_cursor_name (GTK_WIDGET (xtext), name);
+}
+
+/* I-beam over text, arrow over empty space */
+static void
+xtext_set_base_cursor (GtkXText *xtext, int x, int y)
+{
+	int off, oob = TRUE;
+
+	if (!gtk_xtext_find_char (xtext, x, y, &off, &oob))
+		oob = TRUE;
+	xtext_set_cursor (xtext, oob ? NULL : "text");
+}
+
+/* within a few px of the separator line (a 1px target is too fiddly) */
+static gboolean
+xtext_on_separator (GtkXText *xtext, int x)
+{
+	int line_x;
+
+	if (!xtext->separator || !xtext->buffer->indent)
+		return FALSE;
+	line_x = xtext->buffer->indent - ((xtext->space_width + 1) / 2);
+	return abs (x - line_x) <= 3;
+}
+
 /* pointer is off any link / the separator: drop hilight and cursor */
 static void
 gtk_xtext_unhover (GtkXText *xtext)
@@ -1815,7 +1849,6 @@ gtk_xtext_unhover (GtkXText *xtext)
 		xtext->hilight_start = -1;
 		xtext->hilight_end = -1;
 		xtext->cursor_hand = FALSE;
-		nx_widget_set_cursor_name (GTK_WIDGET (xtext), NULL);
 		xtext->hilight_ent = NULL;
 	}
 
@@ -1825,7 +1858,6 @@ gtk_xtext_unhover (GtkXText *xtext)
 		xtext->hilight_start = -1;
 		xtext->hilight_end = -1;
 		xtext->cursor_resize = FALSE;
-		nx_widget_set_cursor_name (GTK_WIDGET (xtext), NULL);
 		xtext->hilight_ent = NULL;
 	}
 }
@@ -1833,8 +1865,24 @@ gtk_xtext_unhover (GtkXText *xtext)
 static void
 gtk_xtext_crossing (GtkWidget *widget, gboolean entered, gpointer unused)
 {
-	if (!entered)
+#if !GTK_CHECK_VERSION(4, 0, 0)
+	/* GTK3 gets an enter without a motion when the pointer jumps in */
+	if (entered && gtk_widget_get_window (widget))
+	{
+		GdkWindow *win = gtk_widget_get_window (widget);
+		GdkSeat *seat = gdk_display_get_default_seat (gdk_window_get_display (win));
+		int x, y;
+
+		gdk_window_get_device_position (win, gdk_seat_get_pointer (seat), &x, &y, NULL);
+		gtk_xtext_motion_notify (widget, x, y, 0, NULL);
+		return;
+	}
+#endif
+	if (!entered && !GTK_XTEXT (widget)->moving_separator && !GTK_XTEXT (widget)->button_down)
+	{
 		gtk_xtext_unhover (GTK_XTEXT (widget));
+		xtext_set_cursor (GTK_XTEXT (widget), NULL);
+	}
 }
 
 /* check if we should mark time stamps, and if a redraw is needed */
@@ -1916,7 +1964,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 								 GdkModifierType mask, gpointer unused)
 {
 	GtkXText *xtext = GTK_XTEXT (widget);
-	int redraw, tmp, x, y, offset, len, line_x;
+	int redraw, tmp, x, y, offset, len;
 	textentry *word_ent;
 	int word_type;
 
@@ -1926,6 +1974,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 
 	if (xtext->moving_separator)
 	{
+		xtext_set_cursor (xtext, "col-resize");
 		if (x < (3 * nx_widget_get_allocated_width (widget)) / 5 && x > 15)
 		{
 			tmp = xtext->buffer->indent;
@@ -1949,6 +1998,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 
 	if (xtext->button_down)
 	{
+		xtext_set_cursor (xtext, "text");
 		redraw = gtk_xtext_check_mark_stamp (xtext, mask);
 #if !GTK_CHECK_VERSION(4, 0, 0)
 		/* GTK4's drag gesture holds the pointer for us */
@@ -1969,23 +2019,23 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 		return;
 	}
 
-	if (xtext->separator && xtext->buffer->indent)
+	if (xtext_on_separator (xtext, x))
 	{
-		line_x = xtext->buffer->indent - ((xtext->space_width + 1) / 2);
-		if (line_x == x || line_x == x + 1 || line_x == x - 1)
+		if (!xtext->cursor_resize)
 		{
-			if (!xtext->cursor_resize)
-			{
-				nx_widget_set_cursor_name (widget, "w-resize");
-				xtext->cursor_hand = FALSE;
-				xtext->cursor_resize = TRUE;
-			}
-			return;
+			gtk_xtext_unhover (xtext);
+			xtext->cursor_resize = TRUE;
 		}
+		xtext_set_cursor (xtext, "col-resize");
+		return;
 	}
 
 	if (xtext->urlcheck_function == NULL)
+	{
+		gtk_xtext_unhover (xtext);
+		xtext_set_base_cursor (xtext, x, y);
 		return;
+	}
 
 	word_type = gtk_xtext_get_word_adjust (xtext, x, y, &word_ent, &offset, &len);
 	if (word_type > 0)
@@ -1997,10 +2047,10 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 		{
 			if (!xtext->cursor_hand)
 			{
-				nx_widget_set_cursor_name (widget, "pointer");
 				xtext->cursor_hand = TRUE;
 				xtext->cursor_resize = FALSE;
 			}
+			xtext_set_cursor (xtext, "pointer");
 
 			/* un-render the old hilight */
 			if (xtext->hilight_ent)
@@ -2024,6 +2074,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 	}
 
 	gtk_xtext_unhover (xtext);
+	xtext_set_base_cursor (xtext, x, y);
 }
 
 #if GTK_CHECK_VERSION(4, 0, 0)
@@ -2205,6 +2256,11 @@ gtk_xtext_button_release (GtkWidget * widget, guint button, int n_press,
 			gtk_xtext_render_page (xtext);
 		} else
 			gtk_xtext_draw_sep (xtext, -1);
+		if (!xtext_on_separator (xtext, x))
+		{
+			xtext->cursor_resize = FALSE;
+			xtext_set_base_cursor (xtext, x, y);
+		}
 		return FALSE;
 	}
 
@@ -2268,7 +2324,7 @@ gtk_xtext_button_press (GtkWidget * widget, guint button, int n_press,
 	GtkXText *xtext = GTK_XTEXT (widget);
 	textentry *ent;
 	unsigned char *word;
-	int line_x, x = (int) ex, y = (int) ey, offset, len;
+	int x = (int) ex, y = (int) ey, offset, len;
 
 	xtext->pointer_y = y;
 	xtext->click_x = x;
@@ -2317,16 +2373,12 @@ gtk_xtext_button_press (GtkWidget * widget, guint button, int n_press,
 	}
 
 	/* check if it was a separator-bar click */
-	if (xtext->separator && xtext->buffer->indent)
+	if (xtext_on_separator (xtext, x))
 	{
-		line_x = xtext->buffer->indent - ((xtext->space_width + 1) / 2);
-		if (line_x == x || line_x == x + 1 || line_x == x - 1)
-		{
-			xtext->moving_separator = TRUE;
-			/* draw the separator line */
-			gtk_xtext_draw_sep (xtext, -1);
-			return FALSE;
-		}
+		xtext->moving_separator = TRUE;
+		/* draw the separator line */
+		gtk_xtext_draw_sep (xtext, -1);
+		return FALSE;
 	}
 
 	xtext->button_down = TRUE;

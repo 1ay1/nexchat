@@ -143,6 +143,7 @@ struct _GtkXText
 	int backing_scale;				/* HiDPI scale ->backing was made for */
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 	int click_x, click_y;			/* where the last press was */
+	const char *cursor_name;		/* pointer shape now (static string), NULL: default */
 	gpointer primary_content;		/* GTK4: the GdkContentProvider we put on PRIMARY */
 	gulong primary_tag;				/* GTK4: PRIMARY "changed" handler */
 
