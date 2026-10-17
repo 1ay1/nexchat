@@ -23,7 +23,11 @@
 #include "fe-gtk.h"
 
 #ifdef WIN32
+#if GTK_CHECK_VERSION(4, 0, 0)
+#include <gdk/win32/gdkwin32.h>
+#else
 #include <gdk/gdkwin32.h>
+#endif
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -95,22 +99,17 @@ static const GOptionEntry gopt_entries[] =
 };
 
 #ifdef WIN32
+/* --help, --version, bad options: a GUI app has no console, so show them
+   in a native message box (GTK isn't up yet) */
 static void
 create_msg_dialog (gchar *title, gchar *message)
 {
-	GtkWidget *dialog;
+	wchar_t *t = g_utf8_to_utf16 (title, -1, NULL, NULL, NULL);
+	wchar_t *m = g_utf8_to_utf16 (message, -1, NULL, NULL, NULL);
 
-	dialog = nx_message_dialog_new (NULL, TRUE, NX_MSG_INFO, NX_BUTTONS_CLOSE, FALSE, message);
-	gtk_window_set_title (GTK_WINDOW (dialog), title);
-
-/* On Win32 we automatically have the icon. If we try to load it explicitly, it will look ugly for some reason. */
-#ifndef WIN32
-	pixmaps_init ();
-	gtk_window_set_icon (GTK_WINDOW (dialog), pix_hexchat);
-#endif
-
-	gtkutil_dialog_run_blocking (NX_DIALOG_CAST (dialog));
-	nx_widget_destroy (dialog);
+	MessageBoxW (NULL, m, t, MB_OK | MB_ICONINFORMATION);
+	g_free (t);
+	g_free (m);
 }
 #endif
 
@@ -146,7 +145,6 @@ fe_args (int argc, char *argv[])
 			if (strstr (error->message, "--help-all") != NULL)
 			{
 				buffer = g_option_context_get_help (context, FALSE, NULL);
-				gtk_init (&argc, &argv);
 				create_msg_dialog ("Long Help", buffer);
 				g_free (buffer);
 				return 0;
@@ -154,7 +152,6 @@ fe_args (int argc, char *argv[])
 			else if (strstr (error->message, "--help") != NULL || strstr (error->message, "-?") != NULL)
 			{
 				buffer = g_option_context_get_help (context, TRUE, NULL);
-				gtk_init (&argc, &argv);
 				create_msg_dialog ("Help", buffer);
 				g_free (buffer);
 				return 0;
@@ -162,7 +159,6 @@ fe_args (int argc, char *argv[])
 			else 
 			{
 				buffer = g_strdup_printf ("%s\n", error->message);
-				gtk_init (&argc, &argv);
 				create_msg_dialog ("Error", buffer);
 				g_free (buffer);
 				return 1;
@@ -184,7 +180,6 @@ fe_args (int argc, char *argv[])
 	{
 		buffer = g_strdup_printf ("%s %s", PACKAGE_NAME, PACKAGE_VERSION);
 #ifdef WIN32
-		gtk_init (&argc, &argv);
 		create_msg_dialog ("Version Information", buffer);
 #else
 		puts (buffer);
@@ -198,7 +193,6 @@ fe_args (int argc, char *argv[])
 	{
 		buffer = g_strdup_printf ("%s%caddons%c", get_xdir(), G_DIR_SEPARATOR, G_DIR_SEPARATOR);
 #ifdef WIN32
-		gtk_init (&argc, &argv);
 		create_msg_dialog ("Plugin/Script Auto-load Directory", buffer);
 #else
 		puts (buffer);
@@ -212,7 +206,6 @@ fe_args (int argc, char *argv[])
 	{
 		buffer = g_strdup_printf ("%s%c", get_xdir(), G_DIR_SEPARATOR);
 #ifdef WIN32
-		gtk_init (&argc, &argv);
 		create_msg_dialog ("User Config Directory", buffer);
 #else
 		puts (buffer);
@@ -241,6 +234,12 @@ fe_args (int argc, char *argv[])
 	}
 #endif
 
+#if defined(WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+	/* the real Windows title bar, borders, snap and shadow instead of
+	   GTK's drawn ones */
+	if (!g_getenv ("GTK_CSD"))
+		g_setenv ("GTK_CSD", "0", TRUE);
+#endif
 	nx_gtk_init (&argc, &argv);
 
 #ifdef HAVE_GTK_MAC
@@ -1269,7 +1268,11 @@ fe_gui_info_ptr (session *sess, int info_type)
 	{
 	case 0:	/* native window pointer (for plugins) */
 #ifdef WIN32
+#if GTK_CHECK_VERSION(4, 0, 0)
+		return gtkutil_window_hwnd (GTK_WINDOW (sess->gui->window));
+#else
 		return gdk_win32_window_get_impl_hwnd (gtk_widget_get_window (sess->gui->window));
+#endif
 #else
 		return sess->gui->window;
 #endif

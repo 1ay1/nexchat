@@ -55,6 +55,9 @@
 
 #ifdef G_OS_WIN32
 #include <windows.h>
+#if GTK_CHECK_VERSION(4, 0, 0)
+#include <gdk/win32/gdkwin32.h>
+#endif
 #endif
 
 #define GUI_SPACING (3)
@@ -3331,6 +3334,16 @@ mg_tabwindow_de_cb (GtkWidget *widget, gpointer user_data)
 }
 
 #ifdef G_OS_WIN32
+/* the user changed the clock or time zone: timestamps follow */
+#if GTK_CHECK_VERSION(4, 0, 0)
+static GdkWin32MessageFilterReturn
+mg_time_change (GdkWin32Display *display, MSG *msg, int *ret, gpointer data)
+{
+	if (msg->message == WM_TIMECHANGE)
+		_tzset ();
+	return GDK_WIN32_MESSAGE_FILTER_CONTINUE;
+}
+#else
 static GdkFilterReturn
 mg_time_change (GdkXEvent *xevent, GdkEvent *event, gpointer data)
 {
@@ -3344,13 +3357,14 @@ mg_time_change (GdkXEvent *xevent, GdkEvent *event, gpointer data)
 	return GDK_FILTER_CONTINUE;
 }
 #endif
+#endif
 
 static void
 mg_create_tabwindow (session *sess)
 {
 	GtkWidget *win;
 	GtkWidget *table;
-#ifdef G_OS_WIN32
+#if defined(G_OS_WIN32) && !GTK_CHECK_VERSION(4, 0, 0)
 	GdkWindow *parent_win;
 #endif
 
@@ -3415,8 +3429,20 @@ mg_create_tabwindow (session *sess)
 	nx_widget_show (win);
 
 #ifdef G_OS_WIN32
+#if GTK_CHECK_VERSION(4, 0, 0)
+	{
+		static gboolean filtered;
+		if (!filtered)
+		{
+			filtered = TRUE;
+			gdk_win32_display_add_filter (GDK_WIN32_DISPLAY (gtk_widget_get_display (win)),
+												mg_time_change, NULL);
+		}
+	}
+#else
 	parent_win = gtk_widget_get_window (win);
 	gdk_window_add_filter (parent_win, mg_time_change, NULL);
+#endif
 #endif
 }
 

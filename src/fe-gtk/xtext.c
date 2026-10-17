@@ -65,7 +65,9 @@ static void gtk_xtext_crossing (GtkWidget *, gboolean, gpointer);
 #include <windows.h>
 #include <io.h>
 #include <gdk/gdk.h>
+#if !GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/gdkwin32.h>
+#endif
 #else
 #include <unistd.h>
 #if defined(GDK_WINDOWING_X11) && !GTK_CHECK_VERSION(4, 0, 0)

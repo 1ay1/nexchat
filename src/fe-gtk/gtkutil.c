@@ -45,6 +45,10 @@
 #ifdef HAVE_WLACTIVATE
 #include "wlactivate.h"
 #endif
+#if defined(GDK_WINDOWING_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#include <gdk/win32/gdkwin32.h>
+#include <windows.h>
+#endif
 
 #include "../common/hexchat.h"
 #include "../common/fe.h"
@@ -301,10 +305,113 @@ x11_place_on_map (GtkWidget *w, gpointer data)
 #endif
 
 #if GTK_CHECK_VERSION(4, 0, 0)
+#if defined(GDK_WINDOWING_WIN32)
+/* the window's HWND, NULL before it's realized */
+#undef gtkutil_window_hwnd
+void *
+gtkutil_window_hwnd_ (GtkWindow *win)
+{
+	GdkSurface *s;
+
+	if (!GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return NULL;
+	s = gtk_native_get_surface (GTK_NATIVE (win));
+	return s ? (void *) gdk_win32_surface_get_handle (s) : NULL;
+}
+#define gtkutil_window_hwnd(w) ((HWND) gtkutil_window_hwnd_ (w))
+
+/* the work area (screen minus taskbar) of the monitor the window, or
+   else the pointer, is on */
+static void
+win32_work_area (HWND hwnd, RECT *r)
+{
+	MONITORINFO mi = { sizeof mi };
+	HMONITOR m;
+	POINT pt;
+
+	if (hwnd)
+		m = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+	else
+	{
+		GetCursorPos (&pt);
+		m = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
+	}
+	GetMonitorInfoW (m, &mi);
+	*r = mi.rcWork;
+}
+
+static void
+win32_move_now (GtkWindow *win, int x, int y)
+{
+	HWND h = gtkutil_window_hwnd (win);
+
+	if (h)
+		SetWindowPos (h, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static void
+win32_move_on_map (GtkWidget *w, gpointer unused)
+{
+	g_signal_handlers_disconnect_by_func (w, win32_move_on_map, unused);
+	win32_move_now (GTK_WINDOW (w),
+						 GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-x")),
+						 GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-y")));
+}
+
+/* placed like GTK3's GTK_WIN_POS_*: at the pointer, centred on the parent
+   or on the screen, kept inside the work area */
+static void
+win32_place_on_map (GtkWidget *w, gpointer how)
+{
+	HWND h = gtkutil_window_hwnd (GTK_WINDOW (w)), ph;
+	GtkWindow *parent = gtk_window_get_transient_for (GTK_WINDOW (w));
+	RECT wr, pr, area;
+	POINT pt;
+	int ww, wh, x, y;
+
+	g_signal_handlers_disconnect_by_func (w, win32_place_on_map, how);
+	if (!h || !GetWindowRect (h, &wr))
+		return;
+	ww = wr.right - wr.left;
+	wh = wr.bottom - wr.top;
+	ph = parent ? gtkutil_window_hwnd (parent) : NULL;
+	if (GPOINTER_TO_INT (how) == 1)
+	{
+		GetCursorPos (&pt);
+		x = pt.x - ww / 2;
+		y = pt.y - wh / 2;
+		win32_work_area (NULL, &area);
+	}
+	else if (GPOINTER_TO_INT (how) == 2 && ph && GetWindowRect (ph, &pr))
+	{
+		x = pr.left + (pr.right - pr.left - ww) / 2;
+		y = pr.top + (pr.bottom - pr.top - wh) / 2;
+		win32_work_area (ph, &area);
+	}
+	else
+	{
+		win32_work_area (ph, &area);
+		x = area.left + (area.right - area.left - ww) / 2;
+		y = area.top + (area.bottom - area.top - wh) / 2;
+	}
+	x = CLAMP (x, area.left, MAX (area.left, area.right - ww));
+	y = CLAMP (y, area.top, MAX (area.top, area.bottom - wh));
+	SetWindowPos (h, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+#endif
+
 /* how: 1 at the pointer, 0 screen centre, 2 centred on its parent */
 void
 gtkutil_window_place (GtkWidget *win, int at_mouse)
 {
+#ifdef GDK_WINDOWING_WIN32
+	if (GTK_IS_WINDOW (win) && GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (win)))
+	{
+		g_signal_handlers_disconnect_matched (win, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, win32_place_on_map, NULL);
+		g_signal_connect (win, "map", G_CALLBACK (win32_place_on_map), GINT_TO_POINTER (at_mouse));
+		return;
+	}
+#endif
 #ifdef GDK_WINDOWING_X11
 	if (!GTK_IS_WINDOW (win) || !GDK_IS_X11_DISPLAY (gtk_widget_get_display (win)))
 		return;
@@ -319,6 +426,21 @@ void
 gtkutil_window_move (GtkWindow *win, int x, int y)
 {
 #if GTK_CHECK_VERSION(4, 0, 0)
+#ifdef GDK_WINDOWING_WIN32
+	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+	{
+		if (gtk_widget_get_mapped (GTK_WIDGET (win)))
+			win32_move_now (win, x, y);
+		else
+		{
+			g_object_set_data (G_OBJECT (win), "nx-move-x", GINT_TO_POINTER (x));
+			g_object_set_data (G_OBJECT (win), "nx-move-y", GINT_TO_POINTER (y));
+			g_signal_handlers_disconnect_by_func (win, win32_move_on_map, NULL);
+			g_signal_connect (win, "map", G_CALLBACK (win32_move_on_map), NULL);
+		}
+		return;
+	}
+#endif
 #ifdef GDK_WINDOWING_X11
 	if (!GDK_IS_X11_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
 		return;		/* Wayland: the compositor places windows */
@@ -345,6 +467,19 @@ gboolean
 gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 {
 #if GTK_CHECK_VERSION(4, 0, 0)
+#ifdef GDK_WINDOWING_WIN32
+	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+	{
+		HWND h = gtkutil_window_hwnd (win);
+		RECT r;
+
+		if (!h || !GetWindowRect (h, &r))
+			return FALSE;
+		*x = r.left;
+		*y = r.top;
+		return TRUE;
+	}
+#endif
 #ifdef GDK_WINDOWING_X11
 	Window xid = x11_xid (win), child;
 	XWindowAttributes a;
@@ -389,6 +524,21 @@ gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 	}
 #endif
 #if GTK_CHECK_VERSION(4, 0, 0)
+#ifdef GDK_WINDOWING_WIN32
+	/* the taskbar button flashes until the window is activated */
+	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+	{
+		HWND h = gtkutil_window_hwnd (win);
+		FLASHWINFO fi = { sizeof fi };
+
+		if (!h)
+			return;
+		fi.hwnd = h;
+		fi.dwFlags = urgent ? (FLASHW_TRAY | FLASHW_TIMERNOFG) : FLASHW_STOP;
+		FlashWindowEx (&fi);
+		return;
+	}
+#endif
 #ifdef GDK_WINDOWING_X11
 	Window xid = x11_xid (win);
 	XWMHints *h;
@@ -1353,7 +1503,7 @@ gtkutil_window_new (char *title, char *role, int width, int height, int flags)
 	win = nx_window_new ();
 #endif
 	gtkutil_set_icon (win);
-#ifdef WIN32
+#if defined(WIN32) && !GTK_CHECK_VERSION(4, 0, 0)
 	gtk_window_set_wmclass (GTK_WINDOW (win), "nexchat", "nexchat");
 #endif
 	gtk_window_set_title (GTK_WINDOW (win), title);
