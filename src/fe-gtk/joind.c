@@ -218,9 +218,11 @@ joind_show_dialog (server *serv)
 	nx_widget_show (hbox1);
 	nx_box_pack_start (vbox1, hbox1, TRUE, TRUE, 0);
 
-	image1 = gtkutil_image_new_from_stock (NX_STOCK_NETWORK, NX_ICON_LARGE_TOOLBAR);
+	/* network-idle is a faint panel icon in some themes; workgroup is a
+	   real full-colour one everywhere */
+	image1 = nx_image_new_from_icon_name ("network-workgroup", NX_ICON_DIALOG);
 	nx_widget_show (image1);
-	nx_box_pack_start (hbox1, image1, FALSE, TRUE, 24);
+	nx_box_pack_start (hbox1, image1, FALSE, TRUE, 12);
 	/* was gtk_misc_set_alignment (0.5, 0.06): centred, pinned near the top */
 	gtk_widget_set_halign (image1, GTK_ALIGN_CENTER);
 	gtk_widget_set_valign (image1, GTK_ALIGN_START);
@@ -293,7 +295,7 @@ joind_show_dialog (server *serv)
 	if (prefs.hex_gui_join_dialog)
 		nx_toggle_set_active ((GtkWidget *) (checkbutton1), TRUE);
 	nx_widget_show (checkbutton1);
-	nx_box_pack_start (vbox1, checkbutton1, FALSE, FALSE, 0);
+	nx_box_pack_start (vbox2, checkbutton1, FALSE, FALSE, 0);
 
 	okbutton1 = gtkutil_button_new_from_stock ("gtk-ok");
 	nx_widget_show (okbutton1);
