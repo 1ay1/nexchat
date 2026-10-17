@@ -570,6 +570,17 @@ fe_scheme_poll (gpointer d)
 	fe_apply_scheme ();
 	return G_SOURCE_CONTINUE;
 }
+
+/* tests: NEXCHAT_NSMENU_ACTIVATE="Menu/Item" clicks it in the real menu
+   bar after startup */
+static gboolean
+fe_nsmenu_activate (gpointer d)
+{
+	const char *p = g_getenv ("NEXCHAT_NSMENU_ACTIVATE");
+	if (!macos_activate_menu_path (p))
+		g_printerr ("NEXCHAT_NSMENU_ACTIVATE: no enabled item %s\n", p);
+	return G_SOURCE_REMOVE;
+}
 #endif
 
 void
@@ -597,6 +608,8 @@ fe_init (void)
 	}
 #ifdef __APPLE__
 	g_timeout_add_seconds (2, fe_scheme_poll, NULL);
+	if (g_getenv ("NEXCHAT_NSMENU_ACTIVATE"))
+		g_timeout_add (1500, fe_nsmenu_activate, NULL);
 #endif
 }
 
@@ -610,6 +623,12 @@ fe_self_shot (gpointer data)
 {
 	char *path = data;
 	GtkWidget *win = current_sess && current_sess->gui ? current_sess->gui->window : NULL;
+
+#ifdef __APPLE__
+	/* NEXCHAT_NSMENU_DUMP=path: the global menu bar as macOS has it */
+	if (g_getenv ("NEXCHAT_NSMENU_DUMP"))
+		macos_dump_main_menu (g_getenv ("NEXCHAT_NSMENU_DUMP"));
+#endif
 
 	/* NEXCHAT_SHOT_WIN=1: the newest other toplevel instead (the dialog
 	   NEXCHAT_MENU_ACTIVATE or -c opened), for checking dialogs natively */

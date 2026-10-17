@@ -12,7 +12,9 @@
    name in the menu bar. */
 
 #import <AppKit/AppKit.h>
+#include <string.h>
 #include <glib.h>
+#include <gtk/gtk.h>
 
 #include "platform-macos.h"
 
@@ -96,6 +98,236 @@ macos_activate (void)
 		[NSApp activate];
 	else
 		[NSApp activateIgnoringOtherApps:YES];
+}
+
+static void
+dump_menu (FILE *f, NSMenu *m, int depth)
+{
+	for (NSMenuItem *it in [m itemArray])
+	{
+		if ([it isSeparatorItem])
+			fprintf (f, "%*s----\n", depth * 2, "");
+		else
+			fprintf (f, "%*s%s%s%s\n", depth * 2, "", [[it title] UTF8String],
+						[[it keyEquivalent] length] ? "  [" : "",
+						[[it keyEquivalent] length] ? [[[it keyEquivalent] stringByAppendingString:@"]"] UTF8String] : "");
+		if ([it hasSubmenu] && depth < 2)
+			dump_menu (f, [it submenu], depth + 1);
+	}
+}
+
+/* tests: the menu bar macOS really shows (titles, separators, key
+   equivalents), two levels deep */
+void
+macos_dump_main_menu (const char *path)
+{
+	FILE *f = fopen (path, "w");
+	if (!f)
+		return;
+	dump_menu (f, [NSApp mainMenu], 0);
+	fclose (f);
+}
+
+/* the action of the item labelled label (mnemonics ignored), searched
+   through submenus and sections; NULL if none */
+static char *
+find_action (GMenuModel *m, const char *label)
+{
+	int i, n = g_menu_model_get_n_items (m);
+
+	for (i = 0; i < n; i++)
+	{
+		char *l = NULL, *a = NULL, *found = NULL;
+		GMenuModel *sub;
+
+		g_menu_model_get_item_attribute (m, i, G_MENU_ATTRIBUTE_LABEL, "s", &l);
+		g_menu_model_get_item_attribute (m, i, G_MENU_ATTRIBUTE_ACTION, "s", &a);
+		if (l && a)
+		{
+			GString *plain = g_string_new (NULL);
+			const char *c;
+			for (c = l; *c; c++)
+				if (*c != '_')
+					g_string_append_c (plain, *c);
+			if (!strcmp (plain->str, label))
+				found = g_strdup (a);
+			g_string_free (plain, TRUE);
+		}
+		g_free (l);
+		g_free (a);
+		if (found)
+			return found;
+		if ((sub = g_menu_model_get_item_link (m, i, G_MENU_LINK_SUBMENU)) ||
+			 (sub = g_menu_model_get_item_link (m, i, G_MENU_LINK_SECTION)))
+		{
+			found = find_action (sub, label);
+			g_object_unref (sub);
+			if (found)
+				return found;
+		}
+	}
+	return NULL;
+}
+
+/* runs a GAction from an NSMenuItem */
+@interface NxActionItem : NSObject
+{
+@public
+	GtkApplication *app;
+	char *action;		/* without "app." */
+}
+- (void)run:(id)sender;
+@end
+
+@implementation NxActionItem
+- (void)run:(id)sender
+{
+	g_action_group_activate_action (G_ACTION_GROUP (app), action, NULL);
+}
+- (void)dealloc
+{
+	g_free (action);
+}
+@end
+
+/* AppKit doesn't retain an item's target */
+static NSMutableArray *action_targets;
+
+static NxActionItem *
+action_target (GtkApplication *app, const char *action)
+{
+	NxActionItem *t = [[NxActionItem alloc] init];
+	t->app = app;
+	t->action = g_strdup (g_str_has_prefix (action, "app.") ? action + 4 : action);
+	if (!action_targets)
+		action_targets = [[NSMutableArray alloc] init];
+	[action_targets addObject:t];
+	return t;
+}
+
+static void
+point_item (NSMenuItem *it, GtkApplication *app, const char *action)
+{
+	if (!it || !action)
+		return;
+	[it setTarget:action_target (app, action)];
+	[it setAction:@selector(run:)];
+	[it setEnabled:YES];
+}
+
+static gboolean
+is_quit (NSMenuItem *it)
+{
+	return [[it keyEquivalent] isEqualToString:@"q"] &&
+			 ([it keyEquivalentModifierMask] & NSEventModifierFlagCommand);
+}
+
+/* After GTK built the menu bar (gtk_application_set_menubar with the whole
+   bar): item 0 is GTK's application menu (About, Settings, Services, Hide,
+   Quit -- About and Settings run app.about/app.preferences, which nexchat
+   doesn't have), item 1 the bar's own "nexchat" menu. Move item 1's entries
+   (Network List, New, Load Plugin, Detach, Close) into the application
+   menu after Settings, drop its Quit (the application menu has the
+   standard one) and remove the now empty item 1. About, Settings and Quit
+   run Help > About, Settings > Preferences and nexchat > Quit (which asks
+   first when connected). GTK's items keep their own tracking of the
+   actions, so shortcuts, sensitivity and the Detach/Close labels work. */
+void
+macos_merge_app_menu (GtkApplication *app, GMenuModel *bar)
+{
+	NSMenu *main_menu = [NSApp mainMenu];
+	NSMenu *app_menu, *ours;
+	GMenuModel *first;
+	char *about, *prefs, *quit;
+	NSInteger at;
+
+	if (!main_menu || [main_menu numberOfItems] < 2 || !bar || g_menu_model_get_n_items (bar) < 1)
+		return;
+	app_menu = [[main_menu itemAtIndex:0] submenu];
+	ours = [[main_menu itemAtIndex:1] submenu];
+	first = g_menu_model_get_item_link (bar, 0, G_MENU_LINK_SUBMENU);
+	if (!app_menu || !ours || !first)
+	{
+		g_clear_object (&first);
+		return;
+	}
+	about = find_action (bar, "About");
+	prefs = find_action (bar, "Preferences");
+	quit = find_action (first, "Quit");
+	g_object_unref (first);
+
+	for (NSMenuItem *it in [app_menu itemArray])
+	{
+		if ([[it title] hasPrefix:@"About"])
+			point_item (it, app, about);
+		else if ([[it keyEquivalent] isEqualToString:@","])
+			point_item (it, app, prefs);
+		else if (is_quit (it))
+			point_item (it, app, quit);
+	}
+
+	/* the nexchat menu without its last section (Quit) */
+	while ([ours numberOfItems] && (is_quit ([ours itemAtIndex:[ours numberOfItems] - 1]) ||
+			 [[ours itemAtIndex:[ours numberOfItems] - 1] isSeparatorItem]))
+		[ours removeItemAtIndex:[ours numberOfItems] - 1];
+
+	/* in front of Services' separator */
+	at = [app_menu indexOfItemWithTitle:@"Services"];
+	if (at < 0)
+		at = [app_menu numberOfItems];
+	else if (at > 0 && [[app_menu itemAtIndex:at - 1] isSeparatorItem])
+		at--;
+	[app_menu insertItem:[NSMenuItem separatorItem] atIndex:at++];
+	while ([ours numberOfItems])
+	{
+		NSMenuItem *it = [ours itemAtIndex:0];
+		[ours removeItemAtIndex:0];
+		[app_menu insertItem:it atIndex:at++];
+	}
+	[main_menu removeItemAtIndex:1];
+
+	g_free (about);
+	g_free (prefs);
+	g_free (quit);
+}
+
+/* tests: perform the menu item at "Menu/Item" of the real main menu,
+   the way a click does; FALSE if there's no such item or it's disabled */
+gboolean
+macos_activate_menu_path (const char *path)
+{
+	char **parts = g_strsplit (path, "/", -1);
+	NSMenu *m = [NSApp mainMenu];
+	gboolean ok = FALSE;
+	int i;
+
+	for (i = 0; parts[i] && m; i++)
+	{
+		NSString *want = [NSString stringWithUTF8String:parts[i]];
+		NSInteger at = -1;
+		NSInteger j;
+		for (j = 0; j < [m numberOfItems]; j++)
+			if ([[[m itemAtIndex:j] title] isEqualToString:want])
+			{
+				at = j;
+				break;
+			}
+		if (at < 0)
+			break;
+		if (!parts[i + 1])
+		{
+			[m update];
+			if ([[m itemAtIndex:at] isEnabled])
+			{
+				[m performActionForItemAtIndex:at];
+				ok = TRUE;
+			}
+			break;
+		}
+		m = [[m itemAtIndex:at] submenu];
+	}
+	g_strfreev (parts);
+	return ok;
 }
 
 static NSInteger attention_req;

@@ -1028,13 +1028,17 @@ nx_menu_use_global_menubar (GtkApplication *app)
 	macos_global_app = app;
 }
 
+/* items start..end-1 of src (end < 0: to the end), actions renamed nx. ->
+   app., submenus and sections copied too */
 static GMenuModel *
-macos_copy_model (GMenuModel *src)
+macos_copy_range (GMenuModel *src, int start, int end)
 {
 	GMenu *dst = g_menu_new ();
 	int i, n = g_menu_model_get_n_items (src);
 
-	for (i = 0; i < n; i++)
+	if (end < 0 || end > n)
+		end = n;
+	for (i = start; i < end; i++)
 	{
 		GMenuItem *mi = g_menu_item_new_from_model (src, i);
 		GMenuModel *sub;
@@ -1053,14 +1057,14 @@ macos_copy_model (GMenuModel *src)
 		g_free (action);
 		if ((sub = g_menu_item_get_link (mi, G_MENU_LINK_SUBMENU)))
 		{
-			GMenuModel *c = macos_copy_model (sub);
+			GMenuModel *c = macos_copy_range (sub, 0, -1);
 			g_menu_item_set_submenu (mi, c);
 			g_object_unref (c);
 			g_object_unref (sub);
 		}
 		if ((sub = g_menu_item_get_link (mi, G_MENU_LINK_SECTION)))
 		{
-			GMenuModel *c = macos_copy_model (sub);
+			GMenuModel *c = macos_copy_range (sub, 0, -1);
 			g_menu_item_set_section (mi, c);
 			g_object_unref (c);
 			g_object_unref (sub);
@@ -1071,6 +1075,17 @@ macos_copy_model (GMenuModel *src)
 	return G_MENU_MODEL (dst);
 }
 
+/* platform-macos.m: put the items of the bar's first menu ("nexchat")
+   into the application menu GTK made, and wire its About, Settings and Quit
+   to Help > About, Settings > Preferences and nexchat > Quit. bar is the
+   whole bar with app. actions. */
+void macos_merge_app_menu (GtkApplication *app, GMenuModel *bar);
+
+/* GTK always puts its application menu first in the menu bar, titled with
+   the app's name. The bar's own first menu, "nexchat" (HexChat's "HexChat"
+   menu), would be a second menu of the same name, so its items are moved
+   into the application menu, as HexChat's Mac build (gtk-mac-integration)
+   did. */
 void
 nx_menu_bar_export_macos (nx_menu *m)
 {
@@ -1089,8 +1104,9 @@ nx_menu_bar_export_macos (nx_menu *m)
 			g_action_map_add_action (G_ACTION_MAP (app), a);
 	}
 	g_strfreev (names);
-	model = macos_copy_model (G_MENU_MODEL (m->model));
+	model = macos_copy_range (G_MENU_MODEL (m->model), 0, -1);
 	gtk_application_set_menubar (app, model);
+	macos_merge_app_menu (app, model);
 	g_object_unref (model);
 	gtk_widget_set_visible (m->bar_widget, FALSE);
 	g_object_set_data (G_OBJECT (m->bar_widget), "nx-macos-global", GINT_TO_POINTER (1));

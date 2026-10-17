@@ -18,6 +18,16 @@ gtkutil_stock_icon_name (const char *stock_id)
 	return stock_id;
 }
 
+#ifdef __APPLE__
+/* the global menu bar's app menu merge (platform-macos.m): never reached,
+   the test doesn't call nx_menu_use_global_menubar */
+void macos_merge_app_menu (GtkApplication *app, GMenuModel *bar);
+void
+macos_merge_app_menu (GtkApplication *app, GMenuModel *bar)
+{
+}
+#endif
+
 #if !GTK_CHECK_VERSION(4, 0, 0)
 GtkWidget *
 gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size)

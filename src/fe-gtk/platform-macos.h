@@ -14,6 +14,10 @@
 
 /* bring the app to the front (started from a terminal it stays behind) */
 void macos_activate (void);
+/* tests: write the menu bar macOS shows to path */
+void macos_dump_main_menu (const char *path);
+/* tests: click "Menu/Item" in that menu bar */
+gboolean macos_activate_menu_path (const char *path);
 /* bounce the Dock icon until the app is activated (TRUE) or stop (FALSE) */
 void macos_request_attention (gboolean urgent);
 /* the system is in dark mode */
