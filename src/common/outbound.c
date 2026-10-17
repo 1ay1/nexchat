@@ -55,6 +55,7 @@
 #include "tree.h"
 #include "outbound.h"
 #include "chanopt.h"
+#include "cmdinfo.h"
 
 #define TBUFSIZE 4096
 
@@ -4899,7 +4900,12 @@ handle_command (session *sess, char *cmd, int check_spch)
 	{
 		if (!sess->server->connected)
 		{
-			PrintTextf (sess, _("Unknown Command %s. Try /help\n"), word[1]);
+			cmdinfo *guess = cmdinfo_nearest (word[1]);
+			if (guess)
+				PrintTextf (sess, _("Unknown Command %s. Did you mean /%s? Try /help\n"), word[1], guess->name);
+			else
+				PrintTextf (sess, _("Unknown Command %s. Try /help\n"), word[1]);
+			cmdinfo_free (guess);
 		}
 		else
 		{

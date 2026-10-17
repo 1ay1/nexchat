@@ -38,6 +38,8 @@ GPtrArray *cmdinfo_find (const char *prefix);
 void cmdinfo_list_free (GPtrArray *list);
 /* the one command named exactly name, or NULL; free with cmdinfo_free */
 cmdinfo *cmdinfo_lookup (const char *name);
+/* a command one or two typos away from name (/jion -> JOIN), or NULL */
+cmdinfo *cmdinfo_nearest (const char *name);
 void cmdinfo_free (cmdinfo *c);
 
 #endif

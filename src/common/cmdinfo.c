@@ -194,6 +194,68 @@ cmdinfo_find (const char *prefix)
 	return col.out;
 }
 
+/* Damerau-Levenshtein, optimal string alignment (a swap is one edit:
+   "jion" is one from "join"), case folded. Command names are short. */
+static int
+edit_distance (const char *a, const char *b, int limit)
+{
+	int la = strlen (a), lb = strlen (b), i, j, d;
+	int *m;
+
+	if (ABS (la - lb) > limit)
+		return limit + 1;
+	m = g_new (int, (la + 1) * (lb + 1));
+#define M(x, y) m[(x) * (lb + 1) + (y)]
+	for (i = 0; i <= la; i++)
+		M (i, 0) = i;
+	for (j = 0; j <= lb; j++)
+		M (0, j) = j;
+	for (i = 1; i <= la; i++)
+		for (j = 1; j <= lb; j++)
+		{
+			char ca = g_ascii_tolower (a[i - 1]), cb = g_ascii_tolower (b[j - 1]);
+			d = MIN (MIN (M (i - 1, j) + 1, M (i, j - 1) + 1), M (i - 1, j - 1) + (ca != cb));
+			if (i > 1 && j > 1 && ca == g_ascii_tolower (b[j - 2]) &&
+				 g_ascii_tolower (a[i - 2]) == cb)
+				d = MIN (d, M (i - 2, j - 2) + 1);
+			M (i, j) = d;
+		}
+	d = M (la, lb);
+#undef M
+	g_free (m);
+	return d;
+}
+
+cmdinfo *
+cmdinfo_nearest (const char *name)
+{
+	GPtrArray *all = cmdinfo_find ("");
+	cmdinfo *best = NULL;
+	int best_d, limit;
+	guint i;
+
+	/* short names only get one typo, or everything is "near" */
+	limit = strlen (name) <= 4 ? 1 : 2;
+	best_d = limit + 1;
+	for (i = 0; i < all->len; i++)
+	{
+		cmdinfo *c = g_ptr_array_index (all, i);
+		int d = edit_distance (name, c->name, limit);
+		if (d < best_d)
+		{
+			best_d = d;
+			best = c;
+		}
+	}
+	if (best)
+	{
+		g_ptr_array_find (all, best, &i);
+		best = g_ptr_array_steal_index (all, i);
+	}
+	cmdinfo_list_free (all);
+	return best;
+}
+
 cmdinfo *
 cmdinfo_lookup (const char *name)
 {
