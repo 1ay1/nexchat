@@ -1,5 +1,7 @@
 # nexchat
 
+**HexChat, continued.**
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/nexchat-dark.png">
   <img alt="nexchat: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right" src="docs/screenshots/nexchat-light.png">
@@ -7,7 +9,7 @@
 
 nexchat is an IRC client for Linux, BSD, Windows and macOS. It's a continuation of [HexChat](https://github.com/hexchat/hexchat), which was archived in 2024.
 
-The idea is Pale Moon to Firefox: the same HexChat you know, same layout, menus, dialogs and keybindings, moved onto a current toolkit (GTK4). See [ROADMAP.md](ROADMAP.md) for the plan and [docs/ux-reference](docs/ux-reference) for the screenshots every change is checked against.
+That's the whole idea: the same HexChat you know, with the same layout, menus, dialogs and keybindings, moved onto a current toolkit (GTK4) and kept working. Nothing is redesigned for its own sake. See [ROADMAP.md](ROADMAP.md) for the plan and [docs/ux-reference](docs/ux-reference) for the screenshots every change is checked against.
 
 Coming from HexChat:
 - On first start, nexchat copies `~/.config/hexchat` (or `%APPDATA%\HexChat`) to `~/.config/nexchat`. Your HexChat folder is left as it is.

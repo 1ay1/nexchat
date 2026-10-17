@@ -44,8 +44,19 @@ jobs:
           # every local file the page references exists
           grep -oE '(src|href|srcset)="[^"#:]+"' _site/index.html | cut -d'"' -f2 | sort -u |
             while read -r f; do test -e "_site/$f" || { echo "missing: $f"; exit 1; }; done
-          # the structured data parses
-          python3 -c "import json,re,sys; json.loads(re.search(r'<script type=\"application/ld\+json\">(.*?)</script>', open('_site/index.html').read(), re.S).group(1))"
+          # the structured data parses, and its FAQ answers are the page's
+          # own (Google ignores FAQ data that differs from the visible text)
+          python3 - <<'EOF'
+          import re, json, html
+          s = open('_site/index.html').read()
+          d = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', s, re.S).group(1))
+          strip = lambda x: html.unescape(re.sub('<[^>]+>', '', x)).strip()
+          page = {strip(q): strip(a) for q, a in re.findall(r'<dt>(.*?)</dt>\s*<dd>(.*?)</dd>', s, re.S)}
+          for g in d['@graph']:
+              if g['@type'] == 'FAQPage':
+                  for q in g['mainEntity']:
+                      assert page.get(q['name']) == q['acceptedAnswer']['text'], 'FAQ data differs from the page: ' + q['name']
+          EOF
           grep -q '<lastmod>20' _site/sitemap.xml
 
       - uses: actions/configure-pages@v5
