@@ -2434,11 +2434,27 @@ menu_debug_activate_idle (gpointer data)
 		{
 			nx_item *it = nx_menu_get_item (m, j);
 			const char *t = nx_item_get_text (it);
-			if (t && !strcmp (t, parts[i]))
+			char *plain = NULL;
+			if (t)
 			{
+				/* match "Network List" against "Network Li_st", "Join a Channel"
+				   against "_Join a Channel..." */
+				GString *g = g_string_new (NULL);
+				const char *c;
+				for (c = t; *c; c++)
+					if (*c != '_')
+						g_string_append_c (g, *c);
+				while (g->len && (g->str[g->len - 1] == '.' || (guchar) g->str[g->len - 1] >= 0x80))
+					g_string_truncate (g, g->len - 1);
+				plain = g_string_free (g, FALSE);
+			}
+			if (t && (!strcmp (t, parts[i]) || !g_ascii_strcasecmp (plain, parts[i])))
+			{
+				g_free (plain);
 				found = it;
 				break;
 			}
+			g_free (plain);
 		}
 		if (!found)
 			break;
