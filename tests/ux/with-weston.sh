@@ -27,8 +27,11 @@ clientline=
 printf '[core]\nidle-time=0\n[shell]\n%s\npanel-position=none\nbackground-color=0xff808080\nlocking=false\nanimation=none\nstartup-animation=none\n' \
 	"$clientline" >"$rt/weston.ini"
 # GTK3 needs a seat. NX_NO_SEAT=1 runs without one, so nothing gets focus.
-seat=--fake-seat
-[ -n "${NX_NO_SEAT:-}" ] && seat=
+# --fake-seat is weston 14+; older ones (Ubuntu's 13) refuse it
+seat=
+if [ -z "${NX_NO_SEAT:-}" ] && "$weston" --help 2>&1 | grep -q -- '--fake-seat'; then
+	seat=--fake-seat
+fi
 "$weston" --backend=headless --shell=desktop --socket=$sock $seat \
 	--width=1280 --height=800 --config="$rt/weston.ini" >"$rt/weston.log" 2>&1 &
 wp=$!
