@@ -2381,6 +2381,10 @@ mg_update_xtext (GtkWidget *wid)
 	gtk_xtext_set_show_marker (xtext, prefs.hex_text_show_marker);
 	gtk_xtext_set_show_separator (xtext, prefs.hex_text_indent ? prefs.hex_text_show_sep : 0);
 	gtk_xtext_set_indent (xtext, prefs.hex_text_indent);
+	gtk_xtext_set_jump_button (xtext, prefs.hex_gui_jump_button);
+	if (prefs.hex_text_zoom < 25 || prefs.hex_text_zoom > 400)
+		prefs.hex_text_zoom = 100;
+	xtext->zoom = prefs.hex_text_zoom;
 	if (!gtk_xtext_set_font (xtext, prefs.hex_text_font))
 	{
 		fe_message ("Failed to open any font. I'm out of here!", FE_MSG_WAIT | FE_MSG_ERROR);
@@ -2388,6 +2392,72 @@ mg_update_xtext (GtkWidget *wid)
 	}
 
 	gtk_xtext_refresh (xtext);
+}
+
+/* text zoom steps, in percent, like a browser */
+static const int zoom_steps[] = { 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300 };
+
+/* a short message floating over the chat, gone after a second */
+void
+mg_toast (session_gui *gui, const char *text)
+{
+	if (gui && gui->xtext)
+		gtk_xtext_show_toast (GTK_XTEXT (gui->xtext), text, 1200);
+}
+
+/* step: +1 bigger, -1 smaller, 0 back to 100% */
+void
+mg_zoom (int step)
+{
+	int i, cur = prefs.hex_text_zoom ? prefs.hex_text_zoom : 100, n = G_N_ELEMENTS (zoom_steps);
+	int z = 100;
+	GSList *list;
+	GSList *done = NULL;
+	char buf[64];
+
+	if (step > 0)
+	{
+		z = zoom_steps[n - 1];
+		for (i = 0; i < n; i++)
+			if (zoom_steps[i] > cur) { z = zoom_steps[i]; break; }
+	}
+	else if (step < 0)
+	{
+		z = zoom_steps[0];
+		for (i = n - 1; i >= 0; i--)
+			if (zoom_steps[i] < cur) { z = zoom_steps[i]; break; }
+	}
+	if (z == cur)
+		return;
+	prefs.hex_text_zoom = z;
+
+	/* tabs share one text widget: each widget once */
+	for (list = sess_list; list; list = list->next)
+	{
+		session *sess = list->data;
+		GtkWidget *x = sess->gui ? sess->gui->xtext : NULL;
+
+		if (!x || g_slist_find (done, x))
+			continue;
+		done = g_slist_prepend (done, x);
+		GTK_XTEXT (x)->zoom = z;
+		gtk_xtext_set_font (GTK_XTEXT (x), prefs.hex_text_font);
+		gtk_xtext_refresh (GTK_XTEXT (x));
+	}
+	g_slist_free (done);
+
+	if (current_sess && current_sess->gui)
+	{
+		g_snprintf (buf, sizeof buf, _("Zoom %d%%"), z);
+		mg_toast (current_sess->gui, buf);
+	}
+}
+
+static void
+mg_xtext_zoom_cb (GtkWidget *xtext, int step)
+{
+	if (prefs.hex_gui_zoom_keys)
+		mg_zoom (step);
 }
 
 static void
@@ -2411,6 +2481,7 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	gtk_xtext_set_max_indent (xtext, prefs.hex_text_max_indent);
 	gtk_xtext_set_thin_separator (xtext, prefs.hex_text_thin_sep);
 	gtk_xtext_set_urlcheck_function (xtext, mg_word_check);
+	xtext->zoom_cb = mg_xtext_zoom_cb;
 	gtk_xtext_set_max_lines (xtext, prefs.hex_text_max_lines);
 	gtkutil_container_add (GTK_WIDGET (frame), GTK_WIDGET (xtext));
 

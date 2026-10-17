@@ -379,7 +379,7 @@ backend_deinit (GtkXText *xtext)
 }
 
 static PangoFontDescription *
-backend_font_open_real (char *name)
+backend_font_open_real (char *name, int zoom)
 {
 	PangoFontDescription *font;
 
@@ -392,6 +392,16 @@ backend_font_open_real (char *name)
 	if (!font)
 		font = pango_font_description_from_string ("sans 11");
 
+	/* text zoom, in percent */
+	if (zoom > 0 && zoom != 100)
+	{
+		int size = pango_font_description_get_size (font) * zoom / 100;
+		if (pango_font_description_get_size_is_absolute (font))
+			pango_font_description_set_absolute_size (font, MAX (size, 4 * PANGO_SCALE));
+		else
+			pango_font_description_set_size (font, MAX (size, 4 * PANGO_SCALE));
+	}
+
 	return font;
 }
 
@@ -403,7 +413,7 @@ backend_font_open (GtkXText *xtext, char *name)
 	PangoFontMetrics *metrics;
 
 	xtext->font = &xtext->pango_font;
-	xtext->font->font = backend_font_open_real (name);
+	xtext->font->font = backend_font_open_real (name, xtext->zoom);
 	if (!xtext->font->font)
 	{
 		xtext->font = NULL;
@@ -691,9 +701,18 @@ gtk_xtext_adjustment_changed (GtkAdjustment * adj, GtkXText * xtext)
 	if (xtext->buffer->old_value != gtk_adjustment_get_value (xtext->adj))
 	{
 		if (gtk_adjustment_get_value (xtext->adj) >= gtk_adjustment_get_upper (xtext->adj) - gtk_adjustment_get_page_size (xtext->adj))
+		{
+			if (!xtext->buffer->scrollbar_down || xtext->jump_unread)
+				gtk_widget_queue_draw (GTK_WIDGET (xtext));
 			xtext->buffer->scrollbar_down = TRUE;
+			xtext->jump_unread = 0;
+		}
 		else
+		{
+			if (xtext->buffer->scrollbar_down)
+				gtk_widget_queue_draw (GTK_WIDGET (xtext));
 			xtext->buffer->scrollbar_down = FALSE;
+		}
 
 		if (gtk_adjustment_get_value (xtext->adj) + 1 == xtext->buffer->old_value ||
 			 gtk_adjustment_get_value (xtext->adj) - 1 == xtext->buffer->old_value)	/* clicked an arrow? */
@@ -761,6 +780,13 @@ gtk_xtext_destroy (GtkWidget * object)
 		g_source_remove (xtext->io_tag);
 		xtext->io_tag = 0;
 	}
+
+	if (xtext->toast_tag)
+	{
+		g_source_remove (xtext->toast_tag);
+		xtext->toast_tag = 0;
+	}
+	g_clear_pointer (&xtext->toast, g_free);
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 	if (xtext->primary_tag)
@@ -1247,6 +1273,182 @@ xit:
 		gtk_xtext_draw_sep (xtext, -1);
 }
 
+/* the "jump to latest" pill: shown while scrolled up, bottom right, with
+   the number of lines that came in since; click it to go to the bottom */
+static gboolean
+xtext_jump_visible (GtkXText *xtext)
+{
+	return xtext->jump_button && xtext->buffer && !xtext->buffer->scrollbar_down &&
+			 gtk_adjustment_get_upper (xtext->adj) > gtk_adjustment_get_page_size (xtext->adj);
+}
+
+static PangoLayout *
+xtext_jump_layout (GtkXText *xtext)
+{
+	PangoLayout *layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), NULL);
+	char *s;
+
+	/* U+2193 down arrow */
+	if (xtext->jump_unread > 0)
+		s = g_strdup_printf ("\342\206\223  %d %s", xtext->jump_unread,
+									xtext->jump_unread == 1 ? _("new line") : _("new lines"));
+	else
+		s = g_strdup_printf ("\342\206\223  %s", _("Jump to latest"));
+	pango_layout_set_text (layout, s, -1);
+	g_free (s);
+	return layout;
+}
+
+static void
+xtext_jump_rect (GtkXText *xtext, PangoLayout *layout, GdkRectangle *r)
+{
+	int tw, th;
+
+	pango_layout_get_pixel_size (layout, &tw, &th);
+	r->width = tw + 2 * 12;
+	r->height = th + 2 * 5;
+	r->x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r->width - 14;
+	r->y = nx_widget_get_allocated_height (GTK_WIDGET (xtext)) - r->height - 10;
+}
+
+static void
+xtext_draw_jump (GtkXText *xtext, cairo_t *cr)
+{
+	PangoLayout *layout;
+	GdkRectangle r;
+	GdkRGBA bg, fg;
+	double rad;
+
+	if (!xtext_jump_visible (xtext))
+		return;
+	layout = xtext_jump_layout (xtext);
+	xtext_jump_rect (xtext, layout, &r);
+	rad = r.height / 2.0;
+
+	/* the palette's selection colours, so it fits any chat theme */
+	bg = xtext->palette[XTEXT_MARK_BG];
+	fg = xtext->palette[XTEXT_MARK_FG];
+	bg.alpha = xtext->jump_hover ? 1.0 : 0.9;
+
+	cairo_save (cr);
+	cairo_new_sub_path (cr);
+	cairo_arc (cr, r.x + r.width - rad, r.y + rad, rad, -G_PI / 2, G_PI / 2);
+	cairo_arc (cr, r.x + rad, r.y + rad, rad, G_PI / 2, 3 * G_PI / 2);
+	cairo_close_path (cr);
+	/* soft shadow under it */
+	cairo_save (cr);
+	cairo_translate (cr, 0, 2);
+	cairo_set_source_rgba (cr, 0, 0, 0, 0.3);
+	cairo_fill_preserve (cr);
+	cairo_restore (cr);
+	gdk_cairo_set_source_rgba (cr, &bg);
+	cairo_fill (cr);
+	gdk_cairo_set_source_rgba (cr, &fg);
+	cairo_move_to (cr, r.x + 12, r.y + 5);
+	pango_cairo_show_layout (cr, layout);
+	cairo_restore (cr);
+	g_object_unref (layout);
+}
+
+static gboolean
+xtext_jump_hit (GtkXText *xtext, int x, int y)
+{
+	PangoLayout *layout;
+	GdkRectangle r;
+
+	if (!xtext_jump_visible (xtext))
+		return FALSE;
+	layout = xtext_jump_layout (xtext);
+	xtext_jump_rect (xtext, layout, &r);
+	g_object_unref (layout);
+	return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
+}
+
+/* scroll to the newest line */
+void
+gtk_xtext_scroll_to_end (GtkXText *xtext)
+{
+	GtkAdjustment *adj = xtext->adj;
+
+	gtk_adjustment_set_value (adj, gtk_adjustment_get_upper (adj) - gtk_adjustment_get_page_size (adj));
+	xtext->jump_unread = 0;
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+}
+
+void
+gtk_xtext_set_jump_button (GtkXText *xtext, gboolean show)
+{
+	xtext->jump_button = show;
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+}
+
+/* a short message ("Zoom 125%") centred near the top, then gone */
+static gboolean
+xtext_toast_timeout (gpointer data)
+{
+	GtkXText *xtext = data;
+
+	xtext->toast_tag = 0;
+	g_clear_pointer (&xtext->toast, g_free);
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	return G_SOURCE_REMOVE;
+}
+
+void
+gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms)
+{
+	g_free (xtext->toast);
+	xtext->toast = g_strdup (text);
+	if (xtext->toast_tag)
+		g_source_remove (xtext->toast_tag);
+	xtext->toast_tag = g_timeout_add (ms, xtext_toast_timeout, xtext);
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+}
+
+static void
+xtext_draw_toast (GtkXText *xtext, cairo_t *cr)
+{
+	PangoLayout *layout;
+	PangoFontDescription *fd;
+	int tw, th, w, h, x, y;
+	double rad;
+	GdkRGBA bg, fg;
+
+	if (!xtext->toast)
+		return;
+	layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), xtext->toast);
+	fd = pango_font_description_copy (pango_context_get_font_description (pango_layout_get_context (layout)));
+	pango_font_description_set_weight (fd, PANGO_WEIGHT_BOLD);
+	pango_font_description_set_size (fd, pango_font_description_get_size (fd) * 13 / 10);
+	pango_layout_set_font_description (layout, fd);
+	pango_font_description_free (fd);
+	pango_layout_get_pixel_size (layout, &tw, &th);
+	w = tw + 2 * 18;
+	h = th + 2 * 9;
+	x = (nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - w) / 2;
+	y = 24;
+	rad = 10;
+
+	bg = xtext->palette[XTEXT_FG];
+	fg = xtext->palette[XTEXT_BG];
+	bg.alpha = 0.85;
+
+	cairo_save (cr);
+	cairo_new_sub_path (cr);
+	cairo_arc (cr, x + w - rad, y + rad, rad, -G_PI / 2, 0);
+	cairo_arc (cr, x + w - rad, y + h - rad, rad, 0, G_PI / 2);
+	cairo_arc (cr, x + rad, y + h - rad, rad, G_PI / 2, G_PI);
+	cairo_arc (cr, x + rad, y + rad, rad, G_PI, 3 * G_PI / 2);
+	cairo_close_path (cr);
+	gdk_cairo_set_source_rgba (cr, &bg);
+	cairo_fill (cr);
+	gdk_cairo_set_source_rgba (cr, &fg);
+	cairo_move_to (cr, x + 18, y + 9);
+	pango_cairo_show_layout (cr, layout);
+	cairo_restore (cr);
+	g_object_unref (layout);
+}
+
 /* Everything was already rendered into ->backing by the code that changed
    it (append, scroll, select...), exactly when GTK2 used to draw to the
    window. Here we just put it on screen. Only a resize leaves the backing
@@ -1276,6 +1478,8 @@ gtk_xtext_draw (GtkWidget * widget, cairo_t * cr)
 	cairo_set_source_surface (cr, xtext->backing, 0, 0);
 	cairo_paint (cr);
 	cairo_restore (cr);
+	xtext_draw_jump (xtext, cr);
+	xtext_draw_toast (xtext, cr);
 	return FALSE;
 }
 
@@ -2019,6 +2223,21 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 		return;
 	}
 
+	{
+		gboolean hover = xtext_jump_hit (xtext, x, y);
+		if (hover != xtext->jump_hover)
+		{
+			xtext->jump_hover = hover;
+			gtk_widget_queue_draw (widget);
+		}
+		if (hover)
+		{
+			gtk_xtext_unhover (xtext);
+			xtext_set_cursor (xtext, "pointer");
+			return;
+		}
+	}
+
 	if (xtext_on_separator (xtext, x))
 	{
 		if (!xtext->cursor_resize)
@@ -2330,6 +2549,12 @@ gtk_xtext_button_press (GtkWidget * widget, guint button, int n_press,
 	xtext->click_x = x;
 	xtext->click_y = y;
 
+	if (button == 1 && xtext_jump_hit (xtext, x, y))
+	{
+		gtk_xtext_scroll_to_end (xtext);
+		return TRUE;
+	}
+
 	if (button == 3 || button == 2) /* right/middle click */
 	{
 		word = gtk_xtext_get_word (xtext, x, y, 0, 0, 0, 0);
@@ -2583,6 +2808,13 @@ gtk_xtext_scroll (GtkWidget *widget, GdkScrollDirection dir,
 {
 	GtkXText *xtext = GTK_XTEXT (widget);
 	gfloat new_value;
+
+	if ((state & STATE_CTRL) && xtext->zoom_cb &&
+		 (dir == GDK_SCROLL_UP || dir == GDK_SCROLL_DOWN))
+	{
+		xtext->zoom_cb (widget, dir == GDK_SCROLL_UP ? 1 : -1);
+		return TRUE;
+	}
 
 	if (dir == GDK_SCROLL_UP)		/* mouse wheel pageUp */
 	{
@@ -4961,6 +5193,13 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 		if ((buf->num_lines - 1) <= gtk_adjustment_get_page_size (buf->xtext->adj))
 			dontscroll (buf);
 
+		if (!buf->scrollbar_down)
+		{
+			buf->xtext->jump_unread++;
+			if (buf->xtext->jump_button)
+				gtk_widget_queue_draw (GTK_WIDGET (buf->xtext));
+		}
+
 		if (!buf->xtext->add_io_tag)
 		{
 			/* remove scrolling events */
@@ -5287,6 +5526,9 @@ gtk_xtext_buffer_show (GtkXText *xtext, xtext_buffer *buf, int render)
 
 	if (xtext->buffer == buf)
 		return;
+
+	xtext->jump_unread = 0;	/* the count was for the old buffer */
+	xtext->jump_hover = FALSE;
 
 /*printf("text_buffer_show: xtext=%p buffer=%p\n", xtext, buf);*/
 

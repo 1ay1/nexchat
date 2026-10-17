@@ -73,7 +73,7 @@ void key_action_tab_clean (void);
  */
 
 /* Remember that the *number* of actions is this *plus* 1 --AGL */
-#define KEY_MAX_ACTIONS 14
+#define KEY_MAX_ACTIONS 15
 
 struct key_binding
 {
@@ -135,6 +135,9 @@ static int key_action_move_tab_family_right (GtkWidget * wid, gpointer evt,
 static int key_action_put_history (GtkWidget * wid, gpointer evt,
 												  char *d1, char *d2,
 												  struct session *sess);
+static int key_action_quick_switch (GtkWidget * wid, gpointer evt,
+												  char *d1, char *d2,
+												  struct session *sess);
 
 static GSList *keybind_list = NULL;
 
@@ -170,6 +173,8 @@ static const struct key_action key_actions[KEY_MAX_ACTIONS + 1] = {
 	 N_("This command moves the current tab family to the right")},
 	{key_action_put_history, "Push input line into history",
 	 N_("Push input line into history but doesn't send to server")},
+	{key_action_quick_switch, "Quick Switcher",
+	 N_("The \002Quick Switcher\002 opens a box where you type part of a channel, query or network name and press Enter to go there. Ctrl+J does this too unless turned off in Preferences")},
 };
 
 #define default_kb_cfg \
@@ -400,7 +405,45 @@ key_handle (GtkWidget *wid, guint keyval, GdkModifierType state, session *sess)
 gboolean
 key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer unused)
 {
-	key_result r = key_handle (wid, keyval, state, NULL);
+	key_result r;
+	GdkModifierType mods = state & (STATE_CTRL | STATE_SHIFT | STATE_ALT);
+
+	/* the user's own bindings win over the built-in keys below */
+	r = key_handle (wid, keyval, state, NULL);
+	if (r != KEY_NOT_HANDLED)
+		goto done;
+
+	/* Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0: text zoom */
+	if (prefs.hex_gui_zoom_keys && mods == STATE_CTRL)
+	{
+		switch (keyval)
+		{
+		case GDK_KEY_equal: case GDK_KEY_plus: case GDK_KEY_KP_Add:
+			mg_zoom (1);
+			return TRUE;
+		case GDK_KEY_minus: case GDK_KEY_KP_Subtract:
+			mg_zoom (-1);
+			return TRUE;
+		case GDK_KEY_0: case GDK_KEY_KP_0:
+			mg_zoom (0);
+			return TRUE;
+		}
+	}
+	if (prefs.hex_gui_zoom_keys && mods == (STATE_CTRL | STATE_SHIFT) && keyval == GDK_KEY_plus)
+	{
+		mg_zoom (1);
+		return TRUE;
+	}
+
+	/* Ctrl+J: jump to any channel or query by name (Ctrl+K is mIRC colour) */
+	if (prefs.hex_gui_quick_switch && mods == STATE_CTRL &&
+		 (keyval == GDK_KEY_j || keyval == GDK_KEY_J))
+	{
+		quickswitch_open ();
+		return TRUE;
+	}
+
+done:
 
 #if !GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK3: a "stop" binding also has to keep later key_press_event
@@ -1676,6 +1719,14 @@ key_action_put_history (GtkWidget * wid, gpointer  ent, char *d1,
 	history_add (&sess->history, SPELL_ENTRY_GET_TEXT (wid));
 	SPELL_ENTRY_SET_TEXT (wid, "");
 	return 2;						  /* -''- */
+}
+
+static int
+key_action_quick_switch (GtkWidget * wid, gpointer  ent, char *d1,
+									char *d2, struct session *sess)
+{
+	quickswitch_open ();
+	return 2;
 }
 
 

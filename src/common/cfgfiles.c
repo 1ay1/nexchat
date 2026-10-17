@@ -498,6 +498,7 @@ const struct prefs vars[] =
 	{"gui_input_spell", P_OFFINT (hex_gui_input_spell), TYPE_BOOL},
 	{"gui_input_style", P_OFFINT (hex_gui_input_style), TYPE_BOOL},
 	{"gui_join_dialog", P_OFFINT (hex_gui_join_dialog), TYPE_BOOL},
+	{"gui_jump_button", P_OFFINT (hex_gui_jump_button), TYPE_BOOL},
 	{"gui_lagometer", P_OFFINT (hex_gui_lagometer), TYPE_INT},
 	{"gui_lang", P_OFFINT (hex_gui_lang), TYPE_INT},
 	{"gui_mode_buttons", P_OFFINT (hex_gui_mode_buttons), TYPE_BOOL},
@@ -505,6 +506,7 @@ const struct prefs vars[] =
 	{"gui_pane_left_size", P_OFFINT (hex_gui_pane_left_size), TYPE_INT},
 	{"gui_pane_right_size", P_OFFINT (hex_gui_pane_right_size), TYPE_INT},
 	{"gui_pane_right_size_min", P_OFFINT (hex_gui_pane_right_size_min), TYPE_INT},
+	{"gui_quick_switch", P_OFFINT (hex_gui_quick_switch), TYPE_BOOL},
 	{"gui_quit_dialog", P_OFFINT (hex_gui_quit_dialog), TYPE_BOOL},
 	{"gui_search_pos", P_OFFINT (hex_gui_search_pos), TYPE_INT},
 	/* {"gui_single", P_OFFINT (hex_gui_single), TYPE_BOOL}, */
@@ -557,6 +559,7 @@ const struct prefs vars[] =
 	{"gui_win_top", P_OFFINT (hex_gui_win_top), TYPE_INT},
 	{"gui_win_ucount", P_OFFINT (hex_gui_win_ucount), TYPE_BOOL},
 	{"gui_win_width", P_OFFINT (hex_gui_win_width), TYPE_INT},
+	{"gui_zoom_keys", P_OFFINT (hex_gui_zoom_keys), TYPE_BOOL},
 
 	{"identd_server", P_OFFINT (hex_identd_server), TYPE_BOOL},
 	{"identd_port", P_OFFINT (hex_identd_port), TYPE_INT},
@@ -661,6 +664,7 @@ const struct prefs vars[] =
 	{"text_thin_sep", P_OFFINT (hex_text_thin_sep), TYPE_BOOL},
 	{"text_transparent", P_OFFINT (hex_text_transparent), TYPE_BOOL},
 	{"text_wordwrap", P_OFFINT (hex_text_wordwrap), TYPE_BOOL},
+	{"text_zoom", P_OFFINT (hex_text_zoom), TYPE_INT},
 
 	{"url_grabber", P_OFFINT (hex_url_grabber), TYPE_BOOL},
 	{"url_grabber_limit", P_OFFINT (hex_url_grabber_limit), TYPE_INT},
@@ -840,6 +844,9 @@ load_default_config(void)
 	prefs.hex_gui_input_spell = 1;
 	prefs.hex_gui_input_style = 1;
 	prefs.hex_gui_join_dialog = 1;
+	prefs.hex_gui_jump_button = 1;
+	prefs.hex_gui_quick_switch = 1;
+	prefs.hex_gui_zoom_keys = 1;
 	prefs.hex_gui_quit_dialog = 1;
 	/* prefs.hex_gui_slist_skip = 1; */
 	prefs.hex_gui_tab_chans = 1;
@@ -902,6 +909,7 @@ load_default_config(void)
 	prefs.hex_gui_dialog_height = 256;
 	prefs.hex_gui_dialog_width = 500;
 	prefs.hex_gui_lagometer = 1;
+	prefs.hex_text_zoom = 100;
 	prefs.hex_gui_lang = get_default_language();
 	prefs.hex_gui_pane_left_size = 128;		/* with treeview icons we need a bit bigger space */
 	prefs.hex_gui_pane_right_size = 100;

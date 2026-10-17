@@ -121,6 +121,9 @@ struct hexchatprefs
 	unsigned int hex_gui_input_nick;
 	unsigned int hex_gui_input_spell;
 	unsigned int hex_gui_input_style;
+	unsigned int hex_gui_jump_button;
+	unsigned int hex_gui_quick_switch;
+	unsigned int hex_gui_zoom_keys;
 	unsigned int hex_gui_join_dialog;
 	unsigned int hex_gui_mode_buttons;
 	unsigned int hex_gui_quit_dialog;
@@ -243,6 +246,7 @@ struct hexchatprefs
 	int hex_gui_dialog_width;
 	int hex_gui_lagometer;
 	int hex_gui_lang;
+	int hex_text_zoom;
 	int hex_gui_pane_divider_position;
 	int hex_gui_pane_left_size;
 	int hex_gui_pane_right_size;

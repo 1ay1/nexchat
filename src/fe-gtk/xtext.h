@@ -144,6 +144,12 @@ struct _GtkXText
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 	int click_x, click_y;			/* where the last press was */
 	const char *cursor_name;		/* pointer shape now (static string), NULL: default */
+	int zoom;						/* font size in percent, 0/100: as set */
+	int jump_unread;				/* lines added while scrolled up */
+	gboolean jump_button;			/* show the jump-to-latest pill */
+	gboolean jump_hover;
+	char *toast;					/* message shown over the text, NULL: none */
+	guint toast_tag;
 	gpointer primary_content;		/* GTK4: the GdkContentProvider we put on PRIMARY */
 	gulong primary_tag;				/* GTK4: PRIMARY "changed" handler */
 
@@ -203,6 +209,8 @@ struct _GtkXText
 	unsigned char scratch_buffer[4096];
 
 	int (*urlcheck_function) (GtkWidget * xtext, char *word);
+	/* Ctrl+wheel: step is +1/-1; NULL: no zoom */
+	void (*zoom_cb) (GtkWidget *xtext, int step);
 
 	int jump_out_offset;	/* point at which to stop rendering */
 	int jump_in_offset;	/* "" start rendering */
@@ -311,6 +319,9 @@ void gtk_xtext_copy_selection (GtkXText *xtext);
 gboolean gtk_xtext_has_selection (GtkXText *xtext);
 void gtk_xtext_select_all (GtkXText *xtext);
 char *gtk_xtext_line_text_at (GtkXText *xtext, int x, int y);
+void gtk_xtext_scroll_to_end (GtkXText *xtext);
+void gtk_xtext_set_jump_button (GtkXText *xtext, gboolean show);
+void gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms);
 GType gtk_xtext_get_type (void);
 
 #endif
