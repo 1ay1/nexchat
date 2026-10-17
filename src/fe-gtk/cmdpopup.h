@@ -12,7 +12,8 @@
 
 #include <gtk/gtk.h>
 
-/* the "/" command list above an input box */
+/* the "/" command list right on top of the box holding the input box (nick
+   button + entry), as wide as that box */
 void cmdpopup_attach (GtkWidget *entry);
 /* a key in the entry: TRUE if the list used it (Up/Down/Tab/Enter/Escape) */
 gboolean cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state);
@@ -20,5 +21,7 @@ gboolean cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state);
 char *cmdpopup_describe (GtkWidget *entry);
 /* tests: the popover itself, for a screenshot */
 GtkWidget *cmdpopup_widget (GtkWidget *entry);
+/* tests: where it sits next to the input row */
+char *cmdpopup_geometry (GtkWidget *entry);
 
 #endif

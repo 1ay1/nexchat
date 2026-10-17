@@ -654,6 +654,9 @@ fe_tabs_dump (gpointer d)
 		char *pop = cmdpopup_describe (current_sess->gui->input_box);
 		g_printerr ("tooltip: %s\n", tip ? tip : "");
 		g_printerr ("cmdpopup: %s\n", pop);
+		g_free (pop);
+		pop = cmdpopup_geometry (current_sess->gui->input_box);
+		g_printerr ("cmdgeom: %s\n", pop);
 		g_printerr ("input: %s\n", gtk_editable_get_text (GTK_EDITABLE (current_sess->gui->input_box)));
 		g_free (pop);
 	}

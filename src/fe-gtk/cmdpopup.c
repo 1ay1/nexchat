@@ -33,6 +33,7 @@ typedef struct
 	GtkWidget *popover;
 	GtkWidget *list;		/* GtkListBox */
 	GtkWidget *hint;		/* the usage line while typing arguments */
+	int last_width, last_x;	/* where the chat area was when last placed */
 	GPtrArray *cmds;		/* the cmdinfo shown, in list order */
 	gboolean suppress;	/* Escape: stay closed until the text changes shape */
 	char *suppressed_for;	/* ...the word it was closed on */
@@ -66,10 +67,12 @@ typed_command (const char *text, int cursor, gboolean *has_space)
 	return g_strdup (text + 1);
 }
 
+/* each row is name | arguments | what it does, the first two columns a
+   fixed width so they line up down the list */
 static GtkWidget *
-row_new (cmdinfo *c)
+row_new (cmdinfo *c, GtkSizeGroup *names, GtkSizeGroup *args_group)
 {
-	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
+	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
 	GtkWidget *name, *usage, *desc;
 	char *m;
 	const char *args = c->usage;
@@ -85,19 +88,23 @@ row_new (cmdinfo *c)
 	gtk_label_set_markup (GTK_LABEL (name), m);
 	g_free (m);
 	gtk_label_set_xalign (GTK_LABEL (name), 0);
+	gtk_size_group_add_widget (names, name);
 	gtk_box_append (GTK_BOX (box), name);
 
 	usage = gtk_label_new (args);
 	gtk_label_set_xalign (GTK_LABEL (usage), 0);
 	gtk_label_set_ellipsize (GTK_LABEL (usage), PANGO_ELLIPSIZE_END);
-	gtk_label_set_max_width_chars (GTK_LABEL (usage), 28);
+	gtk_label_set_width_chars (GTK_LABEL (usage), 10);
+	gtk_label_set_max_width_chars (GTK_LABEL (usage), 30);
 	gtk_widget_add_css_class (usage, "nx-cmd-usage");
+	gtk_size_group_add_widget (args_group, usage);
 	gtk_box_append (GTK_BOX (box), usage);
 
 	desc = gtk_label_new (c->kind == CMD_PLUGIN && !*c->desc ? _("(plugin)") : c->desc);
 	gtk_label_set_xalign (GTK_LABEL (desc), 0);
 	gtk_label_set_ellipsize (GTK_LABEL (desc), PANGO_ELLIPSIZE_END);
-	gtk_label_set_max_width_chars (GTK_LABEL (desc), 48);
+	/* takes what's left of the chat area's width, cut short with "..." */
+	gtk_label_set_width_chars (GTK_LABEL (desc), 1);
 	gtk_widget_set_hexpand (desc, TRUE);
 	gtk_widget_add_css_class (desc, "nx-cmd-desc");
 	gtk_widget_add_css_class (desc, "dim-label");
@@ -114,12 +121,32 @@ popup_hide (cmdpopup *p)
 		gtk_popover_popdown (GTK_POPOVER (p->popover));
 }
 
-/* put the popover just above the entry, its left edge on the text */
+/* the popover sits right on top of the box that holds the composer (nick
+   button + entry), exactly as wide as it: that row spans the chat column,
+   text and scrollbar. Pointed at a 1px strip along the row's top edge, in
+   the entry's coordinates. */
 static void
 popup_show (cmdpopup *p)
 {
 	GdkRectangle r = { 0, 0, 1, 1 };
+	graphene_rect_t rb;
+	GtkWidget *row = gtk_widget_get_parent (p->entry);	/* nick box + entry */
 
+	if (!row || !gtk_widget_compute_bounds (row, p->entry, &rb))
+	{
+		rb.origin.x = rb.origin.y = 0;
+		rb.size.width = gtk_widget_get_width (p->entry);
+	}
+	r.x = (int) rb.origin.x;
+	r.y = (int) rb.origin.y;
+	r.width = MAX ((int) rb.size.width, 1);
+	r.height = 1;
+	p->last_width = r.width;
+	p->last_x = r.x;
+
+	/* the content is exactly that wide (the popover's own CSS adds nothing:
+	   no padding, margin or shadow in the classic look) */
+	gtk_widget_set_size_request (gtk_popover_get_child (GTK_POPOVER (p->popover)), r.width, -1);
 	gtk_popover_set_pointing_to (GTK_POPOVER (p->popover), &r);
 	if (!gtk_widget_get_visible (p->popover))
 		gtk_popover_popup (GTK_POPOVER (p->popover));
@@ -129,6 +156,8 @@ static void
 popup_fill (cmdpopup *p, const char *word)
 {
 	GtkWidget *child;
+	GtkSizeGroup *names = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
+	GtkSizeGroup *args = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
 	guint i, n;
 
 	while ((child = gtk_widget_get_first_child (p->list)))
@@ -137,7 +166,11 @@ popup_fill (cmdpopup *p, const char *word)
 	p->cmds = cmdinfo_find (word);
 	n = MIN (p->cmds->len, MAX_ROWS);
 	for (i = 0; i < n; i++)
-		gtk_list_box_append (GTK_LIST_BOX (p->list), row_new (g_ptr_array_index (p->cmds, i)));
+		gtk_list_box_append (GTK_LIST_BOX (p->list),
+									row_new (g_ptr_array_index (p->cmds, i), names, args));
+	/* the rows keep the groups alive */
+	g_object_unref (names);
+	g_object_unref (args);
 	if (n)
 		gtk_list_box_select_row (GTK_LIST_BOX (p->list),
 										 gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), 0));
@@ -217,6 +250,22 @@ static void
 popup_changed_cb (GtkEditable *e, cmdpopup *p)
 {
 	popup_update (p);
+}
+
+/* while the list is up, keep it the chat area's width and on the input row
+   whatever moves them (window resized, user list shown/hidden, a pane
+   dragged); a frame clock tick costs nothing when nothing changed */
+static gboolean
+refit_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
+{
+	cmdpopup *p = data;
+	graphene_rect_t b;
+	GtkWidget *row = gtk_widget_get_parent (p->entry);
+
+	if (row && gtk_widget_compute_bounds (row, p->entry, &b) &&
+		 ((int) b.size.width != p->last_width || (int) b.origin.x != p->last_x))
+		popup_show (p);
+	return G_SOURCE_CONTINUE;
 }
 
 /* fill in the chosen command: "/JOIN " (or "/join " if typed lower case) */
@@ -363,7 +412,7 @@ cmdpopup_attach (GtkWidget *entry)
 	gtk_popover_set_has_arrow (GTK_POPOVER (p->popover), FALSE);
 	gtk_popover_set_autohide (GTK_POPOVER (p->popover), FALSE);	/* typing goes on in the entry */
 	gtk_popover_set_position (GTK_POPOVER (p->popover), GTK_POS_TOP);
-	gtk_widget_set_halign (p->popover, GTK_ALIGN_START);
+	gtk_widget_set_halign (p->popover, GTK_ALIGN_FILL);
 	gtk_widget_set_can_focus (p->popover, FALSE);
 	gtk_widget_set_parent (p->popover, entry);
 
@@ -378,7 +427,6 @@ cmdpopup_attach (GtkWidget *entry)
 	sw = gtk_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_NEVER);
 	gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (sw), TRUE);
-	gtk_scrolled_window_set_propagate_natural_width (GTK_SCROLLED_WINDOW (sw), TRUE);
 	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), p->list);
 	gtk_box_append (GTK_BOX (box), sw);
 
@@ -390,10 +438,54 @@ cmdpopup_attach (GtkWidget *entry)
 	gtk_box_append (GTK_BOX (box), p->hint);
 
 	g_signal_connect (entry, "changed", G_CALLBACK (popup_changed_cb), p);
+	/* runs only while the popover is mapped */
+	gtk_widget_add_tick_callback (p->popover, refit_tick, p, NULL);
 	f = gtk_event_controller_focus_new ();
 	g_signal_connect (f, "leave", G_CALLBACK (focus_out_cb), p);
 	gtk_widget_add_controller (entry, f);
 	g_object_set_data_full (G_OBJECT (entry), "nx-cmdpopup", p, (GDestroyNotify) cmdpopup_free);
+}
+
+/* tests: where it sits next to the input row, in window coordinates:
+   "pop x w bottom | row x w top" */
+char *
+cmdpopup_geometry (GtkWidget *entry)
+{
+	cmdpopup *p = g_object_get_data (G_OBJECT (entry), "nx-cmdpopup");
+	GtkWidget *win, *row;
+	graphene_rect_t pop, rb;
+	GtkNative *native;
+	double px, py, ex, ey;
+
+	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
+		return g_strdup ("");
+	win = GTK_WIDGET (gtk_widget_get_root (entry));
+	row = gtk_widget_get_parent (entry);
+	if (!gtk_widget_compute_bounds (row, win, &rb))
+		return g_strdup ("");
+	/* the popover is its own surface: place it through the surfaces' origins */
+	native = GTK_NATIVE (p->popover);
+	gtk_native_get_surface_transform (native, &px, &py);
+	gtk_native_get_surface_transform (GTK_NATIVE (win), &ex, &ey);
+	if (!gtk_widget_compute_bounds (gtk_popover_get_child (GTK_POPOVER (p->popover)),
+											  p->popover, &pop))
+		return g_strdup ("");
+	{
+		GdkSurface *ps = gtk_native_get_surface (native);
+		int ox = 0, oy = 0;
+		double sx, sy;
+		/* the popup's position relative to its parent surface */
+		if (GDK_IS_POPUP (ps))
+		{
+			ox = gdk_popup_get_position_x (GDK_POPUP (ps));
+			oy = gdk_popup_get_position_y (GDK_POPUP (ps));
+		}
+		sx = ox + px + pop.origin.x - ex;
+		sy = oy + py + pop.origin.y - ey;
+		return g_strdup_printf ("pop x=%d w=%d bottom=%d | row x=%d w=%d top=%d",
+			(int) sx, (int) pop.size.width, (int) (sy + pop.size.height),
+			(int) rb.origin.x, (int) rb.size.width, (int) rb.origin.y);
+	}
 }
 
 GtkWidget *

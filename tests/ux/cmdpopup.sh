@@ -46,6 +46,26 @@ check() {
 
 t "/jo"
 check cmdpopup 'cmdpopup: list: \[JOIN\]*' '/jo lists JOIN first, selected'
+# exactly as wide as the box holding the composer, right on top of it
+# (cmdgeom: pop x w bottom | row x w top)
+geom=$(state cmdgeom)
+set -- $(echo "$geom" | sed 's/[^0-9 ]//g')
+if [ "$#" -ge 6 ] && [ "$1" = "$4" ] && [ "$2" = "$5" ] && [ $(( $6 - $3 )) -ge 0 ] && [ $(( $6 - $3 )) -le 2 ]; then
+	echo "ok:   on top of the composer's row, same width ($geom)"
+else
+	echo "FAIL: placement ($geom)"; fail=1
+fi
+# hide the user list (Ctrl+F7) with the list open: the row gets wider
+# and the list follows
+k ctrl+F7
+geom2=$(state cmdgeom)
+set -- $(echo "$geom2" | sed 's/[^0-9 ]//g')
+if [ "$#" -ge 6 ] && [ "$1" = "$4" ] && [ "$2" = "$5" ] && [ "$geom2" != "$geom" ]; then
+	echo "ok:   follows the row when the user list hides ($geom2)"
+else
+	echo "FAIL: after hiding the user list ($geom2)"; fail=1
+fi
+k ctrl+F7
 k BackSpace
 check cmdpopup 'cmdpopup: list: \[J*' '/j still lists, J commands first'
 k Down
