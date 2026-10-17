@@ -301,6 +301,9 @@ aqua_css (GString *s, gboolean dark)
 		"@define-color theme_bg_color @nx_mac_bg;\n"
 		"@define-color window_bg_color @nx_mac_bg;\n"
 		"@define-color theme_fg_color @nx_mac_text;\n"
+		"@define-color theme_text_color @nx_mac_text;\n"
+		"@define-color view_fg_color @nx_mac_text;\n"
+		"@define-color window_fg_color @nx_mac_text;\n"
 		"@define-color theme_base_color @nx_mac_field;\n"
 		"@define-color view_bg_color @nx_mac_field;\n"
 		"@define-color theme_selected_bg_color @nx_mac_accent;\n"
@@ -312,8 +315,10 @@ aqua_css (GString *s, gboolean dark)
 		" box-shadow: 0 0.5px 1px alpha(black, 0.15); min-height: 20px; }\n"
 		"button:active, button:checked { background-color: shade(@nx_mac_ctrl, 0.92); }\n"
 		"button.default, button.suggested-action { background-color: @nx_mac_accent; color: white; }\n"
-		"entry { background-color: @nx_mac_field; border: 1px solid @nx_mac_border; border-radius: 4px;"
-		" box-shadow: none; }\n"
+		"entry { background-color: @nx_mac_field; color: @nx_mac_text; caret-color: @nx_mac_text;"
+		" border: 1px solid @nx_mac_border; border-radius: 4px; box-shadow: none; }\n"
+		"entry text selection, text selection { background-color: alpha(@nx_mac_accent, 0.45); color: @nx_mac_text; }\n"
+		"textview, textview text, columnview, listview, treeview, spinbutton, combobox { color: @nx_mac_text; }\n"
 		"entry:focus-within { outline: 3px solid alpha(@nx_mac_accent, 0.5); outline-offset: 0; }\n"
 		"check, radio { background-image: none; background-color: @nx_mac_field;"
 		" border: 0.5px solid alpha(@nx_mac_text, 0.3); }\n"
@@ -321,7 +326,7 @@ aqua_css (GString *s, gboolean dark)
 		"check:checked, radio:checked { background-color: @nx_mac_accent; border-color: @nx_mac_accent; color: white; }\n"
 		"scrollbar slider { background-color: alpha(@nx_mac_text, 0.35); border: none; border-radius: 6px;"
 		" min-width: 7px; min-height: 7px; margin: 2px; }\n"
-		"popover > contents { background-color: @nx_mac_field; border-radius: 6px;"
+		"popover > contents { background-color: @nx_mac_field; color: @nx_mac_text; border-radius: 6px;"
 		" border: 0.5px solid @nx_mac_border; }\n");
 }
 
@@ -463,6 +468,23 @@ void
 platform_style_init (void)
 {
 #if defined(__APPLE__)
+	/* GTK's own theme must match the system's light/dark: the Aqua CSS only
+	   recolours some widgets, the rest (field text, labels, lists) come from
+	   GTK, which otherwise stays light -- black text on dark fields */
+	if (prefs.hex_gui_native_look)
+	{
+		GtkSettings *gs = gtk_settings_get_default ();
+		if (gs)
+		{
+#if GTK_CHECK_VERSION(4, 20, 0)
+			g_object_set (gs, "gtk-interface-color-scheme",
+							  platform_style_dark () ? GTK_INTERFACE_COLOR_SCHEME_DARK
+													  : GTK_INTERFACE_COLOR_SCHEME_LIGHT, NULL);
+#else
+			g_object_set (gs, "gtk-application-prefer-dark-theme", platform_style_dark (), NULL);
+#endif
+		}
+	}
 	/* the menu goes in the menu bar at the top of the screen */
 	if (prefs.hex_gui_native_look)
 		nx_menu_use_global_menubar (nx_app ());
