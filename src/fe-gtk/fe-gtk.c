@@ -550,6 +550,7 @@ fe_apply_css (void)
 		/* NxDialog message dialogs: GTK3's full-width buttons */
 		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n");
 #endif
+	platform_style_css_late (css);
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 loads what it can and reports errors through a signal */

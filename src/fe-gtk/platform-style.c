@@ -340,6 +340,42 @@ platform_style_css (GString *s)
 #endif
 }
 
+/* after nexchat's own rules: the parts of the platform look that those
+   (written for the classic GTK3 look) would otherwise undo */
+void
+platform_style_css_late (GString *s)
+{
+	if (!prefs.hex_gui_native_look)
+		return;
+#ifdef G_OS_WIN32
+	g_string_append (s,
+		/* Fluent menus: rounded flyout, 4px inset rounded rows, the hover a
+		   tint (not the accent), 32px rows on touch-friendly Windows 11 */
+		"popover.menu > contents { padding: 4px 0; border-radius: 8px; border: 1px solid @nx_win_border;"
+		" background-color: @nx_win_layer; }\n"
+		"popover.menu modelbutton { min-height: 20px; padding: 4px 12px 4px 34px; margin: 1px 4px;"
+		" border-radius: 4px; }\n"
+		"popover.menu modelbutton:hover, popover.menu modelbutton:selected {"
+		" background-color: alpha(@nx_win_text, 0.06); color: @nx_win_text; }\n"
+		"popover.menu modelbutton:disabled { color: alpha(@nx_win_text, 0.36); }\n"
+		"popover.menu separator { margin: 3px 0; background-color: @nx_win_border; }\n"
+		"popover.menu modelbutton accelerator { color: @nx_win_text2; margin-left: 24px; }\n"
+		"popovermenubar > item { padding: 4px 10px; border-radius: 4px; margin: 2px 1px; }\n"
+		"popovermenubar > item:selected, popovermenubar > item:hover {"
+		" background-color: alpha(@nx_win_text, 0.06); color: @nx_win_text; }\n"
+		/* lists: Windows 11 selection, a tinted row */
+		"columnview.nx-list > listview > row:selected { background-color: alpha(@nx_win_accent, 0.18);"
+		" color: @nx_win_text; }\n"
+		"columnview.nx-list > listview > row:hover:not(:selected) { background-color: alpha(@nx_win_text, 0.04); }\n"
+		"columnview.nx-list > header { box-shadow: inset 0 -1px @nx_win_border; }\n"
+		"columnview.nx-list > header > button { box-shadow: inset -1px 0 @nx_win_border; font-weight: normal; }\n"
+		/* frames: Fluent's soft border */
+		"frame > border { border-color: @nx_win_border; }\n"
+		"label.nx-frame-label { background: @nx_win_bg; }\n"
+		"entry, button { border-radius: 4px; }\n");
+#endif
+}
+
 #ifdef G_OS_WIN32
 /* Windows 11: the title bar follows light/dark, and uses Mica if there */
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE

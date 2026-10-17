@@ -17,6 +17,8 @@ void platform_style_init (void);
 /* append the platform's native look (Windows 11 / macOS) to the app CSS;
    nothing on Linux or with gui_native_look off */
 void platform_style_css (GString *css);
+/* the bits that must come after nexchat's own rules */
+void platform_style_css_late (GString *css);
 /* the system asks for dark mode */
 gboolean platform_style_dark (void);
 #ifdef G_OS_WIN32
