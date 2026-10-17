@@ -150,6 +150,11 @@ void nx_menu_free (nx_menu *menu);
 /* macOS: menu bars made after this go in the global menu bar of app */
 void nx_menu_use_global_menubar (GtkApplication *app);
 #endif
+#ifdef G_OS_WIN32
+/* Windows: popups become real Win32 menus; owner_of gives the HWND to own
+   one shown from a widget (NULL: fall back to the popover) */
+void nx_menu_use_native_popups (gboolean on, void *(*owner_of) (GtkWidget *w));
+#endif
 #else
 /* GTK3 only, during the move: the widgets behind the handles */
 #define NX_MENU_WIDGET(m) ((GtkWidget *) (m))

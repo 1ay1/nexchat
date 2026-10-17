@@ -39,7 +39,7 @@ if gtk_version == '4'
   # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
   # desktops; Windows: Shell_NotifyIcon; macOS: NSStatusItem
   if host_machine.system() == 'windows'
-    hexchat_gtk_sources += 'tray-backend-win32.c'
+    hexchat_gtk_sources += ['tray-backend-win32.c', 'win32-menu.c']
   elif host_machine.system() == 'darwin'
     hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m']
     add_languages('objc', native: false)
@@ -79,6 +79,8 @@ if host_machine.system() == 'windows'
                           'notifications/notification-balloon.c']
   # dark title bar, accent colour
   hexchat_gtk_deps += cc.find_library('dwmapi')
+  # the font and colour dialogs
+  hexchat_gtk_deps += cc.find_library('comdlg32')
 
   # TODO: mingw doesn't have these headers or libs
   # add_languages('cpp')

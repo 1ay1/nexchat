@@ -42,6 +42,9 @@
 
 #ifdef WIN32
 #include "../common/fe.h"
+#if GTK_CHECK_VERSION(4, 0, 0)
+#include "win32-menu.h"
+#endif
 #endif
 #include "sexy-spell-entry.h"
 
@@ -1170,6 +1173,21 @@ setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
 	GtkWidget *dialog;
 
+#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+	/* the Windows font dialog */
+	if (prefs.hex_gui_native_look)
+	{
+		char *f = win32_choose_font (gtkutil_window_hwnd (GTK_WINDOW (setup_window)),
+											  nx_entry_get_text (entry));
+		if (f)
+		{
+			nx_entry_set_text (entry, f);
+			g_free (f);
+		}
+		return;
+	}
+#endif
+
 	/* GtkFontDialog makes this same dialog underneath; kept for the
 	   synchronous response flow (deprecation known, ROADMAP step 22) */
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
@@ -1505,6 +1523,19 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 	GdkRGBA *color;
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
+
+#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+	/* the Windows colour dialog */
+	if (prefs.hex_gui_native_look)
+	{
+		if (win32_choose_color (gtkutil_window_hwnd (GTK_WINDOW (setup_window)), color))
+		{
+			color_change = TRUE;
+			setup_color_button_paint (button, color);
+		}
+		return;
+	}
+#endif
 
 	/* GtkColorDialog makes this same dialog but can't open it in the editor,
 	   which is how this always opened (deprecation known, ROADMAP step 22) */

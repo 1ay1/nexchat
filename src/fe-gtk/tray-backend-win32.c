@@ -17,11 +17,10 @@
 #include <string.h>
 
 #include "tray-backend.h"
+#include "win32-menu.h"
 
 #define WM_NX_TRAY (WM_APP + 1)
 #define NX_TRAY_ID 1
-/* menu item ids start here; index into the flattened item list */
-#define NX_CMD_BASE 1000
 
 struct _tray_backend
 {
@@ -33,7 +32,6 @@ struct _tray_backend
 	gpointer userdata;
 	gboolean added;
 	UINT taskbar_created;	/* explorer restarted: add the icon again */
-	GPtrArray *cmds;			/* nx_item * by command id - NX_CMD_BASE */
 };
 
 /* a GdkPixbuf as an HICON (32-bit with alpha) */
@@ -116,76 +114,6 @@ tray_add (tray_backend *tb)
 		tb->cb.embedded_changed (tb, tb->added, tb->userdata);
 }
 
-/* GTK's "_File" mnemonic is Win32's "&File"; a literal & doubles */
-static char *
-win32_label (nx_item *it)
-{
-	const char *l = nx_item_get_label (it);
-	const char *t = nx_item_get_text (it);
-	GString *s;
-
-	/* markup labels: use the plain text */
-	if (!l || strchr (l, '<'))
-		l = t ? t : "";
-	s = g_string_new (NULL);
-	for (; *l; l++)
-	{
-		if (*l == '&')
-			g_string_append (s, "&&");
-		else if (*l == '_' && l[1] == '_')
-		{
-			g_string_append_c (s, '_');
-			l++;
-		}
-		else if (*l == '_')
-			g_string_append_c (s, '&');
-		else
-			g_string_append_c (s, *l);
-	}
-	return g_string_free (s, FALSE);
-}
-
-/* nx_menu -> HMENU, items numbered for WM_COMMAND */
-static HMENU
-build_menu (tray_backend *tb, nx_menu *m)
-{
-	HMENU h = CreatePopupMenu ();
-	int i, n = nx_menu_get_n_items (m);
-
-	for (i = 0; i < n; i++)
-	{
-		nx_item *it = nx_menu_get_item (m, i);
-		nx_item_kind kind = nx_item_get_kind (it);
-		UINT flags = MF_STRING;
-		char *label;
-		wchar_t *wl;
-		nx_menu *sub;
-
-		if (kind == NX_KIND_SEPARATOR)
-		{
-			AppendMenuW (h, MF_SEPARATOR, 0, NULL);
-			continue;
-		}
-		label = win32_label (it);
-		wl = g_utf8_to_utf16 (label, -1, NULL, NULL, NULL);
-		g_free (label);
-		if (!nx_item_get_sensitive (it))
-			flags |= MF_GRAYED;
-		if ((kind == NX_KIND_CHECK || kind == NX_KIND_RADIO) && nx_item_get_active (it))
-			flags |= MF_CHECKED;
-		sub = nx_item_get_submenu (it);
-		if (sub)
-			AppendMenuW (h, flags | MF_POPUP, (UINT_PTR) build_menu (tb, sub), wl);
-		else
-		{
-			g_ptr_array_add (tb->cmds, it);
-			AppendMenuW (h, flags, NX_CMD_BASE + tb->cmds->len - 1, wl);
-		}
-		g_free (wl);
-	}
-	return h;
-}
-
 static LRESULT CALLBACK
 tray_wndproc (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
@@ -234,12 +162,10 @@ tray_backend_new (GdkPixbuf *icon, const tray_backend_callbacks *cb, gpointer us
 	tb = g_new0 (tray_backend, 1);
 	tb->cb = *cb;
 	tb->userdata = userdata;
-	tb->cmds = g_ptr_array_new ();
 	tb->hwnd = CreateWindowW (L"nexchat-tray", L"nexchat", 0, 0, 0, 0, 0, HWND_MESSAGE,
 									  NULL, GetModuleHandleW (NULL), NULL);
 	if (!tb->hwnd)
 	{
-		g_ptr_array_free (tb->cmds, TRUE);
 		g_free (tb);
 		return NULL;
 	}
@@ -268,7 +194,6 @@ tray_backend_free (tray_backend *tb)
 	if (tb->icon)
 		g_object_unref (tb->icon);
 	DestroyWindow (tb->hwnd);
-	g_ptr_array_free (tb->cmds, TRUE);
 	g_free (tb);
 }
 
@@ -323,22 +248,13 @@ tray_backend_is_embedded (tray_backend *tb)
 void
 tray_backend_show_menu (tray_backend *tb, nx_menu *menu, guint button, guint32 time)
 {
-	HMENU h;
-	POINT pt;
-	UINT cmd;
+	nx_item *it;
 
-	g_ptr_array_set_size (tb->cmds, 0);
-	h = build_menu (tb, menu);
-	GetCursorPos (&pt);
 	/* the menu closes when focus goes elsewhere only if our window is in
 	   front (documented TrackPopupMenu quirk) */
 	SetForegroundWindow (tb->hwnd);
-	cmd = TrackPopupMenuEx (h, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
-									pt.x, pt.y, tb->hwnd, NULL);
-	PostMessageW (tb->hwnd, WM_NULL, 0, 0);
-	DestroyMenu (h);
-	if (cmd >= NX_CMD_BASE && cmd - NX_CMD_BASE < tb->cmds->len)
-		nx_item_activate (g_ptr_array_index (tb->cmds, cmd - NX_CMD_BASE));
-	g_ptr_array_set_size (tb->cmds, 0);
+	it = win32_menu_track (menu, tb->hwnd);
+	if (it)
+		nx_item_activate (it);
 	nx_menu_free (menu);
 }

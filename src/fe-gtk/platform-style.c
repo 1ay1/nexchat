@@ -347,6 +347,7 @@ platform_style_css (GString *s)
 		pango_font_description_free (fd);
 		g_free (font);
 	}
+	(void) aqua_css;
 #elif defined(__APPLE__)
 	aqua_css (s, platform_style_dark ());
 	g_string_append (s, "window { font-family: \".AppleSystemUIFont\", \"Helvetica Neue\"; font-size: 13px; }\n");
@@ -388,7 +389,27 @@ platform_style_css_late (GString *s)
 		/* frames: Fluent's soft border */
 		"frame > border { border-color: @nx_win_border; }\n"
 		"label.nx-frame-label { background: @nx_win_bg; }\n"
-		"entry, button { border-radius: 4px; }\n");
+		"entry, button { border-radius: 4px; }\n"
+		/* Fluent motion: hover, press and focus fade in ~83ms instead of
+		   snapping, the way Windows 11 controls react */
+		"button, entry, check, radio, scale slider, popover.menu modelbutton, popovermenubar > item,"
+		" columnview.nx-list > listview > row, notebook > header > tabs > tab, scrollbar slider {"
+		" transition: background-color 83ms ease-out, border-color 83ms ease-out, color 83ms ease-out,"
+		" box-shadow 83ms ease-out, min-width 120ms ease-out, min-height 120ms ease-out; }\n"
+		/* a pressed button dims its text, like WinUI */
+		"button:active label { opacity: 0.8; }\n");
+#elif defined(__APPLE__)
+	g_string_append (s,
+		/* macOS menus: rounded, rows with the accent highlight, no shadow gap */
+		"popover.menu > contents { padding: 5px 0; border-radius: 6px; border: 0.5px solid @nx_mac_border;"
+		" background-color: @nx_mac_field; }\n"
+		"popover.menu modelbutton { min-height: 18px; padding: 2px 12px 2px 24px; margin: 0 5px;"
+		" border-radius: 4px; }\n"
+		"popover.menu modelbutton:hover, popover.menu modelbutton:selected {"
+		" background-color: @nx_mac_accent; color: white; }\n"
+		"columnview.nx-list > listview > row:selected { background-color: @nx_mac_accent; color: white; }\n"
+		"button, entry, check, radio { transition: background-color 120ms ease-out,"
+		" box-shadow 120ms ease-out, outline-color 150ms ease-out; }\n");
 #endif
 }
 
@@ -416,6 +437,15 @@ platform_style_window_hwnd (void *hwnd)
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 #include "gtkutil.h"
+#include "win32-menu.h"
+
+/* the HWND of the window a widget is in, to own a popup menu */
+static void *
+widget_hwnd (GtkWidget *w)
+{
+	GtkRoot *root = w ? gtk_widget_get_root (w) : NULL;
+	return GTK_IS_WINDOW (root) ? gtkutil_window_hwnd (GTK_WINDOW (root)) : NULL;
+}
 
 /* every window, as it maps: its title bar matches the app's light/dark */
 static gboolean
@@ -441,5 +471,11 @@ platform_style_init (void)
 #if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
 	g_type_class_unref (g_type_class_ref (GTK_TYPE_WINDOW));
 	g_signal_add_emission_hook (g_signal_lookup ("map", GTK_TYPE_WIDGET), 0, map_hook, NULL, NULL);
+	if (prefs.hex_gui_native_look)
+	{
+		/* right-click menus are real Windows menus, dark with the system */
+		win32_menu_follow_dark_mode ();
+		nx_menu_use_native_popups (TRUE, widget_hwnd);
+	}
 #endif
 }

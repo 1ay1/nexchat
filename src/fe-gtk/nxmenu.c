@@ -885,6 +885,33 @@ menu_icons_init (void)
 										model_button_map_hook, NULL, NULL);
 }
 
+#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#include "win32-menu.h"
+/* set: popups are real Win32 menus (nx_menu_use_native_popups) */
+static gboolean native_popups;
+static void *(*native_popup_owner) (GtkWidget *w);
+
+void
+nx_menu_use_native_popups (gboolean on, void *(*owner_of) (GtkWidget *w))
+{
+	native_popups = on;
+	native_popup_owner = owner_of;
+}
+
+static gboolean
+native_popup_done (gpointer data)
+{
+	nx_menu *m = data;
+	GDestroyNotify done = m->done;
+	gpointer done_data = m->done_data;
+
+	nx_menu_free (m);
+	if (done)
+		done (done_data);
+	return G_SOURCE_REMOVE;
+}
+#endif
+
 void
 nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 					GDestroyNotify done, gpointer done_data)
@@ -893,6 +920,30 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	GtkEventController *k;
 	double x = 0, y = 0;
 	GdkRectangle r;
+
+#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+	if (native_popups && native_popup_owner)
+	{
+		void *owner = native_popup_owner (widget);
+		if (owner)
+		{
+			nx_item *it;
+
+			m->done = done;
+			m->done_data = done_data;
+			sync_models (m);
+			if (m->show_cb)
+				m->show_cb (m, m->show_data);
+			it = win32_menu_track (m, owner);
+			/* the click's handlers are still on the stack: run the item and
+			   free the menu once they're done, like the popover does */
+			if (it)
+				nx_item_activate (it);
+			g_idle_add (native_popup_done, m);
+			return;
+		}
+	}
+#endif
 
 	/* a popover added after a tree view's header buttons trips a css node
 	   critical; hang it off the parent */
