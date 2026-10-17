@@ -878,6 +878,83 @@ menu_middlemenu (session *sess, GdkEvent *event)
 	menu_popup (menu, event, NULL);
 }
 
+static void savebuffer_req_done (session *sess, char *file);
+
+static void
+textmenu_copy_cb (nx_item *item, gpointer xtext)
+{
+	gtk_xtext_copy_selection (GTK_XTEXT (xtext));
+}
+
+static void
+textmenu_select_all_cb (nx_item *item, gpointer xtext)
+{
+	gtk_xtext_select_all (GTK_XTEXT (xtext));
+}
+
+static void
+textmenu_search_cb (nx_item *item, gpointer sess)
+{
+	if (is_session (sess))
+		mg_search_toggle (sess);
+}
+
+static void
+textmenu_clear_cb (nx_item *item, gpointer sess)
+{
+	if (is_session (sess))
+		fe_text_clear (sess, 0);
+}
+
+static void
+textmenu_save_cb (nx_item *item, gpointer sess)
+{
+	if (is_session (sess))
+		gtkutil_file_req (NULL, _("Select an output filename"), savebuffer_req_done,
+								sess, NULL, NULL, FRF_WRITE);
+}
+
+/* right click on plain text: copy/select/search on top, then the main
+   menus HexChat showed here */
+void
+menu_textmenu (session *sess, GdkEvent *event, int x, int y)
+{
+	GtkXText *xtext = GTK_XTEXT (sess->gui->xtext);
+	nx_menu *menu;
+	nx_item *item;
+	int pos = 0;
+
+	menu = menu_create_main (NULL, FALSE, sess->server->is_away, !sess->gui->is_tab, NULL);
+
+	item = nx_menu_add_item (menu, pos++, _("_Copy"), NX_ITEM_MNEMONIC, NX_STOCK_COPY,
+									 textmenu_copy_cb, xtext);
+	nx_item_set_accel (item, GDK_KEY_C, STATE_CTRL | STATE_SHIFT);
+	if (!gtk_xtext_has_selection (xtext))
+		nx_item_set_sensitive (item, FALSE);
+
+	g_free (str_copy);
+	str_copy = gtk_xtext_line_text_at (xtext, x, y);
+	item = nx_menu_add_item (menu, pos++, _("Copy _Line"), NX_ITEM_MNEMONIC, NULL,
+									 copy_to_clipboard_cb, str_copy);
+	if (!str_copy)
+		nx_item_set_sensitive (item, FALSE);
+
+	nx_menu_add_item (menu, pos++, _("Select _All"), NX_ITEM_MNEMONIC, NULL,
+							textmenu_select_all_cb, xtext);
+	nx_menu_add_separator (menu, pos++);
+
+	item = nx_menu_add_item (menu, pos++, _("_Search Text" ELLIPSIS), NX_ITEM_MNEMONIC,
+									 NX_STOCK_FIND, textmenu_search_cb, sess);
+	nx_item_set_accel (item, GDK_KEY_f, STATE_CTRL);
+	nx_menu_add_item (menu, pos++, _("C_lear Text"), NX_ITEM_MNEMONIC, NX_STOCK_CLEAR,
+							textmenu_clear_cb, sess);
+	nx_menu_add_item (menu, pos++, _("Save Text" ELLIPSIS), NX_ITEM_MNEMONIC, NX_STOCK_SAVE,
+							textmenu_save_cb, sess);
+	nx_menu_add_separator (menu, pos++);
+
+	menu_popup (menu, event, NULL);
+}
+
 static void
 open_url_cb (nx_item *item, gpointer url)
 {

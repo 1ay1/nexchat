@@ -142,6 +142,7 @@ struct _GtkXText
 	cairo_t *cr;						/* drawing context on ->backing */
 	int backing_scale;				/* HiDPI scale ->backing was made for */
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
+	int click_x, click_y;			/* where the last press was */
 	gpointer primary_content;		/* GTK4: the GdkContentProvider we put on PRIMARY */
 	gulong primary_tag;				/* GTK4: PRIMARY "changed" handler */
 
@@ -259,6 +260,7 @@ typedef struct
 	guint button;
 	int n_press;					/* 2: second press of a double click */
 	GdkModifierType state;
+	int x, y;						/* where, in the widget */
 } GtkXTextClick;
 
 struct _GtkXTextClass
@@ -305,6 +307,9 @@ xtext_buffer *gtk_xtext_buffer_new (GtkXText *xtext);
 void gtk_xtext_buffer_free (xtext_buffer *buf);
 void gtk_xtext_buffer_show (GtkXText *xtext, xtext_buffer *buf, int render);
 void gtk_xtext_copy_selection (GtkXText *xtext);
+gboolean gtk_xtext_has_selection (GtkXText *xtext);
+void gtk_xtext_select_all (GtkXText *xtext);
+char *gtk_xtext_line_text_at (GtkXText *xtext, int x, int y);
 GType gtk_xtext_get_type (void);
 
 #endif

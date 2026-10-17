@@ -35,6 +35,7 @@ void menu_addfavoritemenu (server *serv, nx_menu *menu, char *channel, gboolean 
 void menu_addconnectmenu (server *serv, nx_menu *menu);
 void menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel);
 void menu_middlemenu (session *sess, GdkEvent *event);
+void menu_textmenu (session *sess, GdkEvent *event, int x, int y);
 void userlist_button_cb (GtkWidget * button, char *cmd);
 void nick_command_parse (session *sess, char *cmd, char *nick, char *allnick);
 void usermenu_update (void);

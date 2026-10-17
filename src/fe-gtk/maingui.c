@@ -2279,7 +2279,7 @@ mg_word_clicked (GtkWidget *xtext, char *word, GtkXTextClick *click)
 	{
 	case 0:
 	case WORD_PATH:
-		menu_middlemenu (sess, even);
+		menu_textmenu (sess, even, click->x, click->y);
 		break;
 	case WORD_URL:
 	case WORD_HOST6:

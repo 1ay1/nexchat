@@ -2094,6 +2094,51 @@ gtk_xtext_copy_selection (GtkXText *xtext)
 	gtk_xtext_set_clip_owner (GTK_WIDGET (xtext), GDK_CURRENT_TIME);
 }
 
+/* something is selected in the buffer on show */
+gboolean
+gtk_xtext_has_selection (GtkXText *xtext)
+{
+	return xtext->buffer->last_ent_start != NULL;
+}
+
+/* select every line of the buffer on show */
+void
+gtk_xtext_select_all (GtkXText *xtext)
+{
+	xtext_buffer *buf = xtext->buffer;
+	textentry *ent;
+
+	if (!buf->text_first)
+		return;
+	if (xtext->selection_buffer && xtext->selection_buffer != buf)
+		gtk_xtext_selection_clear (xtext->selection_buffer);
+	for (ent = buf->text_first; ent; ent = ent->next)
+	{
+		ent->mark_start = 0;
+		ent->mark_end = ent->str_len;
+	}
+	buf->last_ent_start = buf->text_first;
+	buf->last_ent_end = buf->text_last;
+	buf->last_offset_start = 0;
+	buf->last_offset_end = buf->text_last->str_len;
+	xtext->selection_buffer = buf;
+	dontscroll (buf);	/* nothing moved: a full render, not a scroll copy */
+	gtk_xtext_refresh (xtext);
+	if (prefs.hex_text_autocopy_text)
+		gtk_xtext_set_clip_owner (GTK_WIDGET (xtext), GDK_CURRENT_TIME);
+}
+
+/* the line at x,y without colour codes (g_free it), or NULL */
+char *
+gtk_xtext_line_text_at (GtkXText *xtext, int x, int y)
+{
+	textentry *ent = gtk_xtext_find_char (xtext, x, y, NULL, NULL);
+
+	if (!ent || ent->str_len < 1)
+		return NULL;
+	return (char *) gtk_xtext_strip_color (ent->str, ent->str_len, NULL, NULL, NULL, FALSE);
+}
+
 static void
 gtk_xtext_unselect (GtkXText *xtext)
 {
@@ -2133,6 +2178,8 @@ gtk_xtext_emit_click (GtkXText *xtext, char *word, guint button, int n_press,
 	click.button = button;
 	click.n_press = n_press;
 	click.state = state;
+	click.x = xtext->click_x;
+	click.y = xtext->click_y;
 	g_signal_emit (G_OBJECT (xtext), xtext_signals[WORD_CLICK], 0, word, &click);
 }
 
@@ -2224,6 +2271,8 @@ gtk_xtext_button_press (GtkWidget * widget, guint button, int n_press,
 	int line_x, x = (int) ex, y = (int) ey, offset, len;
 
 	xtext->pointer_y = y;
+	xtext->click_x = x;
+	xtext->click_y = y;
 
 	if (button == 3 || button == 2) /* right/middle click */
 	{
