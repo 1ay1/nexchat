@@ -586,6 +586,7 @@ typedef struct server
 	unsigned int have_extjoin:1;	/* cap extended-join */
 	unsigned int have_account_tag:1;	/* cap account-tag */
 	unsigned int have_server_time:1;	/* cap server-time */
+	unsigned int have_echo:1;	/* cap echo-message: our own lines come back from the server */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */
 	unsigned int have_invite:1;	/* invite exemptions +I */

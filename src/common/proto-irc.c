@@ -1283,6 +1283,18 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 							text[len - 1] = 0;
 						}
 						text++;
+						/* echo-message: our own /me shows in its window as ours;
+						   any other CTCP we sent (VERSION...) needs no reply */
+						if (serv->have_echo && !serv->p_cmp (nick, serv->nick))
+						{
+							if (!g_ascii_strncasecmp (text, "ACTION ", 7))
+							{
+								session *target = is_channel (serv, to) ? find_channel (serv, to) : find_dialog (serv, to);
+								if (target)
+									inbound_action (target, to, nick, ip, text + 7, TRUE, FALSE, tags_data);
+							}
+							return;
+						}
 						if (g_ascii_strncasecmp (text, "ACTION", 6) != 0)
 							flood_check (nick, ip, serv, sess, 0);
 						if (g_ascii_strncasecmp (text, "DCC ", 4) == 0)
@@ -1312,6 +1324,12 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 						g_free (new_pdibuf);
 					} else
 					{
+						/* echo-message: a line we sent, as the server saw it */
+						if (serv->have_echo && !serv->p_cmp (nick, serv->nick))
+						{
+							inbound_chanmsg (serv, NULL, to, nick, text, TRUE, FALSE, tags_data);
+							return;
+						}
 						if (is_channel (serv, to))
 						{
 							if (ignore_check (word[1], IG_CHAN))

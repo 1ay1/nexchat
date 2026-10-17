@@ -24,6 +24,8 @@ p.add_argument("--script",
                help="a file of raw lines sent after the first JOIN ({nick} is the client's nick)")
 p.add_argument("--script-after",
                help="send --script after this channel's JOIN instead of the first")
+p.add_argument("--caps", default="",
+               help="capabilities to offer (echo-message makes it echo our PRIVMSGs back)")
 a = p.parse_args()
 
 DEMO_USERS = ["~founder", "&admin", "@alice", "@carol", "%helper", "+bob", "+dave",
@@ -146,6 +148,7 @@ conn, _ = srv.accept()
 conn.settimeout(a.timeout)
 log = open(a.log, "w", buffering=1)
 nick = "*"
+echo = False
 buf = b""
 
 
@@ -166,9 +169,14 @@ try:
             parts = line.split(" ")
             cmd = parts[0].upper()
             if cmd == "CAP" and len(parts) > 1 and parts[1] == "LS":
-                send(":fake CAP * LS :server-time" if a.showcase else ":fake CAP * LS :")
+                caps = (a.caps + " server-time").strip() if a.showcase else a.caps
+                send(f":fake CAP * LS :{caps}")
             elif cmd == "CAP" and len(parts) > 2 and parts[1] == "REQ":
                 send(f":fake CAP * ACK {' '.join(parts[2:])}")
+                if "echo-message" in line:
+                    echo = True
+            elif cmd == "PRIVMSG" and echo:
+                send(f":{nick}!u@h {line}")
             elif cmd == "NICK":
                 nick = parts[1]
             elif cmd == "USER":
