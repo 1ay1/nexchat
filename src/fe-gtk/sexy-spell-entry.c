@@ -167,6 +167,16 @@ spell_accumulator(GSignalInvocationHint *hint, GValue *return_accu, const GValue
 	return ret;
 }
 
+/* enchant warns about every backend plugin whose library isn't installed
+   (hspell, voikko, ...); that's normal, the others still work */
+static void
+enchant_log_cb (const gchar *domain, GLogLevelFlags level, const gchar *msg, gpointer data)
+{
+	if (msg && strstr (msg, "Error loading plugin"))
+		return;
+	g_log_default_handler (domain, level, msg, data);
+}
+
 static void
 initialize_enchant (void)
 {
@@ -201,6 +211,8 @@ initialize_enchant (void)
 
   if (!have_enchant)
     return;
+
+	g_log_set_handler ("libenchant", G_LOG_LEVEL_WARNING, enchant_log_cb, NULL);
 
 #define MODULE_SYMBOL(name, func, alt_name) G_STMT_START { \
     const char *funcname = name; \

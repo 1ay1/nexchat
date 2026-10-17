@@ -12,6 +12,9 @@ command -v dbus-run-session >/dev/null || { echo "no dbus-run-session, skipped";
 python3 -c 'from gi.repository import Gio' 2>/dev/null || { echo "no python3-gi, skipped"; exit 77; }
 
 if [ -z "${NX_IN_BUS:-}" ]; then
+	# private runtime dir: services the test bus activates (at-spi) must
+	# not replace the desktop's sockets in /run/user
+	XDG_RUNTIME_DIR=$(mktemp -d); export XDG_RUNTIME_DIR
 	NX_IN_BUS=1 exec dbus-run-session -- sh "$0" "$@"
 fi
 
