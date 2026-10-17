@@ -454,7 +454,9 @@ fe_apply_css (void)
 		"#hexchat-nickbutton { padding: 1px 4px; min-height: 0; }\n"
 		/* Character Chart: 28px-wide cells like GTK2 */
 		"#hexchat-charbutton { padding: 0; min-width: 0; min-height: 23px; border-radius: 0; }\n"
-		"#hexchat-ulistinfo label { padding: 1px 2px; }\n");
+		"#hexchat-ulistinfo label { padding: 1px 2px; }\n"
+		/* the connecting indicator draws in its CSS colour */
+		"#nexchat-connecting { color: @theme_selected_bg_color; }\n");
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 popover menus: make them plain GTK3 menus. Square, 1px border, no

@@ -606,37 +606,95 @@ mg_focus (session *sess)
 		fe_set_tab_color (sess, FE_COLOR_NONE);
 }
 
+/* the connecting indicator: a block sliding back and forth in a rounded
+   trough, in the theme's accent colour (CSS color on #nexchat-connecting) */
+static void
+mg_progressbar_paint (GtkWidget *bar, cairo_t *cr, int w, int h)
+{
+	double pos = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (bar), "nx-pos")) / 1000.0;
+	double r = MIN (6.0, h / 2.0), bw = w * 0.3, x;
+	GdkRGBA accent, c;
+
+#if GTK_CHECK_VERSION(4, 0, 0)
+	gtk_widget_get_color (bar, &accent);
+#else
+	gtk_style_context_get_color (gtk_widget_get_style_context (bar),
+										  gtk_widget_get_state_flags (bar), &accent);
+#endif
+
+	/* ease in and out at the ends (smoothstep) */
+	pos = pos * pos * (3 - 2 * pos);
+	x = pos * (w - bw);
+
+	c = accent;
+	c.alpha *= 0.2;
+	gdk_cairo_set_source_rgba (cr, &c);
+	cairo_new_sub_path (cr);
+	cairo_arc (cr, w - r, r, r, -G_PI / 2, 0);
+	cairo_arc (cr, w - r, h - r, r, 0, G_PI / 2);
+	cairo_arc (cr, r, h - r, r, G_PI / 2, G_PI);
+	cairo_arc (cr, r, r, r, G_PI, 3 * G_PI / 2);
+	cairo_close_path (cr);
+	cairo_fill (cr);
+
+	gdk_cairo_set_source_rgba (cr, &accent);
+	cairo_new_sub_path (cr);
+	cairo_arc (cr, x + bw - r, r, r, -G_PI / 2, 0);
+	cairo_arc (cr, x + bw - r, h - r, r, 0, G_PI / 2);
+	cairo_arc (cr, x + r, h - r, r, G_PI / 2, G_PI);
+	cairo_arc (cr, x + r, r, r, G_PI, 3 * G_PI / 2);
+	cairo_close_path (cr);
+	cairo_fill (cr);
+}
+
+#if GTK_CHECK_VERSION(4, 0, 0)
+static void
+mg_progressbar_draw (GtkDrawingArea *da, cairo_t *cr, int w, int h, gpointer unused)
+{
+	mg_progressbar_paint (GTK_WIDGET (da), cr, w, h);
+}
+#else
+static gboolean
+mg_progressbar_draw (GtkWidget *da, cairo_t *cr, gpointer unused)
+{
+	mg_progressbar_paint (da, cr, gtk_widget_get_allocated_width (da),
+								 gtk_widget_get_allocated_height (da));
+	return FALSE;
+}
+#endif
+
 static int
 mg_progressbar_update (GtkWidget *bar)
 {
-	static int type = 0;
-	static gdouble pos = 0;
+	/* 0..1000 forward, then 1000..2000 back: one sweep every ~1.2s */
+	int step = (GPOINTER_TO_INT (g_object_get_data (G_OBJECT (bar), "nx-step")) + 40) % 2000;
 
-	pos += 0.05;
-	if (pos >= 0.99)
-	{
-		if (type == 0)
-		{
-			type = 1;
-			gtk_progress_bar_set_inverted ((GtkProgressBar *) bar, TRUE);
-		} else
-		{
-			type = 0;
-			gtk_progress_bar_set_inverted ((GtkProgressBar *) bar, FALSE);
-		}
-		pos = 0.05;
-	}
-	gtk_progress_bar_set_fraction ((GtkProgressBar *) bar, pos);
+	g_object_set_data (G_OBJECT (bar), "nx-step", GINT_TO_POINTER (step));
+	g_object_set_data (G_OBJECT (bar), "nx-pos", GINT_TO_POINTER (step < 1000 ? step : 2000 - step));
+	gtk_widget_queue_draw (bar);
 	return 1;
 }
 
 void
 mg_progressbar_create (session_gui *gui)
 {
-	gui->bar = gtk_progress_bar_new ();
-	nx_box_pack_start (gui->nick_box, gui->bar, 0, 0, 0);
+	/* right end of the input row, as tall as the entry */
+	gui->bar = gtk_drawing_area_new ();
+	gtk_widget_set_name (gui->bar, "nexchat-connecting");
+	gtk_widget_set_size_request (gui->bar, 120, -1);
+	gtk_widget_set_valign (gui->bar, GTK_ALIGN_FILL);
+	gtk_widget_set_margin_start (gui->bar, 4);
+	gtk_widget_set_margin_top (gui->bar, 2);
+	gtk_widget_set_margin_bottom (gui->bar, 2);
+#if GTK_CHECK_VERSION(4, 0, 0)
+	gtk_drawing_area_set_draw_func (GTK_DRAWING_AREA (gui->bar), mg_progressbar_draw, NULL, NULL);
+#else
+	g_signal_connect (gui->bar, "draw", G_CALLBACK (mg_progressbar_draw), NULL);
+#endif
+	gtk_widget_set_tooltip_text (gui->bar, _("Connecting" ELLIPSIS));
+	nx_box_pack_end (gtk_widget_get_parent (gui->input_box), gui->bar, 0, 0, 0);
 	nx_widget_show (gui->bar);
-	gui->bartag = fe_timeout_add (50, mg_progressbar_update, gui->bar);
+	gui->bartag = fe_timeout_add (16, mg_progressbar_update, gui->bar);
 }
 
 void
