@@ -267,7 +267,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 - [x] Unread counts on tabs and tree rows: `#chan (3)`, `(3, 1!)` when one mentions you; cleared when you look (`gui_tab_unread`, on). `tests/ux/unread.sh`.
 - [x] Smart join/part filter: `irc_smart_filter` hides joins, parts and quits of people who haven't spoken in N minutes (off by default). `tests/smart-filter.sh`.
 - [ ] Search across all open buffers and in logs.
-- [ ] Jump to first unread.
+- [x] Jump to first unread: already there. The marker line goes on the first line that came in while you were away, and Window > Move to Marker Line (Ctrl+Shift+M) jumps to it.
 - [x] Multi-line paste: more than `gui_input_paste_max` lines (5) asks first; Cancel puts the text back in the box. `tests/ux/paste.sh`.
 - [x] URL hover shows the full target as a tooltip before you click. `tests/ux/urltip.sh`.
 
