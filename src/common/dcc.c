@@ -2424,6 +2424,45 @@ dcc_add_chat (session *sess, char *nick, int port, guint32 addr, int pasvid)
 	return dcc;
 }
 
+/* loopback, RFC 1918, link-local, CGNAT (host byte order) */
+static gboolean
+dcc_addr_is_private (guint32 a)
+{
+	return (a >> 24) == 127 || (a >> 24) == 10 || (a >> 24) == 0 ||
+			 (a >> 20) == (172 << 4 | 1) || (a >> 16) == (192 << 8 | 168) ||
+			 (a >> 16) == (169 << 8 | 254) || (a >> 22) == (100 << 2 | 1);
+}
+
+/* the IRC server itself is on such an address (a LAN or test ircd), where
+   offers from private addresses are normal */
+static gboolean
+dcc_server_is_private (server *serv)
+{
+	struct sockaddr_storage ss;
+	socklen_t len = sizeof (ss);
+
+	if (getpeername (serv->sok, (struct sockaddr *) &ss, &len) != 0)
+		return FALSE;
+	/* tests: act as if the (local) test server were a public one */
+	if (g_getenv ("NEXCHAT_DCC_PUBLIC_SERVER"))
+		return FALSE;
+	if (ss.ss_family == AF_INET)
+		return dcc_addr_is_private (ntohl (((struct sockaddr_in *) &ss)->sin_addr.s_addr));
+	if (ss.ss_family == AF_INET6)
+	{
+		struct in6_addr *a6 = &((struct sockaddr_in6 *) &ss)->sin6_addr;
+		if (IN6_IS_ADDR_V4MAPPED (a6))
+		{
+			guint32 v4;
+			memcpy (&v4, &a6->s6_addr[12], 4);
+			return dcc_addr_is_private (ntohl (v4));
+		}
+		return IN6_IS_ADDR_LOOPBACK (a6) || IN6_IS_ADDR_LINKLOCAL (a6) ||
+				 (a6->s6_addr[0] & 0xfe) == 0xfc;	/* fc00::/7 */
+	}
+	return FALSE;
+}
+
 /* make a name from the network safe as one path component, in place: no
    separators or control chars, no leading dot ("..", hidden files) */
 static char *
@@ -2486,7 +2525,18 @@ dcc_add_file (session *sess, char *file, guint64 size, int port, char *nick, gui
 
 		update_is_resumable (dcc);
 
-		if (prefs.hex_dcc_auto_recv == 1)
+		/* an offer pointing into our own network (loopback, LAN, link-local)
+		   from someone on a public server is how a DCC is used to make us
+		   connect to things behind the firewall: never accept those blind */
+		if (prefs.hex_dcc_auto_recv == 2 && dcc_addr_is_private (addr) &&
+			 !dcc_server_is_private (sess->server))
+		{
+			g_snprintf (tbuf, sizeof (tbuf),
+							_("%s is offering \"%s\" from %s, an address on your own network. Accept?"),
+							nick, file, net_ip (addr));
+			fe_confirm (tbuf, dcc_confirm_send, dcc_deny_send, dcc);
+		}
+		else if (prefs.hex_dcc_auto_recv == 1)
 		{
 			g_snprintf (tbuf, sizeof (tbuf), _("%s is offering \"%s\". Do you want to accept?"), nick, file);
 			fe_confirm (tbuf, dcc_confirm_send, dcc_deny_send, dcc);

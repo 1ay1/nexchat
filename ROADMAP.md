@@ -251,7 +251,7 @@ Security, done (4cf8e986):
 
 Security, left:
 - [x] DCC RESUME: only from the nick we're sending to (a matching port or id from anyone was enough), and only for an offset inside the file.
-- [ ] DCC: refuse offers that point at private/loopback addresses from a public server.
+- [x] DCC: with auto-accept on, an offer pointing at a loopback/LAN/link-local address from someone on a public server asks first ("...an address on your own network. Accept?"), so a DCC can't be used to make us connect behind the firewall. A LAN server's offers are normal and still auto-accepted. `tests/hostile-text.sh`.
 - [x] STS (`sts` cap): a plain connection that's told `sts=port=N` reconnects over TLS on N before sending anything secret; over TLS the policy is kept in `sts.conf` for its duration, and later plain connects to that host go straight to TLS. `tests/sts.py`.
 - [x] Bidi: a nick, channel or other event argument with bidi controls (U+202A..U+202E, U+2066..U+2069) is wrapped in FSI..PDI, so `<mallory\u202e>` can't reverse the message after it. `tests/hostile-text.sh`.
 

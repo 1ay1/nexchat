@@ -63,4 +63,33 @@ if [ $fail -ne 0 ]; then
 	echo "--- client.log"; tail -30 "$tmp/client.log"
 	exit 1
 fi
-echo "ok: $(ls "$tmp/dl/sub")"
+
+# the same offer (from 127.0.0.1) as if the server were a public one:
+# auto-accept must ask instead (fe-text can't ask, so nothing arrives)
+rm -rf "$tmp/dl/sub"/*
+python3 - "$tmp/peerport" <<'EOF' &
+import socket, sys
+s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen(1)
+open(sys.argv[1], "w").write(str(s.getsockname()[1]))
+s.settimeout(10)
+try:
+    c, _ = s.accept(); c.sendall(b"pwned"); c.recv(16); c.close()
+except Exception:
+    pass
+EOF
+peer=$!
+sleep 0.5
+pport=$(cat "$tmp/peerport")
+printf ':peer!p@h PRIVMSG {nick} :%sDCC SEND lan.txt 2130706433 %s 5%s\n' "$c" "$pport" "$c" > "$tmp/script"
+rm -f "$tmp/port"
+python3 "$here/fake_ircd.py" --log "$tmp/server.log" --portfile "$tmp/port" --script "$tmp/script" &
+ircd=$!
+i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+{
+	sleep 1; echo "/join #t"; sleep 3; echo "/quit bye"; sleep 1
+} | NEXCHAT_DCC_PUBLIC_SERVER=1 timeout 20 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/" > "$tmp/client.log" 2>&1 || true
+if ls "$tmp/dl/sub" | grep -q lan; then
+	echo "FAIL: an offer to a private address was taken without asking"; exit 1
+fi
+echo "ok:   offer to a private address from a public server isn't auto-accepted"
+echo "hostile: ok"
