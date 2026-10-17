@@ -51,6 +51,36 @@
 #endif
 #if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
 #include "platform-macos.h"
+#include <gdk/macos/gdkmacos.h>
+
+static void *
+macos_nswindow (GtkWindow *win)
+{
+	GdkSurface *s;
+
+	if (!win || !GDK_IS_MACOS_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return NULL;
+	s = gtk_native_get_surface (GTK_NATIVE (win));
+	return s ? gdk_macos_surface_get_native_window (GDK_MACOS_SURFACE (s)) : NULL;
+}
+
+static void
+macos_move_on_map (GtkWidget *w, gpointer unused)
+{
+	g_signal_handlers_disconnect_by_func (w, macos_move_on_map, unused);
+	macos_window_move (macos_nswindow (GTK_WINDOW (w)),
+							 GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-x")),
+							 GPOINTER_TO_INT (g_object_get_data (G_OBJECT (w), "nx-move-y")));
+}
+
+static void
+macos_place_on_map (GtkWidget *w, gpointer how)
+{
+	g_signal_handlers_disconnect_by_func (w, macos_place_on_map, how);
+	macos_window_place (macos_nswindow (GTK_WINDOW (w)),
+							  macos_nswindow (gtk_window_get_transient_for (GTK_WINDOW (w))),
+							  GPOINTER_TO_INT (how));
+}
 #endif
 
 #include "../common/hexchat.h"
@@ -415,6 +445,14 @@ gtkutil_window_place (GtkWidget *win, int at_mouse)
 		return;
 	}
 #endif
+#ifdef GDK_WINDOWING_MACOS
+	if (GTK_IS_WINDOW (win) && GDK_IS_MACOS_DISPLAY (gtk_widget_get_display (win)))
+	{
+		g_signal_handlers_disconnect_matched (win, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, macos_place_on_map, NULL);
+		g_signal_connect (win, "map", G_CALLBACK (macos_place_on_map), GINT_TO_POINTER (at_mouse));
+		return;
+	}
+#endif
 #ifdef GDK_WINDOWING_X11
 	if (!GTK_IS_WINDOW (win) || !GDK_IS_X11_DISPLAY (gtk_widget_get_display (win)))
 		return;
@@ -440,6 +478,21 @@ gtkutil_window_move (GtkWindow *win, int x, int y)
 			g_object_set_data (G_OBJECT (win), "nx-move-y", GINT_TO_POINTER (y));
 			g_signal_handlers_disconnect_by_func (win, win32_move_on_map, NULL);
 			g_signal_connect (win, "map", G_CALLBACK (win32_move_on_map), NULL);
+		}
+		return;
+	}
+#endif
+#ifdef GDK_WINDOWING_MACOS
+	if (GDK_IS_MACOS_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+	{
+		if (gtk_widget_get_mapped (GTK_WIDGET (win)))
+			macos_window_move (macos_nswindow (win), x, y);
+		else
+		{
+			g_object_set_data (G_OBJECT (win), "nx-move-x", GINT_TO_POINTER (x));
+			g_object_set_data (G_OBJECT (win), "nx-move-y", GINT_TO_POINTER (y));
+			g_signal_handlers_disconnect_by_func (win, macos_move_on_map, NULL);
+			g_signal_connect (win, "map", G_CALLBACK (macos_move_on_map), NULL);
 		}
 		return;
 	}
@@ -482,6 +535,10 @@ gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 		*y = r.top;
 		return TRUE;
 	}
+#endif
+#ifdef GDK_WINDOWING_MACOS
+	if (GDK_IS_MACOS_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
+		return macos_window_get_position (macos_nswindow (win), x, y);
 #endif
 #ifdef GDK_WINDOWING_X11
 	Window xid = x11_xid (win), child;

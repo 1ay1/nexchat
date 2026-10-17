@@ -16,6 +16,77 @@
 
 #include "platform-macos.h"
 
+/* Cocoa's y grows upward from the bottom of the main screen; the rest
+   of nexchat (and gui_win_top) counts down from the top */
+static CGFloat
+flip_y (NSWindow *w, CGFloat top_y)
+{
+	CGFloat h = NSMaxY ([[[NSScreen screens] firstObject] frame]);
+	return h - top_y - (w ? NSHeight ([w frame]) : 0);
+}
+
+gboolean
+macos_window_get_position (void *nswindow, int *x, int *y)
+{
+	NSWindow *w = (__bridge NSWindow *) nswindow;
+	NSRect f;
+
+	if (!w)
+		return FALSE;
+	f = [w frame];
+	*x = (int) f.origin.x;
+	*y = (int) flip_y (w, f.origin.y);
+	return TRUE;
+}
+
+void
+macos_window_move (void *nswindow, int x, int y)
+{
+	NSWindow *w = (__bridge NSWindow *) nswindow;
+
+	if (w)
+		[w setFrameOrigin:NSMakePoint (x, flip_y (w, y))];
+}
+
+/* how: 1 at the pointer, 2 centred on parent, else centred on screen */
+void
+macos_window_place (void *nswindow, void *parent, int how)
+{
+	NSWindow *w = (__bridge NSWindow *) nswindow;
+	NSWindow *p = (__bridge NSWindow *) parent;
+	NSRect f, area;
+	NSPoint o;
+
+	if (!w)
+		return;
+	f = [w frame];
+	if (how == 2 && p)
+	{
+		NSRect pf = [p frame];
+		o = NSMakePoint (NSMidX (pf) - NSWidth (f) / 2, NSMidY (pf) - NSHeight (f) / 2);
+		area = [[p screen] visibleFrame];
+	}
+	else if (how == 1)
+	{
+		NSPoint m = [NSEvent mouseLocation];
+		o = NSMakePoint (m.x - NSWidth (f) / 2, m.y - NSHeight (f) / 2);
+		area = [[NSScreen mainScreen] visibleFrame];
+		for (NSScreen *s in [NSScreen screens])
+			if (NSPointInRect (m, [s frame]))
+				area = [s visibleFrame];
+	}
+	else
+	{
+		[w center];
+		return;
+	}
+	o.x = MAX (NSMinX (area), MIN (o.x, NSMaxX (area) - NSWidth (f)));
+	o.y = MAX (NSMinY (area), MIN (o.y, NSMaxY (area) - NSHeight (f)));
+	[w setFrameOrigin:o];
+}
+
+/* the user's accent colour (System Settings > Appearance), 0..1 rgb */
+
 static NSInteger attention_req;
 
 void
@@ -45,7 +116,6 @@ macos_is_dark (void)
 	return FALSE;
 }
 
-/* the user's accent colour (System Settings > Appearance), 0..1 rgb */
 gboolean
 macos_accent (double *r, double *g, double *b)
 {

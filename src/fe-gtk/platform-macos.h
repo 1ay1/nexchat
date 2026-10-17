@@ -18,5 +18,10 @@ void macos_request_attention (gboolean urgent);
 gboolean macos_is_dark (void);
 /* the system accent colour */
 gboolean macos_accent (double *r, double *g, double *b);
+/* the NSWindow (gdk_macos_surface_get_native_window) moved/placed; y
+   counts down from the top of the main screen like elsewhere */
+gboolean macos_window_get_position (void *nswindow, int *x, int *y);
+void macos_window_move (void *nswindow, int x, int y);
+void macos_window_place (void *nswindow, void *parent, int how);
 
 #endif
