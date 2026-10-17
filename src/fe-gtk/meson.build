@@ -271,6 +271,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-paste', find_program('sh'),
     args: [files('../../tests/ux/paste.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:92'], timeout: 120)
+  test('gui-urltip', find_program('sh'),
+    args: [files('../../tests/ux/urltip.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:91'], timeout: 120)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],

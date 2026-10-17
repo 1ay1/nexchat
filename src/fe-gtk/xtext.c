@@ -1937,10 +1937,31 @@ xtext_on_separator (GtkXText *xtext, int x)
 	return abs (x - line_x) <= 3;
 }
 
+/* hovering a URL: its full text as the tooltip, so a link that reads like
+   one site but goes to another (or is cut off by the window) shows where it
+   really goes. Not for nicks and channels. */
+static void
+gtk_xtext_set_url_tooltip (GtkXText *xtext, int word_type, int x, int y)
+{
+	char *word, *url = NULL;
+	int start, end;
+
+	if (word_type == WORD_URL || word_type == WORD_HOST || word_type == WORD_HOST6)
+	{
+		word = gtk_xtext_get_word (xtext, x, y, NULL, NULL, NULL, NULL);
+		if (word && xtext->urlcheck_function (GTK_WIDGET (xtext), word) > 0 &&
+			 url_last (&start, &end) && end > start)
+			url = g_strndup (word + start, end - start);
+	}
+	gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), url);
+	g_free (url);
+}
+
 /* pointer is off any link / the separator: drop hilight and cursor */
 static void
 gtk_xtext_unhover (GtkXText *xtext)
 {
+	gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), NULL);
 	if (xtext->cursor_hand)
 	{
 		gtk_xtext_unrender_hilight (xtext);
@@ -2141,6 +2162,8 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 			 xtext->hilight_start != offset ||
 			 xtext->hilight_end != offset + len)
 		{
+			/* a link shows where it goes before you click it */
+			gtk_xtext_set_url_tooltip (xtext, word_type, x, y);
 			if (!xtext->cursor_hand)
 			{
 				xtext->cursor_hand = TRUE;

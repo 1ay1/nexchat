@@ -628,6 +628,11 @@ fe_tabs_dump (gpointer d)
 	GSList *l;
 
 	g_printerr ("tabs:\n");
+	if (current_sess && current_sess->gui && current_sess->gui->xtext)
+	{
+		const char *tip = gtk_widget_get_tooltip_text (current_sess->gui->xtext);
+		g_printerr ("tooltip: %s\n", tip ? tip : "");
+	}
 	for (l = sess_list; l; l = l->next)
 	{
 		session *s = l->data;

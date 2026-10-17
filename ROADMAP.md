@@ -269,7 +269,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 - [ ] Search across all open buffers and in logs.
 - [ ] Jump to first unread.
 - [x] Multi-line paste: more than `gui_input_paste_max` lines (5) asks first; Cancel puts the text back in the box. `tests/ux/paste.sh`.
-- [ ] URL hover shows the full target before you click.
+- [x] URL hover shows the full target as a tooltip before you click. `tests/ux/urltip.sh`.
 
 Speed (phase 7 continues):
 - [x] Channel lookups: measured, not a problem. `find_channel` walks every session, but `tests/bench-lines.py` gets ~90k lines/s in fe-text and ~66k in the GUI with 5 channels or 1000 alike. No hash needed.
