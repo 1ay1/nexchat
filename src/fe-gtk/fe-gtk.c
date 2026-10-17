@@ -39,6 +39,7 @@
 #include "../common/plugin.h"
 #include "../common/server.h"
 #include "../common/url.h"
+#include "../common/userlist.h"
 #include "gtkutil.h"
 #include "maingui.h"
 #include "pixmaps.h"
@@ -493,9 +494,9 @@ fe_apply_css (void)
 		/* the "3 ops, 16 total" frame: the theme's frame > label margin is
 		   meant for a frame's title, not a label inside it */
 		"#hexchat-ulistinfo > label { margin: 0; padding: 1px 2px; min-height: 0; }\n"
-		"columnview.nx-list > header { box-shadow: inset 0 -1px #d7d2ce; padding: 0; margin: 0; }\n"
+		"columnview.nx-list > header { box-shadow: inset 0 -1px alpha(currentColor, 0.18); padding: 0; margin: 0; }\n"
 		"columnview.nx-list > header > button { padding: 4px 6px 5px 6px; min-height: 0; border-radius: 0;"
-		" border: none; background: none; box-shadow: inset -1px 0 #d7d2ce; font-weight: bold; }\n"
+		" border: none; background: none; box-shadow: inset -1px 0 alpha(currentColor, 0.18); font-weight: bold; }\n"
 		"columnview.nx-list check { margin: 0; min-width: 14px; min-height: 14px; }\n"
 		/* GTK3 drew ascending as a down arrow, at the right of the title */
 		"columnview.nx-list > header > button sort-indicator.ascending { -gtk-icon-source: -gtk-icontheme('pan-down-symbolic'); }\n"
@@ -526,10 +527,55 @@ fe_apply_css (void)
 	pango_font_description_free (fd);
 }
 
+/* the colours follow the system's light/dark mode (the user's own picks
+   stay): re-read it, and repaint everything that uses colors[] */
+static void
+fe_apply_scheme (void)
+{
+	GSList *list;
+
+	if (!palette_set_dark (platform_style_dark ()))
+		return;
+	fe_apply_css ();
+	for (list = sess_list; list; list = list->next)
+	{
+		session *sess = list->data;
+		if (sess->gui && sess->gui->xtext)
+		{
+			gtk_xtext_set_palette (GTK_XTEXT (sess->gui->xtext), colors);
+			gtk_xtext_refresh (GTK_XTEXT (sess->gui->xtext));
+		}
+		if (sess->gui)
+			userlist_rehash (sess);
+	}
+	mg_apply_setup ();
+}
+
+static void
+fe_scheme_changed (GObject *o, GParamSpec *p, gpointer d)
+{
+	fe_apply_scheme ();
+}
+
+#ifdef __APPLE__
+/* macOS doesn't tell GTK when the appearance changes: look again every
+   couple of seconds (cheap: nothing happens unless it flipped) */
+static gboolean
+fe_scheme_poll (gpointer d)
+{
+	platform_style_sync_scheme ();
+	fe_apply_scheme ();
+	return G_SOURCE_CONTINUE;
+}
+#endif
+
 void
 fe_init (void)
 {
+	GtkSettings *gs = gtk_settings_get_default ();
+
 	gtkutil_force_images ();
+	palette_set_dark (platform_style_dark ());
 	palette_load ();
 	key_init ();
 	pixmaps_init ();
@@ -537,6 +583,18 @@ fe_init (void)
 	channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
 	fe_check_font ();
 	fe_apply_css ();
+
+	if (gs)
+	{
+#if GTK_CHECK_VERSION(4, 20, 0)
+		g_signal_connect (gs, "notify::gtk-interface-color-scheme", G_CALLBACK (fe_scheme_changed), NULL);
+#endif
+		g_signal_connect (gs, "notify::gtk-application-prefer-dark-theme", G_CALLBACK (fe_scheme_changed), NULL);
+		g_signal_connect (gs, "notify::gtk-theme-name", G_CALLBACK (fe_scheme_changed), NULL);
+	}
+#ifdef __APPLE__
+	g_timeout_add_seconds (2, fe_scheme_poll, NULL);
+#endif
 }
 
 
@@ -549,6 +607,26 @@ fe_self_shot (gpointer data)
 {
 	char *path = data;
 	GtkWidget *win = current_sess && current_sess->gui ? current_sess->gui->window : NULL;
+
+	/* NEXCHAT_SHOT_WIN=1: the newest other toplevel instead (the dialog
+	   NEXCHAT_MENU_ACTIVATE or -c opened), for checking dialogs natively */
+	if (g_getenv ("NEXCHAT_SHOT_WIN"))
+	{
+		GListModel *tl = gtk_window_get_toplevels ();
+		guint i, n = g_list_model_get_n_items (tl);
+		for (i = 0; i < n; i++)
+		{
+			GtkWidget *w = g_list_model_get_item (tl, i);
+			if (w != win && gtk_widget_get_visible (w) && GTK_IS_WINDOW (w)
+				 && !GTK_IS_POPOVER (w))
+			{
+				g_object_unref (w);
+				win = w;
+				break;
+			}
+			g_object_unref (w);
+		}
+	}
 
 	if (win)
 	{

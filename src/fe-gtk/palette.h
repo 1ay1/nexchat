@@ -46,7 +46,18 @@ guint16 palette_c16 (double channel);
 #define MAX_COL 41
 
 void palette_alloc (GtkWidget * widget);
+/* colors[] from the built-in defaults for the current light/dark mode plus
+   the user's own picks in colors.conf */
 void palette_load (void);
+/* writes only the colours that differ from the current defaults */
 void palette_save (void);
+/* light or dark defaults for every colour the user didn't pick; TRUE if
+   that changed anything */
+gboolean palette_set_dark (gboolean dark);
+gboolean palette_dark (void);
+/* any colour picked by the user */
+gboolean palette_is_custom (void);
+/* forget the user's picks: every colour follows the system */
+void palette_use_defaults (void);
 
 #endif

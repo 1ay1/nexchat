@@ -108,12 +108,40 @@ win32_ui_font (void)
 gboolean
 platform_style_dark (void)
 {
+	/* NEXCHAT_SCHEME=light|dark: pin it, whatever the system says */
+	const char *force = g_getenv ("NEXCHAT_SCHEME");
+	if (force && !g_ascii_strcasecmp (force, "dark"))
+		return TRUE;
+	if (force && !g_ascii_strcasecmp (force, "light"))
+		return FALSE;
 #ifdef G_OS_WIN32
 	return win32_apps_dark ();
 #elif defined(__APPLE__)
 	return macos_is_dark ();
 #else
-	return FALSE;
+	/* the desktop's choice as GTK sees it: the portal's color-scheme (GTK
+	   4.20+), else a dark theme asked for by name or setting */
+	GtkSettings *gs = gtk_settings_get_default ();
+	gboolean prefer = FALSE;
+	char *theme = NULL;
+	gboolean dark;
+
+	if (!gs)
+		return FALSE;
+#if GTK_CHECK_VERSION(4, 20, 0)
+	{
+		GtkInterfaceColorScheme cs;
+		g_object_get (gs, "gtk-interface-color-scheme", &cs, NULL);
+		if (cs == GTK_INTERFACE_COLOR_SCHEME_DARK)
+			return TRUE;
+		if (cs == GTK_INTERFACE_COLOR_SCHEME_LIGHT)
+			return FALSE;
+	}
+#endif
+	g_object_get (gs, "gtk-application-prefer-dark-theme", &prefer, "gtk-theme-name", &theme, NULL);
+	dark = prefer || (theme && g_str_has_suffix (theme, "-dark")) || (theme && strstr (theme, ":dark"));
+	g_free (theme);
+	return dark;
 #endif
 }
 
@@ -464,27 +492,38 @@ map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
 }
 #endif
 
+#if defined(__APPLE__)
+/* GTK's own theme must match the system's light/dark: the Aqua CSS only
+   recolours some widgets, the rest (field text, labels, lists) come from
+   GTK, which otherwise stays light -- black text on dark fields */
+void
+platform_style_sync_scheme (void)
+{
+	GtkSettings *gs = gtk_settings_get_default ();
+
+	if (!gs)
+		return;
+#if GTK_CHECK_VERSION(4, 20, 0)
+	g_object_set (gs, "gtk-interface-color-scheme",
+					  platform_style_dark () ? GTK_INTERFACE_COLOR_SCHEME_DARK
+											  : GTK_INTERFACE_COLOR_SCHEME_LIGHT, NULL);
+#else
+	g_object_set (gs, "gtk-application-prefer-dark-theme", platform_style_dark (), NULL);
+#endif
+}
+#else
+void
+platform_style_sync_scheme (void)
+{
+}
+#endif
+
 void
 platform_style_init (void)
 {
 #if defined(__APPLE__)
-	/* GTK's own theme must match the system's light/dark: the Aqua CSS only
-	   recolours some widgets, the rest (field text, labels, lists) come from
-	   GTK, which otherwise stays light -- black text on dark fields */
-	if (prefs.hex_gui_native_look)
-	{
-		GtkSettings *gs = gtk_settings_get_default ();
-		if (gs)
-		{
-#if GTK_CHECK_VERSION(4, 20, 0)
-			g_object_set (gs, "gtk-interface-color-scheme",
-							  platform_style_dark () ? GTK_INTERFACE_COLOR_SCHEME_DARK
-													  : GTK_INTERFACE_COLOR_SCHEME_LIGHT, NULL);
-#else
-			g_object_set (gs, "gtk-application-prefer-dark-theme", platform_style_dark (), NULL);
-#endif
-		}
-	}
+	/* always, native look or not: colors[] follows the system too */
+	platform_style_sync_scheme ();
 	/* the menu goes in the menu bar at the top of the screen */
 	if (prefs.hex_gui_native_look)
 		nx_menu_use_global_menubar (nx_app ());

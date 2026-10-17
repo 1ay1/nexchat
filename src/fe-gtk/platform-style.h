@@ -21,6 +21,10 @@ void platform_style_css (GString *css);
 void platform_style_css_late (GString *css);
 /* the system asks for dark mode */
 gboolean platform_style_dark (void);
+/* macOS: tell GTK the system's current light/dark (GTK doesn't follow
+   NSAppearance itself); nothing elsewhere, where GTK gets it from the
+   desktop */
+void platform_style_sync_scheme (void);
 #ifdef G_OS_WIN32
 /* dark title bar and rounded corners to match (Windows 11) */
 void platform_style_window_hwnd (void *hwnd);
