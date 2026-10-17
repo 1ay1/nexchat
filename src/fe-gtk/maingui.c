@@ -401,9 +401,69 @@ mg_inputbox_cb (GtkWidget *igad, session_gui *gui)
 	}
 
 	if (sess)
-		handle_multiline (sess, cmd, TRUE, FALSE);
+		mg_send_input (sess, igad, cmd);
 
 	g_free (cmd);
+}
+
+/* the text a paste confirmation is about, and where it goes */
+typedef struct
+{
+	session *sess;
+	GtkWidget *entry;
+	char *text;
+} paste_ask;
+
+static void
+mg_paste_ask_cb (GtkWidget *dialog, int response, paste_ask *p)
+{
+	nx_widget_destroy (dialog);
+	if (is_session (p->sess))
+	{
+		if (response == GTK_RESPONSE_OK)
+			handle_multiline (p->sess, p->text, TRUE, FALSE);
+		else if (p->entry)
+			/* cancelled: back in the box, to edit or send */
+			SPELL_ENTRY_SET_TEXT (p->entry, p->text);
+	}
+	g_free (p->text);
+	g_free (p);
+}
+
+/* send what was typed or pasted; more than gui_input_paste_max lines of
+   text (not a command) asks first, so a slip of the mouse can't flood */
+void
+mg_send_input (session *sess, GtkWidget *entry, char *cmd)
+{
+	int lines = 1;
+	char *p, *msg;
+	paste_ask *ask;
+	GtkWidget *dialog;
+
+	for (p = cmd; *p; p++)
+		if (*p == '\n' && p[1] && p[1] != '\n')
+			lines++;
+	if (!prefs.hex_gui_input_paste_max || lines <= prefs.hex_gui_input_paste_max
+		 || cmd[0] == prefs.hex_input_command_char[0])
+	{
+		handle_multiline (sess, cmd, TRUE, FALSE);
+		return;
+	}
+
+	ask = g_new0 (paste_ask, 1);
+	ask->sess = sess;
+	ask->entry = entry;
+	ask->text = g_strdup (cmd);
+	msg = g_strdup_printf (g_dngettext (GETTEXT_PACKAGE, "Send %d line to %s?", "Send %d lines to %s?", lines),
+								  lines, sess->channel[0] ? sess->channel : _("the server"));
+	dialog = nx_message_dialog_new (GTK_WINDOW (sess->gui->window), TRUE, NX_MSG_QUESTION,
+											  NX_BUTTONS_OK_CANCEL, FALSE, msg);
+	g_free (msg);
+	g_signal_connect (dialog, "response", G_CALLBACK (mg_paste_ask_cb), ask);
+	nx_widget_show (dialog);
+	/* Enter answers OK (Escape cancels): focus it, not Cancel */
+	if (gtk_window_get_default_widget (GTK_WINDOW (dialog)))
+		gtk_widget_grab_focus (gtk_window_get_default_widget (GTK_WINDOW (dialog)));
 }
 
 static gboolean

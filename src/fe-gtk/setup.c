@@ -200,6 +200,7 @@ static const setting inputbox_settings[] =
 	{ST_TOGGLE, N_("Render colors and attributes"), P_OFFINTNL (hex_gui_input_attr),0,0,0},
 	{ST_TOGGLE, N_("Show nick box"), P_OFFINTNL(hex_gui_input_nick),0,0,1},
 	{ST_TOGGLE, N_("Show user mode icon in nick box"), P_OFFINTNL(hex_gui_input_icon),0,0,0},
+	{ST_NUMBER, N_("Ask before sending a paste of more than:"), P_OFFINTNL(hex_gui_input_paste_max), N_("Pasting many lines by accident floods the channel. 0 never asks."), (const char **)N_("lines."), 1000},
 	{ST_TOGGLE, N_("Spell checking"), P_OFFINTNL(hex_gui_input_spell),0,0,1},
 	{ST_ENTRY,	N_("Dictionaries to use:"), P_OFFSETNL(hex_text_spell_langs),0,0,sizeof prefs.hex_text_spell_langs},
 #ifdef WIN32

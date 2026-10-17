@@ -53,6 +53,8 @@ void mg_dnd_drop_file (session *sess, char *target, char *uri);
 void mg_change_layout (int type);
 void mg_update_meters (session_gui *);
 void mg_inputbox_cb (GtkWidget *igad, session_gui *gui);
+/* send typed/pasted text; a long paste asks first (gui_input_paste_max) */
+void mg_send_input (session *sess, GtkWidget *entry, char *cmd);
 void mg_create_icon_item (char *label, char *stock, nx_menu *menu, nx_item_cb callback, void *userdata);
 nx_menu *mg_submenu (nx_menu *menu, char *text);
 /* DND */

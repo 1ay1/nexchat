@@ -120,6 +120,7 @@ struct hexchatprefs
 	unsigned int hex_gui_input_icon;
 	unsigned int hex_gui_input_nick;
 	unsigned int hex_gui_input_spell;
+	int hex_gui_input_paste_max;	/* ask before sending more lines; 0 never asks */
 	unsigned int hex_gui_input_style;
 	unsigned int hex_gui_jump_button;
 	unsigned int hex_gui_zoom_keys;

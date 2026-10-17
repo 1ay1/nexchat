@@ -267,7 +267,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 - [x] Smart join/part filter: `irc_smart_filter` hides joins, parts and quits of people who haven't spoken in N minutes (off by default). `tests/smart-filter.sh`.
 - [ ] Search across all open buffers and in logs.
 - [ ] Jump to first unread.
-- [ ] Multi-line paste: confirm before sending more than N lines.
+- [x] Multi-line paste: more than `gui_input_paste_max` lines (5) asks first; Cancel puts the text back in the box. `tests/ux/paste.sh`.
 - [ ] URL hover shows the full target before you click.
 
 Speed (phase 7 continues):
