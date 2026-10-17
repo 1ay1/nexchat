@@ -134,7 +134,6 @@ void
 pixmaps_init (void)
 {
 	hexchat_register_resource();
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK3's stock-only icons (gtk-ok, gtk-cancel, ...), gone in GTK4, and
 	   our app icon; every window (dialogs too) shows it */
 	if (gdk_display_get_default ())
@@ -143,7 +142,6 @@ pixmaps_init (void)
 												"/io/github/nexchat/icons");
 		gtk_window_set_default_icon_name ("io.github.nexchat");
 	}
-#endif
 
 	pix_ulist_voice = load_pixmap ("ulist_voice");
 	pix_ulist_halfop = load_pixmap ("ulist_halfop");

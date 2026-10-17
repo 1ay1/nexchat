@@ -49,7 +49,7 @@ void gtkutil_window_move (GtkWindow *win, int x, int y);
 gboolean gtkutil_window_get_position (GtkWindow *win, int *x, int *y);
 /* flash the taskbar entry / set urgency (TRUE) or clear it (FALSE) */
 void gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent);
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 /* the window's HWND (a void * so this header needs no windows.h) */
 #define gtkutil_window_hwnd(w) ((void *) gtkutil_window_hwnd_ (w))
 void *gtkutil_window_hwnd_ (GtkWindow *win);

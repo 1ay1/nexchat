@@ -43,7 +43,7 @@
 #include "../common/text.h"
 #include "../common/plugin.h"
 #include "../common/typedef.h"
-#if defined(GDK_WINDOWING_MACOS) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(GDK_WINDOWING_MACOS)
 #include <gdk/macos/gdkmacos.h>
 #elif defined(GDK_WINDOWING_QUARTZ)
 #include <gdk/gdkquartz.h>
@@ -292,7 +292,7 @@ key_free (gpointer data)
 GdkModifierType
 key_primary_modifier (void)
 {
-#if defined(GDK_WINDOWING_MACOS) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(GDK_WINDOWING_MACOS)
 	static int is_macos = -1;
 
 	if (is_macos == -1)
@@ -445,12 +445,6 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 
 done:
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	/* GTK3: a "stop" binding also has to keep later key_press_event
-	   handlers from running, exactly like before */
-	if (r == KEY_HANDLED_STOP)
-		g_signal_stop_emission_by_name (G_OBJECT (wid), "key-press-event");
-#endif
 	return r != KEY_NOT_HANDLED;
 }
 

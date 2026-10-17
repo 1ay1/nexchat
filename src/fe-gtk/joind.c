@@ -45,16 +45,12 @@
 static GtkWidget *
 joind_radio_label (GtkWidget *radio)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 	GtkWidget *c;
 
 	for (c = gtk_widget_get_first_child (radio); c; c = gtk_widget_get_next_sibling (c))
 		if (GTK_IS_LABEL (c))
 			return c;
 	return NULL;
-#else
-	return gtk_bin_get_child (GTK_BIN (radio));
-#endif
 }
 
 /* indent hint so it starts where radio's label text starts */
@@ -66,47 +62,26 @@ joind_indent_apply (GtkWidget *hint, GtkWidget *radio)
 
 	if (!label || nx_widget_get_allocated_width (label) <= 1)
 		return FALSE;
-#if GTK_CHECK_VERSION(4, 0, 0)
 	{
 		int y;
 		nx_widget_get_position_in (label, gtk_widget_get_parent (hint), &x, &y);
 	}
-#else
-	{
-		GtkAllocation a, p;
-		gtk_widget_get_allocation (label, &a);
-		gtk_widget_get_allocation (gtk_widget_get_parent (hint), &p);
-		x = a.x - p.x;
-	}
-#endif
 	if (x != gtk_widget_get_margin_start (hint))
 		gtk_widget_set_margin_start (hint, x);
 	return TRUE;
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 static gboolean
 joind_indent_tick (GtkWidget *hint, GdkFrameClock *clock, gpointer radio)
 {
 	return joind_indent_apply (hint, radio) ? G_SOURCE_REMOVE : G_SOURCE_CONTINUE;
 }
-#else
-static void
-joind_indent_alloc (GtkWidget *radio, GdkRectangle *a, GtkWidget *hint)
-{
-	joind_indent_apply (hint, radio);
-}
-#endif
 
 static void
 joind_indent_under (GtkWidget *hint, GtkWidget *radio)
 {
 	gtk_widget_set_halign (hint, GTK_ALIGN_START);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_widget_add_tick_callback (hint, joind_indent_tick, radio, NULL);
-#else
-	g_signal_connect (radio, "size-allocate", G_CALLBACK (joind_indent_alloc), hint);
-#endif
 }
 
 static void

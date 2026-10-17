@@ -138,7 +138,6 @@ typedef enum { NX_KIND_ITEM, NX_KIND_CHECK, NX_KIND_RADIO, NX_KIND_SEPARATOR,
 					NX_KIND_SUBMENU } nx_item_kind;
 nx_item_kind nx_item_get_kind (nx_item *item);
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 /* what a popup shows: the model (actions are "nx.<name>") and the actions;
    for tests */
 GMenuModel *nx_menu_get_model (nx_menu *menu);
@@ -154,13 +153,6 @@ void nx_menu_use_global_menubar (GtkApplication *app);
 /* Windows: popups become real Win32 menus; owner_of gives the HWND to own
    one shown from a widget (NULL: fall back to the popover) */
 void nx_menu_use_native_popups (gboolean on, void *(*owner_of) (GtkWidget *w));
-#endif
-#else
-/* GTK3 only, during the move: the widgets behind the handles */
-#define NX_MENU_WIDGET(m) ((GtkWidget *) (m))
-#define NX_ITEM_WIDGET(i) ((GtkWidget *) (i))
-#define NX_MENU(w) ((nx_menu *) (w))
-#define NX_ITEM(w) ((nx_item *) (w))
 #endif
 
 #endif

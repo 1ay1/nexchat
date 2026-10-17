@@ -42,9 +42,7 @@
 
 #ifdef WIN32
 #include "../common/fe.h"
-#if GTK_CHECK_VERSION(4, 0, 0)
 #include "win32-menu.h"
-#endif
 #endif
 #include "sexy-spell-entry.h"
 
@@ -453,12 +451,8 @@ static const setting alert_settings_nonotifications[] =
 
 	{ST_ALERTHEAD},
 	{ST_3OGGLE, N_("Blink tray icon on:"), 0, 0, (void *)trayblinklist, 0},
-#ifdef HAVE_GTK_MAC
-	{ST_3OGGLE, N_("Bounce dock icon on:"), 0, 0, (void *)taskbarlist, 0},
-#else
 #ifndef __APPLE__
 	{ST_3OGGLE, N_("Blink task bar on:"), 0, 0, (void *)taskbarlist, 0},
-#endif
 #endif
 #ifdef WIN32
 	{ST_3OGGLE, N_("Make a beep sound on:"), 0, N_("Play the \"Instant Message Notification\" system sound upon the selected events"), (void *)beeplist, 0},
@@ -723,9 +717,7 @@ static GtkWidget *
 setup_lone_check (void)
 {
 	GtkWidget *wid = gtk_check_button_new ();
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_widget_add_css_class (wid, "nx-lone");
-#endif
 	return wid;
 }
 
@@ -1173,7 +1165,7 @@ setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
 	GtkWidget *dialog;
 
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 	/* the Windows font dialog */
 	if (prefs.hex_gui_native_look)
 	{
@@ -1436,7 +1428,6 @@ setup_create_page (const setting *set)
 static void
 setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* per-widget providers are deprecated: one display-wide provider holds
 	   a rule per swatch, each button carries its own class */
 	static GtkCssProvider *prov;
@@ -1472,26 +1463,6 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 		g_string_append (all, v);
 	nx_css_provider_load (prov, all->str);
 	g_string_free (all, TRUE);
-#else
-	GtkCssProvider *prov = g_object_get_data (G_OBJECT (button), "hexchat-color-css");
-	char css[256];
-
-	if (!prov)
-	{
-		prov = gtk_css_provider_new ();
-		gtk_style_context_add_provider (gtk_widget_get_style_context (button),
-							GTK_STYLE_PROVIDER (prov), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-		g_object_set_data_full (G_OBJECT (button), "hexchat-color-css", prov, g_object_unref);
-	}
-	g_snprintf (css, sizeof css,
-				/* GTK2 swatches were as small as the x-small digit + 2px; GTK3
-				   themes give buttons ~16px padding and a 24px min-width, which
-				   made the 16-wide palette rows ~990px. */
-				"button { background-image: none; background-color: rgb(%d,%d,%d);"
-				" padding: 0; min-width: 18px; min-height: 18px; border-radius: 0; }",
-				C8R (*col), C8G (*col), C8B (*col));
-	nx_css_provider_load (prov, css);
-#endif
 }
 
 /* GtkColorSelectionDialog (GTK2's triangle picker) is deprecated in GTK3 and
@@ -1524,7 +1495,7 @@ setup_color_cb (GtkWidget *button, gpointer userdata)
 
 	color = &colors[GPOINTER_TO_INT (userdata)];
 
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 	/* the Windows colour dialog */
 	if (prefs.hex_gui_native_look)
 	{

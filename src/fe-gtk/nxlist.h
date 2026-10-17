@@ -204,12 +204,5 @@ void nx_view_set_compact (GtkWidget *view, gboolean compact);
 double nx_view_get_scroll (GtkWidget *view);
 void nx_view_set_scroll (GtkWidget *view, double value);
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-/* GTK3 only, for the tweaks only GtkTreeView had */
-GtkTreeModel *nx_store_get_model (nx_store *store);
-GtkTreeViewColumn *nx_col_get_column (nx_col *col);
-GtkCellRenderer *nx_col_get_renderer (nx_col *col);
-nx_row *nx_store_row_from_iter (nx_store *store, GtkTreeIter *iter);
-#endif
 
 #endif

@@ -55,9 +55,7 @@
 
 #ifdef G_OS_WIN32
 #include <windows.h>
-#if GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/win32/gdkwin32.h>
-#endif
 #endif
 
 #define GUI_SPACING (3)
@@ -216,9 +214,6 @@ set_window_urgency (GtkWidget *win, gboolean set)
 static void
 flash_window (GtkWidget *win)
 {
-#ifdef HAVE_GTK_MAC
-	gtkosx_application_attention_request (osx_app, INFO_REQUEST);
-#endif
 	set_window_urgency (win, TRUE);
 }
 
@@ -619,12 +614,7 @@ mg_progressbar_paint (GtkWidget *bar, cairo_t *cr, int w, int h)
 	double bw = (w - 4) * 0.25, x;
 	GdkRGBA accent, frame;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_widget_get_color (bar, &accent);
-#else
-	gtk_style_context_get_color (gtk_widget_get_style_context (bar),
-										  gtk_widget_get_state_flags (bar), &accent);
-#endif
 	frame = accent;
 	frame.alpha *= 0.5;
 
@@ -641,21 +631,11 @@ mg_progressbar_paint (GtkWidget *bar, cairo_t *cr, int w, int h)
 	cairo_fill (cr);
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 static void
 mg_progressbar_draw (GtkDrawingArea *da, cairo_t *cr, int w, int h, gpointer unused)
 {
 	mg_progressbar_paint (GTK_WIDGET (da), cr, w, h);
 }
-#else
-static gboolean
-mg_progressbar_draw (GtkWidget *da, cairo_t *cr, gpointer unused)
-{
-	mg_progressbar_paint (da, cr, gtk_widget_get_allocated_width (da),
-								 gtk_widget_get_allocated_height (da));
-	return FALSE;
-}
-#endif
 
 static int
 mg_progressbar_update (GtkWidget *bar)
@@ -680,11 +660,7 @@ mg_progressbar_create (session_gui *gui)
 	gtk_widget_set_margin_start (gui->bar, 4);
 	gtk_widget_set_margin_top (gui->bar, 2);
 	gtk_widget_set_margin_bottom (gui->bar, 2);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_drawing_area_set_draw_func (GTK_DRAWING_AREA (gui->bar), mg_progressbar_draw, NULL, NULL);
-#else
-	g_signal_connect (gui->bar, "draw", G_CALLBACK (mg_progressbar_draw), NULL);
-#endif
 	gtk_widget_set_tooltip_text (gui->bar, _("Connecting" ELLIPSIS));
 	nx_box_pack_end (gtk_widget_get_parent (gui->input_box), gui->bar, 0, 0, 0);
 	nx_widget_show (gui->bar);
@@ -3335,7 +3311,6 @@ mg_tabwindow_de_cb (GtkWidget *widget, gpointer user_data)
 
 #ifdef G_OS_WIN32
 /* the user changed the clock or time zone: timestamps follow */
-#if GTK_CHECK_VERSION(4, 0, 0)
 static GdkWin32MessageFilterReturn
 mg_time_change (GdkWin32Display *display, MSG *msg, int *ret, gpointer data)
 {
@@ -3343,20 +3318,6 @@ mg_time_change (GdkWin32Display *display, MSG *msg, int *ret, gpointer data)
 		_tzset ();
 	return GDK_WIN32_MESSAGE_FILTER_CONTINUE;
 }
-#else
-static GdkFilterReturn
-mg_time_change (GdkXEvent *xevent, GdkEvent *event, gpointer data)
-{
-	MSG *msg = (MSG*)xevent;
-
-	if (msg->message == WM_TIMECHANGE)
-	{
-		_tzset();
-	}
-
-	return GDK_FILTER_CONTINUE;
-}
-#endif
 #endif
 
 static void
@@ -3364,9 +3325,6 @@ mg_create_tabwindow (session *sess)
 {
 	GtkWidget *win;
 	GtkWidget *table;
-#if defined(G_OS_WIN32) && !GTK_CHECK_VERSION(4, 0, 0)
-	GdkWindow *parent_win;
-#endif
 
 	win = gtkutil_window_new (DISPLAY_NAME, NULL, prefs.hex_gui_win_width,
 									  prefs.hex_gui_win_height, 0);
@@ -3429,7 +3387,6 @@ mg_create_tabwindow (session *sess)
 	nx_widget_show (win);
 
 #ifdef G_OS_WIN32
-#if GTK_CHECK_VERSION(4, 0, 0)
 	{
 		static gboolean filtered;
 		if (!filtered)
@@ -3439,10 +3396,6 @@ mg_create_tabwindow (session *sess)
 												mg_time_change, NULL);
 		}
 	}
-#else
-	parent_win = gtk_widget_get_window (win);
-	gdk_window_add_filter (parent_win, mg_time_change, NULL);
-#endif
 #endif
 }
 
@@ -3940,7 +3893,6 @@ mg_drag_highlight_paint (GtkWidget *widget, cairo_t *cr)
 	cairo_restore (cr);
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 /* GTK4 has no ::draw on someone else's widget. The outline goes in a
    GtkDrawingArea laid over the drop target (same size, input-transparent,
    inside a GtkOverlay that wraps it) and draws with the same cairo code. */
@@ -3985,20 +3937,6 @@ mg_drop_overlay (GtkWidget *child)
 	gtk_widget_set_vexpand (ov, gtk_widget_get_vexpand (child));
 	return ov;
 }
-#else
-GtkWidget *
-mg_drop_overlay (GtkWidget *child)
-{
-	return child;
-}
-
-static gboolean
-mg_drag_highlight_draw_cb (GtkWidget *widget, cairo_t *cr, gpointer userdata)
-{
-	mg_drag_highlight_paint (widget, cr);
-	return FALSE;
-}
-#endif
 
 static void
 mg_drag_highlight_clear_cb (GtkWidget *widget, gpointer userdata)
@@ -4007,10 +3945,8 @@ mg_drag_highlight_clear_cb (GtkWidget *widget, gpointer userdata)
 	{
 		g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, NULL);
 		gtk_widget_queue_draw (widget);
-#if GTK_CHECK_VERSION(4, 0, 0)
 		if (g_object_get_data (G_OBJECT (widget), "mg-drop-da"))
 			gtk_widget_queue_draw (g_object_get_data (G_OBJECT (widget), "mg-drop-da"));
-#endif
 	}
 }
 
@@ -4020,14 +3956,7 @@ mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unuse
 	GdkRGBA *col;
 	int which;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	mg_drag_overlay_attach (widget);
-#else
-	/* hook up the painter the first time this widget is a drop target */
-	if (!g_object_get_data (G_OBJECT (widget), MG_DROP_COL))
-		g_signal_connect_after (G_OBJECT (widget), "draw",
-								G_CALLBACK (mg_drag_highlight_draw_cb), NULL);
-#endif
 
 	/* a new random colour on every motion, as before */
 	col = g_new (GdkRGBA, 1);
@@ -4042,10 +3971,8 @@ mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unuse
 	which = (y < nx_widget_get_allocated_height (widget) / 2) ? 1 : 2;
 	g_object_set_data (G_OBJECT (widget), MG_DROP_HALF, GINT_TO_POINTER (which));
 	gtk_widget_queue_draw (widget);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	if (g_object_get_data (G_OBJECT (widget), "mg-drop-da"))
 		gtk_widget_queue_draw (g_object_get_data (G_OBJECT (widget), "mg-drop-da"));
-#endif
 }
 
 /* the channel tree and user list take each other's layout drags (and the

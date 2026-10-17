@@ -1,8 +1,8 @@
 project('nexchat', 'c',
   version: '2.16.2',
-  meson_version: '>= 0.47.0',
+  meson_version: '>= 0.59.0',
   default_options: [
-    'c_std=gnu89',
+    'c_std=gnu11',
     'buildtype=debugoptimized',
     'warning_level=1',
   ]
@@ -48,28 +48,15 @@ config_h.set('USE_DBUS', use_dbus)
 config_h.set('USE_PLUGIN', get_option('plugin'))
 
 config_h.set('G_DISABLE_SINGLE_INCLUDES', true)
-# Phase 3: no deprecated GTK3 API. These hide every deprecated declaration,
-# so reintroducing one is a compile error, not a warning. The one exception
-# is src/fe-gtk/tray-backend-statusicon.c (GtkStatusIcon has no GTK3
-# replacement), which #undefs them for itself.
+# No deprecated API. These hide every deprecated declaration, so
+# reintroducing one is a compile error, not a warning.
 config_h.set('GTK_DISABLE_DEPRECATED', true)
 config_h.set('GDK_DISABLE_DEPRECATED', true)
 config_h.set('GTK_DISABLE_SINGLE_INCLUDES', true)
 config_h.set('GDK_PIXBUF_DISABLE_SINGLE_INCLUDES', true)
-# GTK4 is the default; macOS stays on GTK3 until it's checked on a Mac
-gtk_version = get_option('gtk')
-if gtk_version == 'auto'
-  gtk_version = host_machine.system() == 'darwin' ? '3' : '4'
-endif
-
-# GTK4 needs GLib 2.76 itself (GTK 4.14), so its build may use what 2.76 has
-if gtk_version == '4'
-  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_76')
-  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_76')
-else
-  config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_36')
-  config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_36')
-endif
+# GTK 4.14 needs GLib 2.76 itself, so the build may use what 2.76 has
+config_h.set('GLIB_VERSION_MAX_ALLOWED', 'GLIB_VERSION_2_76')
+config_h.set('GLIB_VERSION_MIN_REQUIRED', 'GLIB_VERSION_2_76')
 
 # Detected features
 config_h.set('HAVE_MEMRCHR', cc.has_function('memrchr'))
@@ -166,11 +153,7 @@ if not (host_machine.system() == 'windows' and get_option('debug'))
  test_ldflags += '-Wl,--dynamicbase'
 endif
 foreach ldflag : test_ldflags
-  if meson.version().version_compare('>= 0.46.0')
-    has_arg = cc.has_link_argument(ldflag)
-  else
-    has_arg = cc.has_argument(ldflag)
-  endif
+  has_arg = cc.has_link_argument(ldflag)
 
   if has_arg and cc.links('int main (void) { return 0; }', args: ldflag)
     global_ldflags += ldflag
@@ -191,29 +174,27 @@ if cc.get_id() != 'msvc'
   )
 endif
 
-if meson.version().version_compare('>= 0.53.0')
-  summary({
-    'prefix': get_option('prefix'),
-    'bindir': get_option('bindir'),
-    'libdir': get_option('libdir'),
-    'datadir': get_option('datadir'),
-  }, section: 'Directories')
+summary({
+  'prefix': get_option('prefix'),
+  'bindir': get_option('bindir'),
+  'libdir': get_option('libdir'),
+  'datadir': get_option('datadir'),
+}, section: 'Directories')
 
-  summary({
-    'GTK': get_option('gtk-frontend') ? gtk_version : 'none',
-    'TLS (openssl)': libssl_dep.found(),
-    'Plugin Support': get_option('plugin'),
-    'DBus Support': use_dbus,
-    'libcanberra': libcanberra_dep.found(),
-  }, section: 'Features')
+summary({
+  'GTK': get_option('gtk-frontend') ? '4' : 'none',
+  'TLS (openssl)': libssl_dep.found(),
+  'Plugin Support': get_option('plugin'),
+  'DBus Support': use_dbus,
+  'libcanberra': libcanberra_dep.found(),
+}, section: 'Features')
 
-  summary({
-    'Lua': get_option('with-lua'),
-    'Python': get_option('with-python'),
-    'Perl': get_option('with-perl'),
-    'Perl Legacy API': get_option('with-perl-legacy-api'),
-    'FiSH': get_option('with-fishlim'),
-    'Sysinfo': get_option('with-sysinfo'),
-    'DCC Checksum': get_option('with-checksum'),
-  }, section: 'Plugins')
-endif
+summary({
+  'Lua': get_option('with-lua'),
+  'Python': get_option('with-python'),
+  'Perl': get_option('with-perl'),
+  'Perl Legacy API': get_option('with-perl-legacy-api'),
+  'FiSH': get_option('with-fishlim'),
+  'Sysinfo': get_option('with-sysinfo'),
+  'DCC Checksum': get_option('with-checksum'),
+}, section: 'Plugins')

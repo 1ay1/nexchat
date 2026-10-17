@@ -33,9 +33,6 @@
 #include "gtkcompat.h"
 #include "nxmenu.h"
 
-#ifdef HAVE_GTK_MAC
-#include <gtkosxapplication.h>
-#endif
 
 #include "banlist.h"
 
@@ -49,9 +46,6 @@
 #define flag_b flag_wid[7]
 #define NUM_FLAG_WIDS 8
 
-#ifdef HAVE_GTK_MAC
-extern GtkosxApplication *osx_app;
-#endif
 
 struct server_gui
 {

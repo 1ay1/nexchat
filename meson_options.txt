@@ -1,9 +1,6 @@
 # Applications
 option('gtk-frontend', type: 'boolean',
-  description: 'Main graphical interface'
-)
-option('gtk', type: 'combo', choices: ['auto', '3', '4'], value: 'auto',
-  description: 'GTK major version for the graphical interface (auto: 4, but 3 on macOS until it is checked there)'
+  description: 'Main graphical interface (GTK4)'
 )
 option('text-frontend', type: 'boolean', value: false,
   description: 'Text interface (not generally useful)'

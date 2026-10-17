@@ -1452,7 +1452,6 @@ servlist_nick_changed_cb (GtkEntry *entry, gpointer userdata)
 	}
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 /* a GtkComboBoxText with entry is deprecated and GTK4 has no editable
    drop-down: an entry, linked to a button that drops the same list down */
 static void
@@ -1483,29 +1482,6 @@ servlist_create_charsetcombo (void)
 	g_signal_connect (G_OBJECT (entry), "changed", G_CALLBACK (servlist_combo_cb), NULL);
 	return box;
 }
-#else
-static GtkWidget *
-servlist_create_charsetcombo (void)
-{
-	GtkWidget *cb;
-	int i;
-
-	cb = gtk_combo_box_text_new_with_entry ();
-	i = 0;
-	while (pages[i])
-	{
-		gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (cb), (char *)pages[i]);
-		i++;
-	}
-
-	nx_entry_set_text (nx_bin_get_child (cb), selected_net->encoding ? selected_net->encoding : pages[0]);
-	
-	g_signal_connect (G_OBJECT (nx_bin_get_child (cb)), "changed",
-							G_CALLBACK (servlist_combo_cb), NULL);
-
-	return cb;
-}
-#endif
 
 static GtkWidget *
 servlist_create_logintypecombo (GtkWidget *data)

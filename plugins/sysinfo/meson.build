@@ -37,7 +37,7 @@ if system == 'linux' or system == 'gnu' or system.startswith('gnu/') or system =
       'unix/parse.c',
     ]
   elif system == 'darwin'
-    add_languages('objc')
+    add_languages('objc', native: false)
     sysinfo_sources += 'osx/backend.m'
   endif
 

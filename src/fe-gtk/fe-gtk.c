@@ -24,11 +24,7 @@
 #include "platform-style.h"
 
 #ifdef WIN32
-#if GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/win32/gdkwin32.h>
-#else
-#include <gdk/gdkwin32.h>
-#endif
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -69,9 +65,6 @@ GdkPixbuf *channelwin_pix;
 static ca_context *ca_con;
 #endif
 
-#ifdef HAVE_GTK_MAC
-GtkosxApplication *osx_app;
-#endif
 
 /* === command-line parameter parsing : requires glib 2.6 === */
 
@@ -132,10 +125,6 @@ fe_args (int argc, char *argv[])
 	g_option_context_set_help_enabled (context, FALSE);	/* disable stdout help as stdout is unavailable for subsystem:windows */
 #endif
 	g_option_context_add_main_entries (context, gopt_entries, GETTEXT_PACKAGE);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	/* GTK4 takes no command-line options (--display is GDK_DISPLAY) */
-	g_option_context_add_group (context, gtk_get_option_group (FALSE));
-#endif
 	g_option_context_parse (context, &argc, &argv, &error);
 
 #ifdef WIN32
@@ -235,7 +224,7 @@ fe_args (int argc, char *argv[])
 	}
 #endif
 
-#if defined(WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(WIN32)
 	/* the real Windows title bar, borders, snap and shadow instead of
 	   GTK's drawn ones */
 	if (!g_getenv ("GTK_CSD"))
@@ -244,9 +233,6 @@ fe_args (int argc, char *argv[])
 	nx_gtk_init (&argc, &argv);
 	platform_style_init ();
 
-#ifdef HAVE_GTK_MAC
-	osx_app = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
-#endif
 
 	return -1;
 }
@@ -327,7 +313,6 @@ css_append_font (GString *css, const PangoFontDescription *fd)
 	}
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 static void
 css_parsing_error (GtkCssProvider *p, GtkCssSection *section, GError *err, gpointer d)
 {
@@ -335,17 +320,12 @@ css_parsing_error (GtkCssProvider *p, GtkCssSection *section, GError *err, gpoin
 	g_warning ("nexchat css: %s: %s", where, err->message);
 	g_free (where);
 }
-#endif
 
 void
 fe_apply_css (void)
 {
 	GString *css;
-#if GTK_CHECK_VERSION(4, 0, 0)
 	GdkDisplay *screen = gdk_display_get_default ();
-#else
-	GdkScreen *screen = gdk_screen_get_default ();
-#endif
 	GError *err = NULL;
 	PangoFontDescription *fd;
 
@@ -364,16 +344,10 @@ fe_apply_css (void)
 	if (!fe_css_provider)
 	{
 		fe_css_provider = gtk_css_provider_new ();
-#if GTK_CHECK_VERSION(4, 0, 0)
 		g_signal_connect (fe_css_provider, "parsing-error", G_CALLBACK (css_parsing_error), NULL);
 		gtk_style_context_add_provider_for_display (screen,
 					GTK_STYLE_PROVIDER (fe_css_provider),
 					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-#else
-		gtk_style_context_add_provider_for_screen (screen,
-					GTK_STYLE_PROVIDER (fe_css_provider),
-					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-#endif
 	}
 
 	/* Windows/macOS look first; nexchat's own rules below override it */
@@ -415,7 +389,6 @@ fe_apply_css (void)
 		css_append_color (css, "color", &colors[COL_MARK_FG]);
 		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
 		g_string_append (css, "}\n");
-#if GTK_CHECK_VERSION(4, 0, 0)
 		/* the same on nxlist's column views: the list area and its rows */
 		g_string_append (css, "#hexchat-userlist > listview, #hexchat-tree > listview,"
 									 " #hexchat-userlist > listview > row:not(:selected),"
@@ -428,7 +401,6 @@ fe_apply_css (void)
 		css_append_color (css, "color", &colors[COL_MARK_FG]);
 		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
 		g_string_append (css, "}\n");
-#endif
 	}
 
 	/* the chat view scrollbar: GTK3 themes make it a thin overlay-looking
@@ -437,11 +409,6 @@ fe_apply_css (void)
 	   (GTK4 scrollbars have no steppers.) */
 	g_string_append (css,
 		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n");
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	g_string_append (css,
-		"#hexchat-scrollbar { -GtkScrollbar-has-backward-stepper: true;"
-		" -GtkScrollbar-has-forward-stepper: true; }\n");
-#endif
 
 	/* Channel tabs, the nick button and the "3 ops, 16 total" box: GTK2
 	   buttons were text + a few px; GTK3 themes pad buttons to ~32px tall,
@@ -462,7 +429,6 @@ fe_apply_css (void)
 		/* the connecting indicator draws in its CSS colour */
 		"#nexchat-connecting { color: @theme_selected_bg_color; }\n");
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 popover menus: make them plain GTK3 menus. Square, 1px border, no
 	   shadow margin, 25px rows, items flush to the edge. */
 	g_string_append (css,
@@ -549,22 +515,13 @@ fe_apply_css (void)
 		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"
 		/* NxDialog message dialogs: GTK3's full-width buttons */
 		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n");
-#endif
 	platform_style_css_late (css);
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))
 		g_printerr ("---- nexchat css ----\n%s\n----\n", css->str);
 	gtk_css_provider_load_from_string (fe_css_provider, css->str);
 	(void) err;
-#else
-	if (!gtk_css_provider_load_from_data (fe_css_provider, css->str, -1, &err))
-	{
-		g_warning ("nexchat css: %s\n%s", err->message, css->str);
-		g_error_free (err);
-	}
-#endif
 	g_string_free (css, TRUE);
 	pango_font_description_free (fd);
 }
@@ -577,21 +534,11 @@ fe_init (void)
 	key_init ();
 	pixmaps_init ();
 
-#ifdef HAVE_GTK_MAC
-	gtkosx_application_set_dock_icon_pixbuf (osx_app, pix_hexchat);
-#endif
 	channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
 	fe_check_font ();
 	fe_apply_css ();
 }
 
-#ifdef HAVE_GTK_MAC
-static void
-gtkosx_application_terminate (GtkosxApplication *app, gpointer userdata)
-{
-	hexchat_exit();
-}
-#endif
 
 /* NEXCHAT_SHOT=path[:seconds]: write the main window to path as a PNG after
    the given time (default 4s), then go on. For comparing GTK3 and GTK4
@@ -605,7 +552,6 @@ fe_self_shot (gpointer data)
 
 	if (win)
 	{
-#if GTK_CHECK_VERSION(4, 0, 0)
 		int w = gtk_widget_get_width (win), h = gtk_widget_get_height (win);
 		GdkPaintable *p = gtk_widget_paintable_new (win);
 		GtkSnapshot *s = gtk_snapshot_new ();
@@ -623,23 +569,6 @@ fe_self_shot (gpointer data)
 			gsk_render_node_unref (node);
 		}
 		g_object_unref (p);
-#else
-		GdkWindow *gw = gtk_widget_get_window (win);
-		GdkPixbuf *pix = gw ? gdk_pixbuf_get_from_window (gw, 0, 0, gdk_window_get_width (gw),
-																			gdk_window_get_height (gw)) : NULL;
-		if (pix)
-		{
-			GError *err = NULL;
-			if (!gdk_pixbuf_save (pix, path, "png", &err, NULL))
-			{
-				g_printerr ("NEXCHAT_SHOT: %s: %s\n", path, err->message);
-				g_error_free (err);
-			}
-			g_object_unref (pix);
-		}
-		else
-			g_printerr ("NEXCHAT_SHOT: no pixels from the window\n");
-#endif
 	}
 	else
 		g_printerr ("NEXCHAT_SHOT: no main window yet\n");
@@ -665,11 +594,6 @@ fe_main (void)
 		g_timeout_add_seconds (secs, fe_self_shot, path);
 	}
 
-#ifdef HAVE_GTK_MAC
-	gtkosx_application_ready(osx_app);
-	g_signal_connect (G_OBJECT(osx_app), "NSApplicationWillTerminate",
-					G_CALLBACK(gtkosx_application_terminate), NULL);
-#endif
 
 	nx_main ();
 
@@ -1276,11 +1200,7 @@ fe_gui_info_ptr (session *sess, int info_type)
 	{
 	case 0:	/* native window pointer (for plugins) */
 #ifdef WIN32
-#if GTK_CHECK_VERSION(4, 0, 0)
 		return gtkutil_window_hwnd (GTK_WINDOW (sess->gui->window));
-#else
-		return gdk_win32_window_get_impl_hwnd (gtk_widget_get_window (sess->gui->window));
-#endif
 #else
 		return sess->gui->window;
 #endif
@@ -1456,16 +1376,12 @@ fe_open_url_inner (const char *url)
 #else
 	char *escaped_url = maybe_escape_uri (url);
 	g_debug ("Opening URL \"%s\" (%s)", escaped_url, url);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	{
 		/* gtk_show_uri's replacement; the portal on sandboxed systems */
 		GtkUriLauncher *l = gtk_uri_launcher_new (escaped_url);
 		gtk_uri_launcher_launch (l, NULL, NULL, NULL, NULL);
 		g_object_unref (l);
 	}
-#else
-	gtk_show_uri (NULL, escaped_url, GDK_CURRENT_TIME, NULL);
-#endif
 	g_free (escaped_url);
 #endif
 }

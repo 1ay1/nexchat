@@ -556,10 +556,6 @@ cv_tabs_add (chanview *cv, chan *ch, char *name, nx_row *parent)
 	/* avoid prelights: GTK3 suppresses the button's hover by stopping
 	   enter/leave; GTK4 does hover in CSS, see #hexchat-tab:hover in
 	   fe_apply_css */
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	g_signal_connect (G_OBJECT (but), "enter_notify_event", G_CALLBACK (gtk_true), NULL);
-	g_signal_connect (G_OBJECT (but), "leave_notify_event", G_CALLBACK (gtk_true), NULL);
-#endif
 	g_signal_connect (G_OBJECT (but), "pressed",
 							G_CALLBACK (tab_pressed_cb), ch);
 	/* for keyboard */

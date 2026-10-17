@@ -859,13 +859,8 @@ menu_fullscreen_toggle (GtkWidget *wid, gpointer ud)
 		if (!prefs.hex_gui_win_state) /* not maximized */
 		{
 			/* other window managers seem to handle this */
-#if GTK_CHECK_VERSION(4, 0, 0)
 			gtk_window_set_default_size (GTK_WINDOW (parent_window),
 				prefs.hex_gui_win_width, prefs.hex_gui_win_height);
-#else
-			gtk_window_resize (GTK_WINDOW (parent_window),
-				prefs.hex_gui_win_width, prefs.hex_gui_win_height);
-#endif
 			gtkutil_window_move (GTK_WINDOW (parent_window),
 				prefs.hex_gui_win_left, prefs.hex_gui_win_top);
 		}
@@ -1745,7 +1740,6 @@ menu_metres_both (nx_item *item, gpointer none)
 	}
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 /* GTK4's GtkAboutDialog puts the pages in a header bar switcher; this is
    GTK3's layout: logo, name, version, comments, link, copyright, and
    Credits/License toggles at the bottom left with Close on the right. */
@@ -1880,27 +1874,10 @@ about_dialog_show (GtkWindow *parent, const char *comment, const char *license,
 	gtk_window_present (GTK_WINDOW (d));
 	gtk_widget_grab_focus (b);
 }
-#else
-static void
-about_dialog_close (GtkWidget *dialog, int response, gpointer data)
-{
-	nx_widget_destroy (GTK_WIDGET(dialog));
-}
-
-static gboolean
-about_dialog_openurl (GtkAboutDialog *dialog, char *uri, gpointer data)
-{
-	fe_open_url (uri);
-	return TRUE;
-}
-#endif
 
 static void
 menu_about (GtkWidget *wid, gpointer sess)
 {
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	GtkAboutDialog *dialog = GTK_ABOUT_DIALOG(gtk_about_dialog_new());
-#endif
 	char comment[512];
 	char *license = "This program is free software; you can redistribute it and/or modify\n" \
 					"it under the terms of the GNU General Public License as published by\n" \
@@ -1924,25 +1901,8 @@ menu_about (GtkWidget *wid, gpointer sess)
 #endif
 				get_sys_str (0));
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	about_dialog_show (GTK_WINDOW (parent_window), comment, license,
 		"\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
-#else
-	gtk_about_dialog_set_program_name (dialog, _(DISPLAY_NAME));
-	gtk_about_dialog_set_version (dialog, PACKAGE_VERSION);
-	gtk_about_dialog_set_license (dialog, license); /* gtk3 can use GTK_LICENSE_GPL_2_0 */
-	gtk_about_dialog_set_website (dialog, "https://github.com/1ay1/nexchat");
-	gtk_about_dialog_set_website_label (dialog, "Website");
-	gtk_about_dialog_set_logo (dialog, pix_hexchat);
-	gtk_about_dialog_set_copyright (dialog, "\302\251 1998-2010 Peter \305\275elezn\303\275\n\302\251 2009-2014 Berke Viktor\nBased on HexChat");
-	gtk_about_dialog_set_comments (dialog, comment);
-
-	gtk_window_set_transient_for (GTK_WINDOW(dialog), GTK_WINDOW(parent_window));
-	g_signal_connect (G_OBJECT(dialog), "response", G_CALLBACK(about_dialog_close), NULL);
-	g_signal_connect (G_OBJECT(dialog), "activate-link", G_CALLBACK(about_dialog_openurl), NULL);
-	
-	nx_widget_show_all (GTK_WIDGET(dialog));
-#endif
 }
 
 static struct mymenu mymenu[] = {
@@ -2430,11 +2390,7 @@ menu_dump_level (FILE *f, nx_menu *menu, int depth)
 		if (key)
 		{
 			/* not gtk_accelerator_name: GTK3 and GTK4 spell it differently */
-#if GTK_CHECK_VERSION(4, 0, 0)
 			const GdkModifierType alt = GDK_ALT_MASK;
-#else
-			const GdkModifierType alt = GDK_MOD1_MASK;
-#endif
 			g_snprintf (accel, sizeof accel, "%s%s%s%s",
 							(mods & GDK_CONTROL_MASK) ? "<Primary>" : "",
 							(mods & GDK_SHIFT_MASK) ? "<Shift>" : "",
@@ -2591,23 +2547,7 @@ menu_create_main (GtkWidget *window, int bar, int away, int toplevel,
 	/* change Close binding to ctrl-shift-w when using emacs keys (GTK4 has
 	   no key themes) */
 	settings = gtk_settings_get_default ();
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	if (settings)
-	{
-		g_object_get (settings, "gtk-key-theme-name", &key_theme, NULL);
-		if (key_theme)
-		{
-			if (!g_ascii_strcasecmp (key_theme, "Emacs"))
-			{
-				close_mask = STATE_SHIFT | STATE_CTRL;
-				mymenu[SEARCH_OFFSET].key = 0;
-			}
-			g_free (key_theme);
-		}
-	}
-#else
 	(void) settings; (void) key_theme;
-#endif
 
 	/* Away binding to ctrl-alt-a if the _Help menu conflicts (FR/PT/IT) */
 	{

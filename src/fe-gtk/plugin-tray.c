@@ -318,9 +318,6 @@ gboolean
 tray_toggle_visibility (gboolean force_hide)
 {
 	static int x, y;
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	static GdkScreen *screen;
-#endif
 	static int maximized;
 	static int fullscreen;
 	GtkWindow *win;
@@ -344,9 +341,6 @@ tray_toggle_visibility (gboolean force_hide)
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV AWAY");
 		gtkutil_window_get_position (win, &x, &y);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-		screen = gtk_window_get_screen (win);
-#endif
 		maximized = prefs.hex_gui_win_state;
 		fullscreen = prefs.hex_gui_win_fullscreen;
 		nx_widget_hide (GTK_WIDGET (win));
@@ -355,10 +349,6 @@ tray_toggle_visibility (gboolean force_hide)
 	{
 		if (prefs.hex_gui_tray_away)
 			hexchat_command (ph, "ALLSERV BACK");
-#if !GTK_CHECK_VERSION(4, 0, 0)
-		/* (GTK4: one display per window, nothing to restore) */
-		gtk_window_set_screen (win, screen);
-#endif
 		gtkutil_window_move (win, x, y);
 		if (maximized)
 			gtk_window_maximize (win);
@@ -549,13 +539,7 @@ tray_menu_cb (tray_backend *tb, guint button, guint32 time, gpointer userdata)
 	if (g_getenv ("NEXCHAT_TRAY_MENU_DUMP"))
 	{
 		menu_debug_dump_to (menu, g_getenv ("NEXCHAT_TRAY_MENU_DUMP"));
-#if GTK_CHECK_VERSION(4, 0, 0)
 		nx_menu_free (menu);
-#else
-		g_object_ref_sink (menu);
-		gtk_widget_destroy (NX_MENU_WIDGET (menu));
-		g_object_unref (menu);
-#endif
 		return;
 	}
 

@@ -22,7 +22,7 @@
 #include "platform-style.h"
 #include "gtkcompat.h"
 #include "nxmenu.h"
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 #include "platform-macos.h"
 #endif
 
@@ -110,7 +110,7 @@ platform_style_dark (void)
 {
 #ifdef G_OS_WIN32
 	return win32_apps_dark ();
-#elif defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#elif defined(__APPLE__)
 	return macos_is_dark ();
 #else
 	return FALSE;
@@ -290,7 +290,7 @@ aqua_css (GString *s, gboolean dark)
 			"@define-color nx_mac_text #000000;\n"
 			"@define-color nx_mac_border rgba(0,0,0,0.15);\n"
 			"@define-color nx_mac_accent #007aff;\n");
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 	if (macos_accent (&r, &g, &b))
 		g_string_append_printf (s, "@define-color nx_mac_accent rgb(%d,%d,%d);\n",
 										(int) (r * 255), (int) (g * 255), (int) (b * 255));
@@ -436,7 +436,6 @@ platform_style_window_hwnd (void *hwnd)
 	DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round, sizeof round);
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 #include "gtkutil.h"
 #include "win32-menu.h"
 
@@ -459,17 +458,16 @@ map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
 	return TRUE;
 }
 #endif
-#endif
 
 void
 platform_style_init (void)
 {
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 	/* the menu goes in the menu bar at the top of the screen */
 	if (prefs.hex_gui_native_look)
 		nx_menu_use_global_menubar (nx_app ());
 #endif
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 	g_type_class_unref (g_type_class_ref (GTK_TYPE_WINDOW));
 	g_signal_add_emission_hook (g_signal_lookup ("map", GTK_TYPE_WIDGET), 0, map_hook, NULL, NULL);
 	if (prefs.hex_gui_native_look)

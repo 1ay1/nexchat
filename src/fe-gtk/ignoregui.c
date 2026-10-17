@@ -323,19 +323,13 @@ ignore_gui_open (void)
 	view = ignore_treeview_new (vbox);
 	g_object_set_data (G_OBJECT (ignorewin), "view", view);
 	
-#if GTK_CHECK_VERSION(4, 0, 0)
 	frame = nx_labelled_frame_new (_("Ignore Stats:"));
-#else
-	frame = gtk_frame_new (_("Ignore Stats:"));
-#endif
 	nx_widget_show (frame);
 
 	stat_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
 	nx_set_border_width (stat_box, 6);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* below the label's lower half */
 	gtk_widget_set_margin_top (stat_box, 6 + GPOINTER_TO_INT (g_object_get_data (G_OBJECT (frame), "nx-label-h")));
-#endif
 	gtkutil_container_add (GTK_WIDGET (frame), stat_box);
 	nx_widget_show (stat_box);
 
@@ -345,11 +339,7 @@ ignore_gui_open (void)
 	num_ctcp = ignore_stats_entry (stat_box, _("CTCP:"), ignored_ctcp);
 	num_invi = ignore_stats_entry (stat_box, _("Invite:"), ignored_invi);
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	nx_box_pack_start (vbox, gtk_widget_get_parent (frame), 0, 0, 5);
-#else
-	nx_box_pack_start (vbox, frame, 0, 0, 5);
-#endif
 
 	box = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_SPREAD);
 		nx_box_pack_start (vbox, box, FALSE, FALSE, 2);

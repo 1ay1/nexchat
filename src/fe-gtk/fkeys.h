@@ -22,11 +22,7 @@
 
 /* These are cp'ed from history.c --AGL */
 #define STATE_SHIFT		GDK_SHIFT_MASK
-#if GTK_CHECK_VERSION(4, 0, 0)
 #define STATE_ALT		GDK_ALT_MASK
-#else
-#define STATE_ALT		GDK_MOD1_MASK
-#endif
 /* The "primary" shortcut modifier: Command (GDK_META_MASK) on native macOS
    (the Quartz backend), Control everywhere else. This used to be decided at
    compile time with __APPLE__, which made an X11 build on a Mac register

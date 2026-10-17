@@ -1,9 +1,7 @@
-/* Builds against GTK3 or GTK4 (whichever pkg-config gives) and checks that
-   gtkcompat.h produces the same child order and expand/fill/padding as
-   GTK3's gtk_box_pack_start/pack_end did. Also compile-checks every other
-   macro in gtkcompat.h on that GTK.
-   GTK3: cc $(pkg-config --cflags --libs gtk+-3.0) -I src/fe-gtk tests/gtkcompat-test.c
-   GTK4: cc $(pkg-config --cflags --libs gtk4)     -I src/fe-gtk tests/gtkcompat-test.c */
+/* Checks that gtkcompat.h produces the same child order and
+   expand/fill/padding as the old gtk_box_pack_start/pack_end did. Also
+   compile-checks every other macro in gtkcompat.h.
+   cc $(pkg-config --cflags --libs gtk4) -I src/fe-gtk tests/gtkcompat-test.c */
 #include "gtkcompat.h"
 #include <stdio.h>
 #include <string.h>

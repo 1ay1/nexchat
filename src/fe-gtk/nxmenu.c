@@ -19,7 +19,7 @@
 #include "nxmenu.h"
 #include "gtkcompat.h"
 
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 /* set: the bar goes in the macOS global menu bar (nx_menu_use_global_menubar) */
 static GtkApplication *macos_global_app;
 void nx_menu_bar_export_macos (nx_menu *m);
@@ -27,11 +27,6 @@ void nx_menu_bar_export_macos (nx_menu *m);
 
 /* from gtkutil.c (not its header, which drags in the whole client) */
 const char *gtkutil_stock_icon_name (const char *stock_id);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-GtkWidget *gtkutil_image_new_from_stock (const char *stock_id, nx_icon_size size);
-GtkWidget *gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image);
-GtkWidget *gtkutil_menu_item_get_label (GtkWidget *item);
-#endif
 
 /* an image file we can read, rather than a stock / themed icon name */
 static gboolean
@@ -40,7 +35,6 @@ icon_is_file (const char *icon)
 	return icon && access (icon, R_OK) == 0;
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 
 /* ================= GTK4: GMenu + actions ================= */
 
@@ -885,7 +879,7 @@ menu_icons_init (void)
 										model_button_map_hook, NULL, NULL);
 }
 
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 #include "win32-menu.h"
 /* set: popups are real Win32 menus (nx_menu_use_native_popups) */
 static gboolean native_popups;
@@ -921,7 +915,7 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	double x = 0, y = 0;
 	GdkRectangle r;
 
-#if defined(G_OS_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(G_OS_WIN32)
 	if (native_popups && native_popup_owner)
 	{
 		void *owner = native_popup_owner (widget);
@@ -1014,7 +1008,7 @@ nx_menu_bar_get_widget (nx_menu *m)
 		/* the bar owns the menu: freed with it */
 		g_object_set_data_full (G_OBJECT (m->bar_widget), "nx-menu", m,
 										(GDestroyNotify) nx_menu_free);
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 		if (macos_global_app)
 			nx_menu_bar_export_macos (m);
 #endif
@@ -1022,7 +1016,7 @@ nx_menu_bar_get_widget (nx_menu *m)
 	return m->bar_widget;
 }
 
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 /* macOS: the menu is the global one at the top of the screen, not a bar
    in the window. GtkApplication shows a GMenuModel there and runs "app."
    actions, so the bar's model goes in with its actions added to the app
@@ -1173,492 +1167,3 @@ nx_item_get_kind (nx_item *it)
 	}
 }
 
-#else
-
-/* ================= GTK3: GtkMenu, as nexchat always built it ================= */
-
-static void
-item_activate_cb (GtkWidget *w, gpointer unused)
-{
-	nx_item_cb cb = g_object_get_data (G_OBJECT (w), "nx-cb");
-
-	if (cb)
-		cb (NX_ITEM (w), g_object_get_data (G_OBJECT (w), "nx-ud"));
-}
-
-static void
-connect_cb (GtkWidget *item, nx_item_cb cb, gpointer userdata)
-{
-	if (!cb)
-		return;
-	g_object_set_data (G_OBJECT (item), "nx-cb", cb);
-	g_object_set_data (G_OBJECT (item), "nx-ud", userdata);
-	g_signal_connect (item, "activate", G_CALLBACK (item_activate_cb), NULL);
-}
-
-static void
-place (nx_menu *menu, GtkWidget *item, int pos)
-{
-	if (pos < 0)
-		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-	else
-		gtk_menu_shell_insert (GTK_MENU_SHELL (menu), item, pos);
-}
-
-/* a GtkMenuItem whose label is plain / mnemonic / markup */
-static GtkWidget *
-label_item (const char *label, int flags)
-{
-	GtkWidget *item;
-
-	if (flags & NX_ITEM_MARKUP)
-	{
-		item = gtk_menu_item_new_with_label ("");
-		if (flags & NX_ITEM_MNEMONIC)
-			gtk_label_set_markup_with_mnemonic (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), label);
-		else
-			gtk_label_set_markup (GTK_LABEL (gtk_bin_get_child (GTK_BIN (item))), label);
-	}
-	else if (flags & NX_ITEM_MNEMONIC)
-		item = gtk_menu_item_new_with_mnemonic (label);
-	else
-		item = gtk_menu_item_new_with_label (label);
-	return item;
-}
-
-nx_menu *
-nx_menu_new (void)
-{
-	return NX_MENU (gtk_menu_new ());
-}
-
-nx_item *
-nx_menu_add_item (nx_menu *menu, int pos, const char *label, int flags,
-						const char *icon, nx_item_cb cb, gpointer userdata)
-{
-	GtkWidget *item;
-
-	if (icon)
-	{
-		GtkWidget *img;
-
-		if (icon_is_file (icon))
-			img = gtk_image_new_from_file (icon);
-		else
-			img = gtkutil_image_new_from_stock (icon, NX_ICON_MENU);
-		item = gtkutil_menu_item_new_with_image (label, (flags & NX_ITEM_MARKUP) != 0, img);
-		if (flags & NX_ITEM_PLAIN_ICON)
-			gtk_label_set_text (GTK_LABEL (gtkutil_menu_item_get_label (item)), label);
-	}
-	else
-		item = label_item (label, flags);
-	place (menu, item, pos);
-	connect_cb (item, cb, userdata);
-	if (flags & NX_ITEM_INSENSITIVE)
-		gtk_widget_set_sensitive (item, FALSE);
-	nx_widget_show_all (item);
-	return NX_ITEM (item);
-}
-
-nx_item *
-nx_menu_add_check (nx_menu *menu, int pos, const char *label, int flags,
-						 gboolean active, nx_item_cb cb, gpointer userdata)
-{
-	GtkWidget *item = (flags & NX_ITEM_MNEMONIC) ?
-		gtk_check_menu_item_new_with_mnemonic (label) : gtk_check_menu_item_new_with_label (label);
-
-	gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (item), active);
-	place (menu, item, pos);
-	connect_cb (item, cb, userdata);
-	if (flags & NX_ITEM_INSENSITIVE)
-		gtk_widget_set_sensitive (item, FALSE);
-	nx_widget_show (item);
-	return NX_ITEM (item);
-}
-
-nx_item *
-nx_menu_add_radio (nx_menu *menu, int pos, const char *label, int flags,
-						 nx_item *group, gboolean active, nx_item_cb cb, gpointer userdata)
-{
-	GSList *g = group ? gtk_radio_menu_item_get_group (GTK_RADIO_MENU_ITEM (group)) : NULL;
-	GtkWidget *item = (flags & NX_ITEM_MNEMONIC) ?
-		gtk_radio_menu_item_new_with_mnemonic (g, label) : gtk_radio_menu_item_new_with_label (g, label);
-
-	gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (item), active);
-	place (menu, item, pos);
-	connect_cb (item, cb, userdata);
-	if (flags & NX_ITEM_INSENSITIVE)
-		gtk_widget_set_sensitive (item, FALSE);
-	nx_widget_show (item);
-	return NX_ITEM (item);
-}
-
-nx_item *
-nx_menu_add_separator (nx_menu *menu, int pos)
-{
-	GtkWidget *item = gtk_separator_menu_item_new ();
-
-	place (menu, item, pos);
-	nx_widget_show (item);
-	return NX_ITEM (item);
-}
-
-nx_menu *
-nx_menu_add_submenu (nx_menu *menu, int pos, const char *label, int flags, nx_item **item_ret)
-{
-	GtkWidget *sub = gtk_menu_new ();
-	GtkWidget *item = label_item (label, flags);
-
-	place (menu, item, pos);
-	nx_widget_show (item);
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), sub);
-	if (flags & NX_ITEM_INSENSITIVE)
-		gtk_widget_set_sensitive (item, FALSE);
-	if (item_ret)
-		*item_ret = NX_ITEM (item);
-	return NX_MENU (sub);
-}
-
-nx_menu *
-nx_menu_add_submenu_icon (nx_menu *menu, int pos, const char *label,
-								  const char *icon, nx_item **item_ret)
-{
-	GtkWidget *sub = gtk_menu_new ();
-	GtkWidget *img = icon ? gtkutil_image_new_from_stock (icon, NX_ICON_MENU) : NULL;
-	GtkWidget *item = gtkutil_menu_item_new_with_image (label, FALSE, img);
-
-	place (menu, item, pos);
-	nx_widget_show_all (item);
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM (item), sub);
-	if (item_ret)
-		*item_ret = NX_ITEM (item);
-	return NX_MENU (sub);
-}
-
-nx_menu *
-nx_menu_add_submenu_icon_plain (nx_menu *menu, int pos, const char *label, const char *icon)
-{
-	nx_item *it;
-	nx_menu *sub = nx_menu_add_submenu_icon (menu, pos, label, icon, &it);
-
-	gtk_label_set_text (GTK_LABEL (gtkutil_menu_item_get_label (NX_ITEM_WIDGET (it))), label);
-	return sub;
-}
-
-int
-nx_menu_get_n_items (nx_menu *menu)
-{
-	GList *c = gtk_container_get_children (GTK_CONTAINER (menu));
-	int n = g_list_length (c);
-	g_list_free (c);
-	return n;
-}
-
-nx_item *
-nx_menu_get_item (nx_menu *menu, int index)
-{
-	GList *c = gtk_container_get_children (GTK_CONTAINER (menu));
-	nx_item *it = g_list_nth_data (c, index);
-	g_list_free (c);
-	return it;
-}
-
-void
-nx_item_remove (nx_item *item)
-{
-	gtk_widget_destroy (NX_ITEM_WIDGET (item));
-}
-
-void
-nx_menu_clear (nx_menu *menu)
-{
-	GList *items = gtk_container_get_children (GTK_CONTAINER (menu)), *l;
-
-	for (l = items; l; l = l->next)
-		gtk_widget_destroy (l->data);
-	g_list_free (items);
-}
-
-static void
-menu_show_sig (GtkWidget *w, gpointer unused)
-{
-	nx_menu_show_cb cb = g_object_get_data (G_OBJECT (w), "nx-show-cb");
-
-	if (cb)
-		cb (NX_MENU (w), g_object_get_data (G_OBJECT (w), "nx-show-ud"));
-}
-
-void
-nx_menu_on_show (nx_menu *menu, nx_menu_show_cb cb, gpointer userdata)
-{
-	if (!g_object_get_data (G_OBJECT (menu), "nx-show-cb"))
-		g_signal_connect (menu, "show", G_CALLBACK (menu_show_sig), NULL);
-	g_object_set_data (G_OBJECT (menu), "nx-show-cb", cb);
-	g_object_set_data (G_OBJECT (menu), "nx-show-ud", userdata);
-}
-
-void
-nx_menu_on_show_disconnect (nx_menu *menu)
-{
-	g_signal_handlers_disconnect_by_func (menu, menu_show_sig, NULL);
-	g_object_set_data (G_OBJECT (menu), "nx-show-cb", NULL);
-}
-
-void
-nx_item_set_sensitive (nx_item *item, gboolean sensitive)
-{
-	gtk_widget_set_sensitive (NX_ITEM_WIDGET (item), sensitive);
-}
-
-gboolean
-nx_item_get_sensitive (nx_item *item)
-{
-	return gtk_widget_get_sensitive (NX_ITEM_WIDGET (item));
-}
-
-gboolean
-nx_item_get_active (nx_item *item)
-{
-	return GTK_IS_CHECK_MENU_ITEM (item) &&
-		gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (item));
-}
-
-/* GTK2 code assigned GtkCheckMenuItem->active directly, which changed the
-   state without emitting "activate"/"toggled". gtk_check_menu_item_set_active
-   emits both (and for radio items also toggles the previously active group
-   member), so block all connected handlers on the item and its radio group
-   while changing the state to keep the old, signal-free semantics. */
-void
-nx_item_set_active_quiet (nx_item *item, gboolean active)
-{
-	GSList *group, *l;
-	guint sig_activate = g_signal_lookup ("activate", GTK_TYPE_MENU_ITEM);
-	guint sig_toggled = g_signal_lookup ("toggled", GTK_TYPE_CHECK_MENU_ITEM);
-
-	if (!GTK_IS_CHECK_MENU_ITEM (item))
-		return;
-	if (GTK_IS_RADIO_MENU_ITEM (item))
-		group = g_slist_copy (gtk_radio_menu_item_get_group (GTK_RADIO_MENU_ITEM (item)));
-	else
-		group = g_slist_prepend (NULL, item);
-
-	for (l = group; l; l = l->next)
-	{
-		g_signal_handlers_block_matched (l->data, G_SIGNAL_MATCH_ID, sig_activate, 0, NULL, NULL, NULL);
-		g_signal_handlers_block_matched (l->data, G_SIGNAL_MATCH_ID, sig_toggled, 0, NULL, NULL, NULL);
-	}
-
-	gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (item), active);
-
-	for (l = group; l; l = l->next)
-	{
-		g_signal_handlers_unblock_matched (l->data, G_SIGNAL_MATCH_ID, sig_activate, 0, NULL, NULL, NULL);
-		g_signal_handlers_unblock_matched (l->data, G_SIGNAL_MATCH_ID, sig_toggled, 0, NULL, NULL, NULL);
-	}
-
-	g_slist_free (group);
-}
-
-void
-nx_item_activate (nx_item *item)
-{
-	if (gtk_widget_is_sensitive (NX_ITEM_WIDGET (item)))
-		gtk_menu_item_activate (GTK_MENU_ITEM (item));
-}
-
-const char *
-nx_item_get_label (nx_item *item)
-{
-	GtkWidget *lbl;
-
-	if (GTK_IS_SEPARATOR_MENU_ITEM (item))
-		return NULL;
-	lbl = gtkutil_menu_item_get_label (NX_ITEM_WIDGET (item));
-	return lbl ? gtk_label_get_label (GTK_LABEL (lbl)) : NULL;
-}
-
-const char *
-nx_item_get_text (nx_item *item)
-{
-	GtkWidget *lbl;
-
-	if (GTK_IS_SEPARATOR_MENU_ITEM (item))
-		return NULL;
-	lbl = gtkutil_menu_item_get_label (NX_ITEM_WIDGET (item));
-	return lbl ? gtk_label_get_text (GTK_LABEL (lbl)) : NULL;
-}
-
-nx_menu *
-nx_item_get_submenu (nx_item *item)
-{
-	return NX_MENU (gtk_menu_item_get_submenu (GTK_MENU_ITEM (item)));
-}
-
-gboolean
-nx_item_is_separator (nx_item *item)
-{
-	return GTK_IS_SEPARATOR_MENU_ITEM (item);
-}
-
-GtkWidget *
-nx_item_get_widget (nx_item *item)
-{
-	return NX_ITEM_WIDGET (item);
-}
-
-void
-nx_item_set_data (nx_item *item, const char *key, gpointer data)
-{
-	g_object_set_data (G_OBJECT (item), key, data);
-}
-
-gpointer
-nx_item_get_data (nx_item *item, const char *key)
-{
-	return g_object_get_data (G_OBJECT (item), key);
-}
-
-typedef struct
-{
-	GDestroyNotify done;
-	gpointer done_data;
-} popup_done;
-
-static void
-popup_selection_done (GtkWidget *menu, popup_done *d)
-{
-	gtk_widget_destroy (menu);
-	g_object_unref (menu);
-	if (d->done)
-		d->done (d->done_data);
-	g_free (d);
-}
-
-void
-nx_menu_popup (nx_menu *menu, GtkWidget *widget, GdkEvent *event,
-					GDestroyNotify done, gpointer done_data)
-{
-	popup_done *d = g_new (popup_done, 1);
-
-	d->done = done;
-	d->done_data = done_data;
-	g_object_ref (menu);
-	g_object_ref_sink (menu);
-	g_object_unref (menu);
-	g_signal_connect (menu, "selection-done", G_CALLBACK (popup_selection_done), d);
-	nx_menu_popup_at_pointer (NX_MENU_WIDGET (menu), event);
-}
-
-nx_item *
-nx_menu_add_item_pixbuf (nx_menu *menu, int pos, const char *label, int flags,
-								 GdkPixbuf *icon, nx_item_cb cb, gpointer userdata)
-{
-	GtkWidget *img = gtk_image_new_from_pixbuf (icon);
-	GtkWidget *item = gtkutil_menu_item_new_with_image (label, FALSE, img);
-
-	place (menu, item, pos);
-	connect_cb (item, cb, userdata);
-	if (flags & NX_ITEM_INSENSITIVE)
-		gtk_widget_set_sensitive (item, FALSE);
-	nx_widget_show_all (item);
-	return NX_ITEM (item);
-}
-
-nx_menu *
-nx_menu_bar_new (void)
-{
-	return NX_MENU (gtk_menu_bar_new ());
-}
-
-GtkWidget *
-nx_menu_bar_get_widget (nx_menu *bar)
-{
-	return NX_MENU_WIDGET (bar);
-}
-
-void
-nx_menu_set_accel_window (nx_menu *menu, GtkWidget *window)
-{
-	GtkAccelGroup *ag;
-
-	if (g_object_get_data (G_OBJECT (menu), "nx-accel-on"))
-		return;
-	g_object_set_data (G_OBJECT (menu), "nx-accel-on", GINT_TO_POINTER (1));
-	ag = gtk_accel_group_new ();
-	if (window)
-		gtk_window_add_accel_group (GTK_WINDOW (window), ag);
-	g_object_set_data_full (G_OBJECT (menu), "nx-accel", ag, g_object_unref);
-}
-
-/* Override the default GTK2.4 handler, which would make menu
-   bindings not work when the menu-bar is hidden. */
-static gboolean
-can_activate_accel (GtkWidget *widget, guint signal_id, gpointer user_data)
-{
-	/* GTK2.2 behaviour */
-	return gtk_widget_is_sensitive (widget);
-}
-
-void
-nx_item_set_accel (nx_item *item, guint key, GdkModifierType mods)
-{
-	GtkWidget *w = NX_ITEM_WIDGET (item);
-	GtkAccelGroup *ag = NULL;
-	GtkWidget *top;
-
-	/* the accel group lives on the top menu, which an item finds through
-	   the parents (a submenu's attach widget, up to the bar / popup) */
-	for (top = w; top; )
-	{
-		ag = g_object_get_data (G_OBJECT (top), "nx-accel");
-		if (ag || g_object_get_data (G_OBJECT (top), "nx-accel-on"))
-			break;
-		if (GTK_IS_MENU (top) && gtk_menu_get_attach_widget (GTK_MENU (top)))
-			top = gtk_menu_get_attach_widget (GTK_MENU (top));
-		else
-			top = gtk_widget_get_parent (top);
-	}
-	if (!ag)
-		return;
-
-	{
-		guint oldkey = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (w), "nx-key"));
-		GdkModifierType oldmods = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (w), "nx-mods"));
-
-		if (oldkey)
-			gtk_widget_remove_accelerator (w, ag, oldkey, oldmods);
-	}
-	g_object_set_data (G_OBJECT (w), "nx-key", GUINT_TO_POINTER (key));
-	g_object_set_data (G_OBJECT (w), "nx-mods", GUINT_TO_POINTER (mods));
-	if (!key)
-		return;
-	gtk_widget_add_accelerator (w, "activate", ag, key, mods, GTK_ACCEL_VISIBLE);
-	if (!g_object_get_data (G_OBJECT (w), "nx-canaccel"))
-	{
-		g_signal_connect (w, "can-activate-accel", G_CALLBACK (can_activate_accel), NULL);
-		g_object_set_data (G_OBJECT (w), "nx-canaccel", GINT_TO_POINTER (1));
-	}
-}
-
-void
-nx_item_get_accel (nx_item *item, guint *key, GdkModifierType *mods)
-{
-	*key = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (item), "nx-key"));
-	*mods = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (item), "nx-mods"));
-}
-
-nx_item_kind
-nx_item_get_kind (nx_item *item)
-{
-	if (GTK_IS_SEPARATOR_MENU_ITEM (item))
-		return NX_KIND_SEPARATOR;
-	if (GTK_IS_RADIO_MENU_ITEM (item))
-		return NX_KIND_RADIO;
-	if (GTK_IS_CHECK_MENU_ITEM (item))
-		return NX_KIND_CHECK;
-	if (gtk_menu_item_get_submenu (GTK_MENU_ITEM (item)))
-		return NX_KIND_SUBMENU;
-	return NX_KIND_ITEM;
-}
-
-#endif

@@ -30,26 +30,20 @@
 #include <pango/pangocairo.h>
 #endif
 
-#if defined(GDK_WINDOWING_X11) && !GTK_CHECK_VERSION(4, 0, 0)
-#include <gdk/gdkx.h>
-#elif defined(GDK_WINDOWING_X11)
+#if   defined(GDK_WINDOWING_X11)
 #include <gdk/x11/gdkx.h>
 #endif
 #ifdef GDK_WINDOWING_WAYLAND
-#if GTK_CHECK_VERSION(4, 0, 0)
 #include <gdk/wayland/gdkwayland.h>
-#else
-#include <gdk/gdkwayland.h>
-#endif
 #endif
 #ifdef HAVE_WLACTIVATE
 #include "wlactivate.h"
 #endif
-#if defined(GDK_WINDOWING_WIN32) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(GDK_WINDOWING_WIN32)
 #include <gdk/win32/gdkwin32.h>
 #include <windows.h>
 #endif
-#if defined(__APPLE__) && GTK_CHECK_VERSION(4, 0, 0)
+#if defined(__APPLE__)
 #include "platform-macos.h"
 #include <gdk/macos/gdkmacos.h>
 
@@ -120,7 +114,6 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 {
 	if (GTK_IS_BOX (container))
 		nx_box_pack_start (container, child, TRUE, TRUE, 0);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	else if (GTK_IS_WINDOW (container))
 	{
 		guint b = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (container), "nx-border"));
@@ -149,10 +142,6 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 	else
 		g_warning ("gtkutil_container_add: no GTK4 equivalent for %s",
 					  G_OBJECT_TYPE_NAME (container));
-#else
-	else
-		gtk_container_add (GTK_CONTAINER (container), child);
-#endif
 }
 
 typedef struct
@@ -178,13 +167,8 @@ run_destroy_cb (GtkWidget *dialog, run_info *ri)
 		g_main_loop_quit (ri->loop);
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 static gboolean
 run_delete_cb (GtkWidget *dialog, run_info *ri)
-#else
-static gboolean
-run_delete_cb (GtkWidget *dialog, GdkEvent *ev, run_info *ri)
-#endif
 {
 	/* like gtk_dialog_run: closing the window answers DELETE_EVENT and the
 	   dialog stays alive for the caller to destroy */
@@ -203,11 +187,7 @@ gtkutil_dialog_run_blocking (NxDialog *dialog)
 	g_object_ref (dialog);
 	h1 = g_signal_connect (dialog, "response", G_CALLBACK (run_response_cb), &ri);
 	h2 = g_signal_connect (dialog, "destroy", G_CALLBACK (run_destroy_cb), &ri);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	h3 = g_signal_connect (dialog, "close-request", G_CALLBACK (run_delete_cb), &ri);
-#else
-	h3 = g_signal_connect (dialog, "delete-event", G_CALLBACK (run_delete_cb), &ri);
-#endif
 
 	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
 	nx_widget_show (GTK_WIDGET (dialog));
@@ -236,7 +216,7 @@ gtkutil_window_can_position (GtkWindow *win)
 	return TRUE;
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0) && defined(GDK_WINDOWING_X11)
+#if defined(GDK_WINDOWING_X11)
 /* GTK4 has no window position or urgency API; on X11 do what GTK3 did
    with Xlib on the toplevel's own X window. GTK 4.18 deprecated the X11
    backend's getters with no replacement. */
@@ -337,7 +317,6 @@ x11_place_on_map (GtkWidget *w, gpointer data)
 }
 #endif
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 #if defined(GDK_WINDOWING_WIN32)
 /* the window's HWND, NULL before it's realized */
 #undef gtkutil_window_hwnd
@@ -461,12 +440,10 @@ gtkutil_window_place (GtkWidget *win, int at_mouse)
 	g_signal_connect (win, "map", G_CALLBACK (x11_place_on_map), GINT_TO_POINTER (at_mouse));
 #endif
 }
-#endif
 
 void
 gtkutil_window_move (GtkWindow *win, int x, int y)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 #ifdef GDK_WINDOWING_WIN32
 	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
 	{
@@ -513,16 +490,11 @@ gtkutil_window_move (GtkWindow *win, int x, int y)
 #else
 	(void) win; (void) x; (void) y;
 #endif
-#else
-	if (gtkutil_window_can_position (win))
-		gtk_window_move (win, x, y);
-#endif
 }
 
 gboolean
 gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 #ifdef GDK_WINDOWING_WIN32
 	if (GDK_IS_WIN32_DISPLAY (gtk_widget_get_display (GTK_WIDGET (win))))
 	{
@@ -552,12 +524,6 @@ gtkutil_window_get_position (GtkWindow *win, int *x, int *y)
 #else
 	return FALSE;
 #endif
-#else
-	if (!gtkutil_window_can_position (win))
-		return FALSE;
-	gtk_window_get_position (win, x, y);
-	return TRUE;
-#endif
 }
 
 void
@@ -569,21 +535,13 @@ gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 	/* no hint on Wayland; the compositor clears it once focused */
 	if (GDK_IS_WAYLAND_DISPLAY (wdpy))
 	{
-#if GTK_CHECK_VERSION(4, 0, 0)
 		GdkSurface *s = gtk_native_get_surface (GTK_NATIVE (win));
 		if (urgent && s)
 			wl_request_attention (gdk_wayland_display_get_wl_display (wdpy),
 										 gdk_wayland_surface_get_wl_surface (s));
-#else
-		GdkWindow *w = gtk_widget_get_window (GTK_WIDGET (win));
-		if (urgent && w)
-			wl_request_attention (gdk_wayland_display_get_wl_display (wdpy),
-										 gdk_wayland_window_get_wl_surface (w));
-#endif
 		return;
 	}
 #endif
-#if GTK_CHECK_VERSION(4, 0, 0)
 #if defined(__APPLE__)
 	/* the Dock icon bounces until nexchat is brought to the front */
 	macos_request_attention (urgent);
@@ -623,73 +581,8 @@ gtkutil_window_set_urgent (GtkWindow *win, gboolean urgent)
 	}
 #endif
 	(void) win; (void) urgent;
-#else
-	gtk_window_set_urgency_hint (win, urgent);
-#endif
 }
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-GtkWidget *
-gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image)
-{
-	GtkWidget *item = gtk_menu_item_new ();
-	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-	/* an accel label, like GtkMenuItem's own child, so the item's shortcut
-	   (gtk_widget_add_accelerator) is drawn on the right: Ctrl+S, Ctrl+Q... */
-	GtkWidget *lbl = gtk_accel_label_new ("");
-
-	if (is_markup)
-		gtk_label_set_markup_with_mnemonic (GTK_LABEL (lbl), label);
-	else
-		gtk_label_set_text_with_mnemonic (GTK_LABEL (lbl), label);
-	gtk_label_set_xalign (GTK_LABEL (lbl), 0.0);
-	gtk_label_set_mnemonic_widget (GTK_LABEL (lbl), item);
-	gtk_accel_label_set_accel_widget (GTK_ACCEL_LABEL (lbl), item);
-
-	/* keep a 16px icon column even without an image, like GtkImageMenuItem */
-	if (!image)
-		image = gtk_image_new ();
-	gtk_widget_set_size_request (image, 16, -1);
-	nx_box_pack_start (box, image, FALSE, FALSE, 0);
-	nx_box_pack_start (box, lbl, TRUE, TRUE, 0);
-	gtk_container_add (GTK_CONTAINER (item), box);
-	g_object_set_data (G_OBJECT (item), "nx-label", lbl);
-	nx_widget_show_all (box);
-	return item;
-}
-
-/* the GtkLabel of a menu item: ours (box), or a plain GtkMenuItem's child */
-GtkWidget *
-gtkutil_menu_item_get_label (GtkWidget *item)
-{
-	GtkWidget *lbl = g_object_get_data (G_OBJECT (item), "nx-label");
-	GtkWidget *child;
-
-	if (lbl)
-		return lbl;
-	child = gtk_bin_get_child (GTK_BIN (item));
-	return (child && GTK_IS_LABEL (child)) ? child : NULL;
-}
-
-/* Every GtkButton / GtkImageMenuItem keeps its image visible. A hook on
-   GtkWidget::realize catches all of them: our own gtk_button_set_image
-   calls, gtk_button_new_from_stock, dialog buttons and plugins' menu items,
-   without touching each call site. (GObject::notify can't take hooks.) */
-static gboolean
-gtkutil_realize_hook (GSignalInvocationHint *ihint, guint n_params,
-							 const GValue *params, gpointer data)
-{
-	GObject *obj = g_value_get_object (&params[0]);
-
-	if (GTK_IS_BUTTON (obj))
-	{
-		if (!gtk_button_get_always_show_image (GTK_BUTTON (obj)))
-			gtk_button_set_always_show_image (GTK_BUTTON (obj), TRUE);
-	}
-	/* menu items: gtkutil_menu_item_new_with_image() always shows its icon */
-	return TRUE;	/* stay connected */
-}
-#endif
 
 void
 gtkutil_force_images (void)
@@ -700,21 +593,15 @@ gtkutil_force_images (void)
 	if (done)
 		return;
 	done = TRUE;
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 buttons/menus always show their images */
 	(void) sig;
 	return;
-#else
-	g_type_class_unref (g_type_class_ref (GTK_TYPE_WIDGET));
-	sig = g_signal_lookup ("realize", GTK_TYPE_WIDGET);
-	g_signal_add_emission_hook (sig, 0, gtkutil_realize_hook, NULL, NULL);
-#endif
 }
 
 /* GTK 3.24's own stock table: stock id -> icon name (gtkiconfactory.c) and
    label (gtkstock.c). Ids whose image only exists under the stock name
    (gtk-ok, gtk-cancel, gtk-connect, ...) map to themselves: GTK3 ships
-   those PNGs as named icons, checked with tests/ux/iconprobe.c. */
+   those PNGs as named icons. */
 static const struct
 {
 	const char *stock;
@@ -813,9 +700,6 @@ gtkutil_dialog_add_stock_button (NxDialog *dialog, const char *stock_id, int res
 {
 	GtkWidget *button = gtkutil_button_new_from_stock (stock_id);
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	gtk_widget_set_can_default (button, TRUE);	/* GTK4: any button can be */
-#endif
 	nx_widget_show (button);
 	nx_dialog_add_action_widget (dialog, button, response);
 	return button;
@@ -824,7 +708,6 @@ gtkutil_dialog_add_stock_button (NxDialog *dialog, const char *stock_id, int res
 GdkPixbuf *
 gtkutil_render_icon (GtkWidget *widget, const char *stock_id, nx_icon_size size, const char *unused)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* a themed icon at the old pixel size, as a pixbuf (tree view cells) */
 	GtkIconTheme *theme = gtk_icon_theme_get_for_display (widget ? gtk_widget_get_display (widget)
 																			: gdk_display_get_default ());
@@ -842,15 +725,6 @@ gtkutil_render_icon (GtkWidget *widget, const char *stock_id, nx_icon_size size,
 	if (ip)
 		g_object_unref (ip);
 	return pix;
-#else
-	int w = 16, h = 16;
-	GtkIconTheme *theme = widget ? gtk_icon_theme_get_for_screen (gtk_widget_get_screen (widget))
-								  : gtk_icon_theme_get_default ();
-
-	gtk_icon_size_lookup (size, &w, &h);
-	return gtk_icon_theme_load_icon (theme, gtkutil_stock_icon_name (stock_id), MIN (w, h),
-												GTK_ICON_LOOKUP_FORCE_SIZE, NULL);
-#endif
 }
 
 void
@@ -873,22 +747,11 @@ gtkutil_grid_attach (GtkWidget *grid, GtkWidget *child,
 
 struct file_req
 {
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	GtkWidget *dialog;
-#endif
 	void *userdata;
 	filereqcallback callback;
 	int flags;		/* FRF_* flags */
 };
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-static void
-gtkutil_file_req_destroy (GtkWidget * wid, struct file_req *freq)
-{
-	freq->callback (freq->userdata, NULL);
-	g_free (freq);
-}
-#endif
 
 static void
 gtkutil_check_file (char *filename, struct file_req *freq)
@@ -957,7 +820,6 @@ gtkutil_check_file (char *filename, struct file_req *freq)
 	}
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 
 /* GtkFileDialog: the platform's dialog (portal on Linux, NSOpenPanel,
    IFileDialog). Same contract as before: callback (userdata, file) for each
@@ -1090,156 +952,6 @@ gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *us
 	g_object_unref (fd);
 }
 
-#else
-
-static void
-gtkutil_file_req_done (GtkWidget * wid, struct file_req *freq)
-{
-	GSList *files, *cur;
-	GtkFileChooser *fs = GTK_FILE_CHOOSER (freq->dialog);
-
-	if (freq->flags & FRF_MULTIPLE)
-	{
-		files = cur = gtk_file_chooser_get_filenames (fs);
-		while (cur)
-		{
-			gtkutil_check_file (cur->data, freq);
-			g_free (cur->data);
-			cur = cur->next;
-		}
-		if (files)
-			g_slist_free (files);
-	}
-	else
-	{
-		if (freq->flags & FRF_CHOOSEFOLDER)
-		{
-			gchar *filename = gtk_file_chooser_get_current_folder (fs);
-			gtkutil_check_file (filename, freq);
-			g_free (filename);
-		}
-		else
-		{
-			gchar *filename = gtk_file_chooser_get_filename (fs);
-			gtkutil_check_file (gtk_file_chooser_get_filename (fs), freq);
-			g_free (filename);
-		}
-	}
-
-	/* this should call the "destroy" cb, where we free(freq) */
-	nx_widget_destroy (freq->dialog);
-}
-
-static void
-gtkutil_file_req_response (GtkWidget *dialog, gint res, struct file_req *freq)
-{
-	switch (res)
-	{
-	case GTK_RESPONSE_ACCEPT:
-		gtkutil_file_req_done (dialog, freq);
-		break;
-
-	case GTK_RESPONSE_CANCEL:
-		/* this should call the "destroy" cb, where we free(freq) */
-		nx_widget_destroy (freq->dialog);
-	}
-}
-
-void
-gtkutil_file_req (GtkWindow *parent, const char *title, void *callback, void *userdata, char *filter, char *extensions,
-						int flags)
-{
-	struct file_req *freq;
-	GtkWidget *dialog;
-	GtkFileFilter *filefilter;
-	extern char *get_xdir_fs (void);
-	char *token;
-	char *tokenbuffer;
-
-	if (flags & FRF_WRITE)
-	{
-		dialog = gtk_file_chooser_dialog_new (title, NULL,
-												GTK_FILE_CHOOSER_ACTION_SAVE,
-												NULL, NULL);
-		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
-
-		if (!(flags & FRF_NOASKOVERWRITE))
-			gtk_file_chooser_set_do_overwrite_confirmation (GTK_FILE_CHOOSER (dialog), TRUE);
-	}
-	else
-	{
-		dialog = gtk_file_chooser_dialog_new (title, NULL,
-												GTK_FILE_CHOOSER_ACTION_OPEN,
-												NULL, NULL);
-		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-		gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
-	}
-
-	if (filter && filter[0] && (flags & FRF_FILTERISINITIAL))
-	{
-		if (flags & FRF_WRITE)
-		{
-			char temp[1024];
-			path_part (filter, temp, sizeof (temp));
-			gtk_file_chooser_set_current_folder (GTK_FILE_CHOOSER (dialog), temp);
-			gtk_file_chooser_set_current_name (GTK_FILE_CHOOSER (dialog), file_part (filter));
-		}
-		else
-			gtk_file_chooser_set_current_folder (GTK_FILE_CHOOSER (dialog), filter);
-	}
-	else if (!(flags & FRF_RECENTLYUSED))
-		gtk_file_chooser_set_current_folder (GTK_FILE_CHOOSER (dialog), get_xdir ());
-
-	if (flags & FRF_MULTIPLE)
-		gtk_file_chooser_set_select_multiple (GTK_FILE_CHOOSER (dialog), TRUE);
-	if (flags & FRF_CHOOSEFOLDER)
-		gtk_file_chooser_set_action (GTK_FILE_CHOOSER (dialog), GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);
-
-	if ((flags & FRF_EXTENSIONS || flags & FRF_MIMETYPES) && extensions != NULL)
-	{
-		filefilter = gtk_file_filter_new ();
-		tokenbuffer = g_strdup (extensions);
-		token = strtok (tokenbuffer, ";");
-
-		while (token != NULL)
-		{
-			if (flags & FRF_EXTENSIONS)
-				gtk_file_filter_add_pattern (filefilter, token);
-			else
-				gtk_file_filter_add_mime_type (filefilter, token);
-			token = strtok (NULL, ";");
-		}
-
-		g_free (tokenbuffer);
-		gtk_file_chooser_set_filter (GTK_FILE_CHOOSER (dialog), filefilter);
-	}
-
-	gtk_file_chooser_add_shortcut_folder (GTK_FILE_CHOOSER (dialog), get_xdir (), NULL);
-
-	freq = g_new (struct file_req, 1);
-	freq->dialog = dialog;
-	freq->flags = flags;
-	freq->callback = callback;
-	freq->userdata = userdata;
-
-	g_signal_connect (G_OBJECT (dialog), "response",
-							G_CALLBACK (gtkutil_file_req_response), freq);
-	g_signal_connect (G_OBJECT (dialog), "destroy",
-						   G_CALLBACK (gtkutil_file_req_destroy), (gpointer) freq);
-
-	if (parent)
-		gtk_window_set_transient_for (GTK_WINDOW (dialog), parent);
-
-	if (flags & FRF_MODAL)
-	{
-		g_assert (parent);
-		gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-	}
-
-	nx_widget_show (dialog);
-}
-#endif
 
 static gboolean
 gtkutil_esc_destroy (GtkWidget * win, guint keyval, GdkModifierType state, gpointer userdata)
@@ -1247,23 +959,11 @@ gtkutil_esc_destroy (GtkWidget * win, guint keyval, GdkModifierType state, gpoin
 	GtkWidget *wid;
 
 	/* Destroy the window of detached utils */
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* every util is its own GtkWindow on GTK4 (no type hints to tell a
 	   detached one apart) */
 	if (!GTK_IS_WINDOW (win))
 		return FALSE;
 	wid = win;
-#else
-	if (!gtk_widget_is_toplevel (win))
-	{
-		if (gdk_window_get_type_hint (gtk_widget_get_window (win)) == GDK_WINDOW_TYPE_HINT_DIALOG)
-			wid = gtk_widget_get_parent (win);
-		else
-			return FALSE;
-	}
-	else
-		wid = win;
-#endif
 
 	if (keyval == GDK_KEY_Escape)
 		nx_widget_destroy (wid);
@@ -1544,15 +1244,8 @@ show_and_unfocus (GtkWidget * wid)
 void
 gtkutil_set_icon (GtkWidget *win)
 {
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4: windows take the icon theme's app icon (set once, globally) */
 	gtk_window_set_icon_name (GTK_WINDOW (win), "io.github.nexchat");
-#elif !defined (WIN32)
-	/* FIXME: Magically breaks icon rendering in most
-	 * (sub)windows, but OFC only on Windows. GTK <3
-	 */
-	gtk_window_set_icon (GTK_WINDOW (win), pix_hexchat);
-#endif
 }
 
 extern GtkWidget *parent_window;	/* maingui.c */
@@ -1562,15 +1255,8 @@ gtkutil_window_new (char *title, char *role, int width, int height, int flags)
 {
 	GtkWidget *win;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	win = gtk_window_new ();
-#else
-	win = nx_window_new ();
-#endif
 	gtkutil_set_icon (win);
-#if defined(WIN32) && !GTK_CHECK_VERSION(4, 0, 0)
-	gtk_window_set_wmclass (GTK_WINDOW (win), "nexchat", "nexchat");
-#endif
 	gtk_window_set_title (GTK_WINDOW (win), title);
 	gtk_window_set_default_size (GTK_WINDOW (win), width, height);
 	nx_window_set_role (win, role);
@@ -1593,61 +1279,19 @@ gtkutil_copy_to_clipboard (GtkWidget *widget, const gchar *str)
 	GtkWidget *win;
 
 	win = nx_widget_get_toplevel (GTK_WIDGET (widget));
-#if GTK_CHECK_VERSION(4, 0, 0)
 	if (win)
 	{
 		gdk_clipboard_set_text (gtk_widget_get_primary_clipboard (win), str);
 		gdk_clipboard_set_text (gtk_widget_get_clipboard (win), str);
 	}
-#else
-	if (gtk_widget_is_toplevel (win))
-	{
-		int len = strlen (str);
-		GtkClipboard *clip, *clip2;
-
-		clip = gtk_widget_get_clipboard (win, GDK_SELECTION_PRIMARY);
-		clip2 = gtk_widget_get_clipboard (win, GDK_SELECTION_CLIPBOARD);
-		gtk_clipboard_set_text (clip, str, len);
-		gtk_clipboard_set_text (clip2, str, len);
-	}
-#endif
 }
 
 
 gboolean
 gtkutil_tray_icon_supported (GtkWindow *window)
 {
-#if !defined(GDK_WINDOWING_X11) || GTK_CHECK_VERSION(4, 0, 0)
 	(void) window;
 	return TRUE;
-#else
-	GdkScreen *screen = gtk_window_get_screen (window);
-	GdkDisplay *display = gdk_screen_get_display (screen);
-	int screen_number;
-	Display *xdisplay;
-	char *selection_name;
-	Atom selection_atom;
-	Window tray_window = None;
-
-	/* a GTK3 build with X11 support may still be running on Wayland etc. */
-	if (!GDK_IS_X11_DISPLAY (display))
-		return TRUE;
-
-	screen_number = gdk_x11_screen_get_screen_number (screen);
-	xdisplay = gdk_x11_display_get_xdisplay (display);
-	selection_name = g_strdup_printf ("_NET_SYSTEM_TRAY_S%d", screen_number);
-	selection_atom = XInternAtom (xdisplay, selection_name, False);
-
-	XGrabServer (xdisplay);
-
-	tray_window = XGetSelectionOwner (xdisplay, selection_atom);
-
-	XUngrabServer (xdisplay);
-	XFlush (xdisplay);
-	g_free (selection_name);
-
-	return (tray_window != None);
-#endif
 }
 
 #if defined (WIN32) || defined (__APPLE__)

@@ -34,46 +34,34 @@ hexchat_gtk_sources = [
   'xtext.c'
 ]
 
-# GTK4's headers re-typedef forward-declared types, a C11 feature
-gtk_c_std = gtk_version == '4' ? ['c_std=gnu11'] : []
-
-if gtk_version == '4'
-  gtk_dep = dependency('gtk4', version: '>= 4.14.0')
-  # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
-  # desktops; Windows: Shell_NotifyIcon; macOS: NSStatusItem
-  if host_machine.system() == 'windows'
-    hexchat_gtk_sources += ['tray-backend-win32.c', 'win32-menu.c']
-  elif host_machine.system() == 'darwin'
-    hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m']
-    add_languages('objc', native: false)
-  else
-    hexchat_gtk_sources += 'tray-backend-sni.c'
-  endif
+gtk_dep = dependency('gtk4', version: '>= 4.14.0')
+# the tray: a StatusNotifierItem over D-Bus on Unix desktops; Windows:
+# Shell_NotifyIcon; macOS: NSStatusItem
+if host_machine.system() == 'windows'
+  hexchat_gtk_sources += ['tray-backend-win32.c', 'win32-menu.c']
+elif host_machine.system() == 'darwin'
+  hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m']
+  add_languages('objc', native: false)
 else
-  gtk_dep = dependency('gtk+-3.0', version: '>= 3.22.0')
-  hexchat_gtk_sources += 'tray-backend-statusicon.c'
+  hexchat_gtk_sources += 'tray-backend-sni.c'
 endif
 hexchat_gtk_deps = [
   hexchat_common_dep,
   libgmodule_dep, # used by libsexy
   gtk_dep
 ]
-if gtk_version == '4' and host_machine.system() == 'darwin'
+if host_machine.system() == 'darwin'
   hexchat_gtk_deps += dependency('appleframeworks', modules: ['AppKit'])
 endif
 
-# GTK2 exposed a single 'target'; GTK3 builds several backends, see 'targets'
+# GTK builds several backends, see 'targets'
 if gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   hexchat_gtk_deps += dependency('x11')
 endif
 
-hexchat_gtk_cflags = []
-# phase 5: no deprecated GTK4 API either; the few kept on purpose (X11
-# getters, the font/colour chooser dialogs) sit behind
-# G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-if gtk_version == '4'
-  hexchat_gtk_cflags += cc.get_supported_arguments('-Werror=deprecated-declarations')
-endif
+# no deprecated GTK4 API; the few kept on purpose (X11 getters, the
+# font/colour chooser dialogs) sit behind G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+hexchat_gtk_cflags = cc.get_supported_arguments('-Werror=deprecated-declarations')
 
 hexchat_gtk_ldflags = []
 
@@ -146,8 +134,7 @@ hexchat_gtk = executable('nexchat',
   link_args: hexchat_gtk_ldflags,
   pie: true,
   install: true,
-  gui_app: true,
-  override_options: gtk_c_std,
+  win_subsystem: 'windows',
 )
 
 # colors.conf values must survive GdkRGBA unchanged (no GTK needed)
@@ -156,12 +143,10 @@ test('palette-roundtrip', executable('palette-roundtrip',
   dependencies: libgio_dep,
 ))
 
-# gtkcompat.h must give GTK3's packing order/semantics; run against the
-# GTK this frontend builds with (the GTK4 run is in CI / by hand)
+# gtkcompat.h's packing helpers must keep their semantics
 gtkcompat_test = executable('gtkcompat-test',
   sources: ['../../tests/gtkcompat-test.c'],
   include_directories: include_directories('.'),
-  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
@@ -169,40 +154,24 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('gtkcompat', gtkcompat_test)
 endif
 
-# gtkdnd.c must set up the same drag targets the old code did (GTK3 only)
-gtkdnd_test = disabler ()
-if gtk_version == '3'
-gtkdnd_test = executable('gtkdnd-test',
-  sources: ['../../tests/gtkdnd-test.c', 'gtkdnd.c'],
-  include_directories: include_directories('.'),
-  override_options: gtk_c_std,
-  dependencies: gtk_dep,
-)
-endif
-if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
-  test('gtkdnd', gtkdnd_test)
-endif
-
-# nxmenu.c: the same menu semantics on GTK3 (GtkMenu) and GTK4 (GMenu)
+# nxmenu.c: menu semantics over GMenu
 nxmenu_test_sources = ['../../tests/nxmenu-test.c', 'nxmenu.c']
-if gtk_version == '4' and host_machine.system() == 'windows'
+if host_machine.system() == 'windows'
   nxmenu_test_sources += 'win32-menu.c'
 endif
 nxmenu_test = executable('nxmenu-test',
   sources: nxmenu_test_sources,
   include_directories: include_directories('.'),
-  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('nxmenu', nxmenu_test)
 endif
 
-# nxlist.c: the same list/tree semantics on GTK3 (GtkTreeView) and GTK4
+# nxlist.c: list/tree semantics
 nxlist_test = executable('nxlist-test',
   sources: ['../../tests/nxlist-test.c', 'nxlist.c'],
   include_directories: include_directories('.'),
-  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
@@ -223,20 +192,12 @@ weston = find_program('weston', required: false)
 if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland')
   sh = find_program('sh').full_path()
   wl_env = ['WESTON=' + weston.full_path(), 'G_DEBUG=fatal-criticals']
-  if gtk_version == '3'
-    # GTK3 asserts without a seat: skip on westons that can't fake one
-    wl_env += 'NX_NEEDS_SEAT=1'
-  endif
   wl_with = files('../../tests/ux/with-weston.sh')
   test('wayland-smoke', find_program('sh'),
     args: [wl_with, sh, files('../../tests/smoke-gui.sh'), hexchat_gtk],
     env: wl_env, timeout: 60)
   test('wayland-gtkcompat', find_program('sh'),
     args: [wl_with, gtkcompat_test], env: wl_env, timeout: 60)
-  if gtk_version == '3'
-    test('wayland-gtkdnd', find_program('sh'),
-      args: [wl_with, gtkdnd_test], env: wl_env, timeout: 60)
-  endif
   test('wayland-nxmenu', find_program('sh'),
     args: [wl_with, nxmenu_test], env: wl_env, timeout: 60)
   test('wayland-nxlist', find_program('sh'),
@@ -245,12 +206,10 @@ if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contain
     test('wayland-dbus-remote', find_program('sh'),
       args: [wl_with, sh, files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
       env: wl_env, timeout: 90)
-    if gtk_version == '4'
-      test('wayland-sni', find_program('sh'),
-        args: [wl_with, sh, files('../../tests/sni.sh'), hexchat_gtk],
-        # no seat: a focused window doesn't blink the tray
-        env: wl_env + ['NX_NO_SEAT=1'], timeout: 60)
-    endif
+    test('wayland-sni', find_program('sh'),
+      args: [wl_with, sh, files('../../tests/sni.sh'), hexchat_gtk],
+      # no seat: a focused window doesn't blink the tray
+      env: wl_env + ['NX_NO_SEAT=1'], timeout: 60)
   endif
 endif
 
@@ -275,11 +234,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     test('dbus-remote', find_program('sh'),
       args: [files('../../tests/dbus-remote.sh'), hexchat_gtk, dbus_service_name],
       env: gui_env + ['DISP=:89'], timeout: 90)
-    if gtk_version == '4'
-      test('gui-sni', find_program('sh'),
-        args: [files('../../tests/sni.sh'), hexchat_gtk],
-        env: gui_env + ['DISP=:72'], timeout: 60)
-    endif
+    test('gui-sni', find_program('sh'),
+      args: [files('../../tests/sni.sh'), hexchat_gtk],
+      env: gui_env + ['DISP=:72'], timeout: 60)
   endif
   test('gui-wm', find_program('sh'),
     args: [files('../../tests/ux/wm.sh'), hexchat_gtk],
@@ -287,9 +244,6 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gtkcompat', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), gtkcompat_test],
     env: gui_env + ['DISP=:84'], timeout: 60)
-  test('gtkdnd', find_program('sh'),
-    args: [files('../../tests/ux/with-xvfb.sh'), gtkdnd_test],
-    env: gui_env + ['DISP=:86'], timeout: 60)
   test('nxmenu', find_program('sh'),
     args: [files('../../tests/ux/with-xvfb.sh'), nxmenu_test],
     env: gui_env + ['DISP=:87'], timeout: 60)

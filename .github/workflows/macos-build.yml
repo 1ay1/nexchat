@@ -20,7 +20,6 @@ jobs:
       - name: Configure
         run: >-
           meson setup build
-          -Dgtk=4
           -Dtext-frontend=true
           -Ddbus=disabled
           -Dwith-upd=false

@@ -14,7 +14,6 @@
 #include "nxdialog.h"
 #include "gtkcompat.h"
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 
 struct _NxDialog
 {
@@ -226,4 +225,3 @@ nx_message_dialog_new (GtkWindow *parent, gboolean modal, nx_msg_type type,
 	return GTK_WIDGET (d);
 }
 
-#endif

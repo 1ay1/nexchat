@@ -110,14 +110,6 @@ static void sexy_spell_entry_editable_init (GtkEditableInterface *iface);
 static void sexy_spell_entry_init(SexySpellEntry *entry);
 static void sexy_spell_entry_finalize(GObject *obj);
 static void sexy_spell_entry_destroy(GObject *obj);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-static gboolean sexy_spell_entry_draw(GtkWidget *widget, cairo_t *cr);
-static gint sexy_spell_entry_button_press(GtkWidget *widget, GdkEventButton *event);
-static void sexy_spell_entry_preedit_changed(GtkEntry *entry, gchar *preedit, gpointer data);
-static gboolean sexy_spell_entry_popup_menu(GtkWidget *widget, SexySpellEntry *entry);
-static gint       gtk_entry_find_position                     (GtkEntry             *entry,
-                                                               gint                  x);
-#endif
 static void sexy_spell_entry_menu_init (SexySpellEntry *entry);
 
 /* GtkEditable handlers */
@@ -269,12 +261,7 @@ sexy_spell_entry_class_init(SexySpellEntryClass *klass)
 
 	object_class->dispose = sexy_spell_entry_destroy;
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	widget_class->draw = sexy_spell_entry_draw;
-	widget_class->button_press_event = sexy_spell_entry_button_press;
-#else
 	(void) widget_class;
-#endif
 
 	/**
 	 * SexySpellEntry::word-check:
@@ -309,49 +296,6 @@ sexy_spell_entry_editable_init (GtkEditableInterface *iface)
 {
 }
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-/* the character under x (GTK3 button presses); GTK4 moves the cursor there */
-static gint
-gtk_entry_find_position (GtkEntry *entry, gint x)
-{
-	SexySpellEntry *spell = SEXY_SPELL_ENTRY (entry);
-	PangoLayout *layout;
-	PangoLayoutLine *line;
-	const gchar *text;
-	gint cursor_index;
-	gint index;
-	gint pos;
-	gint layout_x;
-	gboolean trailing;
-
-	/* GTK2 read entry->scroll_offset; GTK3 gives us the layout's on-screen
-	   offset instead, which already includes scrolling and the frame */
-	gtk_entry_get_layout_offsets (entry, &layout_x, NULL);
-	x = x - layout_x;
-
-	layout = gtk_entry_get_layout(entry);
-	text = pango_layout_get_text(layout);
-	cursor_index = g_utf8_offset_to_pointer(text,
-						gtk_editable_get_position (GTK_EDITABLE (entry))) - text;
-
-	line = pango_layout_get_lines(layout)->data;
-	pango_layout_line_x_to_index(line, x * PANGO_SCALE, &index, &trailing);
-
-	if (index >= cursor_index && spell->priv->preedit_length) {
-		if (index >= cursor_index + spell->priv->preedit_length) {
-			index -= spell->priv->preedit_length;
-		} else {
-			index = cursor_index;
-			trailing = FALSE;
-		}
-	}
-
-	pos = g_utf8_pointer_to_offset (text, text + index);
-	pos += trailing;
-
-	return pos;
-}
-#endif
 
 static void
 insert_hiddenchar (SexySpellEntry *entry, guint start, guint end)
@@ -744,23 +688,6 @@ sexy_spell_entry_add_spelling (SexySpellEntry *entry, nx_menu *menu)
 	g_free(word);
 }
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-static void
-sexy_spell_entry_populate_popup(SexySpellEntry *entry, GtkMenu *menu, gpointer data)
-{
-	/* GTK3: GtkEntry's own popup is a GtkMenu, i.e. an nx_menu */
-	sexy_spell_entry_add_spelling (entry, NX_MENU (menu));
-	if (entry->priv->menu_hook)
-		entry->priv->menu_hook (entry, NX_MENU (menu), entry->priv->menu_hook_data);
-}
-
-static void
-sexy_spell_entry_menu_init (SexySpellEntry *entry)
-{
-	g_signal_connect(G_OBJECT(entry), "popup-menu", G_CALLBACK(sexy_spell_entry_popup_menu), entry);
-	g_signal_connect(G_OBJECT(entry), "populate-popup", G_CALLBACK(sexy_spell_entry_populate_popup), NULL);
-}
-#else
 /* GTK4: GtkText's own context menu can only take a GMenuModel appended at
    the end, so the whole menu is ours, laid out as GTK3's was: spelling,
    Cut/Copy/Paste/Delete, Select All, Insert Emoji, then the hook's items.
@@ -856,7 +783,6 @@ sexy_spell_entry_menu_init (SexySpellEntry *entry)
 {
 	nx_on_click (GTK_WIDGET (entry), sexy_spell_entry_click, NULL);
 }
-#endif
 
 void
 sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntryMenuHook hook, gpointer data)
@@ -889,9 +815,6 @@ sexy_spell_entry_init(SexySpellEntry *entry)
 
 	sexy_spell_entry_menu_init (entry);
 	g_signal_connect(G_OBJECT(entry), "changed", G_CALLBACK(sexy_spell_entry_changed), NULL);
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	g_signal_connect(G_OBJECT(entry), "preedit-changed", G_CALLBACK(sexy_spell_entry_preedit_changed), NULL);
-#endif
 }
 
 static void
@@ -1210,79 +1133,11 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 		}
 	}
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* GtkText applies them (and leaves them off while there's IM preedit) */
 	gtk_entry_set_attributes (GTK_ENTRY (entry), entry->priv->attr_list);
 	(void) layout; (void) allocation; (void) rect; (void) widget;
-#else
-	layout = gtk_entry_get_layout(GTK_ENTRY(entry));
-	pango_layout_set_attributes(layout, entry->priv->attr_list);
-
-	if (gtk_widget_get_realized (GTK_WIDGET(entry)))
-	{
-		gtk_widget_get_allocation (GTK_WIDGET(entry), &allocation);
-		
-		rect.x = 0; rect.y = 0;
-		rect.width  = allocation.width;
-		rect.height = allocation.height;
-		gdk_window_invalidate_rect(gtk_widget_get_window (widget), &rect, TRUE);
-	}
-#endif
 }
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-/* GtkEntry's preedit_length field is private in GTK3, but it tells us
-   through this signal. Old GTK2 code compared bytes of the preedit string
-   against layout indices, so keep it in bytes too. */
-static void
-sexy_spell_entry_preedit_changed(GtkEntry *gtk_entry, gchar *preedit, gpointer data)
-{
-	SexySpellEntry *entry = SEXY_SPELL_ENTRY(gtk_entry);
-	entry->priv->preedit_length = preedit ? strlen (preedit) : 0;
-}
-
-static gboolean
-sexy_spell_entry_draw(GtkWidget *widget, cairo_t *cr)
-{
-	SexySpellEntry *entry = SEXY_SPELL_ENTRY(widget);
-	GtkEntry *gtk_entry = GTK_ENTRY(widget);
-	PangoLayout *layout;
-
-	layout = gtk_entry_get_layout(gtk_entry);
-	if (entry->priv->preedit_length == 0)
-	{
-		pango_layout_set_attributes(layout, entry->priv->attr_list);
-	}
-	else
-	{
-		pango_layout_set_attributes(layout, empty_attrs_list);
-	}
-
-	return GTK_WIDGET_CLASS(parent_class)->draw (widget, cr);
-}
-
-static gint
-sexy_spell_entry_button_press(GtkWidget *widget, GdkEventButton *event)
-{
-	SexySpellEntry *entry = SEXY_SPELL_ENTRY(widget);
-	GtkEntry *gtk_entry = GTK_ENTRY(widget);
-	gint pos;
-
-	pos = gtk_entry_find_position(gtk_entry, event->x);
-	entry->priv->mark_character = pos;
-
-	return GTK_WIDGET_CLASS(parent_class)->button_press_event (widget, event);
-}
-
-static gboolean
-sexy_spell_entry_popup_menu(GtkWidget *widget, SexySpellEntry *entry)
-{
-	/* Menu popped up from a keybinding (menu key or <shift>+F10). Use
-	 * the cursor position as the mark position */
-	entry->priv->mark_character = gtk_editable_get_position (GTK_EDITABLE (entry));
-	return FALSE;
-}
-#endif
 
 static void
 entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
@@ -1293,16 +1148,11 @@ entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
 	gint           n_attrs, n_strings, i, j;
 	PangoLogAttr a;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	/* the word breaks of the text alone (GtkText's own layout is private) */
 	PangoContext *ctx = gtk_widget_get_pango_context (GTK_WIDGET (entry));
 	layout = pango_layout_new (ctx);
 	text = nx_entry_get_text (entry);
 	pango_layout_set_text (layout, text, -1);
-#else
-	layout = gtk_entry_get_layout(GTK_ENTRY(entry));
-	text = nx_entry_get_text (entry);
-#endif
 	log_attrs = pango_layout_get_log_attrs_readonly (layout, &n_attrs);
 
 	/* Find how many words we have */
@@ -1346,9 +1196,7 @@ entry_strsplit_utf8(GtkEntry *entry, gchar ***set, gint **starts, gint **ends)
 			j++;
 		}
 	}
-#if GTK_CHECK_VERSION(4, 0, 0)
 	g_object_unref (layout);
-#endif
 }
 
 static void
