@@ -684,13 +684,20 @@ fe_self_shot (gpointer data)
 		GdkPaintable *p = gtk_widget_paintable_new (win);
 		GtkSnapshot *s = gtk_snapshot_new ();
 		GskRenderNode *node;
+		/* NEXCHAT_SHOT_SCALE=2: render at twice the size (crisp on HiDPI,
+		   e.g. for the README); default 1, what the tests compare */
+		const char *sc = g_getenv ("NEXCHAT_SHOT_SCALE");
+		double scale = sc ? g_ascii_strtod (sc, NULL) : 1;
 
+		if (scale < 1)
+			scale = 1;
+		gtk_snapshot_scale (s, scale, scale);
 		gdk_paintable_snapshot (p, s, w, h);
 		node = gtk_snapshot_free_to_node (s);
 		if (node)
 		{
 			GskRenderer *r = gtk_native_get_renderer (GTK_NATIVE (win));
-			graphene_rect_t rect = GRAPHENE_RECT_INIT (0, 0, w, h);
+			graphene_rect_t rect = GRAPHENE_RECT_INIT (0, 0, w * scale, h * scale);
 			GdkTexture *t = gsk_renderer_render_texture (r, node, &rect);
 			gdk_texture_save_to_png (t, path);
 			g_object_unref (t);

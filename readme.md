@@ -1,6 +1,11 @@
 # nexchat
 
-nexchat is an IRC client for Windows and UNIX-like operating systems. It's a continuation of [HexChat](https://github.com/hexchat/hexchat), which was archived in 2024.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/nexchat-dark.png">
+  <img alt="nexchat: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right" src="docs/screenshots/nexchat-light.png">
+</picture>
+
+nexchat is an IRC client for Linux, BSD, Windows and macOS. It's a continuation of [HexChat](https://github.com/hexchat/hexchat), which was archived in 2024.
 
 The idea is Pale Moon to Firefox: the same HexChat you know, same layout, menus, dialogs and keybindings, moved onto a current toolkit (GTK4). See [ROADMAP.md](ROADMAP.md) for the plan and [docs/ux-reference](docs/ux-reference) for the screenshots every change is checked against.
 
@@ -18,6 +23,10 @@ meson setup build
 ninja -C build
 meson test -C build   # needs -Dtext-frontend=true for the smoke tests
 ```
+
+On macOS (Homebrew: `brew install meson gtk4 openssl@3`), `ninja -C build app` also makes a self-contained `build/nexchat.app` you can drag to Applications.
+
+The screenshot above is regenerated with `tests/ux/readme-shot.sh build/src/fe-gtk/nexchat docs/screenshots`, against a fake IRC server; nobody's real chat is in it.
 
 ---
 
