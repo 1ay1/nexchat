@@ -107,9 +107,10 @@ map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
 }
 #endif
 
-#if defined(G_OS_WIN32) || defined(__APPLE__)
-/* GTK doesn't follow the system's light/dark here: tell it, so its own
-   widgets (fields, labels, lists) match colors[] */
+/* GTK's own widgets (fields, labels, lists) must be light or dark exactly
+   when colors[] is: tell GTK what platform_style_dark() says. On Windows
+   and macOS GTK doesn't follow the system at all; on Linux it does, but
+   NEXCHAT_SCHEME can pin the answer the other way. */
 void
 platform_style_sync_scheme (void)
 {
@@ -120,6 +121,12 @@ platform_style_sync_scheme (void)
 	if (!gs || dark == last)
 		return;
 	last = dark;
+#if !defined(G_OS_WIN32) && !defined(__APPLE__)
+	/* Linux: GTK already follows the desktop; writing the setting would
+	   stop it following later changes, so only when it's pinned */
+	if (!g_getenv ("NEXCHAT_SCHEME"))
+		return;
+#endif
 #if GTK_CHECK_VERSION(4, 20, 0)
 	g_object_set (gs, "gtk-interface-color-scheme",
 					  dark ? GTK_INTERFACE_COLOR_SCHEME_DARK : GTK_INTERFACE_COLOR_SCHEME_LIGHT, NULL);
@@ -140,12 +147,6 @@ platform_style_sync_scheme (void)
 	}
 #endif
 }
-#else
-void
-platform_style_sync_scheme (void)
-{
-}
-#endif
 
 void
 platform_style_init (void)

@@ -16,8 +16,8 @@
 void platform_style_init (void);
 /* the system asks for dark mode */
 gboolean platform_style_dark (void);
-/* Windows/macOS: tell GTK the system's current light/dark (GTK doesn't
-   follow it there); nothing on Linux, where GTK gets it from the desktop */
+/* make GTK's own widgets match platform_style_dark() (Windows/macOS: GTK
+   doesn't follow the system there; Linux: only when NEXCHAT_SCHEME pins it) */
 void platform_style_sync_scheme (void);
 
 #endif
