@@ -55,6 +55,7 @@
 #include "servlist.h"
 #include "server.h"
 #include "sts.h"
+#include "batch.h"
 
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>		  /* SSL_() */
@@ -1815,6 +1816,8 @@ server_set_defaults (server *serv)
 	serv->have_account_tag = FALSE;
 	serv->have_server_time = FALSE;
 	serv->have_echo = FALSE;
+	serv->have_batch = FALSE;
+	batch_reset (serv);
 	serv->have_sasl = FALSE;
 	serv->have_except = FALSE;
 	serv->have_invite = FALSE;
@@ -1941,6 +1944,7 @@ server_free (server *serv)
 	dcc_notify_kill (serv);
 	serv->flush_queue (serv);
 	server_away_free_messages (serv);
+	batch_reset (serv);
 
 	g_free (serv->nick_modes);
 	g_free (serv->nick_prefixes);

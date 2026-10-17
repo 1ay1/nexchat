@@ -44,6 +44,7 @@
 #include "hexchatc.h"
 #include "url.h"
 #include "servlist.h"
+#include "batch.h"
 
 static void
 irc_login (server *serv, char *user, char *realname)
@@ -1194,6 +1195,14 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			inbound_account (serv, nick, STRIP_COLON(word, word_eol, 3), tags_data);
 			return;
 
+		case WORDL('B','A','T','C'):
+			if (!strcmp (type, "BATCH"))
+			{
+				batch_command (serv, word, word_eol);
+				return;
+			}
+			break;
+
 		case WORDL('A', 'U', 'T', 'H'):
 			inbound_sasl_authenticate (sess->server, word_eol[3]);
 			return;
@@ -1603,6 +1612,12 @@ handle_message_tags (server *serv, const char *tags_str,
 
 		if (serv->have_server_time && value && !strcmp (key, "time"))
 			handle_message_tag_time (value, tags_data);
+
+		if (serv->have_batch && value && !strcmp (key, "batch"))
+		{
+			g_free (tags_data->batch);
+			tags_data->batch = g_strdup (value);
+		}
 	}
 	
 	g_strfreev (tags);
@@ -1706,6 +1721,7 @@ void
 message_tags_data_free (message_tags_data *tags_data)
 {
 	g_clear_pointer (&tags_data->account, g_free);
+	g_clear_pointer (&tags_data->batch, g_free);
 }
 
 void

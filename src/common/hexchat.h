@@ -499,6 +499,7 @@ typedef struct server
 
 	/* dcc_ip moved from hexchatprefs to make it per-server */
 	guint32 dcc_ip;
+	GHashTable *batches;	/* open IRCv3 batches, id -> batch.c's record */
 
 #ifdef USE_OPENSSL
 	SSL_CTX *ctx;
@@ -587,6 +588,7 @@ typedef struct server
 	unsigned int have_account_tag:1;	/* cap account-tag */
 	unsigned int have_server_time:1;	/* cap server-time */
 	unsigned int have_echo:1;	/* cap echo-message: our own lines come back from the server */
+	unsigned int have_batch:1;	/* cap batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */
 	unsigned int have_invite:1;	/* invite exemptions +I */

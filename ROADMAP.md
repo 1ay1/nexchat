@@ -256,7 +256,8 @@ Security, left:
 - [x] Bidi: a nick, channel or other event argument with bidi controls (U+202A..U+202E, U+2066..U+2069) is wrapped in FSI..PDI, so `<mallory\u202e>` can't reverse the message after it. `tests/hostile-text.sh`.
 
 IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
-- [ ] `message-tags` + `batch`: the base for everything below. Tags are parsed but only `time`/`account` are kept, `message-tags` itself is never requested, and `BATCH` isn't handled.
+- [x] `batch`: requested; tags keep the batch id. A netsplit batch prints one line per channel ("Netsplit (hub leaf): alice, bob, carol") instead of a QUIT each, and a netjoin one line for the JOINs. `tests/batch.sh`.
+- [ ] `message-tags` itself (client tags like `+typing`, `+draft/reply`) and `draft/chathistory` batches.
 - [x] `echo-message`: requested; our own lines, `/me` and `/msg` are shown once, as the server sent them back (its time, its formatting, and lines sent from our other clients on a bouncer). DCC chats still show locally. `tests/echo-message.sh`.
 - [ ] `labeled-response`: tie a reply to the command that asked for it.
 - [ ] `draft/chathistory` + `draft/read-marker` (soju, Ergo): scrollback on join, and the marker line in the same place on every device.

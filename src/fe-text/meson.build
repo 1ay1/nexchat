@@ -26,6 +26,11 @@ test('echo-message', find_program('sh'),
   timeout: 60,
 )
 
+test('batch', find_program('sh'),
+  args: [files('../../tests/batch.sh'), hexchat_text],
+  timeout: 60,
+)
+
 if libssl_dep.found() and find_program('openssl', required: false).found()
   test('sts', find_program('python3'),
     args: [files('../../tests/sts.py'), hexchat_text],

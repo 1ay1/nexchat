@@ -48,6 +48,7 @@
 #include "hexchatc.h"
 #include "chanopt.h"
 #include "sts.h"
+#include "batch.h"
 
 #ifdef USE_OPENSSL
 typedef struct { server *serv; int port; } sts_upgrade;
@@ -808,7 +809,8 @@ inbound_join (server *serv, char *chan, char *user, char *ip, char *account,
 	session *sess = find_channel (serv, chan);
 	if (sess)
 	{
-		EMIT_SIGNAL_TIMESTAMP (XP_TE_JOIN, sess, user, chan, ip, account, 0,
+		if (!batch_collect (serv, tags_data->batch, sess, user))
+			EMIT_SIGNAL_TIMESTAMP (XP_TE_JOIN, sess, user, chan, ip, account, 0,
 									  tags_data->timestamp);
 		userlist_add (sess, user, ip, account, realname, tags_data);
 	}
@@ -879,7 +881,8 @@ inbound_quit (server *serv, char *nick, char *ip, char *reason,
  				was_on_front_session = TRUE;
 			if ((user = userlist_find (sess, nick)))
 			{
-				EMIT_SIGNAL_TIMESTAMP (XP_TE_QUIT, sess, nick, reason, ip, NULL, 0,
+				if (!batch_collect (serv, tags_data->batch, sess, nick))
+					EMIT_SIGNAL_TIMESTAMP (XP_TE_QUIT, sess, nick, reason, ip, NULL, 0,
 											  tags_data->timestamp);
 				userlist_remove_user (sess, user);
 			} else if (sess->type == SESS_DIALOG && !serv->p_cmp (sess->channel, nick))
@@ -1724,6 +1727,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_account_tag = enable;
 		else if (!strcmp (extension, "echo-message"))
 			serv->have_echo = enable;
+		else if (!strcmp (extension, "batch"))
+			serv->have_batch = enable;
 		else if (!strcmp (extension, "sasl"))
 		{
 			serv->have_sasl = enable;
@@ -1786,6 +1791,7 @@ static const char * const supported_caps[] = {
 	"account-tag",
 	"extended-monitor",
 	"echo-message",
+	"batch",
 
 	/* ZNC */
 	"znc.in/server-time-iso",
