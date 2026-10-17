@@ -506,7 +506,6 @@ const struct prefs vars[] =
 	{"gui_pane_left_size", P_OFFINT (hex_gui_pane_left_size), TYPE_INT},
 	{"gui_pane_right_size", P_OFFINT (hex_gui_pane_right_size), TYPE_INT},
 	{"gui_pane_right_size_min", P_OFFINT (hex_gui_pane_right_size_min), TYPE_INT},
-	{"gui_quick_switch", P_OFFINT (hex_gui_quick_switch), TYPE_BOOL},
 	{"gui_quit_dialog", P_OFFINT (hex_gui_quit_dialog), TYPE_BOOL},
 	{"gui_search_pos", P_OFFINT (hex_gui_search_pos), TYPE_INT},
 	/* {"gui_single", P_OFFINT (hex_gui_single), TYPE_BOOL}, */
@@ -845,7 +844,6 @@ load_default_config(void)
 	prefs.hex_gui_input_style = 1;
 	prefs.hex_gui_join_dialog = 1;
 	prefs.hex_gui_jump_button = 1;
-	prefs.hex_gui_quick_switch = 1;
 	prefs.hex_gui_zoom_keys = 1;
 	prefs.hex_gui_quit_dialog = 1;
 	/* prefs.hex_gui_slist_skip = 1; */

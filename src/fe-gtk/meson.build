@@ -15,7 +15,6 @@ hexchat_gtk_sources = [
   'nxdialog.c',
   'ignoregui.c',
   'joind.c',
-  'quickswitch.c',
   'menu.c',
   'maingui.c',
   'notifygui.c',

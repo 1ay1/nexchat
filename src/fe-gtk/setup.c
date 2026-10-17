@@ -165,7 +165,6 @@ static const setting appearance_settings[] =
 	{ST_HEADER, N_("Modern Features"), 0,0,0},
 	{ST_TOGGLE, N_("Jump to latest button"), P_OFFINTNL(hex_gui_jump_button), N_("While scrolled up, show a button with the number of new lines that takes you back down."),0,0},
 	{ST_TOGGLR, N_("Zoom with Ctrl+wheel and Ctrl+=/-/0"), P_OFFINTNL(hex_gui_zoom_keys),0,0,0},
-	{ST_TOGGLE, N_("Quick switcher (Ctrl+J)"), P_OFFINTNL(hex_gui_quick_switch), N_("Type part of a channel, query or network name and press Enter to go there."),0,0},
 
 	{ST_HEADER, N_("Transparency Settings"), 0,0,0},
 	{ST_HSCALE, N_("Window opacity:"), P_OFFINTNL(hex_gui_transparency),0,0,0},

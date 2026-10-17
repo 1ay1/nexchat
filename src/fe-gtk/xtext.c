@@ -1282,19 +1282,50 @@ xtext_jump_visible (GtkXText *xtext)
 			 gtk_adjustment_get_upper (xtext->adj) > gtk_adjustment_get_page_size (xtext->adj);
 }
 
+/* in the chat's own font, like everything else drawn here */
+static PangoLayout *
+xtext_overlay_layout (GtkXText *xtext, const char *text)
+{
+	PangoLayout *layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), text);
+
+	if (xtext->font)
+		pango_layout_set_font_description (layout, xtext->font->font);
+	return layout;
+}
+
+/* a plain box like the rest of the classic UI: chat colours, square
+   corners, a 1px border, no shadow */
+static void
+xtext_draw_box (GtkXText *xtext, cairo_t *cr, GdkRectangle *r, gboolean hot)
+{
+	GdkRGBA bg = xtext->palette[hot ? XTEXT_MARK_BG : XTEXT_BG];
+	GdkRGBA border = xtext->palette[XTEXT_FG];
+
+	border.alpha = 0.5;
+	cairo_save (cr);
+	gdk_cairo_set_source_rgba (cr, &bg);
+	cairo_rectangle (cr, r->x, r->y, r->width, r->height);
+	cairo_fill (cr);
+	gdk_cairo_set_source_rgba (cr, &border);
+	cairo_set_line_width (cr, 1);
+	cairo_rectangle (cr, r->x + 0.5, r->y + 0.5, r->width - 1, r->height - 1);
+	cairo_stroke (cr);
+	cairo_restore (cr);
+}
+
 static PangoLayout *
 xtext_jump_layout (GtkXText *xtext)
 {
-	PangoLayout *layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), NULL);
+	PangoLayout *layout;
 	char *s;
 
 	/* U+2193 down arrow */
 	if (xtext->jump_unread > 0)
-		s = g_strdup_printf ("\342\206\223  %d %s", xtext->jump_unread,
+		s = g_strdup_printf ("\342\206\223 %d %s", xtext->jump_unread,
 									xtext->jump_unread == 1 ? _("new line") : _("new lines"));
 	else
-		s = g_strdup_printf ("\342\206\223  %s", _("Jump to latest"));
-	pango_layout_set_text (layout, s, -1);
+		s = g_strdup_printf ("\342\206\223 %s", _("Jump to latest"));
+	layout = xtext_overlay_layout (xtext, s);
 	g_free (s);
 	return layout;
 }
@@ -1305,10 +1336,10 @@ xtext_jump_rect (GtkXText *xtext, PangoLayout *layout, GdkRectangle *r)
 	int tw, th;
 
 	pango_layout_get_pixel_size (layout, &tw, &th);
-	r->width = tw + 2 * 12;
-	r->height = th + 2 * 5;
-	r->x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r->width - 14;
-	r->y = nx_widget_get_allocated_height (GTK_WIDGET (xtext)) - r->height - 10;
+	r->width = tw + 2 * 6;
+	r->height = th + 2 * 2;
+	r->x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r->width - 4;
+	r->y = nx_widget_get_allocated_height (GTK_WIDGET (xtext)) - r->height - 4;
 }
 
 static void
@@ -1316,35 +1347,15 @@ xtext_draw_jump (GtkXText *xtext, cairo_t *cr)
 {
 	PangoLayout *layout;
 	GdkRectangle r;
-	GdkRGBA bg, fg;
-	double rad;
 
 	if (!xtext_jump_visible (xtext))
 		return;
 	layout = xtext_jump_layout (xtext);
 	xtext_jump_rect (xtext, layout, &r);
-	rad = r.height / 2.0;
-
-	/* the palette's selection colours, so it fits any chat theme */
-	bg = xtext->palette[XTEXT_MARK_BG];
-	fg = xtext->palette[XTEXT_MARK_FG];
-	bg.alpha = xtext->jump_hover ? 1.0 : 0.9;
-
+	xtext_draw_box (xtext, cr, &r, xtext->jump_hover);
 	cairo_save (cr);
-	cairo_new_sub_path (cr);
-	cairo_arc (cr, r.x + r.width - rad, r.y + rad, rad, -G_PI / 2, G_PI / 2);
-	cairo_arc (cr, r.x + rad, r.y + rad, rad, G_PI / 2, 3 * G_PI / 2);
-	cairo_close_path (cr);
-	/* soft shadow under it */
-	cairo_save (cr);
-	cairo_translate (cr, 0, 2);
-	cairo_set_source_rgba (cr, 0, 0, 0, 0.3);
-	cairo_fill_preserve (cr);
-	cairo_restore (cr);
-	gdk_cairo_set_source_rgba (cr, &bg);
-	cairo_fill (cr);
-	gdk_cairo_set_source_rgba (cr, &fg);
-	cairo_move_to (cr, r.x + 12, r.y + 5);
+	gdk_cairo_set_source_rgba (cr, &xtext->palette[xtext->jump_hover ? XTEXT_MARK_FG : XTEXT_FG]);
+	cairo_move_to (cr, r.x + 6, r.y + 2);
 	pango_cairo_show_layout (cr, layout);
 	cairo_restore (cr);
 	g_object_unref (layout);
@@ -1409,41 +1420,22 @@ static void
 xtext_draw_toast (GtkXText *xtext, cairo_t *cr)
 {
 	PangoLayout *layout;
-	PangoFontDescription *fd;
-	int tw, th, w, h, x, y;
-	double rad;
-	GdkRGBA bg, fg;
+	GdkRectangle r;
+	int tw, th;
 
 	if (!xtext->toast)
 		return;
-	layout = gtk_widget_create_pango_layout (GTK_WIDGET (xtext), xtext->toast);
-	fd = pango_font_description_copy (pango_context_get_font_description (pango_layout_get_context (layout)));
-	pango_font_description_set_weight (fd, PANGO_WEIGHT_BOLD);
-	pango_font_description_set_size (fd, pango_font_description_get_size (fd) * 13 / 10);
-	pango_layout_set_font_description (layout, fd);
-	pango_font_description_free (fd);
+	layout = xtext_overlay_layout (xtext, xtext->toast);
 	pango_layout_get_pixel_size (layout, &tw, &th);
-	w = tw + 2 * 18;
-	h = th + 2 * 9;
-	x = (nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - w) / 2;
-	y = 24;
-	rad = 10;
-
-	bg = xtext->palette[XTEXT_FG];
-	fg = xtext->palette[XTEXT_BG];
-	bg.alpha = 0.85;
-
+	/* top right, same box as the jump button */
+	r.width = tw + 2 * 6;
+	r.height = th + 2 * 2;
+	r.x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r.width - 4;
+	r.y = 4;
+	xtext_draw_box (xtext, cr, &r, FALSE);
 	cairo_save (cr);
-	cairo_new_sub_path (cr);
-	cairo_arc (cr, x + w - rad, y + rad, rad, -G_PI / 2, 0);
-	cairo_arc (cr, x + w - rad, y + h - rad, rad, 0, G_PI / 2);
-	cairo_arc (cr, x + rad, y + h - rad, rad, G_PI / 2, G_PI);
-	cairo_arc (cr, x + rad, y + rad, rad, G_PI, 3 * G_PI / 2);
-	cairo_close_path (cr);
-	gdk_cairo_set_source_rgba (cr, &bg);
-	cairo_fill (cr);
-	gdk_cairo_set_source_rgba (cr, &fg);
-	cairo_move_to (cr, x + 18, y + 9);
+	gdk_cairo_set_source_rgba (cr, &xtext->palette[XTEXT_FG]);
+	cairo_move_to (cr, r.x + 6, r.y + 2);
 	pango_cairo_show_layout (cr, layout);
 	cairo_restore (cr);
 	g_object_unref (layout);

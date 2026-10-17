@@ -455,8 +455,6 @@ fe_apply_css (void)
 		/* Character Chart: 28px-wide cells like GTK2 */
 		"#hexchat-charbutton { padding: 0; min-width: 0; min-height: 23px; border-radius: 0; }\n"
 		"#hexchat-ulistinfo label { padding: 1px 2px; }\n"
-		/* the quick switcher has no title bar: give it an edge */
-		"#nexchat-quickswitch { border: 1px solid alpha(currentColor, 0.3); }\n"
 		/* the connecting indicator draws in its CSS colour */
 		"#nexchat-connecting { color: @theme_selected_bg_color; }\n");
 

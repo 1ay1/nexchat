@@ -64,8 +64,6 @@ void mg_search_toggle(session *sess);
 void mg_zoom (int step);
 /* a short message over the chat area */
 void mg_toast (session_gui *gui, const char *text);
-/* Ctrl+J: jump to a channel or query by typing part of its name */
-void quickswitch_open (void);
 void mg_search_handle_previous(GtkWidget *wid, session *sess);
 void mg_search_handle_next(GtkWidget *wid, session *sess);
 

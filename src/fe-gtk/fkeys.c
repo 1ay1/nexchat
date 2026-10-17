@@ -73,7 +73,7 @@ void key_action_tab_clean (void);
  */
 
 /* Remember that the *number* of actions is this *plus* 1 --AGL */
-#define KEY_MAX_ACTIONS 15
+#define KEY_MAX_ACTIONS 14
 
 struct key_binding
 {
@@ -135,9 +135,6 @@ static int key_action_move_tab_family_right (GtkWidget * wid, gpointer evt,
 static int key_action_put_history (GtkWidget * wid, gpointer evt,
 												  char *d1, char *d2,
 												  struct session *sess);
-static int key_action_quick_switch (GtkWidget * wid, gpointer evt,
-												  char *d1, char *d2,
-												  struct session *sess);
 
 static GSList *keybind_list = NULL;
 
@@ -173,8 +170,6 @@ static const struct key_action key_actions[KEY_MAX_ACTIONS + 1] = {
 	 N_("This command moves the current tab family to the right")},
 	{key_action_put_history, "Push input line into history",
 	 N_("Push input line into history but doesn't send to server")},
-	{key_action_quick_switch, "Quick Switcher",
-	 N_("The \002Quick Switcher\002 opens a box where you type part of a channel, query or network name and press Enter to go there. Ctrl+J does this too unless turned off in Preferences")},
 };
 
 #define default_kb_cfg \
@@ -432,14 +427,6 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 	if (prefs.hex_gui_zoom_keys && mods == (STATE_CTRL | STATE_SHIFT) && keyval == GDK_KEY_plus)
 	{
 		mg_zoom (1);
-		return TRUE;
-	}
-
-	/* Ctrl+J: jump to any channel or query by name (Ctrl+K is mIRC colour) */
-	if (prefs.hex_gui_quick_switch && mods == STATE_CTRL &&
-		 (keyval == GDK_KEY_j || keyval == GDK_KEY_J))
-	{
-		quickswitch_open ();
 		return TRUE;
 	}
 
@@ -1721,13 +1708,6 @@ key_action_put_history (GtkWidget * wid, gpointer  ent, char *d1,
 	return 2;						  /* -''- */
 }
 
-static int
-key_action_quick_switch (GtkWidget * wid, gpointer  ent, char *d1,
-									char *d2, struct session *sess)
-{
-	quickswitch_open ();
-	return 2;
-}
 
 
 /* -------- */

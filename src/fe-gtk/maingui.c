@@ -606,14 +606,15 @@ mg_focus (session *sess)
 		fe_set_tab_color (sess, FE_COLOR_NONE);
 }
 
-/* the connecting indicator: a block sliding back and forth in a rounded
-   trough, in the theme's accent colour (CSS color on #nexchat-connecting) */
+/* the connecting indicator: a block bouncing in a framed trough, square
+   like the classic progress bars, in the theme's selection colour (CSS
+   color on #nexchat-connecting) */
 static void
 mg_progressbar_paint (GtkWidget *bar, cairo_t *cr, int w, int h)
 {
 	double pos = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (bar), "nx-pos")) / 1000.0;
-	double r = MIN (6.0, h / 2.0), bw = w * 0.3, x;
-	GdkRGBA accent, c;
+	double bw = (w - 4) * 0.25, x;
+	GdkRGBA accent, frame;
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_widget_get_color (bar, &accent);
@@ -621,29 +622,19 @@ mg_progressbar_paint (GtkWidget *bar, cairo_t *cr, int w, int h)
 	gtk_style_context_get_color (gtk_widget_get_style_context (bar),
 										  gtk_widget_get_state_flags (bar), &accent);
 #endif
+	frame = accent;
+	frame.alpha *= 0.5;
 
-	/* ease in and out at the ends (smoothstep) */
-	pos = pos * pos * (3 - 2 * pos);
-	x = pos * (w - bw);
+	/* 1px frame */
+	gdk_cairo_set_source_rgba (cr, &frame);
+	cairo_set_line_width (cr, 1);
+	cairo_rectangle (cr, 0.5, 0.5, w - 1, h - 1);
+	cairo_stroke (cr);
 
-	c = accent;
-	c.alpha *= 0.2;
-	gdk_cairo_set_source_rgba (cr, &c);
-	cairo_new_sub_path (cr);
-	cairo_arc (cr, w - r, r, r, -G_PI / 2, 0);
-	cairo_arc (cr, w - r, h - r, r, 0, G_PI / 2);
-	cairo_arc (cr, r, h - r, r, G_PI / 2, G_PI);
-	cairo_arc (cr, r, r, r, G_PI, 3 * G_PI / 2);
-	cairo_close_path (cr);
-	cairo_fill (cr);
-
+	/* the block, 1px inside the frame */
+	x = 2 + pos * (w - 4 - bw);
 	gdk_cairo_set_source_rgba (cr, &accent);
-	cairo_new_sub_path (cr);
-	cairo_arc (cr, x + bw - r, r, r, -G_PI / 2, 0);
-	cairo_arc (cr, x + bw - r, h - r, r, 0, G_PI / 2);
-	cairo_arc (cr, x + r, h - r, r, G_PI / 2, G_PI);
-	cairo_arc (cr, x + r, r, r, G_PI, 3 * G_PI / 2);
-	cairo_close_path (cr);
+	cairo_rectangle (cr, x, 2, bw, h - 4);
 	cairo_fill (cr);
 }
 
@@ -666,8 +657,8 @@ mg_progressbar_draw (GtkWidget *da, cairo_t *cr, gpointer unused)
 static int
 mg_progressbar_update (GtkWidget *bar)
 {
-	/* 0..1000 forward, then 1000..2000 back: one sweep every ~1.2s */
-	int step = (GPOINTER_TO_INT (g_object_get_data (G_OBJECT (bar), "nx-step")) + 40) % 2000;
+	/* 0..1000 forward, then 1000..2000 back, like GTK2's activity mode */
+	int step = (GPOINTER_TO_INT (g_object_get_data (G_OBJECT (bar), "nx-step")) + 50) % 2000;
 
 	g_object_set_data (G_OBJECT (bar), "nx-step", GINT_TO_POINTER (step));
 	g_object_set_data (G_OBJECT (bar), "nx-pos", GINT_TO_POINTER (step < 1000 ? step : 2000 - step));
@@ -694,7 +685,7 @@ mg_progressbar_create (session_gui *gui)
 	gtk_widget_set_tooltip_text (gui->bar, _("Connecting" ELLIPSIS));
 	nx_box_pack_end (gtk_widget_get_parent (gui->input_box), gui->bar, 0, 0, 0);
 	nx_widget_show (gui->bar);
-	gui->bartag = fe_timeout_add (16, mg_progressbar_update, gui->bar);
+	gui->bartag = fe_timeout_add (50, mg_progressbar_update, gui->bar);
 }
 
 void

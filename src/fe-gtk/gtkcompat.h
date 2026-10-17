@@ -213,7 +213,6 @@ nx_button_box_child (GtkWidget *box, GtkWidget *child)
 void gtkutil_window_place (GtkWidget *win, int how);
 #define nx_window_set_position_mouse(win) gtkutil_window_place (GTK_WIDGET (win), TRUE)
 #define nx_window_set_position_center(win) gtkutil_window_place (GTK_WIDGET (win), FALSE)
-#define nx_window_set_position_on_parent(win) gtkutil_window_place (GTK_WIDGET (win), 2)
 
 /* toplevel of a widget, NULL if it isn't in a window yet */
 static inline GtkWidget *
@@ -623,8 +622,6 @@ nx_button_box_new (GtkOrientation o, nx_buttonbox_layout layout)
 	gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_MOUSE)
 #define nx_window_set_position_center(win) \
 	gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER)
-#define nx_window_set_position_on_parent(win) \
-	gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER_ON_PARENT)
 
 #define nx_widget_get_toplevel(w) gtk_widget_get_toplevel (GTK_WIDGET (w))
 
