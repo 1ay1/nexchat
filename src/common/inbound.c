@@ -47,6 +47,38 @@
 #include "ctcp.h"
 #include "hexchatc.h"
 #include "chanopt.h"
+#include "sts.h"
+
+#ifdef USE_OPENSSL
+typedef struct { server *serv; int port; } sts_upgrade;
+
+static gboolean
+sts_upgrade_cb (gpointer data)
+{
+	sts_upgrade *u = data;
+
+	if (is_server (u->serv))
+	{
+		u->serv->use_ssl = TRUE;
+		u->serv->disconnect (u->serv->server_session, FALSE, -1);
+		u->serv->connect (u->serv, u->serv->hostname, u->port, FALSE);
+	}
+	g_free (u);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+sts_upgrade_later (server *serv, int port)
+{
+	sts_upgrade *u = g_new (sts_upgrade, 1);
+
+	u->serv = serv;
+	u->port = port;
+	/* nothing more on the plain connection: no CAP END, no NICK/USER */
+	serv->sent_capend = TRUE;
+	g_idle_add (sts_upgrade_cb, u);
+}
+#endif
 
 
 void
@@ -1857,6 +1889,27 @@ inbound_cap_ls (server *serv, char *nick, char *extensions_str,
 			*value = '\0';
 			value++;
 		}
+
+#ifdef USE_OPENSSL
+		/* Strict Transport Security: over TLS, remember it; in plain text,
+		   drop this connection and come back over TLS on the given port */
+		if (!g_strcmp0 (extension, "sts"))
+		{
+			int tls_port = sts_handle (serv->hostname, serv->port, serv->use_ssl, value);
+			if (tls_port)
+			{
+				char *msg = g_strdup_printf (_("* %s asks for TLS (STS): reconnecting on port %d"),
+													 serv->hostname, tls_port);
+				PrintText (serv->server_session, msg);
+				g_free (msg);
+				g_strfreev (extensions);
+				/* not from inside the read loop that's handling this line */
+				sts_upgrade_later (serv, tls_port);
+				return;
+			}
+			continue;
+		}
+#endif
 
 		/* if the SASL password is set AND auth mode is set to SASL, request SASL auth */
 		if (!g_strcmp0 (extension, "sasl") &&

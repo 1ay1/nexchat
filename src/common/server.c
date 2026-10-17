@@ -54,6 +54,7 @@
 #include "proto-irc.h"
 #include "servlist.h"
 #include "server.h"
+#include "sts.h"
 
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>		  /* SSL_() */
@@ -1549,7 +1550,23 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 	int pid, read_des[2];
 	session *sess = serv->server_session;
 
+	if (!hostname[0])
+		return;
+
 #ifdef USE_OPENSSL
+	/* a host that asked for TLS (STS) only ever gets TLS, on its port */
+	if (!serv->use_ssl)
+	{
+		int sts = sts_port_for (hostname);
+		if (sts)
+		{
+			char *msg = g_strdup_printf (_("* %s requires TLS (STS): using port %d"), hostname, sts);
+			PrintText (sess, msg);
+			g_free (msg);
+			serv->use_ssl = TRUE;
+			port = sts;
+		}
+	}
 	if (!serv->ctx && serv->use_ssl)
 	{
 		if (!(serv->ctx = _SSL_context_init (ssl_cb_info)))
@@ -1559,9 +1576,6 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 		}
 	}
 #endif
-
-	if (!hostname[0])
-		return;
 
 	if (port < 1 || port > 65535)
 	{

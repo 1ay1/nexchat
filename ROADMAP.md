@@ -252,7 +252,7 @@ Security, done (4cf8e986):
 Security, left:
 - [x] DCC RESUME: only from the nick we're sending to (a matching port or id from anyone was enough), and only for an offset inside the file.
 - [ ] DCC: refuse offers that point at private/loopback addresses from a public server.
-- [ ] STS (`sts` cap): remember the TLS port per host and upgrade plain connections.
+- [x] STS (`sts` cap): a plain connection that's told `sts=port=N` reconnects over TLS on N before sending anything secret; over TLS the policy is kept in `sts.conf` for its duration, and later plain connects to that host go straight to TLS. `tests/sts.py`.
 - [x] Bidi: a nick, channel or other event argument with bidi controls (U+202A..U+202E, U+2066..U+2069) is wrapped in FSI..PDI, so `<mallory\u202e>` can't reverse the message after it. `tests/hostile-text.sh`.
 
 IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):

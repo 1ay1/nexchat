@@ -17,6 +17,7 @@ common_sources = [
   'proto-irc.c',
   'scram.c',
   'server.c',
+  'sts.c',
   'servlist.c',
 	'text.c',
   'tree.c',
