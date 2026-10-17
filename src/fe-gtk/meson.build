@@ -71,7 +71,8 @@ endif
 hexchat_gtk_ldflags = []
 
 if host_machine.system() == 'windows'
-  hexchat_gtk_sources += 'notifications/notification-windows.c'
+  hexchat_gtk_sources += ['notifications/notification-windows.c',
+                          'notifications/notification-balloon.c']
   # dark title bar, accent colour
   hexchat_gtk_deps += cc.find_library('dwmapi')
 

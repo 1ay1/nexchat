@@ -18,6 +18,7 @@
 
 #include "hexchat.h"
 #include "plugin.h"
+#include "notification-balloon.h"
 
 #include <gmodule.h>
 #include <windows.h>
@@ -26,10 +27,18 @@ void (*winrt_notification_backend_show) (const char *title, const char *text) = 
 int (*winrt_notification_backend_init) (const char **error) = NULL;
 void (*winrt_notification_backend_deinit) (void) = NULL;
 int (*winrt_notification_backend_supported) (void) = NULL;
+/* no WinRT DLL (mingw builds): tray balloons, which Windows 10/11 show
+   as toasts */
+static gboolean use_balloon;
 
 void
 notification_backend_show (const char *title, const char *text)
 {
+	if (use_balloon)
+	{
+		balloon_notification_show (title, text);
+		return;
+	}
 	if (winrt_notification_backend_show == NULL)
 	{
 		return;
@@ -52,8 +61,10 @@ notification_backend_init (const char **error)
 
 	if (module == NULL)
 	{
-		*error = "hcnotifications-winrt not found.";
-		return 0;
+		use_balloon = balloon_notification_init ();
+		if (!use_balloon)
+			*error = "hcnotifications-winrt not found.";
+		return use_balloon;
 	}
 
 	g_module_symbol (module, "notification_backend_show", (gpointer *) &winrt_notification_backend_show);
@@ -67,6 +78,11 @@ notification_backend_init (const char **error)
 void
 notification_backend_deinit (void)
 {
+	if (use_balloon)
+	{
+		balloon_notification_deinit ();
+		return;
+	}
 	if (winrt_notification_backend_deinit == NULL)
 	{
 		return;
@@ -78,6 +94,8 @@ notification_backend_deinit (void)
 int
 notification_backend_supported (void)
 {
+	if (use_balloon)
+		return 1;
 	if (winrt_notification_backend_supported == NULL)
 	{
 		return 0;

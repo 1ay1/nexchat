@@ -33,10 +33,14 @@ fi
 # garbage; real Windows doesn't, this only makes the shots readable
 DISPLAY=$disp WINEPATH="Z:$s/bin" XDG_DATA_DIRS="$s/share" GSK_RENDERER=${GSK_RENDERER:-} \
 	PANGOCAIRO_BACKEND=${PANGOCAIRO_BACKEND:-fc} NX_DUMP_CSS=${NX_DUMP_CSS:-} \
-	NEXCHAT_MENU_ACTIVATE=${NEXCHAT_MENU_ACTIVATE:-} \
+	NEXCHAT_MENU_ACTIVATE=${NEXCHAT_MENU_ACTIVATE:-} NX_DEBUG_NOTIFY=${NX_DEBUG_NOTIFY:-} \
 	GDK_SCALE=${GDK_SCALE:-} GDK_DPI_SCALE=${GDK_DPI_SCALE:-} \
-	wine "$exe" -a -d "Z:$tmp/cfg" $url >"$tmp/log" 2>&1 &
+	wine "$exe" -a -d "Z:$tmp/cfg" ${CMD:+-c "$CMD"} $url >"$tmp/log" 2>&1 &
 sleep "$wait_s"
+if [ -n "${TYPE:-}" ]; then
+	DISPLAY=$disp python3 "$here/ux/xkey.py" --delay 0.5 --at 400,300 --type "$TYPE" Return
+	sleep 2
+fi
 if [ -n "${KEYS:-}" ]; then
 	# shellcheck disable=SC2086
 	DISPLAY=$disp python3 "$here/ux/xkey.py" --delay 0.5 --at 400,300 $KEYS
