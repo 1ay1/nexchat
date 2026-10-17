@@ -258,7 +258,7 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 - [ ] `message-tags` + `batch`: the base for everything below. Tags are parsed but only `time`/`account` are kept, `message-tags` itself is never requested, and `BATCH` isn't handled.
 - [ ] `echo-message` + `labeled-response`: your own lines shown as the server saw them (and from your other clients on a bouncer).
 - [ ] `draft/chathistory` + `draft/read-marker` (soju, Ergo): scrollback on join, and the marker line in the same place on every device.
-- [ ] Skip `irc_who_join` on servers with `away-notify` + `extended-join` (the TODO in `cfgfiles.c`); big channel lists get kicked for it.
+- [ ] Big channels: the WHO on join is the only source of who's already away and their real names (`away-notify` only sends changes), so it can't just be skipped. Use WHOX with only the fields needed, and spread it out when joining many channels at once.
 - [ ] Later, behind preferences: `+typing`, `+draft/reply`, `draft/multiline`.
 
 Everyday use (already there: search bar, marker line, Alt+\` to the most active tab, last-spoke completion):
