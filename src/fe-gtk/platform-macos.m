@@ -85,7 +85,18 @@ macos_window_place (void *nswindow, void *parent, int how)
 	[w setFrameOrigin:o];
 }
 
-/* the user's accent colour (System Settings > Appearance), 0..1 rgb */
+/* A program started from a terminal (not through Launch Services) stays
+   behind it: make it a regular app with a Dock icon and bring it to the
+   front, the way opening an .app does */
+void
+macos_activate (void)
+{
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+	if (@available (macOS 14.0, *))
+		[NSApp activate];
+	else
+		[NSApp activateIgnoringOtherApps:YES];
+}
 
 static NSInteger attention_req;
 

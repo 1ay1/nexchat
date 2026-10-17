@@ -12,6 +12,8 @@
 
 #include <glib.h>
 
+/* bring the app to the front (started from a terminal it stays behind) */
+void macos_activate (void);
 /* bounce the Dock icon until the app is activated (TRUE) or stop (FALSE) */
 void macos_request_attention (gboolean urgent);
 /* the system is in dark mode */

@@ -22,6 +22,9 @@
 
 #include "fe-gtk.h"
 #include "platform-style.h"
+#ifdef __APPLE__
+#include "platform-macos.h"
+#endif
 
 #ifdef WIN32
 #include <gdk/win32/gdkwin32.h>
@@ -751,6 +754,16 @@ fe_idle (gpointer data)
 		nx_window_iconify (sess->gui->window);
 	else if (arg_minimize == 2)
 		tray_toggle_visibility (FALSE);
+#ifdef __APPLE__
+	else
+	{
+		/* started from a terminal, the app and its window would stay behind
+		   it; an .app opened from Finder/Dock is already in front */
+		macos_activate ();
+		if (gtk_widget_get_visible (sess->gui->window))
+			gtk_window_present (GTK_WINDOW (sess->gui->window));
+	}
+#endif
 
 	return 0;
 }
