@@ -3780,12 +3780,48 @@ gtk_xtext_fix_indent (xtext_buffer *buf)
 	dontscroll (buf);	/* force scrolling off */
 }
 
+/* The separator column (buf->indent) is in pixels and auto-indent only
+   ever widens it, to fit the widest nick seen. With a new font (zoom, or a
+   font change) those pixels mean something else: zooming in widened it in
+   big-font pixels, and zooming back out left that width -- the nicks stood
+   off from the separator, and every zoom step moved it further. Derive it
+   again from what the buffer holds, at the new font's widths. */
+static void
+gtk_xtext_reset_indent (xtext_buffer *buf)
+{
+	GtkXText *xtext = buf->xtext;
+	textentry *ent;
+	int space, want;
+
+	if (!xtext->auto_indent)
+		return;
+
+	space = buf->time_stamp ? xtext->stamp_width : 0;
+	/* what gtk_xtext_buffer_new and the first line start from */
+	buf->indent = xtext->space_width * 2;
+	for (ent = buf->text_first; ent; ent = ent->next)
+	{
+		if (ent->left_len == -1)
+			continue;
+		/* the same rule as gtk_xtext_append_indent */
+		want = MARGIN + space + xtext->space_width +
+				 gtk_xtext_text_width (xtext, ent->str, ent->left_len);
+		if (want > buf->indent)
+			buf->indent = want;
+	}
+	if (buf->indent > xtext->max_auto_indent)
+		buf->indent = xtext->max_auto_indent;
+	gtk_xtext_fix_indent (buf);
+}
+
 static void
 gtk_xtext_recalc_widths (xtext_buffer *buf, int do_str_width)
 {
 	textentry *ent;
 
 	/* since we have a new font, we have to recalc the text widths */
+	if (do_str_width)
+		gtk_xtext_reset_indent (buf);
 	ent = buf->text_first;
 	while (ent)
 	{

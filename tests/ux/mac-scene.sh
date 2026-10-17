@@ -35,7 +35,9 @@ if [ -n "$extra" ]; then printf '%s\n' "$extra"; fi
 if [ -s "$tmp/base.conf" ]; then cat "$tmp/base.conf"; fi; } > "$tmp/cfg/hexchat.conf"
 
 rm -f "$out"
-NEXCHAT_SCHEME="${SCHEME:-}" NEXCHAT_SHOT="$out:${SECS:-6}" "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$port/#nexchat" \
+# CHANS="#a,#b": join these too (the last one ends up in front);
+# NEXCHAT_SWITCH: after the zoom steps, go back to #nexchat
+NEXCHAT_SWITCH="${SWITCH:-}" NEXCHAT_ZOOM="${ZOOM:-}" NEXCHAT_SCHEME="${SCHEME:-}" NEXCHAT_SHOT="$out:${SECS:-6}" "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$port/#nexchat${CHANS:+,$CHANS}" \
 	>"$tmp/log" 2>&1 &
 app=$!
 sleep $(( ${SECS:-6} + 1 ))

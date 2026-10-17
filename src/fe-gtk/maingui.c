@@ -2401,7 +2401,16 @@ mg_zoom (int step)
 		return;
 	prefs.hex_text_zoom = z;
 
-	/* tabs share one text widget: each widget once */
+	/* tabs share one text widget: each widget once. Every other buffer
+	   shown in it was measured with the old font: re-measure when shown,
+	   or switching to another channel showed the old wrapping and nick
+	   column */
+	for (list = sess_list; list; list = list->next)
+	{
+		session *sess = list->data;
+		if (sess->res && sess->res->buffer)
+			((xtext_buffer *) sess->res->buffer)->needs_recalc = TRUE;
+	}
 	for (list = sess_list; list; list = list->next)
 	{
 		session *sess = list->data;
@@ -2412,6 +2421,8 @@ mg_zoom (int step)
 		done = g_slist_prepend (done, x);
 		GTK_XTEXT (x)->zoom = z;
 		gtk_xtext_set_font (GTK_XTEXT (x), prefs.hex_text_font);
+		/* the visible buffer was just re-measured by set_font */
+		GTK_XTEXT (x)->buffer->needs_recalc = FALSE;
 		gtk_xtext_refresh (GTK_XTEXT (x));
 	}
 	g_slist_free (done);

@@ -720,6 +720,43 @@ fe_timing_idle (gpointer d)
 	return G_SOURCE_REMOVE;
 }
 
+/* tests: NEXCHAT_ZOOM="+ + - 0" runs those zoom steps (Ctrl+= / Ctrl+-
+   / Ctrl+0), one every 300 ms, starting 2 s after startup */
+static gboolean
+fe_zoom_step (gpointer data)
+{
+	char **steps = data;
+	static int i;
+
+	if (!steps[i])
+	{
+		const char *sw = g_getenv ("NEXCHAT_SWITCH");
+		g_strfreev (steps);
+		/* tests: then show this channel, zoomed while in the background */
+		if (sw && *sw)
+		{
+			GSList *l;
+			for (l = sess_list; l; l = l->next)
+			{
+				session *s = l->data;
+				if (!g_ascii_strcasecmp (s->channel, sw))
+					fe_ctrl_gui (s, FE_GUI_FOCUS, 0);
+			}
+		}
+		return G_SOURCE_REMOVE;
+	}
+	mg_zoom (!strcmp (steps[i], "+") ? 1 : !strcmp (steps[i], "-") ? -1 : 0);
+	i++;
+	return G_SOURCE_CONTINUE;
+}
+
+static gboolean
+fe_zoom_start (gpointer data)
+{
+	g_timeout_add (300, fe_zoom_step, data);
+	return G_SOURCE_REMOVE;
+}
+
 void
 fe_main (void)
 {
@@ -775,6 +812,9 @@ fe_main (void)
 		}
 		g_idle_add_full (G_PRIORITY_LOW, fe_timing_idle, NULL, NULL);
 	}
+
+	if (g_getenv ("NEXCHAT_ZOOM"))
+		g_timeout_add (2000, fe_zoom_start, g_strsplit (g_getenv ("NEXCHAT_ZOOM"), " ", -1));
 
 	nx_main ();
 
