@@ -1,0 +1,43 @@
+/* nexchat
+ * Copyright (C) 2026 nexchat contributors
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
+#ifndef NEXCHAT_CMDINFO_H
+#define NEXCHAT_CMDINFO_H
+
+#include <glib.h>
+
+/* where a command comes from */
+typedef enum
+{
+	CMD_BUILTIN,
+	CMD_USER,		/* Settings > User Commands (an alias) */
+	CMD_PLUGIN
+} cmdinfo_kind;
+
+/* one command as the input box shows it */
+typedef struct
+{
+	char *name;			/* "JOIN" */
+	char *usage;		/* "JOIN <channel>" (what to type), or "" */
+	char *desc;			/* "joins the channel" (what it does), or "" */
+	char *help;			/* the whole help text, or "" */
+	cmdinfo_kind kind;
+	int score;			/* how well it matched */
+} cmdinfo;
+
+/* every command whose name starts with or contains prefix (case doesn't
+   matter), best matches first: built-ins, the user's commands and plugin
+   commands, each named once. Free with cmdinfo_list_free. */
+GPtrArray *cmdinfo_find (const char *prefix);
+void cmdinfo_list_free (GPtrArray *list);
+/* the one command named exactly name, or NULL; free with cmdinfo_free */
+cmdinfo *cmdinfo_lookup (const char *name);
+void cmdinfo_free (cmdinfo *c);
+
+#endif

@@ -1,5 +1,6 @@
 hexchat_gtk_sources = [
   'ascii.c',
+  'cmdpopup.c',
   'jumpto.c',
   'banlist.c',
   'chanlist.c',
@@ -277,6 +278,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-lastlog-all', find_program('sh'),
     args: [files('../../tests/ux/lastlog-all.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:90'], timeout: 120)
+  test('gui-cmdpopup', find_program('sh'),
+    args: [files('../../tests/ux/cmdpopup.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:89'], timeout: 120)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],

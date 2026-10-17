@@ -56,6 +56,7 @@
 #include "maingui.h"
 #include "textgui.h"
 #include "fkeys.h"
+#include "cmdpopup.h"
 
 static void replace_handle (GtkWidget * wid);
 void key_action_tab_clean (void);
@@ -415,6 +416,10 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 {
 	key_result r;
 	GdkModifierType mods = state & (STATE_CTRL | STATE_SHIFT | STATE_ALT);
+
+	/* the "/" command list has Up/Down/Tab/Enter/Escape while it's up */
+	if (cmdpopup_key (wid, keyval, state))
+		return TRUE;
 
 	/* the user's own bindings win over the built-in keys below */
 	r = key_handle (wid, keyval, state, NULL);

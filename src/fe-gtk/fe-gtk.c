@@ -46,6 +46,7 @@
 #include "gtkutil.h"
 #include "maingui.h"
 #include "chanview.h"
+#include "cmdpopup.h"
 #include "pixmaps.h"
 #include "chanlist.h"
 #include "joind.h"
@@ -521,7 +522,17 @@ fe_apply_css (void)
 		"dropdown.nx-combo-arrow > button > box > stack { min-width: 0; }\n"
 		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"
 		/* NxDialog message dialogs: GTK3's full-width buttons */
-		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n");
+		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n"
+		/* the "/" command list over the input box: a plain square list */
+		"popover.nx-cmdpopup { padding: 0; margin: 0; box-shadow: none; }\n"
+		"popover.nx-cmdpopup > contents { padding: 0; border-radius: 0;"
+		" border: 1px solid alpha(currentColor, 0.3); box-shadow: none; }\n"
+		"popover.nx-cmdpopup list { background: none; }\n"
+		"popover.nx-cmdpopup list > row { padding: 2px 6px; min-height: 0; border-radius: 0; }\n"
+		"popover.nx-cmdpopup list > row:selected { background-color: @theme_selected_bg_color;"
+		" color: @theme_selected_fg_color; }\n"
+		"popover.nx-cmdpopup list > row:selected .dim-label { opacity: 0.85; }\n"
+		"popover.nx-cmdpopup .nx-cmd-hint { padding: 2px 6px; }\n");
 
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))
@@ -640,7 +651,11 @@ fe_tabs_dump (gpointer d)
 	if (current_sess && current_sess->gui && current_sess->gui->xtext)
 	{
 		const char *tip = gtk_widget_get_tooltip_text (current_sess->gui->xtext);
+		char *pop = cmdpopup_describe (current_sess->gui->input_box);
 		g_printerr ("tooltip: %s\n", tip ? tip : "");
+		g_printerr ("cmdpopup: %s\n", pop);
+		g_printerr ("input: %s\n", gtk_editable_get_text (GTK_EDITABLE (current_sess->gui->input_box)));
+		g_free (pop);
 	}
 	for (l = sess_list; l; l = l->next)
 	{
@@ -712,6 +727,15 @@ fe_self_shot (gpointer data)
 			}
 			g_object_unref (w);
 		}
+	}
+
+	/* NEXCHAT_SHOT_POPUP=1: the input box's command list (a popover is a
+	   surface of its own, not in the window's picture) */
+	if (g_getenv ("NEXCHAT_SHOT_POPUP") && current_sess && current_sess->gui)
+	{
+		GtkWidget *pop = cmdpopup_widget (current_sess->gui->input_box);
+		if (pop && gtk_widget_get_visible (pop))
+			win = pop;
 	}
 
 	if (win)

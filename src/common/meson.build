@@ -19,6 +19,7 @@ common_sources = [
   'server.c',
   'sts.c',
   'batch.c',
+  'cmdinfo.c',
   'servlist.c',
 	'text.c',
   'tree.c',

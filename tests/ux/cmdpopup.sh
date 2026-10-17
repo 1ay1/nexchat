@@ -1,0 +1,85 @@
+#!/bin/sh
+# The "/" command list over the input box: typing narrows it, Down moves,
+# Tab fills in, then a usage hint while typing the arguments; Escape
+# closes it; Enter on a whole command sends it; "//" isn't a command.
+# usage: tests/ux/cmdpopup.sh path/to/nexchat     (needs Xvfb + XTest)
+set -eu
+. "$(dirname "$0")/isolate.sh"
+bin=$1
+here=$(cd "$(dirname "$0")" && pwd)
+xvfb=${XVFB:-$(command -v Xvfb || echo /opt/X11/bin/Xvfb)}
+disp=${DISP:-:89}
+tmp=$(mktemp -d)
+app=; ircd=; xv=
+trap 'kill $app $ircd $xv 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"' EXIT
+
+start_xvfb "$xvfb" "$disp"
+mkdir -p "$tmp/cfg"
+printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\n' > "$tmp/cfg/hexchat.conf"
+python3 "$here/../fake_ircd.py" --timeout 90 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &
+ircd=$!
+i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+DISPLAY=$disp NEXCHAT_TABS_DUMP=1 \
+	"$bin" -a -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/#t" >"$tmp/log" 2>&1 &
+app=$!
+wait_window "$disp"
+wait_for grep -q '^tab: #t' "$tmp/log"
+sleep 0.5
+
+k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 "$@"; }
+t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 --type "$1"; }
+# the popup / input as of a full dump taken after the last keys
+state() {
+	n0=$(grep -c '^tabs:$' "$tmp/log")
+	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do sleep 0.1; done
+	awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log" | grep -E "^($1):" | head -1
+}
+
+fail=0
+check() {
+	got=$(state "$1")
+	case "$got" in
+		$2) echo "ok:   $3";;
+		*) echo "FAIL: $3 (got: $got)"; fail=1;;
+	esac
+}
+
+t "/jo"
+check cmdpopup 'cmdpopup: list: \[JOIN\]*' '/jo lists JOIN first, selected'
+k BackSpace
+check cmdpopup 'cmdpopup: list: \[J*' '/j still lists, J commands first'
+k Down
+check cmdpopup 'cmdpopup: list: J* \[*' 'Down moves to the next one'
+k Up
+t "o"
+k Tab
+check input 'input: /join ' 'Tab fills in "/join " (lower case, as typed)'
+check cmdpopup 'cmdpopup: hint: /JOIN <channel>*' 'with the name typed: a usage hint'
+k Escape
+check cmdpopup 'cmdpopup: ' 'Escape closes it'
+t "#x"
+check cmdpopup 'cmdpopup: ' 'stays closed while typing on'
+k Return
+sleep 1
+grep -q '^JOIN #x' "$tmp/server.log" && echo "ok:   Enter sends /join #x" || { echo "FAIL: /join #x not sent"; fail=1; }
+
+t "/away"
+check cmdpopup 'cmdpopup: list: \[AWAY\]*' '/away lists AWAY'
+k Return
+sleep 1
+grep -q '^AWAY' "$tmp/server.log" && echo "ok:   Enter on a whole name sends it" || { echo "FAIL: /away not sent"; fail=1; }
+check input 'input: ' 'box empty after sending'
+
+t "//"
+check cmdpopup 'cmdpopup: ' '"//" (a plain slash) shows nothing'
+k ctrl+a BackSpace
+t "hello"
+check cmdpopup 'cmdpopup: ' 'plain text shows nothing'
+
+if [ $fail -ne 0 ]; then
+	echo "--- last dump"; awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log"
+	grep -iE 'critical|warning' "$tmp/log" | sort | uniq -c | head
+	exit 1
+fi
+if grep -qiE 'gtk-critical|criticals' "$tmp/log"; then grep -iE 'critical' "$tmp/log" | sort | uniq -c | head; exit 1; fi
+echo "cmdpopup: ok"

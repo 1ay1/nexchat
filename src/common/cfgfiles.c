@@ -493,6 +493,7 @@ const struct prefs vars[] =
 	{"gui_focus_omitalerts", P_OFFINT (hex_gui_focus_omitalerts), TYPE_BOOL},
 	{"gui_hide_menu", P_OFFINT (hex_gui_hide_menu), TYPE_BOOL},
 	{"gui_input_attr", P_OFFINT (hex_gui_input_attr), TYPE_BOOL},
+	{"gui_input_cmdhelp", P_OFFINT (hex_gui_input_cmdhelp), TYPE_BOOL},
 	{"gui_input_icon", P_OFFINT (hex_gui_input_icon), TYPE_BOOL},
 	{"gui_input_nick", P_OFFINT (hex_gui_input_nick), TYPE_BOOL},
 	{"gui_input_paste_max", P_OFFINT (hex_gui_input_paste_max), TYPE_INT},
@@ -838,6 +839,7 @@ load_default_config(void)
 	prefs.hex_gui_autoopen_recv = 1;
 	prefs.hex_gui_autoopen_send = 1;
 	prefs.hex_gui_input_attr = 1;
+	prefs.hex_gui_input_cmdhelp = 1;
 	prefs.hex_gui_input_icon = 1;
 	prefs.hex_gui_input_nick = 1;
 	prefs.hex_gui_input_paste_max = 5;

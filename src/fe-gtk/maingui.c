@@ -51,6 +51,7 @@
 #include "plugin-tray.h"
 #include "xtext.h"
 #include "sexy-spell-entry.h"
+#include "cmdpopup.h"
 #include "gtkutil.h"
 
 #ifdef G_OS_WIN32
@@ -3159,6 +3160,7 @@ mg_create_entry (session *sess, GtkWidget *box)
 
 	gtk_widget_set_name (entry, "hexchat-inputbox");
 	nx_on_key (entry, key_handle_input, NULL);
+	cmdpopup_attach (entry);
 	nx_on_focus_in (entry, mg_inputbox_focus, gui);
 	sexy_spell_entry_set_menu_hook (SEXY_SPELL_ENTRY (entry), mg_inputbox_rightclick, NULL);
 	g_signal_connect (G_OBJECT (entry), "word-check",
