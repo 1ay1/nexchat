@@ -1,5 +1,6 @@
 hexchat_gtk_sources = [
   'ascii.c',
+  'jumpto.c',
   'banlist.c',
   'chanlist.c',
   'chanview.c',
@@ -261,6 +262,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-mouse', find_program('sh'),
     args: [files('../../tests/ux/mouse.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:85'], timeout: 120)
+  test('gui-jumpto', find_program('sh'),
+    args: [files('../../tests/ux/jumpto.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:93'], timeout: 120)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],

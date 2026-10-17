@@ -44,6 +44,7 @@
 #include "../common/text.h"
 #include "xtext.h"
 #include "ascii.h"
+#include "jumpto.h"
 #include "banlist.h"
 #include "chanlist.h"
 #include "editlist.h"
@@ -1996,8 +1997,9 @@ static struct mymenu mymenu[] = {
 		{N_("Search Next"   ), menu_search_next, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_g},
 		{N_("Search Previous"   ), menu_search_prev, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_G},
 		{0, 0, 0, M_END, 0, 0, 0},
+	{N_("_Jump To" ELLIPSIS), jumpto_open, 0, M_MENUITEM, 0, 0, 1, GDK_KEY_j},
 
-	{N_("_Help"), 0, 0, M_NEWMENU, 0, 0, 1},	/* 74 */
+	{N_("_Help"), 0, 0, M_NEWMENU, 0, 0, 1},	/* 75 */
 	{N_("_Contents"), menu_docs, NX_STOCK_HELP, M_MENUSTOCK, 0, 0, 1, GDK_KEY_F1},
 	{N_("_About"), menu_about, NX_STOCK_ABOUT, M_MENUSTOCK, 0, 0, 1},
 

@@ -83,6 +83,7 @@ item "_Window"
     item "Search Text…" [<Primary>f]
     item "Search Next" [<Primary>g]
     item "Search Previous" [<Primary><Shift>g]
+  item "_Jump To…" [<Primary>j]
 item "_Help"
   item "_Contents" [F1]
   item "_About"
@@ -171,6 +172,7 @@ item "_Window"
     item "Search Text…" [<Primary>f]
     item "Search Next" [<Primary>g]
     item "Search Previous" [<Primary><Shift>g]
+  item "_Jump To…" [<Primary>j]
 item "_Help"
   item "_Contents" [F1]
   item "_About"
@@ -259,6 +261,7 @@ item "_Window"
     item "Search Text…" [<Primary>f]
     item "Search Next" [<Primary>g]
     item "Search Previous" [<Primary><Shift>g]
+  item "_Jump To…" [<Primary>j]
 item "_Help"
   item "_Contents" [F1]
   item "_About"
