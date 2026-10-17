@@ -12,6 +12,7 @@
 
 #include <gtk/gtk.h>
 #include "nxdialog.h"
+#include "gtkcompat.h"
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 
@@ -86,6 +87,8 @@ nx_dialog_new (const char *title, GtkWindow *parent, gboolean modal)
 	{
 		gtk_window_set_transient_for (GTK_WINDOW (d), parent);
 		gtk_window_set_destroy_with_parent (GTK_WINDOW (d), TRUE);
+		/* GTK3 put a dialog over the middle of its parent */
+		gtkutil_window_place (GTK_WIDGET (d), 2);
 	}
 	gtk_window_set_modal (GTK_WINDOW (d), modal);
 	return GTK_WIDGET (d);

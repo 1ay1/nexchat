@@ -251,6 +251,68 @@ x11_move_on_realize (GtkWidget *w, gpointer unused)
 
 	x11_move_now (GTK_WINDOW (w), x, y);
 }
+
+/* GTK_WIN_POS_MOUSE / _CENTER: once the window is mapped (its size is
+   known), centre it on the pointer or the screen, kept on screen */
+static void
+x11_place_on_map (GtkWidget *w, gpointer data)
+{
+	gboolean at_mouse = GPOINTER_TO_INT (data);
+	Window root, child, xid = x11_xid (GTK_WINDOW (w));
+	int rx, ry, wx, wy, x, y, ww, wh;
+	unsigned int mask;
+	Screen *scr;
+
+	g_signal_handlers_disconnect_matched (w, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, x11_place_on_map, NULL);
+	if (!xid)
+		return;
+	scr = DefaultScreenOfDisplay (x11_dpy (GTK_WINDOW (w)));
+	ww = gtk_widget_get_width (w);
+	wh = gtk_widget_get_height (w);
+	if (ww <= 1 || wh <= 1)
+	{
+		/* not allocated yet: what it'll ask for */
+		gtk_widget_measure (w, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &ww, NULL, NULL);
+		gtk_widget_measure (w, GTK_ORIENTATION_VERTICAL, ww, NULL, &wh, NULL, NULL);
+	}
+	if (at_mouse == 1 && XQueryPointer (x11_dpy (GTK_WINDOW (w)), RootWindowOfScreen (scr), &root, &child,
+											&rx, &ry, &wx, &wy, &mask))
+	{
+		x = rx - ww / 2;
+		y = ry - wh / 2;
+	}
+	else if (at_mouse == 2 && gtk_window_get_transient_for (GTK_WINDOW (w)) &&
+				gtkutil_window_get_position (gtk_window_get_transient_for (GTK_WINDOW (w)), &rx, &ry))
+	{
+		/* over the middle of the window it belongs to */
+		GtkWidget *pw = GTK_WIDGET (gtk_window_get_transient_for (GTK_WINDOW (w)));
+		x = rx + (gtk_widget_get_width (pw) - ww) / 2;
+		y = ry + (gtk_widget_get_height (pw) - wh) / 2;
+	}
+	else
+	{
+		x = (WidthOfScreen (scr) - ww) / 2;
+		y = (HeightOfScreen (scr) - wh) / 2;
+	}
+	x = CLAMP (x, 0, MAX (0, WidthOfScreen (scr) - ww));
+	y = CLAMP (y, 0, MAX (0, HeightOfScreen (scr) - wh));
+	x11_move_now (GTK_WINDOW (w), x, y);
+}
+#endif
+
+#if GTK_CHECK_VERSION(4, 0, 0)
+/* how: 1 at the pointer, 0 screen centre, 2 centred on its parent */
+void
+gtkutil_window_place (GtkWidget *win, int at_mouse)
+{
+#ifdef GDK_WINDOWING_X11
+	if (!GTK_IS_WINDOW (win) || !GDK_IS_X11_DISPLAY (gtk_widget_get_display (win)))
+		return;
+	/* the last placement asked for wins */
+	g_signal_handlers_disconnect_matched (win, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, x11_place_on_map, NULL);
+	g_signal_connect (win, "map", G_CALLBACK (x11_place_on_map), GINT_TO_POINTER (at_mouse));
+#endif
+}
 #endif
 
 void

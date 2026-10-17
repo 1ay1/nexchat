@@ -707,6 +707,17 @@ setup_create_alert_header (GtkWidget *tab, int row, const setting *set)
 	setup_headlabel (tab, row, 5, _("Highlighted Message"));
 }
 
+/* a check box with no label (the alerts grid) */
+static GtkWidget *
+setup_lone_check (void)
+{
+	GtkWidget *wid = gtk_check_button_new ();
+#if GTK_CHECK_VERSION(4, 0, 0)
+	gtk_widget_add_css_class (wid, "nx-lone");
+#endif
+	return wid;
+}
+
 /* makes 3 toggles side-by-side */
 
 static void
@@ -724,21 +735,21 @@ setup_create_3oggle (GtkWidget *tab, int row, const setting *set)
 	gtkutil_grid_attach (tab, label, 2, 3, row, row + 1,
 							GU_SHRINK | GU_FILL, GU_SHRINK | GU_FILL, LABEL_INDENT, 0);
 
-	wid = gtk_check_button_new ();
+	wid = setup_lone_check ();
 	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[0]));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_3oggle_cb), ((int *)&setup_prefs) + offsets[0]);
 	gtkutil_grid_attach (tab, wid, 3, 4, row, row + 1, 0, 0, 0, 0);
 
-	wid = gtk_check_button_new ();
+	wid = setup_lone_check ();
 	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[1]));
 	g_signal_connect (G_OBJECT (wid), "toggled",
 							G_CALLBACK (setup_3oggle_cb), ((int *)&setup_prefs) + offsets[1]);
 	gtkutil_grid_attach (tab, wid, 4, 5, row, row + 1, 0, 0, 0, 0);
 
-	wid = gtk_check_button_new ();
+	wid = setup_lone_check ();
 	nx_toggle_set_active ((GtkWidget *) (wid),
 											setup_get_int3 (&setup_prefs, offsets[2]));
 	g_signal_connect (G_OBJECT (wid), "toggled",

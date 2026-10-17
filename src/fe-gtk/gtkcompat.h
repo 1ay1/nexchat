@@ -164,7 +164,9 @@ typedef enum { NX_BUTTONBOX_SPREAD, NX_BUTTONBOX_END, NX_BUTTONBOX_START, NX_BUT
 static inline GtkWidget *
 nx_button_box_new (GtkOrientation o, nx_buttonbox_layout layout)
 {
-	GtkWidget *box = gtk_box_new (o, 6);
+	/* GtkButtonBox put no spacing between buttons when the row was tight;
+	   SPREAD/EDGE get their gaps from the equal slots instead */
+	GtkWidget *box = gtk_box_new (o, layout == NX_BUTTONBOX_SPREAD || layout == NX_BUTTONBOX_EDGE ? 0 : 6);
 	GtkSizeGroup *sg = gtk_size_group_new (o == GTK_ORIENTATION_HORIZONTAL ?
 														GTK_SIZE_GROUP_HORIZONTAL : GTK_SIZE_GROUP_VERTICAL);
 
@@ -206,9 +208,11 @@ nx_button_box_child (GtkWidget *box, GtkWidget *child)
 	}
 }
 
-/* window placement hints: GTK4 leaves placement to the window manager */
-#define nx_window_set_position_mouse(win) ((void) (win))
-#define nx_window_set_position_center(win) ((void) (win))
+/* window placement hints: GTK4 has none; on X11 gtkutil places the window
+   at the pointer / screen centre itself (Wayland: the compositor decides) */
+void gtkutil_window_place (GtkWidget *win, int how);
+#define nx_window_set_position_mouse(win) gtkutil_window_place (GTK_WIDGET (win), TRUE)
+#define nx_window_set_position_center(win) gtkutil_window_place (GTK_WIDGET (win), FALSE)
 
 /* toplevel of a widget, NULL if it isn't in a window yet */
 static inline GtkWidget *
@@ -361,9 +365,10 @@ nx_button_set_image (GtkWidget *button, GtkWidget *image)
 #define nx_grid_child_get(grid, child, l, t, w, h) \
 	gtk_grid_query_child (GTK_GRID (grid), (child), (l), (t), (w), (h))
 
-/* GtkPaned's handle: GTK4 has no style property; 1px separator + the
-   theme's margins. GTK3 Adwaita's handle-size was 1. */
-#define nx_paned_handle_size(p) 1
+/* GtkPaned's handle: GTK4 has no style property. GTK3 Adwaita's
+   handle-size was 5, and the user list width is kept from the right edge
+   with it, so use the same number for the same layout */
+#define nx_paned_handle_size(p) 5
 
 /* take a child out of whatever container it's in (box, paned, ...) */
 static inline void

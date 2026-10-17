@@ -1364,6 +1364,38 @@ view_focus_in (GtkEventControllerFocus *f, GtkWidget *view)
 		nx_view_select (view, r);
 }
 
+/* focus given as the window opens arrives without an "enter" */
+static void
+view_focus_notify (GtkWindow *win, GParamSpec *ps, GtkWidget *view)
+{
+	GtkWidget *f = gtk_window_get_focus (win);
+	GtkWidget *sw = gtk_widget_get_parent (view);
+
+	/* the window's first focus can land on the scrolled window around us */
+	if (f && f == sw && GTK_IS_SCROLLED_WINDOW (sw))
+	{
+		gtk_widget_grab_focus (view);
+		f = view;
+	}
+	if (f && (f == view || gtk_widget_is_ancestor (f, view)))
+	{
+		view_focus_in (NULL, view);
+		g_signal_handlers_disconnect_by_func (win, view_focus_notify, view);
+	}
+}
+
+static void
+view_realize (GtkWidget *view, gpointer data)
+{
+	GtkRoot *root = gtk_widget_get_root (view);
+
+	if (GTK_IS_WINDOW (root) && !vp (view)->had_cursor)
+	{
+		g_signal_connect_object (root, "notify::focus-widget", G_CALLBACK (view_focus_notify), view, 0);
+		view_focus_notify (GTK_WINDOW (root), NULL, view);
+	}
+}
+
 static void apply_title_align (GtkWidget *view);
 
 /* a nx_view_scroll_to that needs the rows laid out first */
@@ -1494,6 +1526,7 @@ nx_view_new (nx_store *store)
 	g_signal_connect (cv, "activate", G_CALLBACK (view_activate), cv);
 	g_signal_connect (cv, "destroy", G_CALLBACK (view_destroy), NULL);
 	g_signal_connect (cv, "map", G_CALLBACK (view_map), NULL);
+	g_signal_connect (cv, "realize", G_CALLBACK (view_realize), NULL);
 	/* headers: the title fills the button, the sort arrow at its right */
 	g_signal_connect (cv, "map", G_CALLBACK (apply_title_align), NULL);
 	g_object_set_data (G_OBJECT (cv), "nx-align-hooked", GINT_TO_POINTER (1));
