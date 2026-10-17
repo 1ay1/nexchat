@@ -32,7 +32,8 @@ fi
 # PANGOCAIRO_BACKEND=fc: wine's DirectWrite hints small glyphs into
 # garbage; real Windows doesn't, this only makes the shots readable
 DISPLAY=$disp WINEPATH="Z:$s/bin" XDG_DATA_DIRS="$s/share" GSK_RENDERER=${GSK_RENDERER:-} \
-	PANGOCAIRO_BACKEND=${PANGOCAIRO_BACKEND:-fc} \
+	PANGOCAIRO_BACKEND=${PANGOCAIRO_BACKEND:-fc} NX_DUMP_CSS=${NX_DUMP_CSS:-} \
+	NEXCHAT_MENU_ACTIVATE=${NEXCHAT_MENU_ACTIVATE:-} \
 	GDK_SCALE=${GDK_SCALE:-} GDK_DPI_SCALE=${GDK_DPI_SCALE:-} \
 	wine "$exe" -a -d "Z:$tmp/cfg" $url >"$tmp/log" 2>&1 &
 sleep "$wait_s"
@@ -43,4 +44,5 @@ if [ -n "${KEYS:-}" ]; then
 fi
 DISPLAY=$disp "$xwd" -root -silent -out "$tmp/s.xwd"
 python3 "$here/ux/xwd2png.py" "$tmp/s.xwd" "$out"
+[ -n "${KEEPLOG:-}" ] && cp "$tmp/log" "$KEEPLOG"
 grep -iE "critical|error|warning" "$tmp/log" | grep -viE "mesa|dri|pci id|egl" | sort | uniq -c | sort -rn | head -15 || true

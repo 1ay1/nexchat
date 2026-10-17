@@ -163,6 +163,9 @@ static const setting appearance_settings[] =
 	{ST_NUMBER, N_("Text zoom:"), P_OFFINTNL(hex_text_zoom), N_("Size of the chat text, in percent. Ctrl+wheel and Ctrl+=/-/0 change it."), (const char **)N_("%"), 300},
 
 	{ST_HEADER, N_("Modern Features"), 0,0,0},
+#if defined(WIN32) || defined(__APPLE__)
+	{ST_TOGGLE, N_("Native look"), P_OFFINTNL(hex_gui_native_look), N_("Draw buttons, fields, menus and the title bar like the system does, with its font, accent colour and light/dark mode."),0,0},
+#endif
 	{ST_TOGGLE, N_("Jump to latest button"), P_OFFINTNL(hex_gui_jump_button), N_("While scrolled up, show a button with the number of new lines that takes you back down."),0,0},
 	{ST_TOGGLR, N_("Zoom with Ctrl+wheel and Ctrl+=/-/0"), P_OFFINTNL(hex_gui_zoom_keys),0,0,0},
 

@@ -15,6 +15,7 @@ hexchat_gtk_sources = [
   'nxdialog.c',
   'ignoregui.c',
   'joind.c',
+  'platform-style.c',
   'menu.c',
   'maingui.c',
   'notifygui.c',
@@ -69,6 +70,8 @@ hexchat_gtk_ldflags = []
 
 if host_machine.system() == 'windows'
   hexchat_gtk_sources += 'notifications/notification-windows.c'
+  # dark title bar, accent colour
+  hexchat_gtk_deps += cc.find_library('dwmapi')
 
   # TODO: mingw doesn't have these headers or libs
   # add_languages('cpp')

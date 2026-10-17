@@ -21,6 +21,7 @@
 #include <stdlib.h>
 
 #include "fe-gtk.h"
+#include "platform-style.h"
 
 #ifdef WIN32
 #if GTK_CHECK_VERSION(4, 0, 0)
@@ -241,6 +242,7 @@ fe_args (int argc, char *argv[])
 		g_setenv ("GTK_CSD", "0", TRUE);
 #endif
 	nx_gtk_init (&argc, &argv);
+	platform_style_init ();
 
 #ifdef HAVE_GTK_MAC
 	osx_app = g_object_new(GTKOSX_TYPE_APPLICATION, NULL);
@@ -373,6 +375,9 @@ fe_apply_css (void)
 					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 #endif
 	}
+
+	/* Windows/macOS look first; nexchat's own rules below override it */
+	platform_style_css (css);
 
 	if (prefs.hex_gui_input_style)
 	{
@@ -548,6 +553,8 @@ fe_apply_css (void)
 
 #if GTK_CHECK_VERSION(4, 0, 0)
 	/* GTK4 loads what it can and reports errors through a signal */
+	if (g_getenv ("NX_DUMP_CSS"))
+		g_printerr ("---- nexchat css ----\n%s\n----\n", css->str);
 	gtk_css_provider_load_from_string (fe_css_provider, css->str);
 	(void) err;
 #else
