@@ -22,7 +22,8 @@ run_limited () {
 		timeout "$@"
 	else
 		secs=$1; shift
-		"$@" &
+		# a backgrounded job gets /dev/null as stdin: hand it ours
+		"$@" <&0 &
 		pid=$!
 		( sleep "$secs"; kill "$pid" 2>/dev/null ) &
 		wd=$!
