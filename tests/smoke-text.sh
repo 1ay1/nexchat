@@ -16,6 +16,20 @@ port=$(cat "$tmp/port")
 mkdir -p "$tmp/cfg"
 # throttled QUIT gets flushed before it's sent (upstream behaviour), so turn throttling off
 printf 'net_throttle = 0\nirc_nick1 = smoke\n' > "$tmp/cfg/hexchat.conf"
+# macOS has no timeout(1): a shell watchdog does the same
+run_limited () {
+	if command -v timeout >/dev/null; then
+		timeout "$@"
+	else
+		secs=$1; shift
+		"$@" &
+		pid=$!
+		( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+		wd=$!
+		wait "$pid" || true
+		kill "$wd" 2>/dev/null || true
+	fi
+}
 {
 	sleep 1
 	echo "/join #smoke"
@@ -24,7 +38,7 @@ printf 'net_throttle = 0\nirc_nick1 = smoke\n' > "$tmp/cfg/hexchat.conf"
 	sleep 1
 	echo "/quit bye"
 	sleep 1
-} | timeout 20 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$port/" > "$tmp/client.log" 2>&1 || true
+} | run_limited 20 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$port/" > "$tmp/client.log" 2>&1 || true
 
 fail=0
 check() {
