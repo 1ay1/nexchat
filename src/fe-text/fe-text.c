@@ -798,6 +798,11 @@ void
 fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
 {
 }
+int
+fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+{
+	return 0;
+}
 void
 fe_set_lag (server * serv, long lag)
 {

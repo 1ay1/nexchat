@@ -357,7 +357,8 @@ typedef enum gtk_xtext_search_flags_e {
 	backward = 2,
 	highlight = 4,
 	follow = 8,
-	regexp = 16
+	regexp = 16,
+	lastlog_all = 32	/* /LASTLOG -a: every open buffer */
 } gtk_xtext_search_flags;
 
 typedef enum {

@@ -126,6 +126,9 @@ void fe_set_nick (struct server *serv, char *newnick);
 void fe_ignore_update (int level);
 void fe_beep (session *sess);
 void fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags);
+/* /LASTLOG -a: append sess's lines that match to lastlog_sess, after a
+   heading with its name; returns how many (-1: bad regex) */
+int fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags);
 void fe_set_lag (server *serv, long lag);
 void fe_set_throttle (server *serv);
 void fe_set_away (server *serv);

@@ -5202,6 +5202,26 @@ gtk_xtext_is_empty (xtext_buffer *buf)
 }
 
 
+/* how many entries of search_area match out's search, without copying */
+int
+gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area)
+{
+	textentry *ent;
+	int matches = 0;
+	GList *gl;
+
+	for (ent = search_area->text_first; ent; ent = ent->next)
+	{
+		gl = gtk_xtext_search_textentry (out, ent);
+		if (gl)
+		{
+			matches++;
+			g_list_free (gl);
+		}
+	}
+	return matches;
+}
+
 int
 gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area)
 {

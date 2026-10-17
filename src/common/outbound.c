@@ -2527,7 +2527,33 @@ lastlog (session *sess, char *search, gtk_xtext_search_flags flags)
 	lastlog_sess->lastlog_flags = flags;
 
 	fe_text_clear (lastlog_sess, 0);
-	fe_lastlog (sess, lastlog_sess, search, flags);
+	if (!(flags & lastlog_all))
+	{
+		fe_lastlog (sess, lastlog_sess, search, flags);
+		return;
+	}
+	/* the results for every window: show them */
+	fe_ctrl_gui (lastlog_sess, FE_GUI_FOCUS, 0);
+
+	/* every channel and query, each one's hits under its name */
+	{
+		GSList *l;
+		int total = 0, n;
+
+		for (l = sess_list; l; l = l->next)
+		{
+			session *s = l->data;
+
+			if (s == lastlog_sess || (s->type != SESS_CHANNEL && s->type != SESS_DIALOG))
+				continue;
+			n = fe_lastlog_append (s, lastlog_sess, search, flags);
+			if (n < 0)
+				return;	/* bad regex, already said */
+			total += n;
+		}
+		if (!total)
+			PrintTextf (lastlog_sess, _("No matches for \"%s\" in any window.\n"), search);
+	}
 }
 
 static int
@@ -2549,6 +2575,9 @@ cmd_lastlog (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 				break;
 			case 'h':
 				flags |= highlight;
+				break;
+			case 'a':
+				flags |= lastlog_all;
 				break;
 			case '-':
 				doublehyphen = TRUE;
@@ -4055,8 +4084,9 @@ const struct commands xc_cmds[] = {
 	{"LAGCHECK", cmd_lagcheck, 0, 0, 1,
 	 N_("LAGCHECK, forces a new lag check")},
 	{"LASTLOG", cmd_lastlog, 0, 0, 1,
-	 N_("LASTLOG [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
-	 "    Use -h to highlight the found string(s)\n"
+	N_("LASTLOG [-a] [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
+	"    Use -a to search every open channel and query, not just this one\n"
+	"    Use -h to highlight the found string(s)\n"
 	 "    Use -m to match case\n"
 	 "    Use -r when string is a Regular Expression\n"
 	 "    Use -- (double hyphen) to end options when searching for, say, the string '-r'")},

@@ -621,13 +621,22 @@ fe_init (void)
 
 
 /* tests: NEXCHAT_TABS_DUMP=1 prints every tab's text on stderr each second,
-   each round after a "tabs:" line */
+   each round after a "tabs:" line; =text also prints the front window's
+   lines ("line: ...") */
+static void
+fe_dump_line (GtkXText *xtext, unsigned char *text, void *d)
+{
+	g_printerr ("line: %s\n", text);
+}
+
 static gboolean
 fe_tabs_dump (gpointer d)
 {
 	GSList *l;
 
 	g_printerr ("tabs:\n");
+	if (!g_strcmp0 (g_getenv ("NEXCHAT_TABS_DUMP"), "text") && current_sess && current_sess->res)
+		gtk_xtext_foreach (current_sess->res->buffer, fe_dump_line, NULL);
 	if (current_sess && current_sess->gui && current_sess->gui->xtext)
 	{
 		const char *tip = gtk_widget_get_tooltip_text (current_sess->gui->xtext);
@@ -1221,21 +1230,15 @@ fe_beep (session *sess)
 #endif
 }
 
-void
-fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+/* set lbuf up to search for sstr; FALSE (and said why) for a bad regex */
+static gboolean
+lastlog_prepare (xtext_buffer *lbuf, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
 {
 	GError *err = NULL;
-	xtext_buffer *buf, *lbuf;
 
-	buf = sess->res->buffer;
-
-	if (gtk_xtext_is_empty (buf))
-	{
-		PrintText (lastlog_sess, _("Search buffer is empty.\n"));
-		return;
-	}
-
-	lbuf = lastlog_sess->res->buffer;
+	g_clear_pointer (&lbuf->search_re, g_regex_unref);
+	g_clear_pointer (&lbuf->search_nee, g_free);
+	g_clear_pointer (&lbuf->search_text, g_free);
 	if (flags & regexp)
 	{
 		GRegexCompileFlags gcf = (flags & case_match)? 0: G_REGEX_CASELESS;
@@ -1245,7 +1248,7 @@ fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_f
 		{
 			PrintText (lastlog_sess, _(err->message));
 			g_error_free (err);
-			return;
+			return FALSE;
 		}
 	}
 	else
@@ -1260,9 +1263,47 @@ fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_f
 		}
 		lbuf->search_lnee = strlen (lbuf->search_nee);
 	}
-	lbuf->search_flags = flags;
+	lbuf->search_flags = flags & ~lastlog_all;
 	lbuf->search_text = g_strdup (sstr);
+	return TRUE;
+}
+
+void
+fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+{
+	xtext_buffer *buf, *lbuf;
+
+	buf = sess->res->buffer;
+
+	if (gtk_xtext_is_empty (buf))
+	{
+		PrintText (lastlog_sess, _("Search buffer is empty.\n"));
+		return;
+	}
+
+	lbuf = lastlog_sess->res->buffer;
+	if (!lastlog_prepare (lbuf, lastlog_sess, sstr, flags))
+		return;
 	gtk_xtext_lastlog (lbuf, buf);
+}
+
+int
+fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+{
+	xtext_buffer *buf = sess->res->buffer, *lbuf = lastlog_sess->res->buffer;
+	int n;
+	char *head;
+
+	if (!lastlog_prepare (lbuf, lastlog_sess, sstr, flags))
+		return -1;
+	n = gtk_xtext_lastlog_count (lbuf, buf);
+	if (n <= 0 || gtk_xtext_is_empty (buf))
+		return 0;
+	head = g_strdup_printf ("\002%s\002 (%s): %d\n", sess->channel,
+									server_get_network (sess->server, TRUE), n);
+	PrintText (lastlog_sess, head);
+	g_free (head);
+	return gtk_xtext_lastlog (lbuf, buf);
 }
 
 void

@@ -291,6 +291,7 @@ void gtk_xtext_clear (xtext_buffer *buf, int lines);
 void gtk_xtext_save (GtkXText * xtext, int fh);
 void gtk_xtext_refresh (GtkXText * xtext);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);
+int gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area);
 textentry *gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags flags, GError **err);
 void gtk_xtext_reset_marker_pos (GtkXText *xtext);
 int gtk_xtext_moveto_marker_pos (GtkXText *xtext);
