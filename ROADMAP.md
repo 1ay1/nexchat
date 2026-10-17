@@ -273,7 +273,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 
 Speed (phase 7 continues):
 - [x] Channel lookups: measured, not a problem. `find_channel` walks every session, but `tests/bench-lines.py` gets ~90k lines/s in fe-text and ~66k in the GUI with 5 channels or 1000 alike. No hash needed.
-- [ ] xtext rewraps the whole scrollback on every width change; rewrap what's on screen first and the rest when idle.
+- [x] Resize: measured, not a problem. Rewrapping a full 5000-line scrollback (7.5k-10k wrapped lines) takes 3-5 ms per width change, under a frame.
 
 ## 9. Places where GTK4/Wayland fight the HexChat UX
 
