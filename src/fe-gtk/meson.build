@@ -34,6 +34,9 @@ hexchat_gtk_sources = [
   'xtext.c'
 ]
 
+# GTK4's headers re-typedef forward-declared types, a C11 feature
+gtk_c_std = gtk_version == '4' ? ['c_std=gnu11'] : []
+
 if gtk_version == '4'
   gtk_dep = dependency('gtk4', version: '>= 4.14.0')
   # no GtkStatusIcon in GTK4: a StatusNotifierItem over D-Bus on Unix
@@ -144,6 +147,7 @@ hexchat_gtk = executable('nexchat',
   pie: true,
   install: true,
   gui_app: true,
+  override_options: gtk_c_std,
 )
 
 # colors.conf values must survive GdkRGBA unchanged (no GTK needed)
@@ -157,6 +161,7 @@ test('palette-roundtrip', executable('palette-roundtrip',
 gtkcompat_test = executable('gtkcompat-test',
   sources: ['../../tests/gtkcompat-test.c'],
   include_directories: include_directories('.'),
+  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
@@ -170,6 +175,7 @@ if gtk_version == '3'
 gtkdnd_test = executable('gtkdnd-test',
   sources: ['../../tests/gtkdnd-test.c', 'gtkdnd.c'],
   include_directories: include_directories('.'),
+  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 endif
@@ -185,6 +191,7 @@ endif
 nxmenu_test = executable('nxmenu-test',
   sources: nxmenu_test_sources,
   include_directories: include_directories('.'),
+  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
@@ -195,6 +202,7 @@ endif
 nxlist_test = executable('nxlist-test',
   sources: ['../../tests/nxlist-test.c', 'nxlist.c'],
   include_directories: include_directories('.'),
+  override_options: gtk_c_std,
   dependencies: gtk_dep,
 )
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')

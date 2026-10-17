@@ -216,7 +216,7 @@ static const struct key_action key_actions[KEY_MAX_ACTIONS + 1] = {
 	"ACCEL=F9\nRun Command\nD1:/GUI MENU TOGGLE\nD2!\n\n"
 
 void
-key_init ()
+key_init (void)
 {
 	if (key_load_kbs () == 1)
 	{
@@ -753,7 +753,7 @@ key_dialog_load (nx_store *store)
 }
 
 void
-key_dialog_show ()
+key_dialog_show (void)
 {
 	GtkWidget *vbox, *box;
 	GtkWidget *view, *xtext;

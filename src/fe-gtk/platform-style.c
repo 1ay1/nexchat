@@ -349,6 +349,7 @@ platform_style_css (GString *s)
 	}
 	(void) aqua_css;
 #elif defined(__APPLE__)
+	(void) fluent_css;
 	aqua_css (s, platform_style_dark ());
 	g_string_append (s, "window { font-family: \".AppleSystemUIFont\", \"Helvetica Neue\"; font-size: 13px; }\n");
 #else

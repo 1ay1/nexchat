@@ -188,7 +188,7 @@ get_gpu(void)
 	CFMutableDictionaryRef pciDevices = IOServiceMatching("IOPCIDevice");
 	io_iterator_t entry_iterator, serviceObject;
 
-	if (IOServiceGetMatchingServices(kIOMasterPortDefault, pciDevices, &entry_iterator) != kIOReturnSuccess)
+	if (IOServiceGetMatchingServices(kIOMainPortDefault, pciDevices, &entry_iterator) != kIOReturnSuccess)
 		return NULL;
 
 	GString *gpu_list = g_string_new(NULL);

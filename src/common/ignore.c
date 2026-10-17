@@ -273,7 +273,7 @@ ignore_read_next_entry (char *my_cfg, struct ignore *ignore)
 }
 
 void
-ignore_load ()
+ignore_load (void)
 {
 	struct ignore *ignore;
 	struct stat st;
@@ -304,7 +304,7 @@ ignore_load ()
 }
 
 void
-ignore_save ()
+ignore_save (void)
 {
 	char buf[1024];
 	int fh;

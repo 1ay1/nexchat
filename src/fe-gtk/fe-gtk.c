@@ -1396,6 +1396,7 @@ osx_show_uri (const char *url)
 
 #endif
 
+#if !defined(WIN32) && !defined(__APPLE__)
 static inline char *
 escape_uri (const char *uri)
 {
@@ -1434,6 +1435,7 @@ maybe_escape_uri (const char *uri)
 	/* At this point it is probably safe to pass through as-is. */
 	return g_strdup (uri);
 }
+#endif
 
 static void
 fe_open_url_inner (const char *url)

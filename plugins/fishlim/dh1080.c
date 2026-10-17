@@ -29,6 +29,8 @@
 #include "config.h"
 #include "dh1080.h"
 
+/* DH1080 needs the raw low-level DH API; OpenSSL 3 deprecates it but keeps it */
+#define OPENSSL_SUPPRESS_DEPRECATED
 #include <openssl/bn.h>
 #include <openssl/dh.h>
 #include <openssl/sha.h>

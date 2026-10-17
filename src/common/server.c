@@ -669,7 +669,11 @@ conn_fail:
 	} else
 	{
 		SSL_SESSION *session = SSL_get_session (serv->ssl);
+#if OPENSSL_VERSION_NUMBER >= 0x30300000L
+		if (session && SSL_SESSION_get_time_ex (session) + SSLTMOUT < time (NULL))
+#else
 		if (session && SSL_SESSION_get_time (session) + SSLTMOUT < time (NULL))
+#endif
 		{
 			g_snprintf (buf, sizeof (buf), "SSL handshake timed out");
 			EMIT_SIGNAL (XP_TE_CONNFAIL, serv->server_session, buf, NULL,

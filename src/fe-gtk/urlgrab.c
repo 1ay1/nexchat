@@ -167,7 +167,7 @@ populate_cb (char *urltext, gpointer userdata)
 }
 
 void
-url_opengui ()
+url_opengui (void)
 {
 	GtkWidget *vbox, *hbox, *view;
 	char buf[128];

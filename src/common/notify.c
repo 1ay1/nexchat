@@ -668,7 +668,7 @@ notify_isnotify (struct session *sess, char *name)
 }
 
 void
-notify_cleanup ()
+notify_cleanup (void)
 {
 	GSList *list = notify_list;
 	GSList *nslist, *srvlist;

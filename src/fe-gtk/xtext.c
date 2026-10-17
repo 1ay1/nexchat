@@ -223,12 +223,14 @@ xtext_backing_update (GtkXText *xtext)
 	GtkWidget *widget = GTK_WIDGET (xtext);
 	int w = MAX (1, nx_widget_get_allocated_width (widget));
 	int h = MAX (1, nx_widget_get_allocated_height (widget));
+	int scale;
 
 	if (!gtk_widget_get_realized (widget))
 		return;
-	if (xtext->backing &&
-		 cairo_image_surface_get_width (xtext->backing) == w * xtext->backing_scale &&
-		 cairo_image_surface_get_height (xtext->backing) == h * xtext->backing_scale)
+	scale = MAX (1, gtk_widget_get_scale_factor (widget));
+	if (xtext->backing && xtext->backing_scale == scale &&
+		 cairo_image_surface_get_width (xtext->backing) == w * scale &&
+		 cairo_image_surface_get_height (xtext->backing) == h * scale)
 		return;
 
 	if (xtext->cr)
@@ -236,17 +238,12 @@ xtext_backing_update (GtkXText *xtext)
 	if (xtext->backing)
 		cairo_surface_destroy (xtext->backing);
 
-#if GTK_CHECK_VERSION(4, 0, 0)
-	/* no GdkWindow: an image surface at the surface's scale */
-	xtext->backing_scale = gtk_widget_get_scale_factor (widget);
-	xtext->backing = cairo_image_surface_create (CAIRO_FORMAT_RGB24,
-												w * xtext->backing_scale, h * xtext->backing_scale);
-	cairo_surface_set_device_scale (xtext->backing, xtext->backing_scale, xtext->backing_scale);
-#else
-	xtext->backing = gdk_window_create_similar_image_surface (gtk_widget_get_window (widget),
-													CAIRO_FORMAT_RGB24, w, h, 0);
-	xtext->backing_scale = gdk_window_get_scale_factor (gtk_widget_get_window (widget));
-#endif
+	/* an image surface at the widget's scale, made by hand: GTK3's
+	   gdk_window_create_similar_image_surface() sizes it in points on
+	   Quartz, so Retina only filled the top-left quarter of the view */
+	xtext->backing_scale = scale;
+	xtext->backing = cairo_image_surface_create (CAIRO_FORMAT_RGB24, w * scale, h * scale);
+	cairo_surface_set_device_scale (xtext->backing, scale, scale);
 	xtext->cr = cairo_create (xtext->backing);
 	xtext->backing_stale = TRUE;
 	xtext_draw_bg (xtext, 0, 0, w, h);
@@ -4712,13 +4709,12 @@ gtk_xtext_check_marker_visibility (GtkXText * xtext)
 static void
 gtk_xtext_unstrip_color (gint start, gint end, GSList *slp, GList **gl, gint maxo)
 {
-	gint off1, off2, curlen;
+	gint off1, off2;
 	GSList *cursl;
 	offsets_t marks;
 	offlen_t *meta;
 
 	off1 = 0;
-	curlen = 0;
 	cursl = slp;
 	while (cursl)
 	{
@@ -4728,7 +4724,6 @@ gtk_xtext_unstrip_color (gint start, gint end, GSList *slp, GList **gl, gint max
 			off1 = meta->off + start;
 			break;
 		}
-		curlen += meta->len;
 		start -= meta->len;
 		end -= meta->len;
 		cursl = g_slist_next (cursl);
@@ -4743,7 +4738,6 @@ gtk_xtext_unstrip_color (gint start, gint end, GSList *slp, GList **gl, gint max
 			off2 = meta->off + end;
 			break;
 		}
-		curlen += meta->len;
 		end -= meta->len;
 		cursl = g_slist_next (cursl);
 	}
