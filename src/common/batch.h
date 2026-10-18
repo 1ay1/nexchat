@@ -19,6 +19,12 @@ gboolean batch_collect (server *serv, const char *id, session *sess, const char 
 void batch_reset (server *serv);
 /* the line belongs to a chathistory batch */
 gboolean batch_is_history (server *serv, const char *id);
+/* the raw tags of the line being handled, for BATCH +id draft/multiline */
+void batch_note_tags (const char *tags);
+/* a PRIVMSG/NOTICE inside a draft/multiline batch: TRUE if it was kept
+   (the whole message is replayed as plain lines when the batch ends) */
+gboolean batch_multiline_take (server *serv, const char *id, const char *tags,
+								const char *line, const message_tags_data *tags_data);
 
 /* IRCv3 draft/chathistory: ask for the latest lines of a channel just
    joined (newer than what scrollback already shows) */

@@ -1765,6 +1765,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_chathistory = enable;
 		else if (!strcmp (extension, "draft/read-marker"))
 			serv->have_readmarker = enable;
+		else if (!strcmp (extension, "draft/multiline"))
+			serv->have_multiline = enable;
 		else if (!strcmp (extension, "message-tags"))
 			serv->have_message_tags = enable;
 		else if (!strcmp (extension, "sasl"))
@@ -1961,6 +1963,29 @@ inbound_cap_ls (server *serv, char *nick, char *extensions_str,
 			continue;
 		}
 #endif
+
+		/* multiline is asked for only when it's turned on; its limits come here */
+		if (!g_strcmp0 (extension, "draft/multiline"))
+		{
+			char **kv = g_strsplit (value ? value : "", ",", 0);
+			int k;
+
+			serv->multiline_max_bytes = serv->multiline_max_lines = 0;
+			for (k = 0; kv[k]; k++)
+			{
+				if (g_str_has_prefix (kv[k], "max-bytes="))
+					serv->multiline_max_bytes = atoi (kv[k] + 10);
+				else if (g_str_has_prefix (kv[k], "max-lines="))
+					serv->multiline_max_lines = atoi (kv[k] + 10);
+			}
+			g_strfreev (kv);
+			if (prefs.hex_gui_multiline && serv->multiline_max_bytes > 0)
+			{
+				g_strlcat (buffer, "draft/multiline ", sizeof (buffer));
+				want_cap = TRUE;
+			}
+			continue;
+		}
 
 		/* if the SASL password is set AND auth mode is set to SASL, request SASL auth */
 		if (!g_strcmp0 (extension, "sasl") &&

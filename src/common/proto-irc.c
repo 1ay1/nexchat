@@ -1663,6 +1663,9 @@ handle_message_tags (server *serv, const char *tags_str,
 			tags_data->msgid = g_strdup (value);
 		}
 
+		if (!strcmp (key, "draft/multiline-concat"))
+			tags_data->concat = TRUE;
+
 		if (value && *value && (!strcmp (key, "+draft/reply") || !strcmp (key, "+reply")))
 		{
 			g_free (tags_data->reply);
@@ -1683,6 +1686,7 @@ irc_inline (server *serv, char *buf, int len)
 	char *word_eol[PDIWORDS+1];
 	char *pdibuf;
 	message_tags_data tags_data = MESSAGE_TAGS_DATA_INIT;
+	char *tags = NULL;
 
 	pdibuf = g_malloc (len + 1);
 
@@ -1694,8 +1698,9 @@ irc_inline (server *serv, char *buf, int len)
 
 	if (*buf == '@')
 	{
-		char *tags = buf + 1; /* skip the '@' */
 		char *sep = strchr (buf, ' ');
+
+		tags = buf + 1; /* skip the '@' */
 
 		if (!sep)
 			goto xit;
@@ -1705,6 +1710,11 @@ irc_inline (server *serv, char *buf, int len)
 
 		handle_message_tags(serv, tags, &tags_data);
 	}
+
+	/* a line of a draft/multiline batch: kept until the batch ends */
+	batch_note_tags (tags);
+	if (tags_data.batch && batch_multiline_take (serv, tags_data.batch, tags, buf, &tags_data))
+		goto xit;
 
 	/* a line from a chathistory batch: shown, not alerted or logged again */
 	serv->line_is_history = batch_is_history (serv, tags_data.batch);
@@ -1767,6 +1777,7 @@ irc_inline (server *serv, char *buf, int len)
 
 xit:
 	serv->line_is_history = FALSE;
+	batch_note_tags (NULL);
 	message_tags_data_free (&tags_data);
 	g_free (pdibuf);
 }

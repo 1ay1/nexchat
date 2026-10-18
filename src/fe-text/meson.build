@@ -51,6 +51,11 @@ test('reply', find_program('sh'),
   timeout: 60,
 )
 
+test('multiline', find_program('sh'),
+  args: [files('../../tests/multiline.sh'), hexchat_text],
+  timeout: 90,
+)
+
 if libssl_dep.found() and find_program('openssl', required: false).found()
   test('sts', find_program('python3'),
     args: [files('../../tests/sts.py'), hexchat_text],

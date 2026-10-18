@@ -5198,10 +5198,112 @@ handle_user_input (session *sess, char *text, int history, int nocommand)
 	return handle_command (sess, text + 1, TRUE);
 }
 
+/* several lines of text (no commands) to a channel or person, on a
+   server with draft/multiline: one batch, so they arrive as one message.
+   FALSE if it can't go that way (then each line is sent on its own). */
+static gboolean
+send_multiline (session *sess, char **lines, int n)
+{
+	server *serv = sess->server;
+	message_tags_data no_tags = MESSAGE_TAGS_DATA_INIT;
+	char id[16];
+	int i, total = 0, max_lines = serv->multiline_max_lines;
+	/* room for the text in one line: 512 less ":nick!user@host PRIVMSG #chan :\r\n"
+	   and the batch tag (tags have their own budget, so that part is spare) */
+	int room = 512 - 14 - (int) strlen (serv->nick) - (int) strlen (sess->channel)
+				- (sess->me && sess->me->hostname ? (int) strlen (sess->me->hostname) : 74);
+	int sent = 0;
+
+	if (!prefs.hex_gui_multiline || !serv->have_multiline || !serv->have_batch || !serv->connected ||
+		 (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG) || room < 50)
+		return FALSE;
+	for (i = 0; i < n; i++)
+	{
+		if (lines[i][0] == prefs.hex_input_command_char[0] && lines[i][1] != prefs.hex_input_command_char[0])
+			return FALSE;
+		total += strlen (lines[i]) + 1;
+	}
+	if (serv->multiline_max_bytes && total > serv->multiline_max_bytes)
+		return FALSE;
+	/* how many protocol lines that makes, against max-lines */
+	for (i = 0; i < n; i++)
+	{
+		int len = strlen (lines[i]) - (lines[i][0] == prefs.hex_input_command_char[0]);
+		sent += len ? (len + room - 1) / room : 1;
+	}
+	if (max_lines && sent > max_lines)
+		return FALSE;
+
+	g_snprintf (id, sizeof id, "nx%u", g_random_int ());
+	tcp_sendf (serv, "BATCH +%s draft/multiline %s\r\n", id, sess->channel);
+	for (i = 0; i < n; i++)
+	{
+		const char *t = lines[i];
+		int left;
+		gboolean more = FALSE;
+
+		/* "//text" says "/text" */
+		if (t[0] == prefs.hex_input_command_char[0])
+			t++;
+		left = strlen (t);
+		if (!left)
+			/* blank line: fine inside, not concatenated */
+			tcp_sendf (serv, "@batch=%s PRIVMSG %s :\r\n", id, sess->channel);
+		/* longer than a line: the rest continues it (multiline-concat) */
+		while (left > 0)
+		{
+			int take = left, step = 0;
+
+			if (take > room)
+			{
+				while (step + g_utf8_skip[(guchar) t[step]] <= room)
+					step += g_utf8_skip[(guchar) t[step]];
+				take = step;
+			}
+			tcp_sendf (serv, "@batch=%s%s PRIVMSG %s :%.*s\r\n", id,
+						  more ? ";draft/multiline-concat" : "", sess->channel, take, t);
+			t += take;
+			left -= take;
+			more = TRUE;
+		}
+	}
+	tcp_sendf (serv, "BATCH -%s\r\n", id);
+
+	/* without echo-message it's shown here as typed */
+	if (!serv->have_echo)
+		for (i = 0; i < n; i++)
+			if (*lines[i])
+				inbound_chanmsg (serv, sess, sess->channel, serv->nick,
+									  lines[i] + (lines[i][0] == prefs.hex_input_command_char[0]),
+									  TRUE, FALSE, &no_tags);
+	return TRUE;
+}
+
 /* changed by Steve Green. Macs sometimes paste with imbedded \r */
 void
 handle_multiline (session *sess, char *cmd, int history, int nocommand)
 {
+	/* text of more than one line: one message where the server allows it */
+	if (!nocommand && strpbrk (cmd, "\r\n") && prefs.hex_gui_multiline)
+	{
+		char **lines = g_regex_split_simple ("\r\n|\r|\n", cmd, 0, 0);
+		int n = g_strv_length (lines);
+
+		/* a trailing newline isn't a line of its own */
+		while (n > 1 && !*lines[n - 1])
+		{
+			g_free (lines[n - 1]);
+			lines[--n] = NULL;
+		}
+		if (n > 1 && send_multiline (sess, lines, n))
+		{
+			if (history)
+				history_add (&sess->history, cmd);
+			g_strfreev (lines);
+			return;
+		}
+		g_strfreev (lines);
+	}
 	while (*cmd)
 	{
 		char *cr = cmd + strcspn (cmd, "\n\r");

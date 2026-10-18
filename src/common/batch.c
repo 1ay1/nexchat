@@ -28,7 +28,15 @@ typedef struct
 	char *type;			/* "netsplit", "netjoin", ... */
 	char *params;		/* the two server names, for netsplit/netjoin */
 	GHashTable *nicks;	/* channel session -> GString of nicks */
+	/* draft/multiline */
+	char *tags;			/* the BATCH line's tags (time, msgid, account...) */
+	char *head;			/* ":nick!u@h PRIVMSG #chan" of its first line */
+	GString *text;		/* the message so far, lines joined by \n */
+	int lines;
 } irc_batch;
+
+/* tags of the line being handled (irc_inline), for a BATCH + line */
+static const char *line_tags;
 
 static void
 batch_free (irc_batch *b)
@@ -36,6 +44,10 @@ batch_free (irc_batch *b)
 	g_free (b->type);
 	g_free (b->params);
 	g_hash_table_destroy (b->nicks);
+	g_free (b->tags);
+	g_free (b->head);
+	if (b->text)
+		g_string_free (b->text, TRUE);
 	g_free (b);
 }
 
@@ -58,6 +70,64 @@ static gboolean
 is_split_type (const char *type)
 {
 	return !g_ascii_strcasecmp (type, "netsplit") || !g_ascii_strcasecmp (type, "netjoin");
+}
+
+static gboolean
+is_multiline_type (const char *type)
+{
+	return !g_ascii_strcasecmp (type, "draft/multiline") || !g_ascii_strcasecmp (type, "multiline");
+}
+
+/* the BATCH line's tags without msgid, for the lines after the first */
+static char *
+tags_without_msgid (const char *tags)
+{
+	char **t = g_strsplit (tags, ";", 0);
+	GString *out = g_string_new (NULL);
+	int i;
+
+	for (i = 0; t[i]; i++)
+	{
+		if (!*t[i] || !strcmp (t[i], "msgid") || g_str_has_prefix (t[i], "msgid="))
+			continue;
+		if (out->len)
+			g_string_append_c (out, ';');
+		g_string_append (out, t[i]);
+	}
+	g_strfreev (t);
+	return g_string_free (out, FALSE);
+}
+
+/* the whole message is here: each of its lines handled like a line of its
+   own from that person, the batch's tags (time, account) on all of them
+   and its msgid on the first. Blank lines are left out. */
+static void
+multiline_end (server *serv, irc_batch *b)
+{
+	char **lines, *rest;
+	int i, first = TRUE;
+
+	if (!b->head || !b->text)
+		return;
+	rest = tags_without_msgid (b->tags);
+	lines = g_strsplit (b->text->str, "\n", 0);
+	for (i = 0; lines[i]; i++)
+	{
+		const char *t = first ? b->tags : rest;
+		char *raw;
+
+		if (!*lines[i])
+			continue;
+		raw = *t ? g_strdup_printf ("@%s %s :%s", t, b->head, lines[i])
+				  : g_strdup_printf ("%s :%s", b->head, lines[i]);
+		serv->p_inline (serv, raw, strlen (raw));
+		g_free (raw);
+		first = FALSE;
+		if (!is_server (serv))
+			break;
+	}
+	g_strfreev (lines);
+	g_free (rest);
 }
 
 static void
@@ -99,6 +169,11 @@ batch_command (server *serv, char *word[], char *word_eol[])
 		g_hash_table_replace (batches (serv), g_strdup (ref + 1), b);
 		if (!g_ascii_strcasecmp (b->type, "chathistory"))
 			chathistory_begin (serv, word[5]);
+		else if (is_multiline_type (b->type))
+		{
+			b->tags = g_strdup (line_tags ? line_tags : "");
+			b->text = g_string_new (NULL);
+		}
 	}
 	else if (ref[0] == '-')
 	{
@@ -109,6 +184,14 @@ batch_command (server *serv, char *word[], char *word_eol[])
 				batch_end (serv, b);
 			else if (!g_ascii_strcasecmp (b->type, "chathistory"))
 				chathistory_end (serv, b->params);
+			else if (is_multiline_type (b->type))
+			{
+				/* out of the table first: the replay goes through irc_inline */
+				g_hash_table_steal (batches (serv), ref + 1);
+				multiline_end (serv, b);
+				batch_free (b);
+				return;
+			}
 			g_hash_table_remove (batches (serv), ref + 1);
 		}
 	}
@@ -153,6 +236,55 @@ void
 batch_reset (server *serv)
 {
 	g_clear_pointer (&serv->batches, g_hash_table_destroy);
+}
+
+void
+batch_note_tags (const char *tags)
+{
+	line_tags = tags;
+}
+
+/* a bigger message than any server allows: the rest is dropped */
+#define MULTILINE_MAX (64 * 1024)
+
+gboolean
+batch_multiline_take (server *serv, const char *id, const char *tags,
+							 const char *line, const message_tags_data *tags_data)
+{
+	irc_batch *b;
+	const char *p, *text;
+	int words;
+
+	if (!id || !serv->batches)
+		return FALSE;
+	b = g_hash_table_lookup (serv->batches, id);
+	if (!b || !b->text)
+		return FALSE;
+
+	/* ":src CMD target :text": the text, and the part before it */
+	for (p = line, words = 0; *p && words < 3; words++)
+	{
+		p = strchr (p, ' ');
+		if (!p)
+			return TRUE;	/* not a message: nothing to keep */
+		while (*p == ' ')
+			p++;
+	}
+	text = *p == ':' ? p + 1 : p;
+	if (!b->head)
+	{
+		const char *end = p;
+		while (end > line && end[-1] == ' ')
+			end--;
+		b->head = g_strndup (line, end - line);
+	}
+	if (b->text->len + strlen (text) + 1 > MULTILINE_MAX)
+		return TRUE;
+	if (b->lines++ && !tags_data->concat)
+		g_string_append_c (b->text, '\n');
+	g_string_append (b->text, text);
+	(void) tags;
+	return TRUE;
 }
 
 /* ---- draft/chathistory ---- */

@@ -32,6 +32,7 @@
 		NULL, /* +typing */			\
 		NULL, /* msgid */			\
 		NULL, /* +draft/reply */		\
+		FALSE, /* draft/multiline-concat */	\
 	}
 
 #define STRIP_COLON(word, word_eol, idx) (word)[(idx)][0] == ':' ? (word_eol)[(idx)]+1 : (word)[(idx)]
@@ -49,6 +50,7 @@ typedef struct
 	char *typing;		/* +typing: active, paused or done */
 	char *msgid;		/* the server's id for this message */
 	char *reply;		/* +draft/reply: the msgid this one answers */
+	gboolean concat;	/* draft/multiline-concat: joins the previous line without a newline */
 } message_tags_data;
 
 void message_tags_data_free (message_tags_data *tags_data);

@@ -198,6 +198,7 @@ struct hexchatprefs
 	unsigned int hex_gui_typing_show;	/* show "alice is typing..." */
 	unsigned int hex_gui_typing_send;	/* tell others when we're typing */
 	unsigned int hex_gui_replies;	/* show what a +draft/reply line answers */
+	unsigned int hex_gui_multiline;	/* Shift+Enter new line; lines sent as one message */
 	unsigned int hex_net_auto_reconnect;
 	unsigned int hex_net_auto_reconnectonfail;
 	unsigned int hex_net_proxy_auth;
@@ -514,6 +515,8 @@ typedef struct server
 	/* dcc_ip moved from hexchatprefs to make it per-server */
 	guint32 dcc_ip;
 	GHashTable *batches;	/* open IRCv3 batches, id -> batch.c's record */
+	int multiline_max_bytes;	/* draft/multiline limits from CAP LS (0: none given) */
+	int multiline_max_lines;
 
 #ifdef USE_OPENSSL
 	SSL_CTX *ctx;
@@ -606,6 +609,7 @@ typedef struct server
 	unsigned int have_chathistory:1;	/* cap draft/chathistory */
 	unsigned int have_readmarker:1;	/* cap draft/read-marker */
 	unsigned int have_message_tags:1;	/* cap message-tags: we may send client tags */
+	unsigned int have_multiline:1;	/* cap draft/multiline */
 	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */

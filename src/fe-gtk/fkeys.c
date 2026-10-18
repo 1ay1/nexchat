@@ -426,6 +426,23 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 	if (r != KEY_NOT_HANDLED)
 		goto done;
 
+	/* Shift+Enter: a new line in the same message (gui_multiline) */
+	if (prefs.hex_gui_multiline && mods == STATE_SHIFT &&
+		 (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter || keyval == GDK_KEY_ISO_Enter))
+	{
+		int pos = gtk_editable_get_position (GTK_EDITABLE (wid));
+		int s, e;
+
+		if (gtk_editable_get_selection_bounds (GTK_EDITABLE (wid), &s, &e))
+		{
+			gtk_editable_delete_text (GTK_EDITABLE (wid), s, e);
+			pos = s;
+		}
+		gtk_editable_insert_text (GTK_EDITABLE (wid), "\n", 1, &pos);
+		gtk_editable_set_position (GTK_EDITABLE (wid), pos);
+		return TRUE;
+	}
+
 	/* Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0: text zoom */
 	if (prefs.hex_gui_zoom_keys && mods == STATE_CTRL)
 	{
