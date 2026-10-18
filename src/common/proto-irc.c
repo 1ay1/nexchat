@@ -1510,6 +1510,12 @@ process_named_servermsg (session *sess, char *buf, char *rawname, char *word[], 
 		bouncer_persistence (sess->server, word[2], word[3], STRIP_COLON (word, word_eol, 4));
 		return;
 	}
+	/* soju's own batches (search results) come without a prefix */
+	if (!strcmp (word[1], "BATCH"))
+	{
+		batch_line (sess->server, word[2], word[3], word[4], word_eol[4]);
+		return;
+	}
 
 	EMIT_SIGNAL_TIMESTAMP (XP_TE_SERVTEXT, sess, buf, sess->server->servername,
 								  rawname, NULL, 0, tags_data->timestamp);
@@ -1747,6 +1753,10 @@ irc_inline (server *serv, char *buf, int len)
 
 		handle_message_tags(serv, tags, &tags_data);
 	}
+
+	/* a search result from the bouncer: printed in the search window only */
+	if (tags_data.batch && bouncer_search_take (serv, tags_data.batch, buf, tags_data.timestamp))
+		goto xit;
 
 	/* a line of a draft/multiline batch: kept until the batch ends */
 	batch_note_tags (tags);

@@ -75,6 +75,14 @@ gboolean bouncer_set_persist (server *serv, gboolean on, char **err);
 /* list again (ZNC has no notifications) */
 void bouncer_refresh (server *serv);
 
+/* soju.im/search: search the bouncer's history of each target for text,
+   results printed in out as they come. FALSE (with *err) if it can't */
+gboolean bouncer_search (server *serv, session *out, char **targets, const char *text, char **err);
+/* a line of a soju.im/search batch: TRUE if it was taken (printed in out) */
+gboolean bouncer_search_take (server *serv, const char *batch, const char *line, time_t when);
+/* BATCH +id soju.im/search / BATCH -id */
+void bouncer_search_batch (server *serv, const char *id, gboolean start);
+
 /* /BOUNCER */
 int bouncer_cmd (session *sess, char *word[], char *word_eol[]);
 

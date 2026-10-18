@@ -68,7 +68,9 @@ are off until you turn them on.
   or not.
 - **Command list**: typing `/` shows the commands with what they do and an
   example.
-- **Log search**: `/lastlog -l word` searches every saved log.
+- **Log search**: `/lastlog -l word` searches every saved log, and with a
+  soju bouncer `/lastlog -s word` searches its history, including what was
+  said while nexchat was closed.
 - **Stay online** (Network List > Stay online...): stay in your channels while
   nexchat is closed. Point it at your soju or ZNC, or at a network that can
   keep you connected itself (Ergo), and it checks the login and sets the

@@ -77,3 +77,7 @@ test('bouncers-soju', find_program('sh'),
   args: [files('../../tests/bouncers-soju.sh'), hexchat_text],
   timeout: 480,
 )
+test('bouncers-search', find_program('sh'),
+  args: [files('../../tests/bouncers-search.sh'), hexchat_text],
+  timeout: 300,
+)

@@ -38,9 +38,19 @@ typedef struct
 	char *znc_error;	/* the first "Error: ..." among them */
 	/* what we asked the bouncer to do, to tell the user how it went */
 	char *pending;
+	/* soju.im/search in progress: the (lastlog) window, targets still to
+	   answer (in the order asked), the batch open now, matches so far */
+	gboolean search_cap;
+	session *search_out;
+	GQueue search_targets;
+	char *search_batch;
+	char *search_text;
+	int search_hits, search_here;
 } bnc_state;
 
 static GHashTable *states;	/* server -> bnc_state */
+
+static void search_finish (bnc_state *s);
 
 static void
 network_free (gpointer p)
@@ -66,6 +76,9 @@ state_free (gpointer p)
 		g_ptr_array_unref (s->znc_new);
 	g_free (s->pending);
 	g_free (s->znc_error);
+	g_queue_clear_full (&s->search_targets, g_free);
+	g_free (s->search_batch);
+	g_free (s->search_text);
 	g_free (s);
 }
 
@@ -279,7 +292,7 @@ void
 bouncer_cap_ls (server *serv, const char *cap, const char *value, char *buffer, int buflen, gboolean *want)
 {
 	if (!strcmp (cap, "soju.im/bouncer-networks") || !strcmp (cap, "soju.im/bouncer-networks-notify") ||
-		 !strcmp (cap, "draft/persistence"))
+		 !strcmp (cap, "draft/persistence") || !strcmp (cap, "soju.im/search"))
 	{
 		g_strlcat (buffer, cap, buflen);
 		g_strlcat (buffer, " ", buflen);
@@ -296,10 +309,12 @@ bouncer_cap_toggle (server *serv, const char *cap, gboolean enable)
 	bnc_state *s;
 
 	if (strcmp (cap, "soju.im/bouncer-networks") && strcmp (cap, "soju.im/bouncer-networks-notify") &&
-		 strcmp (cap, "draft/persistence"))
+		 strcmp (cap, "draft/persistence") && strcmp (cap, "soju.im/search"))
 		return;
 	s = state (serv);
-	if (!strcmp (cap, "soju.im/bouncer-networks"))
+	if (!strcmp (cap, "soju.im/search"))
+		s->search_cap = enable;
+	else if (!strcmp (cap, "soju.im/bouncer-networks"))
 	{
 		s->soju_cap = enable;
 		if (enable)
@@ -488,6 +503,17 @@ bouncer_fail (server *serv, char *word[], const char *text)
 {
 	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
 
+	/* a search the bouncer won't do: that place is done, say why once */
+	if (s && s->search_out && !g_ascii_strcasecmp (word[3], "SEARCH"))
+	{
+		char *t = g_queue_pop_head (&s->search_targets);
+		if (is_session (s->search_out))
+			PrintTextf (s->search_out, _("%s: the bouncer said: %s\n"), t ? t : "?", text);
+		g_free (t);
+		if (g_queue_is_empty (&s->search_targets))
+			search_finish (s);
+		return TRUE;
+	}
 	if (!s || (g_ascii_strcasecmp (word[3], "BOUNCER") && g_ascii_strcasecmp (word[3], "PERSISTENCE")))
 		return FALSE;
 	PrintTextf (serv->server_session, _("\00304*\tThe bouncer said no: %s\n"), text);
@@ -780,6 +806,148 @@ bouncer_set_persist (server *serv, gboolean on, char **err)
 	s->pending = g_strdup (on ? _("\00303*\tThe network will keep you online now, also while nexchat is closed.")
 							  : _("\00303*\tThe network won't keep you online after you quit any more."));
 	tcp_sendf (serv, "PERSISTENCE SET %s\r\n", on ? "ON" : "OFF");
+	return TRUE;
+}
+
+/* ---- soju.im/search ---- */
+
+/* the text as a SEARCH attribute value (message-tag escaping) */
+static char *
+search_value (const char *text)
+{
+	GString *a = g_string_new (NULL);
+	char *v;
+
+	attr (a, "text", text);
+	v = g_strdup (a->str + 5);	/* without "text=" */
+	g_string_free (a, TRUE);
+	return v;
+}
+
+static void
+search_finish (bnc_state *s)
+{
+	if (s->search_out && is_session (s->search_out))
+	{
+		if (!s->search_hits)
+			PrintTextf (s->search_out, _("No matches for \"%s\" on the bouncer.\n"), s->search_text);
+		else
+			PrintTextf (s->search_out, g_dngettext (GETTEXT_PACKAGE, "%d match on the bouncer.\n",
+														 "%d matches on the bouncer.\n", s->search_hits), s->search_hits);
+	}
+	s->search_out = NULL;
+	g_clear_pointer (&s->search_text, g_free);
+}
+
+gboolean
+bouncer_search (server *serv, session *out, char **targets, const char *text, char **err)
+{
+	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
+	char *v;
+	int i, n = 0;
+
+	*err = NULL;
+	if (!s || !s->search_cap || !serv->connected)
+	{
+		*err = g_strdup (_("This server can't search its history (it takes soju)."));
+		return FALSE;
+	}
+	if (s->search_out)
+	{
+		*err = g_strdup (_("A search on the bouncer is still running."));
+		return FALSE;
+	}
+	v = search_value (text);
+	for (i = 0; targets[i]; i++)
+	{
+		if (!plain_word (targets[i]))
+			continue;
+		tcp_sendf (serv, "SEARCH in=%s;text=%s;limit=100\r\n", targets[i], v);
+		g_queue_push_tail (&s->search_targets, g_strdup (targets[i]));
+		n++;
+	}
+	g_free (v);
+	if (!n)
+	{
+		*err = g_strdup (_("No channels or private chats here to search."));
+		return FALSE;
+	}
+	s->search_out = out;
+	s->search_text = g_strdup (text);
+	s->search_hits = 0;
+	PrintTextf (out, g_dngettext (GETTEXT_PACKAGE, "Searching the bouncer's history of %d place for \"%s\"...\n",
+										 "Searching the bouncer's history of %d places for \"%s\"...\n", n), n, text);
+	return TRUE;
+}
+
+void
+bouncer_search_batch (server *serv, const char *id, gboolean start)
+{
+	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
+	char *target;
+
+	if (!s || !s->search_out)
+		return;
+	if (start)
+	{
+		g_free (s->search_batch);
+		s->search_batch = g_strdup (id);
+		s->search_here = 0;
+		return;
+	}
+	if (g_strcmp0 (s->search_batch, id))
+		return;
+	g_clear_pointer (&s->search_batch, g_free);
+	/* that target is answered */
+	target = g_queue_pop_head (&s->search_targets);
+	g_free (target);
+	if (g_queue_is_empty (&s->search_targets))
+		search_finish (s);
+}
+
+gboolean
+bouncer_search_take (server *serv, const char *batch, const char *line, time_t when)
+{
+	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
+	char **w, *nick, *text, *stamp;
+	const char *target;
+
+	if (!s || !s->search_batch || !batch || strcmp (batch, s->search_batch))
+		return FALSE;
+	if (!s->search_out || !is_session (s->search_out))
+		return TRUE;
+	/* ":nick!u@h PRIVMSG #chan :text" */
+	w = g_strsplit (line, " ", 4);
+	if (!w[0] || !w[1] || !w[2] || !w[3] || w[0][0] != ':')
+	{
+		g_strfreev (w);
+		return TRUE;
+	}
+	nick = g_strndup (w[0] + 1, strcspn (w[0] + 1, "!"));
+	text = w[3][0] == ':' ? w[3] + 1 : w[3];
+	target = g_queue_peek_head (&s->search_targets);
+	if (!s->search_here++)
+		PrintTextf (s->search_out, "\002%s\002\n", target ? target : w[2]);
+	{
+		GDateTime *dt = when ? g_date_time_new_from_unix_local (when) : NULL;
+		stamp = dt ? g_date_time_format (dt, "%Y-%m-%d %H:%M") : g_strdup ("");
+		if (dt)
+			g_date_time_unref (dt);
+	}
+	if (!strcmp (w[1], "NOTICE"))
+		PrintTextf (s->search_out, "  %s  -%s- %s\n", stamp, nick, text);
+	else if (!strncmp (text, "\001ACTION ", 8))
+	{
+		char *act = g_strndup (text + 8, strcspn (text + 8, "\001"));
+		PrintTextf (s->search_out, "  %s  * %s %s\n", stamp, nick, act);
+		g_free (act);
+	}
+	else
+		PrintTextf (s->search_out, "  %s  <%s> %s\n", stamp, nick, text);
+	s->search_hits++;
+	g_free (stamp);
+	g_free (nick);
+	g_strfreev (w);
 	return TRUE;
 }
 

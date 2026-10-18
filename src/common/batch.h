@@ -12,6 +12,8 @@
 
 /* BATCH +id type params / BATCH -id */
 void batch_command (server *serv, char *word[], char *word_eol[]);
+/* the same with the words apart (BATCH lines without a prefix) */
+void batch_line (server *serv, const char *ref, const char *type, const char *param1, const char *params);
 /* a QUIT/JOIN in a netsplit/netjoin batch: TRUE if it went into the
    summary printed when the batch ends */
 gboolean batch_collect (server *serv, const char *id, session *sess, const char *nick);

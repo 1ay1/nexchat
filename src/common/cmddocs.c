@@ -33,6 +33,7 @@ static const cmddoc_opt opt_bouncer[] = {
 static const cmddoc_opt opt_lastlog[] = {
 	O ("-a", N_("search every open window, not just this one")),
 	O ("-l", N_("search your saved logs (everything you've logged)")),
+	O ("-s", N_("search the bouncer's history, also from while nexchat was closed (soju); with -a every channel")),
 	O ("-m", N_("match upper/lower case exactly")),
 	O ("-r", N_("the text is a regular expression")),
 	O ("-h", N_("highlight what was found")),

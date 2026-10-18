@@ -76,7 +76,7 @@ keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
 	"/bouncer add downnet 127.0.0.1:$ERGO_PORT -notls"
 {
 	sleep 1; echo "/server soju/downnet"; sleep 3
-	kill $(echo $BNC_PIDS | cut -d' ' -f1) 2>/dev/null; sleep 4
+	kill $(echo $BNC_PIDS | cut -d" " -f1) 2>/dev/null || true; sleep 4
 	echo "/quit"; sleep 0.5
 } | timeout 25 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
 has 'soju lost downnet' "soju: losing the network behind it is said"

@@ -2683,10 +2683,41 @@ lastlog (session *sess, char *search, gtk_xtext_search_flags flags)
 	if (!lastlog_sess)
 		lastlog_sess = new_ircwindow (sess->server, "(lastlog)", SESS_DIALOG, 0);
 
+	/* typed in (lastlog) itself: keep searching the window it was for */
+	if (sess == lastlog_sess && is_session (lastlog_sess->lastlog_sess))
+		sess = lastlog_sess->lastlog_sess;
 	lastlog_sess->lastlog_sess = sess;
 	lastlog_sess->lastlog_flags = flags;
 
 	fe_text_clear (lastlog_sess, 0);
+	if (flags & lastlog_server)
+	{
+		/* the bouncer's history: this window's channel, or with -a every
+		   channel and private chat on this server */
+		GPtrArray *t = g_ptr_array_new ();
+		char *err = NULL;
+		GSList *l;
+
+		fe_ctrl_gui (lastlog_sess, FE_GUI_FOCUS, 0);
+		for (l = sess_list; l; l = l->next)
+		{
+			session *s = l->data;
+			if (s == lastlog_sess || s->server != sess->server || !s->channel[0] ||
+				 (s->type != SESS_CHANNEL && s->type != SESS_DIALOG))
+				continue;
+			if (!(flags & lastlog_all) && s != sess)
+				continue;
+			g_ptr_array_add (t, s->channel);
+		}
+		g_ptr_array_add (t, NULL);
+		if (!bouncer_search (sess->server, lastlog_sess, (char **) t->pdata, search, &err))
+		{
+			PrintTextf (lastlog_sess, "%s\n", err);
+			g_free (err);
+		}
+		g_ptr_array_free (t, TRUE);
+		return;
+	}
 	if (flags & lastlog_logs_flag)
 	{
 		fe_ctrl_gui (lastlog_sess, FE_GUI_FOCUS, 0);
@@ -2747,6 +2778,9 @@ cmd_lastlog (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 				break;
 			case 'l':
 				flags |= lastlog_logs_flag;
+				break;
+			case 's':
+				flags |= lastlog_server;
 				break;
 			case '-':
 				doublehyphen = TRUE;
@@ -4312,9 +4346,10 @@ const struct commands xc_cmds[] = {
 	{"LAGCHECK", cmd_lagcheck, 0, 0, 1,
 	 N_("LAGCHECK, forces a new lag check")},
 	{"LASTLOG", cmd_lastlog, 0, 0, 1,
-	N_("LASTLOG [-a] [-l] [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
+	N_("LASTLOG [-a] [-l] [-s] [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
 	"    Use -a to search every open channel and query, not just this one\n"
 	"    Use -l to search your saved log files (every network and channel)\n"
+	"    Use -s to search the bouncer's history (soju), also from while nexchat was closed\n"
 	"    Use -h to highlight the found string(s)\n"
 	 "    Use -m to match case\n"
 	 "    Use -r when string is a Regular Expression\n"

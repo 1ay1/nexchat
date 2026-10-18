@@ -22,6 +22,7 @@
 #include "modes.h"
 #include "batch.h"
 #include "util.h"
+#include "bouncer.h"
 
 typedef struct
 {
@@ -163,19 +164,26 @@ batch_end (server *serv, irc_batch *b)
 void
 batch_command (server *serv, char *word[], char *word_eol[])
 {
-	char *ref = word[3];
+	batch_line (serv, word[3], word[4], word[5], word_eol[5]);
+}
 
+/* ref "+id"/"-id", then the type and its first parameter and all of them */
+void
+batch_line (server *serv, const char *ref, const char *type, const char *param1, const char *params)
+{
 	if (!ref[0] || !ref[1])
 		return;
 	if (ref[0] == '+')
 	{
 		irc_batch *b = g_new0 (irc_batch, 1);
-		b->type = g_strdup (word[4]);
-		b->params = g_strdup (word_eol[5][0] ? word_eol[5] : "");
+		b->type = g_strdup (type);
+		b->params = g_strdup (params[0] ? params : "");
 		b->nicks = g_hash_table_new_full (NULL, NULL, NULL, gstring_free);
 		g_hash_table_replace (batches (serv), g_strdup (ref + 1), b);
 		if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
-			chathistory_begin (serv, word[5]);
+			chathistory_begin (serv, param1);
+		else if (!g_ascii_strcasecmp (b->type, "soju.im/search"))
+			bouncer_search_batch (serv, ref + 1, TRUE);
 		else if (is_multiline_type (b->type))
 		{
 			b->tags = g_strdup (line_tags ? line_tags : "");
@@ -191,6 +199,8 @@ batch_command (server *serv, char *word[], char *word_eol[])
 				batch_end (serv, b);
 			else if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
 				chathistory_end (serv, b->params, b->lines);
+			else if (!g_ascii_strcasecmp (b->type, "soju.im/search"))
+				bouncer_search_batch (serv, ref + 1, FALSE);
 			else if (is_multiline_type (b->type))
 			{
 				/* out of the table first: the replay goes through irc_inline */
