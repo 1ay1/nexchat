@@ -90,7 +90,13 @@ endif
 
 if get_option('plugin')
   common_deps += libgmodule_dep
-  install_headers('hexchat-plugin.h', 'nexchat-plugin.h')
+  if get_option('install-hexchat-compat')
+    install_headers('hexchat-plugin.h', 'nexchat-plugin.h')
+  else
+    # nexchat-plugin.h includes it: under our own directory instead
+    install_headers('hexchat-plugin.h', subdir: 'nexchat')
+    install_headers('nexchat-plugin.h')
+  endif
 endif
 
 hexchat_common = static_library('hexchatcommon',

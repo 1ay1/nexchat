@@ -65,3 +65,6 @@ option('with-winamp', type: 'boolean',
 option('with-perl-legacy-api', type: 'boolean', value: false,
   description: 'Enables the legacy IRC perl module for compatibility with old scripts'
 )
+option('install-hexchat-compat', type: 'boolean', value: true,
+  description: 'Also install hexchat-plugin.h/.pc, so HexChat plugins build unchanged (off when HexChat is installed alongside)'
+)
