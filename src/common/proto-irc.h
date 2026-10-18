@@ -29,6 +29,7 @@
 		FALSE, /* identified to nick */ \
 		(time_t)0, /* timestamp */		\
 		NULL, /* batch id */			\
+		NULL, /* +typing */			\
 	}
 
 #define STRIP_COLON(word, word_eol, idx) (word)[(idx)][0] == ':' ? (word_eol)[(idx)]+1 : (word)[(idx)]
@@ -43,6 +44,7 @@ typedef struct
 	gboolean identified;
 	time_t timestamp;
 	char *batch;		/* the BATCH this line belongs to (IRCv3 batch) */
+	char *typing;		/* +typing: active, paused or done */
 } message_tags_data;
 
 void message_tags_data_free (message_tags_data *tags_data);

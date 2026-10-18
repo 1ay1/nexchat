@@ -193,6 +193,8 @@ struct hexchatprefs
 	unsigned int hex_irc_whois_front;
 	unsigned int hex_irc_cap_server_time;
 	unsigned int hex_irc_chathistory;	/* ask a server that has it for history on join */
+	unsigned int hex_gui_typing_show;	/* show "alice is typing..." */
+	unsigned int hex_gui_typing_send;	/* tell others when we're typing */
 	unsigned int hex_net_auto_reconnect;
 	unsigned int hex_net_auto_reconnectonfail;
 	unsigned int hex_net_proxy_auth;
@@ -440,6 +442,8 @@ typedef struct session
 	time_t history_until;	/* the newest message seen, to ask chathistory after it */
 	time_t read_until;		/* read up to here (draft/read-marker, any device) */
 	guint readmarker_tag;	/* a MARKREAD waiting to go (readmarker_soon) */
+	GHashTable *typers;	/* who's typing here: nick -> expiry (batch.c) */
+	gint64 typing_sent;	/* when we last said +typing=active, or 0 */
 	gtk_xtext_search_flags lastlog_flags;
 	void (*scrollback_replay_marklast) (struct session *sess);
 } session;
@@ -598,6 +602,7 @@ typedef struct server
 	unsigned int have_batch:1;	/* cap batch */
 	unsigned int have_chathistory:1;	/* cap draft/chathistory */
 	unsigned int have_readmarker:1;	/* cap draft/read-marker */
+	unsigned int have_message_tags:1;	/* cap message-tags: we may send client tags */
 	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */

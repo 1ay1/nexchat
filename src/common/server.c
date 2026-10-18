@@ -1819,6 +1819,7 @@ server_set_defaults (server *serv)
 	serv->have_batch = FALSE;
 	serv->have_chathistory = FALSE;
 	serv->have_readmarker = FALSE;
+	serv->have_message_tags = FALSE;
 	batch_reset (serv);
 	serv->have_sasl = FALSE;
 	serv->have_except = FALSE;

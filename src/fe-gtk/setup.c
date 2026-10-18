@@ -202,6 +202,8 @@ static const setting inputbox_settings[] =
 	{ST_TOGGLE, N_("Show user mode icon in nick box"), P_OFFINTNL(hex_gui_input_icon),0,0,0},
 	{ST_NUMBER, N_("Ask before sending a paste of more than:"), P_OFFINTNL(hex_gui_input_paste_max), N_("Pasting many lines by accident floods the channel. 0 never asks."), (const char **)N_("lines."), 1000},
 	{ST_TOGGLE, N_("Show commands and their usage while typing /"), P_OFFINTNL(hex_gui_input_cmdhelp), N_("A list above the input box: Up/Down pick, Tab or Enter fill in, Escape closes."),0,0},
+	{ST_TOGGLE, N_("Show who is typing"), P_OFFINTNL(hex_gui_typing_show), N_("\"alice is typing...\" under the input box, on servers that pass it on."),0,0},
+	{ST_TOGGLE, N_("Let others see when I'm typing"), P_OFFINTNL(hex_gui_typing_send), N_("Tells the channel or person you're typing to, on servers that pass it on."),0,0},
 	{ST_TOGGLE, N_("Spell checking"), P_OFFINTNL(hex_gui_input_spell),0,0,1},
 	{ST_ENTRY,	N_("Dictionaries to use:"), P_OFFSETNL(hex_text_spell_langs),0,0,sizeof prefs.hex_text_spell_langs},
 #ifdef WIN32

@@ -192,6 +192,8 @@ typedef enum
 void fe_tray_set_icon (feicon icon);
 void fe_tray_set_tooltip (const char *text);
 void fe_open_chan_list (server *serv, char *filter, int do_refresh);
+/* who's typing in sess changed (common/batch.c typing_text) */
+void fe_typing_changed (session *sess);
 const char *fe_get_default_font (void);
 
 #endif

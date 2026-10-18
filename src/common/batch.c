@@ -19,6 +19,7 @@
 #include "text.h"
 #include "server.h"
 #include "fe.h"
+#include "modes.h"
 #include "batch.h"
 
 typedef struct
@@ -259,4 +260,99 @@ readmarker_soon (session *sess)
 	if (!sess->server->have_readmarker || sess->readmarker_tag)
 		return;
 	sess->readmarker_tag = g_timeout_add_seconds (5, readmarker_timer, sess);
+}
+
+/* ---- +typing ---- */
+
+/* a typer goes stale after 6 s of nothing (active) or 30 s (paused), as
+   the spec says; sess->typers maps nick -> expiry (monotonic seconds) */
+static void
+typing_changed (session *sess)
+{
+	fe_typing_changed (sess);
+}
+
+void
+typing_from (server *serv, const char *nick, const char *target, const char *state)
+{
+	session *sess;
+	gint64 now = g_get_monotonic_time () / G_USEC_PER_SEC;
+
+	if (!prefs.hex_gui_typing_show)
+		return;
+	/* to a channel, or to us (then it's their query) */
+	sess = is_channel (serv, (char *) target) ? find_channel (serv, (char *) target)
+		: find_dialog (serv, (char *) nick);
+	if (!sess)
+		return;
+	if (!sess->typers)
+		sess->typers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+	if (!strcmp (state, "active"))
+		g_hash_table_replace (sess->typers, g_strdup (nick), GINT_TO_POINTER ((int) (now + 6)));
+	else if (!strcmp (state, "paused"))
+		g_hash_table_replace (sess->typers, g_strdup (nick), GINT_TO_POINTER ((int) (now + 30)));
+	else
+		g_hash_table_remove (sess->typers, nick);
+	typing_changed (sess);
+}
+
+void
+typing_clear (session *sess, const char *nick)
+{
+	if (sess->typers && g_hash_table_remove (sess->typers, nick))
+		typing_changed (sess);
+}
+
+char *
+typing_text (session *sess)
+{
+	GHashTableIter it;
+	gpointer k, v;
+	GPtrArray *who;
+	gint64 now = g_get_monotonic_time () / G_USEC_PER_SEC;
+	char *text = NULL;
+
+	if (!sess->typers || !prefs.hex_gui_typing_show)
+		return NULL;
+	who = g_ptr_array_new ();
+	g_hash_table_iter_init (&it, sess->typers);
+	while (g_hash_table_iter_next (&it, &k, &v))
+	{
+		if (GPOINTER_TO_INT (v) < now)
+			g_hash_table_iter_remove (&it);
+		else
+			g_ptr_array_add (who, k);
+	}
+	if (who->len == 1)
+		text = g_strdup_printf (_("%s is typing..."), (char *) who->pdata[0]);
+	else if (who->len == 2)
+		text = g_strdup_printf (_("%s and %s are typing..."), (char *) who->pdata[0], (char *) who->pdata[1]);
+	else if (who->len > 2)
+		text = g_strdup_printf (_("%d people are typing..."), who->len);
+	g_ptr_array_free (who, TRUE);
+	return text;
+}
+
+void
+typing_send (session *sess, gboolean active)
+{
+	server *serv = sess->server;
+	gint64 now = g_get_monotonic_time () / G_USEC_PER_SEC;
+
+	if (!prefs.hex_gui_typing_send || !serv || !serv->connected || !serv->have_message_tags ||
+		 !sess->channel[0] || (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG))
+		return;
+	if (active)
+	{
+		/* at most every 3 s while typing goes on */
+		if (sess->typing_sent && now - sess->typing_sent < 3)
+			return;
+		sess->typing_sent = now;
+		tcp_sendf (serv, "@+typing=active TAGMSG %s\r\n", sess->channel);
+	}
+	else if (sess->typing_sent)
+	{
+		sess->typing_sent = 0;
+		tcp_sendf (serv, "@+typing=done TAGMSG %s\r\n", sess->channel);
+	}
 }

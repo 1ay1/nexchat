@@ -290,6 +290,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-readmarker', find_program('sh'),
     args: [files('../../tests/ux/readmarker.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:97'], timeout: 120)
+  test('gui-typing', find_program('sh'),
+    args: [files('../../tests/ux/typing.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:98'], timeout: 120)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],

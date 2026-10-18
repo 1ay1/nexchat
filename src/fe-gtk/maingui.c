@@ -143,6 +143,7 @@ enum
 #define TAG_UTIL 1	/* dcc, notify, chanlist */
 
 static void mg_create_entry (session *sess, GtkWidget *box);
+static void mg_typing_refresh (session *sess);
 static void mg_create_search (session *sess, GtkWidget *box);
 static void mg_link_irctab (session *sess, int focus);
 
@@ -669,6 +670,7 @@ mg_focus (session *sess)
 		fe_set_tab_color (sess, FE_COLOR_NONE);
 	/* read here: the bouncer tells your other devices */
 	readmarker_send (sess);
+	mg_typing_refresh (sess);
 }
 
 /* the connecting indicator: a block bouncing in a framed trough, square
@@ -3136,6 +3138,65 @@ mg_create_search(session *sess, GtkWidget *box)
 	gtk_widget_set_tooltip_text (regex, _("Regard search string as a regular expression."));
 }
 
+/* typing in the input box: tell the channel (gui_typing_send); a /command
+   or an empty box isn't typing a message */
+static void
+mg_input_typing_cb (GtkEditable *e, gpointer d)
+{
+	const char *t = gtk_editable_get_text (e);
+
+	if (!current_sess)
+		return;
+	typing_send (current_sess, t[0] && t[0] != prefs.hex_input_command_char[0]);
+}
+
+/* the typing line for sess, if it's the one shown */
+static void
+mg_typing_refresh (session *sess)
+{
+	char *text;
+
+	if (!sess->gui || !sess->gui->typing_label || (sess->gui->is_tab && sess != current_tab))
+		return;
+	text = typing_text (sess);
+	gtk_label_set_text (GTK_LABEL (sess->gui->typing_label), text ? text : "");
+	gtk_widget_set_visible (sess->gui->typing_label, text != NULL);
+	g_free (text);
+}
+
+/* while anyone's typing somewhere, look again each second (they go stale) */
+static guint typing_tick;
+
+static gboolean
+mg_typing_tick (gpointer d)
+{
+	GSList *l;
+	gboolean any = FALSE;
+
+	for (l = sess_list; l; l = l->next)
+	{
+		session *s = l->data;
+		if (s->typers && g_hash_table_size (s->typers))
+		{
+			mg_typing_refresh (s);
+			any = any || (s->typers && g_hash_table_size (s->typers));
+		}
+	}
+	if (current_sess)
+		mg_typing_refresh (current_sess);
+	if (!any)
+		typing_tick = 0;
+	return any ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+}
+
+void
+fe_typing_changed (session *sess)
+{
+	mg_typing_refresh (sess);
+	if (!typing_tick)
+		typing_tick = g_timeout_add_seconds (1, mg_typing_tick, NULL);
+}
+
 static void
 mg_create_entry (session *sess, GtkWidget *box)
 {
@@ -3172,6 +3233,17 @@ mg_create_entry (session *sess, GtkWidget *box)
 	sexy_spell_entry_set_menu_hook (SEXY_SPELL_ENTRY (entry), mg_inputbox_rightclick, NULL);
 	g_signal_connect (G_OBJECT (entry), "word-check",
 							G_CALLBACK (mg_spellcheck_cb), NULL);
+	g_signal_connect (G_OBJECT (entry), "changed", G_CALLBACK (mg_input_typing_cb), NULL);
+
+	/* "alice is typing..." under the input row (gui_typing_show), only
+	   there while someone is */
+	gui->typing_label = gtk_label_new (NULL);
+	gtk_label_set_xalign (GTK_LABEL (gui->typing_label), 0);
+	gtk_label_set_ellipsize (GTK_LABEL (gui->typing_label), PANGO_ELLIPSIZE_END);
+	gtk_widget_add_css_class (gui->typing_label, "dim-label");
+	gtk_widget_add_css_class (gui->typing_label, "nx-typing");
+	gtk_widget_set_visible (gui->typing_label, FALSE);
+	nx_box_pack_start (box, gui->typing_label, 0, 0, 0);
 	gtk_widget_grab_focus (entry);
 }
 

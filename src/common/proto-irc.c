@@ -1203,6 +1203,16 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			}
 			break;
 
+		case WORDL('T','A','G','M'):
+			/* TAGMSG <target>: only tags, like +typing=active */
+			if (!strcmp (type, "TAGMSG"))
+			{
+				if (tags_data->typing && serv->p_cmp (nick, serv->nick))
+					typing_from (serv, nick, word[3], tags_data->typing);
+				return;
+			}
+			break;
+
 		case WORDL('M','A','R','K'):
 			if (!strcmp (type, "MARKREAD"))
 			{
@@ -1640,6 +1650,12 @@ handle_message_tags (server *serv, const char *tags_str,
 			g_free (tags_data->batch);
 			tags_data->batch = g_strdup (value);
 		}
+
+		if (value && (!strcmp (key, "+typing") || !strcmp (key, "+draft/typing")))
+		{
+			g_free (tags_data->typing);
+			tags_data->typing = g_strdup (value);
+		}
 	}
 	
 	g_strfreev (tags);
@@ -1748,6 +1764,7 @@ message_tags_data_free (message_tags_data *tags_data)
 {
 	g_clear_pointer (&tags_data->account, g_free);
 	g_clear_pointer (&tags_data->batch, g_free);
+	g_clear_pointer (&tags_data->typing, g_free);
 }
 
 void

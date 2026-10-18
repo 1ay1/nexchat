@@ -804,6 +804,10 @@ fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_s
 	return 0;
 }
 void
+fe_typing_changed (session *sess)
+{
+}
+void
 fe_set_lag (server * serv, long lag)
 {
 }

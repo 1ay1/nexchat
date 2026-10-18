@@ -498,6 +498,8 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 	   every few seconds) */
 	if (sess == current_tab && !serv->line_is_history)
 		readmarker_soon (sess);
+	/* their line is here: they're done typing it */
+	typing_clear (sess, from);
 
 	user = userlist_find (sess, from);
 	if (user)
@@ -1752,6 +1754,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_chathistory = enable;
 		else if (!strcmp (extension, "draft/read-marker"))
 			serv->have_readmarker = enable;
+		else if (!strcmp (extension, "message-tags"))
+			serv->have_message_tags = enable;
 		else if (!strcmp (extension, "sasl"))
 		{
 			serv->have_sasl = enable;
@@ -1818,6 +1822,7 @@ static const char * const supported_caps[] = {
 	"draft/chathistory",
 	"chathistory",
 	"draft/read-marker",
+	"message-tags",
 
 	/* ZNC */
 	"znc.in/server-time-iso",

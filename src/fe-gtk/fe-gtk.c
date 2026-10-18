@@ -665,6 +665,8 @@ fe_tabs_dump (gpointer d)
 		pop = cmdpopup_geometry (current_sess->gui->input_box);
 		g_printerr ("cmdgeom: %s\n", pop);
 		g_printerr ("input: %s\n", gtk_editable_get_text (GTK_EDITABLE (current_sess->gui->input_box)));
+		g_printerr ("typing: %s\n", current_sess->gui->typing_label && gtk_widget_get_visible (current_sess->gui->typing_label)
+			? gtk_label_get_text (GTK_LABEL (current_sess->gui->typing_label)) : "");
 		g_free (pop);
 	}
 	for (l = sess_list; l; l = l->next)

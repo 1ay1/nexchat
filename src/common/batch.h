@@ -37,4 +37,15 @@ void readmarker_send (session *sess);
    per line) */
 void readmarker_soon (session *sess);
 
+/* +typing (IRCv3 typing, behind gui_typing_show): nick in target says
+   active/paused/done; the window shows who's typing */
+void typing_from (server *serv, const char *nick, const char *target, const char *state);
+/* what to show for sess ("alice is typing..."), or NULL; g_free it */
+char *typing_text (session *sess);
+/* someone stopped being a typer by sending their line */
+void typing_clear (session *sess, const char *nick);
+/* we're typing in sess (gui_typing_send): tell the server, throttled;
+   active FALSE when the line is sent or emptied */
+void typing_send (session *sess, gboolean active);
+
 #endif

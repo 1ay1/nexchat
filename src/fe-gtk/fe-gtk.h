@@ -126,6 +126,7 @@ typedef struct session_gui
 		*xtext,
 		*vscrollbar,
 		*chat_overlay,	/* the chat column; the "/" list floats over it */
+		*typing_label,	/* "alice is typing..." under the input row */
 		*window,	/* toplevel */
 		*topic_entry,
 		*note_book,

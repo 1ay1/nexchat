@@ -635,6 +635,7 @@ session_free (session *killsess)
 
 	if (killsess->readmarker_tag)
 		g_source_remove (killsess->readmarker_tag);
+	g_clear_pointer (&killsess->typers, g_hash_table_destroy);
 
 	if (current_tab == killsess)
 		current_tab = NULL;
