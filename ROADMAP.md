@@ -225,8 +225,9 @@ After phase 4 it runs on GTK4, but it still uses GtkTreeView, which is deprecate
 
 - [ ] Rebuild the Windows (MSVC `win32/*.sln`, Inno Setup installer) and macOS (`osx/`, gtk-mac-bundler) packaging for GTK4. Phase 1 left their HexChat names alone because those scripts get rewritten here anyway.
   - macOS: done. `ninja -C build app` makes a self-contained, relocatable, ad hoc signed `build/nexchat.app` (`osx/make-app.py`): GTK and ~44 libraries in Frameworks with @rpath names, the plugins, translations, gdk-pixbuf loaders, GTK's schemas and OpenSSL's provider modules (FiSH) in Resources, found at run time by `macos_bundle_setup`. `osx/check-app.sh` copies it elsewhere, runs it with an empty environment and fails if anything loads from outside the bundle. Left: a notarised build (needs a Developer ID) and a .dmg.
-- [ ] Packages: Flatpak, AUR (`nexchat-git` and a release package), Windows installer (meson + gvsbuild GTK4), and a macOS bundle if there's demand.
-- [ ] A migration note for HexChat users: config import, plugin compatibility, and the small differences that couldn't be avoided (from section 9).
+- [ ] Packages: Flatpak, a release AUR package, Windows installer (meson + gvsbuild GTK4), and a macOS bundle if there's demand.
+- [x] AUR `nexchat-git` (`packaging/arch/nexchat-git`): builds master with Lua, Perl, Python and the text frontend, runs the 10 tests that need no display in `check()`, and installs next to HexChat: `-Dinstall-hexchat-compat=false` leaves out `hexchat-plugin.pc` and puts `hexchat-plugin.h` under `include/nexchat`, so no file is shared. Not uploaded yet.
+- [x] Migration note for HexChat users: `docs/coming-from-hexchat.md` (settings copy, plugins, what's different, what's new, running both).
 - [ ] Version: start at nexchat 3.0 so it's obviously after HexChat 2.16.
 
 ## Phase 7: speed

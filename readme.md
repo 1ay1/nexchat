@@ -16,6 +16,8 @@ Coming from HexChat:
 - Plugins and scripts keep working. The C API is unchanged (`hexchat-plugin.h`, or the new `nexchat-plugin.h`). Python can use `import hexchat` or `import nexchat`, Lua has both `hexchat` and `nexchat`, and Perl has `HexChat::` and `Nexchat::`.
 - Themes (`.hct`) and `colors.conf` work the same.
 
+More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's different, what's new, and running both.
+
 The HexChat documentation still applies: [docs](https://hexchat.readthedocs.org/en/latest/index.html), [Python API](https://hexchat.readthedocs.org/en/latest/script_python.html), [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html).
 
 ## Building
@@ -27,6 +29,8 @@ meson test -C build   # needs -Dtext-frontend=true for the smoke tests
 ```
 
 On macOS (Homebrew: `brew install meson gtk4 openssl@3`), `ninja -C build app` also makes a self-contained `build/nexchat.app` you can drag to Applications.
+
+On Arch, `packaging/arch/nexchat-git` builds the latest master (`makepkg -si` in that folder). It installs next to HexChat without conflicts.
 
 The screenshot above is regenerated with `tests/ux/readme-shot.sh build/src/fe-gtk/nexchat docs/screenshots`, against a fake IRC server; nobody's real chat is in it.
 
