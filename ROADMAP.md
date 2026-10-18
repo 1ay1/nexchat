@@ -270,7 +270,7 @@ Everyday use (already there: search bar, marker line, Alt+\` to the most active 
 - [x] Unread counts on tabs and tree rows: `#chan (3)`, `(3, 1!)` when one mentions you; cleared when you look (`gui_tab_unread`, on). `tests/ux/unread.sh`.
 - [x] Smart join/part filter: `irc_smart_filter` hides joins, parts and quits of people who haven't spoken in N minutes (off by default). `tests/smart-filter.sh`.
 - [x] Search across all open buffers: `/LASTLOG -a needle` (with `-m` case, `-r` regex) lists each window's hits under its name in the (lastlog) window. `tests/ux/lastlog-all.sh`.
-- [ ] Search in log files on disk, and a menu entry/dialog for both.
+- [x] Search in log files on disk: `/LASTLOG -l text` searches every saved log (all networks and channels), matches under each file's name, case-insensitive (`-m` to match case, `-r` regex), stopping at 500. In the `/` list with the other options. `tests/lastlog-logs.sh`.
 - [x] Jump to first unread: already there. The marker line goes on the first line that came in while you were away, and Window > Move to Marker Line (Ctrl+Shift+M) jumps to it.
 - [x] Multi-line paste: more than `gui_input_paste_max` lines (5) asks first; Cancel puts the text back in the box. `tests/ux/paste.sh`.
 - [x] URL hover shows the full target as a tooltip before you click. `tests/ux/urltip.sh`.

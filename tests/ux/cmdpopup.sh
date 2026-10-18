@@ -59,7 +59,7 @@ k BackSpace
 
 # options and choices come up for the argument that takes them
 t "/lastlog "
-check cmdpopup 'cmdpopup: list: \[-a\] -m -r -h*' '/lastlog offers its options'
+check cmdpopup 'cmdpopup: list: \[-a\] -l -m -r -h*' '/lastlog offers its options'
 k ctrl+a BackSpace
 t "/ignore spammer "
 check cmdpopup 'cmdpopup: list: \[ALL\] PRIV CHAN*' '/ignore nick offers what to ignore'

@@ -2513,6 +2513,106 @@ cmd_lagcheck (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 	return TRUE;
 }
 
+/* /LASTLOG -l: one log file's matching lines into the (lastlog) window,
+   under the file's name; returns how many */
+static int
+lastlog_file (session *out, const char *path, const char *shown, const char *search,
+				  GRegex *re, gboolean case_match, int room)
+{
+	char *data = NULL, **lines, *needle = NULL;
+	int i, n = 0;
+
+	if (!g_file_get_contents (path, &data, NULL, NULL))
+		return 0;
+	if (!re)
+		needle = case_match ? g_strdup (search) : g_utf8_casefold (search, -1);
+	lines = g_strsplit (data, "\n", -1);
+	g_free (data);
+	for (i = 0; lines[i] && n < room; i++)
+	{
+		char *line = lines[i], *hay;
+		gboolean hit;
+
+		if (!*line || !g_utf8_validate (line, -1, NULL))
+			continue;
+		if (re)
+			hit = g_regex_match (re, line, 0, NULL);
+		else
+		{
+			hay = case_match ? line : g_utf8_casefold (line, -1);
+			hit = strstr (hay, needle) != NULL;
+			if (hay != line)
+				g_free (hay);
+		}
+		if (!hit)
+			continue;
+		if (!n)
+			PrintTextf (out, "\002%s\002\n", shown);
+		PrintTextf (out, "  %s\n", line);
+		n++;
+	}
+	g_strfreev (lines);
+	g_free (needle);
+	return n;
+}
+
+#define LOG_SEARCH_MAX 500
+
+static void
+lastlog_logs_dir (session *out, const char *dir, const char *rel, const char *search,
+						GRegex *re, gboolean case_match, int *total)
+{
+	GDir *d = g_dir_open (dir, 0, NULL);
+	const char *name;
+
+	if (!d)
+		return;
+	while ((name = g_dir_read_name (d)) && *total < LOG_SEARCH_MAX)
+	{
+		char *path = g_build_filename (dir, name, NULL);
+		char *shown = *rel ? g_build_filename (rel, name, NULL) : g_strdup (name);
+
+		if (g_file_test (path, G_FILE_TEST_IS_DIR))
+			lastlog_logs_dir (out, path, shown, search, re, case_match, total);
+		else if (g_str_has_suffix (name, ".log"))
+			*total += lastlog_file (out, path, shown, search, re, case_match, LOG_SEARCH_MAX - *total);
+		g_free (path);
+		g_free (shown);
+	}
+	g_dir_close (d);
+}
+
+/* the logs on disk (config dir/logs, every network and channel) */
+static void
+lastlog_logs (session *out, const char *search, gtk_xtext_search_flags flags)
+{
+	char *dir = g_build_filename (get_xdir (), "logs", NULL);
+	GRegex *re = NULL;
+	GError *err = NULL;
+	int total = 0;
+
+	if (flags & regexp)
+	{
+		re = g_regex_new (search, (flags & case_match) ? 0 : G_REGEX_CASELESS, 0, &err);
+		if (!re)
+		{
+			PrintText (out, err->message);
+			g_error_free (err);
+			g_free (dir);
+			return;
+		}
+	}
+	PrintTextf (out, _("Searching the logs in %s for \"%s\"\n"), dir, search);
+	lastlog_logs_dir (out, dir, "", search, re, flags & case_match, &total);
+	if (!total)
+		PrintTextf (out, _("No matches for \"%s\" in the logs.\n"), search);
+	else if (total >= LOG_SEARCH_MAX)
+		PrintTextf (out, _("Stopped at %d matches. Search for something longer to see fewer.\n"), LOG_SEARCH_MAX);
+	if (re)
+		g_regex_unref (re);
+	g_free (dir);
+}
+
 static void
 lastlog (session *sess, char *search, gtk_xtext_search_flags flags)
 {
@@ -2529,6 +2629,12 @@ lastlog (session *sess, char *search, gtk_xtext_search_flags flags)
 	lastlog_sess->lastlog_flags = flags;
 
 	fe_text_clear (lastlog_sess, 0);
+	if (flags & lastlog_logs_flag)
+	{
+		fe_ctrl_gui (lastlog_sess, FE_GUI_FOCUS, 0);
+		lastlog_logs (lastlog_sess, search, flags);
+		return;
+	}
 	if (!(flags & lastlog_all))
 	{
 		fe_lastlog (sess, lastlog_sess, search, flags);
@@ -2580,6 +2686,9 @@ cmd_lastlog (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 				break;
 			case 'a':
 				flags |= lastlog_all;
+				break;
+			case 'l':
+				flags |= lastlog_logs_flag;
 				break;
 			case '-':
 				doublehyphen = TRUE;
@@ -4100,8 +4209,9 @@ const struct commands xc_cmds[] = {
 	{"LAGCHECK", cmd_lagcheck, 0, 0, 1,
 	 N_("LAGCHECK, forces a new lag check")},
 	{"LASTLOG", cmd_lastlog, 0, 0, 1,
-	N_("LASTLOG [-a] [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
+	N_("LASTLOG [-a] [-l] [-h] [-m] [-r] [--] <string>, searches for a string in the buffer\n"
 	"    Use -a to search every open channel and query, not just this one\n"
+	"    Use -l to search your saved log files (every network and channel)\n"
 	"    Use -h to highlight the found string(s)\n"
 	 "    Use -m to match case\n"
 	 "    Use -r when string is a Regular Expression\n"

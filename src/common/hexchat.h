@@ -360,7 +360,8 @@ typedef enum gtk_xtext_search_flags_e {
 	highlight = 4,
 	follow = 8,
 	regexp = 16,
-	lastlog_all = 32	/* /LASTLOG -a: every open buffer */
+	lastlog_all = 32,	/* /LASTLOG -a: every open buffer */
+	lastlog_logs_flag = 64	/* /LASTLOG -l: the log files on disk */
 } gtk_xtext_search_flags;
 
 typedef enum {

@@ -23,6 +23,7 @@
 
 static const cmddoc_opt opt_lastlog[] = {
 	O ("-a", N_("search every open window, not just this one")),
+	O ("-l", N_("search your saved logs (everything you've logged)")),
 	O ("-m", N_("match upper/lower case exactly")),
 	O ("-r", N_("the text is a regular expression")),
 	O ("-h", N_("highlight what was found")),
