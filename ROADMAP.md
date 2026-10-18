@@ -236,7 +236,7 @@ On an M-series Mac (Homebrew GTK 4.24), first frame is ~430 ms and idle ~700 ms.
 On Linux (GTK 4.24, Xvfb, default renderer) the first frame is ~245 ms. Of that, GTK init is ~50 ms and the renderer set-up when the window first realizes ~150 ms (with `GSK_RENDERER=gl` or `cairo` the first frame is ~110 ms; the default picks Vulkan here). Fonts are cheap (the chat font and its 512 glyph widths ~10 ms). nexchat's own work before the window is under 15 ms. Deferring the chat's early realize only moved the renderer cost to the first show, so it stayed.
 
 - [x] Don't list every installed font to find Menlo/Consolas at startup (−47 ms).
-- [ ] The GTK renderer: on Linux the default (Vulkan here) takes ~120 ms longer to the first frame than `gl`; on macOS the GL renderer compiles its shaders on every start (~220 ms of samples, through Apple's deprecated OpenGL) and `cairo` reached idle in ~450 ms instead of ~680 ms. Picking one per platform needs scrolling and resizing checked on each first.
+- [ ] The GTK renderer: on Linux the default (Vulkan here) takes ~120 ms longer to the first frame than `gl`; on macOS the GL renderer compiles its shaders on every start (~220 ms of samples, through Apple's deprecated OpenGL) and `cairo` reached idle in ~450 ms instead of ~680 ms. Tried `GSK_RENDERER=gl` on Linux: stress, keys, popup and smoke pass, but `gui-mouse`'s user-list drag failed 2 times in 3 (the default passed 5 of 5), so it isn't the default. Needs a look at drag-and-drop timing under GL first.
 - [x] Build the main window in less than ~150 ms: measured, it's ~30 ms of nexchat (topic bar, chat, menu bar) plus GTK's renderer set-up; nothing of ours left to defer.
 - [ ] Show the window first, load the rest after it (plugins, sounds, the server list).
 
