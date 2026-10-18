@@ -523,22 +523,22 @@ fe_apply_css (void)
 		"dropdown.nx-combo-arrow > button > box > stack > * { opacity: 0; min-width: 0; }\n"
 		/* NxDialog message dialogs: GTK3's full-width buttons */
 		".message-buttons > button { min-height: 24px; padding-top: 4px; padding-bottom: 4px; }\n"
-		/* the "/" command list over the input box: a plain square list */
-		"popover.nx-cmdpopup { padding: 0; margin: 0; box-shadow: none; }\n"
-		"popover.nx-cmdpopup > contents { padding: 0; border-radius: 0;"
-		" border: 1px solid alpha(currentColor, 0.3); box-shadow: none; }\n"
-		"popover.nx-cmdpopup list { background: none; }\n"
-		"popover.nx-cmdpopup list > row { padding: 2px 6px; min-height: 0; border-radius: 0; }\n"
-		"popover.nx-cmdpopup list > row:selected { background-color: @theme_selected_bg_color;"
+		/* the "/" command list over the input box: a plain square list with
+		   the window's own background and a 1px border */
+		".nx-cmdpopup { padding: 0; border-radius: 0; background-color: @theme_base_color;"
+		" border: 1px solid alpha(currentColor, 0.3); }\n"
+		".nx-cmdpopup list { background: none; }\n"
+		".nx-cmdpopup list > row { padding: 2px 6px; min-height: 0; border-radius: 0; }\n"
+		".nx-cmdpopup list > row:selected { background-color: @theme_selected_bg_color;"
 		" color: @theme_selected_fg_color; }\n"
-		"popover.nx-cmdpopup list > row:selected .dim-label { opacity: 0.85; }\n"
-		"popover.nx-cmdpopup .nx-cmd-hint { padding: 2px 6px; }\n"
+		".nx-cmdpopup list > row:selected .dim-label { opacity: 0.85; }\n"
+		".nx-cmdpopup .nx-cmd-hint { padding: 2px 6px; }\n"
 		/* group headings in the list, the selected command explained, keys */
-		"popover.nx-cmdpopup .nx-cmd-group { padding: 3px 6px 1px 6px; font-weight: bold;"
+		".nx-cmdpopup .nx-cmd-group { padding: 3px 6px 1px 6px; font-weight: bold;"
 		" font-size: smaller; opacity: 0.7; }\n"
-		"popover.nx-cmdpopup .nx-cmd-details { padding: 3px 6px;"
+		".nx-cmdpopup .nx-cmd-details { padding: 3px 6px;"
 		" border-top: 1px solid alpha(currentColor, 0.2); }\n"
-		"popover.nx-cmdpopup .nx-cmd-keys { padding: 1px 6px 2px 6px; font-size: smaller;"
+		".nx-cmdpopup .nx-cmd-keys { padding: 1px 6px 2px 6px; font-size: smaller;"
 		" border-top: 1px solid alpha(currentColor, 0.12); }\n");
 
 	/* GTK4 loads what it can and reports errors through a signal */
@@ -739,8 +739,8 @@ fe_self_shot (gpointer data)
 		}
 	}
 
-	/* NEXCHAT_SHOT_POPUP=1: the input box's command list (a popover is a
-	   surface of its own, not in the window's picture) */
+	/* NEXCHAT_SHOT_POPUP=1: the input box's command list (drawn in the
+	   window over the chat; shot on its own) */
 	if (g_getenv ("NEXCHAT_SHOT_POPUP") && current_sess && current_sess->gui)
 	{
 		GtkWidget *pop = cmdpopup_widget (current_sess->gui->input_box);

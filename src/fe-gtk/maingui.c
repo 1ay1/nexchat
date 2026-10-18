@@ -2734,7 +2734,11 @@ mg_create_center (session *sess, session_gui *gui, GtkWidget *box)
 	gui->user_box = hbox;
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 3);
-	gtk_notebook_append_page (GTK_NOTEBOOK (book), vbox, NULL);
+	/* the chat column sits in an overlay: the "/" command list is drawn over
+	   it, right above the input row (in the window, not a popup surface) */
+	gui->chat_overlay = gtk_overlay_new ();
+	gtk_overlay_set_child (GTK_OVERLAY (gui->chat_overlay), vbox);
+	gtk_notebook_append_page (GTK_NOTEBOOK (book), gui->chat_overlay, NULL);
 	mg_create_topicbar (sess, vbox);
 
 	if (prefs.hex_gui_search_pos)
@@ -3160,7 +3164,7 @@ mg_create_entry (session *sess, GtkWidget *box)
 
 	gtk_widget_set_name (entry, "hexchat-inputbox");
 	nx_on_key (entry, key_handle_input, NULL);
-	cmdpopup_attach (entry);
+	cmdpopup_attach (entry, gui->chat_overlay);
 	nx_on_focus_in (entry, mg_inputbox_focus, gui);
 	sexy_spell_entry_set_menu_hook (SEXY_SPELL_ENTRY (entry), mg_inputbox_rightclick, NULL);
 	g_signal_connect (G_OBJECT (entry), "word-check",

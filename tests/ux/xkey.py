@@ -196,12 +196,36 @@ def main(argv):
             delay = float(argv[1])
         elif argv[0] == "--at":
             at = tuple(int(v) for v in argv[1].split(","))
+        elif argv[0] == "--hold":
+            # KEY:SECONDS: held down, repeating 30 times a second like a
+            # real keyboard (press events without releases between)
+            k, s = argv[1].split(":")
+            clicks.append(("hold", k, float(s)))
+        elif argv[0] == "--move":
+            clicks.append(("move",) + tuple(int(v) for v in argv[1].split(",")))
         argv = argv[2:]
     dpy = x11.XOpenDisplay(os.environ.get("DISPLAY", "").encode() or None)
     if not dpy:
         raise SystemExit("cannot open display")
     focus_at(dpy, *at)
-    for cx, cy, button, count, *to in clicks:
+    for c in clicks:
+        if c[0] == "hold":
+            code = keycode(dpy, c[1])
+            end = time.time() + c[2]
+            while time.time() < end:
+                xtst.XTestFakeKeyEvent(dpy, code, 1, 0)
+                x11.XSync(dpy, 0)
+                time.sleep(1 / 30)
+            xtst.XTestFakeKeyEvent(dpy, code, 0, 0)
+            x11.XSync(dpy, 0)
+            time.sleep(delay)
+            continue
+        if c[0] == "move":
+            xtst.XTestFakeMotionEvent(dpy, -1, c[1], c[2], 0)
+            x11.XSync(dpy, 0)
+            time.sleep(delay)
+            continue
+        cx, cy, button, count, *to = c
         xtst.XTestFakeMotionEvent(dpy, -1, cx, cy, 0)
         x11.XSync(dpy, 0)
         time.sleep(0.1)

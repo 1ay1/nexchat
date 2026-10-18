@@ -36,5 +36,7 @@ typedef struct _cmddoc
 const cmddoc *cmddoc_find (const char *name);
 /* every entry, NULL-terminated, in the order the groups are shown */
 const cmddoc *cmddoc_all (void);
+/* where a group goes in the list (0 first); the same for every command in it */
+int cmddoc_group_rank (const char *group);
 
 #endif

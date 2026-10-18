@@ -125,6 +125,7 @@ typedef struct session_gui
 	GtkWidget
 		*xtext,
 		*vscrollbar,
+		*chat_overlay,	/* the chat column; the "/" list floats over it */
 		*window,	/* toplevel */
 		*topic_entry,
 		*note_book,

@@ -156,10 +156,16 @@ add (collect *col, const char *name, const char *help, cmdinfo_kind kind)
 	g_hash_table_add (col->seen, key);
 	c = cmdinfo_new (name, help, kind);
 	c->score = score;
-	/* nothing typed yet: everyday commands first, then the rest of the
-	   documented ones, then everything else */
-	if (!*col->prefix && c->doc)
-		c->score += c->doc->common ? 2000 : 1000;
+	/* nothing typed yet: most used first, then each documented group in
+	   its turn (so every group is one block under one heading), then your
+	   commands, plugins, and the rest; by name inside a block */
+	if (!*col->prefix)
+	{
+		int block = c->doc && c->doc->common ? 0
+			: c->doc ? 1 + cmddoc_group_rank (c->doc->group)
+			: c->kind == CMD_USER ? 90 : c->kind == CMD_PLUGIN ? 91 : 92;
+		c->score = 100000 - block * 1000;
+	}
 	/* typed part of a name: an everyday command wins a tie */
 	else if (c->doc && c->doc->common)
 		c->score += 50;
@@ -195,16 +201,36 @@ cmdinfo_find (const char *prefix)
 
 	/* in the order a name is looked up when it runs */
 	plugin_command_foreach (NULL, &col, add_plugin);
+	/* user commands: one name can have several lines (all run); one row */
 	for (l = command_list; l; l = l->next)
 	{
 		struct popup *pop = l->data;
+		char *key = g_ascii_strup (pop->name, -1);
+		gboolean had = g_hash_table_contains (col.seen, key);
+		g_free (key);
+		if (had)
+		{
+			/* a further line of a user command already listed: add what it runs */
+			guint k;
+			for (k = 0; k < col.out->len; k++)
+			{
+				cmdinfo *c = g_ptr_array_index (col.out, k);
+				if (c->kind == CMD_USER && !g_ascii_strcasecmp (c->name, pop->name))
+				{
+					char *d = g_strdup_printf ("%s; %s", c->desc, pop->cmd);
+					g_free (c->desc);
+					c->desc = d;
+					break;
+				}
+			}
+			continue;
+		}
 		add (&col, pop->name, NULL, CMD_USER);
-		/* add () kept it only if it matched and wasn't taken: fill in what
-		   it runs */
+		/* add () kept it only if it matched: fill in what it runs */
 		if (col.out->len)
 		{
 			cmdinfo *c = g_ptr_array_index (col.out, col.out->len - 1);
-			if (c->kind == CMD_USER && !g_ascii_strcasecmp (c->name, pop->name) && !*c->desc)
+			if (c->kind == CMD_USER && !g_ascii_strcasecmp (c->name, pop->name) && !c->doc)
 			{
 				g_free (c->desc);
 				c->desc = g_strdup_printf (_("runs %s"), pop->cmd);

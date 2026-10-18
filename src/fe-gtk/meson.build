@@ -280,7 +280,10 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     env: gui_env + ['DISP=:90'], timeout: 120)
   test('gui-cmdpopup', find_program('sh'),
     args: [files('../../tests/ux/cmdpopup.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:89'], timeout: 120)
+    env: gui_env + ['DISP=:89'], timeout: 180)
+  test('gui-cmdpopup-all', find_program('sh'),
+    args: [files('../../tests/ux/cmdpopup-all.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:96'], timeout: 120)
   test('gui-history-unread', find_program('sh'),
     args: [files('../../tests/ux/history-unread.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:95'], timeout: 120)

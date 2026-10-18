@@ -239,3 +239,23 @@ cmddoc_all (void)
 {
 	return docs;
 }
+
+/* the groups in the order they're first seen in docs[] */
+int
+cmddoc_group_rank (const char *group)
+{
+	const char *seen[32];
+	int n = 0, i, k;
+
+	for (i = 0; docs[i].name; i++)
+	{
+		for (k = 0; k < n; k++)
+			if (!strcmp (seen[k], docs[i].group))
+				break;
+		if (k == n && n < 32)
+			seen[n++] = docs[i].group;
+		if (!strcmp (docs[i].group, group))
+			return k;
+	}
+	return n;
+}

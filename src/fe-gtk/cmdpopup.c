@@ -49,14 +49,16 @@ typedef struct
 typedef struct
 {
 	GtkWidget *entry;
-	GtkWidget *popover;
+	GtkWidget *host;		/* the GtkOverlay it's drawn in */
+	GtkWidget *popover;	/* the frame holding it all (an overlay child) */
 	GtkWidget *list;		/* GtkListBox */
 	GtkWidget *hint;		/* the usage line while typing arguments */
 	GtkWidget *scroll;		/* the list's scrolled window */
 	GtkWidget *details;	/* what the selected command does, an example, its options */
 	GtkWidget *keys;		/* the keys line at the bottom */
 	gboolean want_open;	/* we showed it and haven't closed it */
-	int last_width, last_x;	/* where the input row was when last placed */
+	char *query;			/* what the list was built for (see popup_update) */
+	int last_width, last_x, last_bottom;	/* where the input row was when last placed */
 	GPtrArray *items;		/* item *, in list order */
 	gboolean args;			/* the items are values for an argument */
 	int word_start;		/* byte offset in the text of the word they replace */
@@ -312,39 +314,43 @@ static void
 popup_hide (cmdpopup *p)
 {
 	p->want_open = FALSE;
+	/* when it opens again it's rebuilt for whatever is typed then */
+	if (!p->suppress)
+		g_clear_pointer (&p->query, g_free);
 	if (p->popover && gtk_widget_get_visible (p->popover))
-		gtk_popover_popdown (GTK_POPOVER (p->popover));
+		gtk_widget_set_visible (p->popover, FALSE);
 }
 
-/* the popover sits right on top of the box that holds the composer (nick
-   button + entry), exactly as wide as it. Pointed at a 1px strip along the
-   row's top edge, in the entry's coordinates. */
+/* it sits right on top of the box that holds the composer (nick button +
+   entry), exactly as wide as it: an overlay child placed by its margins,
+   bottom-aligned on the row's top edge. It's part of the window, so
+   nothing (focus, keys, a resize) can make it close on its own. */
 static void
 popup_show (cmdpopup *p)
 {
-	GdkRectangle r = { 0, 0, 1, 1 };
 	graphene_rect_t rb;
 	GtkWidget *row = gtk_widget_get_parent (p->entry);	/* nick box + entry */
+	int host_h = gtk_widget_get_height (p->host);
+	int x, w, bottom;
 
-	if (!row || !gtk_widget_compute_bounds (row, p->entry, &rb))
+	if (!row || !gtk_widget_compute_bounds (row, p->host, &rb))
 	{
-		rb.origin.x = rb.origin.y = 0;
-		rb.size.width = gtk_widget_get_width (p->entry);
+		if (!gtk_widget_compute_bounds (p->entry, p->host, &rb))
+			return;
 	}
-	r.x = (int) rb.origin.x;
-	r.y = (int) rb.origin.y;
-	r.width = MAX ((int) rb.size.width, 1);
-	r.height = 1;
-	p->last_width = r.width;
-	p->last_x = r.x;
+	x = (int) rb.origin.x;
+	w = MAX ((int) rb.size.width, 1);
+	bottom = host_h - (int) rb.origin.y;	/* from the overlay's bottom to the row's top */
+	p->last_width = w;
+	p->last_x = x;
+	p->last_bottom = bottom;
 
-	/* the content is exactly that wide (the popover's own CSS adds nothing:
-	   no padding, margin or shadow in the classic look) */
-	gtk_widget_set_size_request (gtk_popover_get_child (GTK_POPOVER (p->popover)), r.width, -1);
-	gtk_popover_set_pointing_to (GTK_POPOVER (p->popover), &r);
+	gtk_widget_set_margin_start (p->popover, x);
+	gtk_widget_set_margin_bottom (p->popover, MAX (bottom, 0));
+	gtk_widget_set_size_request (p->popover, w, -1);
 	p->want_open = TRUE;
 	if (!gtk_widget_get_visible (p->popover))
-		gtk_popover_popup (GTK_POPOVER (p->popover));
+		gtk_widget_set_visible (p->popover, TRUE);
 }
 
 /* group headings above the rows that start a group (GtkListBox header) */
@@ -630,21 +636,44 @@ set_hint (cmdpopup *p, cmdinfo *c, int n)
 	g_string_free (m, TRUE);
 }
 
-/* the text or cursor changed: decide what to show */
+/* the text or cursor changed: decide what to show. The list is only rebuilt
+   when what it's for changes (the command typed, the argument and its word);
+   a cursor move that leaves those alone keeps the list, its selection and
+   where it's scrolled to. */
 static void
 popup_update (cmdpopup *p)
 {
 	const char *text = gtk_editable_get_text (GTK_EDITABLE (p->entry));
 	int cursor = gtk_editable_get_position (GTK_EDITABLE (p->entry));
 	gboolean has_space;
-	char *cmd;
+	char *cmd, *key;
 
 	if (!prefs.hex_gui_input_cmdhelp || !(cmd = typed_command (text, cursor, &has_space)))
 	{
 		p->suppress = FALSE;
+		g_clear_pointer (&p->query, g_free);
 		popup_hide (p);
 		return;
 	}
+	/* what this state shows: command name, or command + argument + word */
+	if (!has_space)
+		key = g_strdup_printf ("c:%s", cmd);
+	else
+	{
+		char *w = NULL;
+		int st = 0, n = current_arg (text, cursor, &st, &w);
+		key = g_strdup_printf ("a:%s:%d:%d:%s", cmd, n, st, w ? w : "");
+		g_free (w);
+	}
+	if (p->query && !strcmp (p->query, key) && (p->want_open || p->suppress))
+	{
+		/* nothing it depends on changed */
+		g_free (key);
+		g_free (cmd);
+		return;
+	}
+	g_free (p->query);
+	p->query = key;
 	/* Escape closed it: stay closed while the same command is being typed
 	   or given its arguments; a different command opens it again */
 	if (p->suppress)
@@ -765,8 +794,9 @@ refit_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
 	graphene_rect_t b;
 	GtkWidget *row = gtk_widget_get_parent (p->entry);
 
-	if (row && gtk_widget_compute_bounds (row, p->entry, &b) &&
-		 ((int) b.size.width != p->last_width || (int) b.origin.x != p->last_x))
+	if (row && gtk_widget_compute_bounds (row, p->host, &b) &&
+		 ((int) b.size.width != p->last_width || (int) b.origin.x != p->last_x ||
+		  gtk_widget_get_height (p->host) - (int) b.origin.y != p->last_bottom))
 		popup_show (p);
 	return G_SOURCE_CONTINUE;
 }
@@ -939,39 +969,6 @@ entry_focused (cmdpopup *p)
 	return f && (f == p->entry || gtk_widget_is_ancestor (f, p->entry));
 }
 
-static gboolean
-reopen_idle (gpointer data)
-{
-	cmdpopup *p = data;
-
-	if (p->want_open && !gtk_widget_get_visible (p->popover) && entry_focused (p))
-		popup_show (p);	/* as it was: same list, same selection */
-	return G_SOURCE_REMOVE;
-}
-
-static void
-popover_closed_cb (GtkPopover *pop, cmdpopup *p)
-{
-	if (p->want_open)
-		g_idle_add (reopen_idle, p);
-}
-
-/* a key that went to the popover: the list's keys go to the list; the
-   arrow keys never reach GtkPopover (it would close on them) */
-static gboolean
-popover_key_cb (GtkEventControllerKey *k, guint keyval, guint keycode, GdkModifierType state, cmdpopup *p)
-{
-	if (cmdpopup_key (p->entry, keyval, state))
-		return TRUE;
-	switch (keyval)
-	{
-	case GDK_KEY_Up: case GDK_KEY_Down: case GDK_KEY_Left: case GDK_KEY_Right:
-	case GDK_KEY_KP_Up: case GDK_KEY_KP_Down:
-		return TRUE;
-	}
-	return FALSE;
-}
-
 static void
 row_activated_cb (GtkListBox *box, GtkListBoxRow *row, cmdpopup *p)
 {
@@ -1003,43 +1000,32 @@ cmdpopup_free (cmdpopup *p)
 	if (p->items)
 		g_ptr_array_unref (p->items);
 	g_free (p->suppressed_for);
-	if (p->popover)
-		gtk_widget_unparent (p->popover);
+	g_free (p->query);
 	g_free (p);
 }
 
 void
-cmdpopup_attach (GtkWidget *entry)
+cmdpopup_attach (GtkWidget *entry, GtkWidget *host)
 {
 	cmdpopup *p = g_new0 (cmdpopup, 1);
 	GtkWidget *box, *sw;
 	GtkEventController *f;
 
 	p->entry = entry;
-	p->popover = gtk_popover_new ();
-	gtk_widget_add_css_class (p->popover, "nx-cmdpopup");
-	gtk_popover_set_has_arrow (GTK_POPOVER (p->popover), FALSE);
-	gtk_popover_set_autohide (GTK_POPOVER (p->popover), FALSE);	/* typing goes on in the entry */
-	gtk_popover_set_position (GTK_POPOVER (p->popover), GTK_POS_TOP);
-	gtk_widget_set_halign (p->popover, GTK_ALIGN_FILL);
-	gtk_widget_set_can_focus (p->popover, FALSE);
-	gtk_widget_set_focusable (p->popover, FALSE);
-	gtk_widget_set_parent (p->popover, entry);
-	/* a key pressed while the pointer is over the list goes to the popover
-	   (GtkPopover would close on Down/Up as its own focus keys): send it to
-	   the same handler as the input box's, then on to the input box */
-	{
-		GtkEventController *k = gtk_event_controller_key_new ();
-		gtk_event_controller_set_propagation_phase (k, GTK_PHASE_CAPTURE);
-		g_signal_connect (k, "key-pressed", G_CALLBACK (popover_key_cb), p);
-		gtk_widget_add_controller (p->popover, k);
-	}
-	/* GTK closes a popover on its own now and then (the surface is redone
-	   when its size changes): put it back if we didn't close it */
-	g_signal_connect (p->popover, "closed", G_CALLBACK (popover_closed_cb), p);
-
-	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-	gtk_popover_set_child (GTK_POPOVER (p->popover), box);
+	p->host = host;
+	/* a plain framed box laid over the chat, not a GtkPopover: a popup
+	   surface closes on its own (keys, focus, resizes); this can't */
+	box = p->popover = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+	gtk_widget_add_css_class (box, "nx-cmdpopup");
+	gtk_widget_set_halign (box, GTK_ALIGN_START);
+	gtk_widget_set_valign (box, GTK_ALIGN_END);
+	gtk_widget_set_focusable (box, FALSE);
+	gtk_widget_set_can_target (box, TRUE);
+	gtk_widget_set_visible (box, FALSE);
+	gtk_overlay_add_overlay (GTK_OVERLAY (host), box);
+	/* the chat underneath keeps its size: the list only covers it */
+	gtk_overlay_set_measure_overlay (GTK_OVERLAY (host), box, FALSE);
+	gtk_overlay_set_clip_overlay (GTK_OVERLAY (host), box, TRUE);
 
 	/* the usage line on top, the list of values under it (nearest the box) */
 	p->hint = gtk_label_new (NULL);
@@ -1101,33 +1087,16 @@ cmdpopup_geometry (GtkWidget *entry)
 	cmdpopup *p = g_object_get_data (G_OBJECT (entry), "nx-cmdpopup");
 	GtkWidget *win, *row;
 	graphene_rect_t pop, rb;
-	GtkNative *native;
-	GdkSurface *ps;
-	double px, py, ex, ey, sx, sy;
-	int ox = 0, oy = 0;
 
 	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
 		return g_strdup ("");
 	win = GTK_WIDGET (gtk_widget_get_root (entry));
 	row = gtk_widget_get_parent (entry);
-	if (!gtk_widget_compute_bounds (row, win, &rb))
+	if (!gtk_widget_compute_bounds (row, win, &rb) ||
+		 !gtk_widget_compute_bounds (p->popover, win, &pop))
 		return g_strdup ("");
-	/* the popover is its own surface: place it through the surfaces' origins */
-	native = GTK_NATIVE (p->popover);
-	gtk_native_get_surface_transform (native, &px, &py);
-	gtk_native_get_surface_transform (GTK_NATIVE (win), &ex, &ey);
-	if (!gtk_widget_compute_bounds (gtk_popover_get_child (GTK_POPOVER (p->popover)), p->popover, &pop))
-		return g_strdup ("");
-	ps = gtk_native_get_surface (native);
-	if (GDK_IS_POPUP (ps))
-	{
-		ox = gdk_popup_get_position_x (GDK_POPUP (ps));
-		oy = gdk_popup_get_position_y (GDK_POPUP (ps));
-	}
-	sx = ox + px + pop.origin.x - ex;
-	sy = oy + py + pop.origin.y - ey;
 	return g_strdup_printf ("pop x=%d w=%d bottom=%d | row x=%d w=%d top=%d",
-		(int) sx, (int) pop.size.width, (int) (sy + pop.size.height),
+		(int) pop.origin.x, (int) pop.size.width, (int) (pop.origin.y + pop.size.height),
 		(int) rb.origin.x, (int) rb.size.width, (int) rb.origin.y);
 }
 
@@ -1155,7 +1124,7 @@ cmdpopup_describe (GtkWidget *entry)
 	{
 		g_string_append (s, "list:");
 		sel = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
-		n = MIN (p->items->len, 12);
+		n = g_getenv ("NX_DESCRIBE_ALL") ? p->items->len : MIN (p->items->len, 12);
 		for (i = 0; i < n; i++)
 		{
 			item *it = g_ptr_array_index (p->items, i);
@@ -1168,6 +1137,19 @@ cmdpopup_describe (GtkWidget *entry)
 		}
 		if (p->items->len > n)
 			g_string_append_printf (s, " +%u", p->items->len - n);
+		if (sel)
+		{
+			/* the selected row, and whether it's inside the visible part */
+			graphene_rect_t b;
+			GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (p->scroll));
+			int idx = gtk_list_box_row_get_index (sel);
+			gboolean shown = FALSE;
+			if (gtk_widget_compute_bounds (GTK_WIDGET (sel), p->list, &b))
+				shown = b.origin.y >= gtk_adjustment_get_value (adj) - 1 &&
+					b.origin.y + b.size.height <= gtk_adjustment_get_value (adj) + gtk_adjustment_get_page_size (adj) + 1;
+			g_string_append_printf (s, " sel=%d:%s:%s", idx,
+				((item *) g_ptr_array_index (p->items, idx))->name, shown ? "in-view" : "OUT-OF-VIEW");
+		}
 	}
 	if (gtk_widget_get_visible (p->hint))
 		g_string_append_printf (s, "%shint: %s", s->len ? " | " : "", gtk_label_get_text (GTK_LABEL (p->hint)));

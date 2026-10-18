@@ -13,8 +13,9 @@
 #include <gtk/gtk.h>
 
 /* the "/" command list right on top of the box holding the input box (nick
-   button + entry), as wide as that box */
-void cmdpopup_attach (GtkWidget *entry);
+   button + entry), as wide as that box, drawn over host (a GtkOverlay
+   holding the chat column and the input row) */
+void cmdpopup_attach (GtkWidget *entry, GtkWidget *host);
 /* a key in the entry: TRUE if the list used it (Up/Down/Tab/Enter/Escape) */
 gboolean cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state);
 /* tests: what it shows now, "" when closed (g_free it) */
