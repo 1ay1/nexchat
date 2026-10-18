@@ -32,7 +32,7 @@ typedef struct
 	char *tags;			/* the BATCH line's tags (time, msgid, account...) */
 	char *head;			/* ":nick!u@h PRIVMSG #chan" of its first line */
 	GString *text;		/* the message so far, lines joined by \n */
-	int lines;
+	int lines;			/* multiline: lines so far; history: messages in it */
 } irc_batch;
 
 /* tags of the line being handled (irc_inline), for a BATCH + line */
@@ -70,6 +70,13 @@ static gboolean
 is_split_type (const char *type)
 {
 	return !g_ascii_strcasecmp (type, "netsplit") || !g_ascii_strcasecmp (type, "netjoin");
+}
+
+/* ZNC's buffer replayed on connect */
+static gboolean
+is_playback_type (const char *type)
+{
+	return !g_ascii_strcasecmp (type, "znc.in/playback");
 }
 
 static gboolean
@@ -167,7 +174,7 @@ batch_command (server *serv, char *word[], char *word_eol[])
 		b->params = g_strdup (word_eol[5][0] ? word_eol[5] : "");
 		b->nicks = g_hash_table_new_full (NULL, NULL, NULL, gstring_free);
 		g_hash_table_replace (batches (serv), g_strdup (ref + 1), b);
-		if (!g_ascii_strcasecmp (b->type, "chathistory"))
+		if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
 			chathistory_begin (serv, word[5]);
 		else if (is_multiline_type (b->type))
 		{
@@ -182,8 +189,8 @@ batch_command (server *serv, char *word[], char *word_eol[])
 		{
 			if (is_split_type (b->type))
 				batch_end (serv, b);
-			else if (!g_ascii_strcasecmp (b->type, "chathistory"))
-				chathistory_end (serv, b->params);
+			else if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
+				chathistory_end (serv, b->params, b->lines);
 			else if (is_multiline_type (b->type))
 			{
 				/* out of the table first: the replay goes through irc_inline */
@@ -207,7 +214,25 @@ batch_is_history (server *serv, const char *id)
 	if (!id || !serv->batches)
 		return FALSE;
 	b = g_hash_table_lookup (serv->batches, id);
-	return b && !g_ascii_strcasecmp (b->type, "chathistory");
+	return b && (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type));
+}
+
+static session *history_target (server *serv, const char *target);
+
+/* a message in a history batch, about to be shown in sess: the first one
+   gets the marker above it, all are counted for the line at the end */
+void
+batch_history_count (server *serv, const char *id, session *sess)
+{
+	irc_batch *b;
+
+	if (!id || !serv->batches || !sess)
+		return;
+	b = g_hash_table_lookup (serv->batches, id);
+	if (!b || (g_ascii_strcasecmp (b->type, "chathistory") && !is_playback_type (b->type)))
+		return;
+	if (!b->lines++)
+		PrintTextf (sess, _("\00323*\t--- While you were away ---\n"));
 }
 
 /* a QUIT or JOIN of nick in sess, tagged with batch id: TRUE if it was
@@ -313,26 +338,35 @@ chathistory_request (session *sess)
 		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, HISTORY_LINES);
 }
 
+static session *
+history_target (server *serv, const char *target)
+{
+	session *sess = target && *target ? find_channel (serv, (char *) target) : NULL;
+
+	if (!sess && target && *target)
+		sess = find_dialog (serv, (char *) target);
+	return sess;
+}
+
+/* the start is only marked when something comes: an empty replay prints
+   nothing at all */
 void
 chathistory_begin (server *serv, const char *target)
 {
-	session *sess = target && *target ? find_channel (serv, (char *) target) : NULL;
-
-	if (!sess && target && *target)
-		sess = find_dialog (serv, (char *) target);
-	if (sess)
-		PrintTextf (sess, _("\00323*\t--- History from the server ---\n"));
+	(void) serv;
+	(void) target;
 }
 
 void
-chathistory_end (server *serv, const char *target)
+chathistory_end (server *serv, const char *target, int lines)
 {
-	session *sess = target && *target ? find_channel (serv, (char *) target) : NULL;
+	session *sess = history_target (serv, target);
 
-	if (!sess && target && *target)
-		sess = find_dialog (serv, (char *) target);
-	if (sess)
-		PrintTextf (sess, _("\00323*\t--- End of history ---\n"));
+	if (!sess || lines <= 0)
+		return;
+	PrintTextf (sess, g_dngettext (GETTEXT_PACKAGE,
+				"\00323*\t--- %d message you missed, up to here ---\n",
+				"\00323*\t--- %d messages you missed, up to here ---\n", lines), lines);
 }
 
 /* ---- draft/read-marker ---- */

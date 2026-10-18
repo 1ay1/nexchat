@@ -29,10 +29,10 @@ want() { grep -q -- "$1" "$2" && echo "ok:   $3" || { echo "FAIL: $3"; fail=1; }
 none() { if grep -q -- "$1" "$2"; then echo "FAIL: $3"; fail=1; else echo "ok:   $3"; fi; }
 want '^CAP REQ .*draft/chathistory' "$tmp/server.log" 'chathistory requested'
 want '^CHATHISTORY LATEST #t \* 100' "$tmp/server.log" 'asks for the latest 100 on join (nothing seen before)'
-want 'History from the server' "$tmp/client.log" 'history marker shown'
+want 'While you were away' "$tmp/client.log" 'history marker shown'
 want 'history-line-one' "$tmp/client.log" 'history lines shown'
 want 'history-line-three' "$tmp/client.log" 'all of them'
-want 'End of history' "$tmp/client.log" 'end marker shown'
+want '3 messages you missed, up to here' "$tmp/client.log" 'end marker counts them'
 want '^CHATHISTORY LATEST alice \* 100' "$tmp/server.log" '/query alice asks for your history with her'
 log=$(find "$tmp/cfg/logs" -type f -name '*.log' 2>/dev/null | xargs grep -l 'live-line-after' 2>/dev/null | head -1)
 if [ -z "$log" ]; then log=$(find "$tmp/cfg/logs" -type f 2>/dev/null | grep -i '#t' | head -1); fi

@@ -436,6 +436,8 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 
 	inbound_make_idtext (serv, idtext, sizeof (idtext), id);
 
+	if (serv->line_is_history)
+		batch_history_count (serv, tags_data->batch, sess);
 	reply_show (sess, tags_data->reply, tags_data->timestamp);
 	if (tags_data->msgid)
 	{
@@ -522,6 +524,8 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 			fromme = TRUE;
 	}
 
+	if (serv->line_is_history)
+		batch_history_count (serv, tags_data->batch, sess);
 	reply_show (sess, tags_data->reply, tags_data->timestamp);
 	reply_remember (sess, tags_data->msgid, from, text);
 

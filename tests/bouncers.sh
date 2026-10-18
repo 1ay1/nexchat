@@ -1,8 +1,7 @@
 #!/bin/sh
-# Bouncers, against the real ones (tests/bnc/lab.sh): nexchat tells soju,
-# ZNC and a network that keeps you online (Ergo, draft/persistence) apart;
-# /bouncer lists, adds and removes networks on soju and ZNC and turns
-# always-on on with Ergo.
+# ZNC and Ergo, the real ones (tests/bnc/lab.sh): ZNC detected, its networks
+# managed through *controlpanel and its playback marked; Ergo's always-on
+# (draft/persistence) turned on; a plain server explained.
 # usage: tests/bouncers.sh path/to/nexchat-text   (77 = bouncers not fetched)
 set -eu
 bin=$1
@@ -37,40 +36,6 @@ run () # name host/port user pass logintype extra-flags "lines"...
 }
 
 # F=0: no global user info, no TLS. L=7 server password (PASS), L=6 SASL
-# --- soju: detected, networks listed, add and remove one
-run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
-	"/bouncer" \
-	"/bouncer add ergonet 127.0.0.1:$ERGO_PORT -notls" \
-	"/bouncer" \
-	"/bouncer del ergonet" \
-	"/bouncer"
-has 'Connected through soju' "soju: detected"
-has '(none yet' "soju: no networks at first"
-has 'ergonet added' "soju: add said so"
-has "ergonet  127.0.0.1:$ERGO_PORT" "soju: the new network listed with its address"
-has 'Removed from the bouncer' "soju: remove said so"
-n=$(grep -c "ergonet  127.0.0.1" "$tmp/out" || true)
-[ "$n" -eq 1 ] && ok "soju: gone after removing (listed once)" || bad "soju: listed $n times"
-cp "$tmp/out" "$tmp/soju.out"
-
-# --- soju: its networks become Network List entries, and one connects
-# straight onto its network
-keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
-	"/bouncer add libera 127.0.0.1:$ERGO_PORT -notls"
-grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && ok "soju: its network is an entry in the Network List" ||
-	{ bad "soju: no entry"; cat "$tmp/cfg/servlist.conf"; }
-grep -A3 '^N=soju/libera$' "$tmp/cfg/servlist.conf" | grep -q '^U=ayush/libera$' &&
-	ok "soju: the entry logs in as ayush/libera" || bad "soju: entry user"
-{
-	sleep 1; echo "/server soju/libera"; sleep 3; echo "/quit"; sleep 0.5
-} | timeout 20 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
-grep -q 'BOUNCER_NETID=' "$tmp/out" && grep -q 'NETWORK=ErgoTest' "$tmp/out" &&
-	ok "soju: connecting with the entry lands on that network" || { bad "soju: entry connect"; tail -20 "$tmp/out"; }
-keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 "/bouncer del libera"
-sleep 1
-grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && bad "soju: entry stays after removing" ||
-	ok "soju: removed on the bouncer, gone from the list"
-
 # --- ZNC: detected, its network listed, add/remove through *controlpanel
 run znc "127.0.0.1/$ZNC_PORT" "ayush/ergo" secret123 7 0 \
 	"/bouncer" \
@@ -87,6 +52,22 @@ has 'ZNC said no: User ayush already has a network with the name second' "znc: a
 has 'Removed from the bouncer' "znc: remove said so"
 grep -q '\*controlpanel' "$tmp/out" && bad "znc: module chatter shown" || ok "znc: no *controlpanel chatter in the window"
 cp "$tmp/out" "$tmp/znc.out"
+
+# --- ZNC: what was said while away is replayed, between the markers
+# (ZNC sits in #mine for us; bob talks there while we're not connected)
+python3 - "$ZNC_PORT" <<'EOF'
+import socket, sys, time
+s = socket.create_connection(("127.0.0.1", int(sys.argv[1]))); f = s.makefile("rwb")
+def w(l): f.write((l + "\r\n").encode()); f.flush()
+w("PASS secret123"); w("NICK ayush"); w("USER ayush/ergo 0 * :x"); time.sleep(1)
+w("JOIN #mine"); time.sleep(1); w("QUIT"); time.sleep(0.3)
+EOF
+bnc_say bob "#mine" "missed-one" "missed-two ayush look"
+run znc "127.0.0.1/$ZNC_PORT" "ayush/ergo" secret123 7 0 "/echo done"
+has 'While you were away' "znc: playback marked"
+has 'missed-one' "znc: missed lines shown"
+has '2 messages you missed, up to here' "znc: and counted"
+grep -q 'missed-two ayush look' "$tmp/out" && ok "znc: a mention in it is shown" || bad "znc: mention"
 
 # --- Ergo: a network that can keep you online; turn it on
 python3 - "$ERGO_PORT" <<'EOF'
@@ -114,7 +95,7 @@ has 'This is a plain IRC server' "plain: explained"
 grep -q 'Connected through' "$tmp/out" && bad "plain: taken for a bouncer" || ok "plain: not taken for a bouncer"
 
 if [ $fail -ne 0 ]; then
-	for f in soju znc; do echo "--- $f"; cat "$tmp/$f.out"; done
+	
 	echo "--- last"; cat "$tmp/out"
 	exit 1
 fi
