@@ -28,8 +28,11 @@
 #include "gtkcompat.h"
 #include "gtkutil.h"
 #include "cmdpopup.h"
+#include "../common/cmddocs.h"
 
-#define MAX_ROWS 10
+/* rows shown at once; the rest scroll. Enough for every command */
+#define MAX_ROWS 400
+#define VISIBLE_ROWS 9
 
 /* one row: a command, or a value for an argument */
 typedef struct
@@ -39,6 +42,8 @@ typedef struct
 	char *desc;		/* dim, last: what a command does, a setting's value... */
 	char *tip;		/* tooltip */
 	char *insert;	/* what replaces the word being typed */
+	char *heading;	/* a group heading drawn above this row ("Channels"), or NULL */
+	char *cmd;		/* the command a row is about, for the details below */
 } item;
 
 typedef struct
@@ -47,6 +52,10 @@ typedef struct
 	GtkWidget *popover;
 	GtkWidget *list;		/* GtkListBox */
 	GtkWidget *hint;		/* the usage line while typing arguments */
+	GtkWidget *scroll;		/* the list's scrolled window */
+	GtkWidget *details;	/* what the selected command does, an example, its options */
+	GtkWidget *keys;		/* the keys line at the bottom */
+	gboolean want_open;	/* we showed it and haven't closed it */
 	int last_width, last_x;	/* where the input row was when last placed */
 	GPtrArray *items;		/* item *, in list order */
 	gboolean args;			/* the items are values for an argument */
@@ -63,6 +72,8 @@ item_free (item *it)
 	g_free (it->desc);
 	g_free (it->tip);
 	g_free (it->insert);
+	g_free (it->heading);
+	g_free (it->cmd);
 	g_free (it);
 }
 
@@ -300,6 +311,7 @@ row_new (item *it, GtkSizeGroup *names, GtkSizeGroup *middles)
 static void
 popup_hide (cmdpopup *p)
 {
+	p->want_open = FALSE;
 	if (p->popover && gtk_widget_get_visible (p->popover))
 		gtk_popover_popdown (GTK_POPOVER (p->popover));
 }
@@ -330,8 +342,55 @@ popup_show (cmdpopup *p)
 	   no padding, margin or shadow in the classic look) */
 	gtk_widget_set_size_request (gtk_popover_get_child (GTK_POPOVER (p->popover)), r.width, -1);
 	gtk_popover_set_pointing_to (GTK_POPOVER (p->popover), &r);
+	p->want_open = TRUE;
 	if (!gtk_widget_get_visible (p->popover))
 		gtk_popover_popup (GTK_POPOVER (p->popover));
+}
+
+/* group headings above the rows that start a group (GtkListBox header) */
+static void
+header_func (GtkListBoxRow *row, GtkListBoxRow *before, gpointer data)
+{
+	cmdpopup *p = data;
+	int i = gtk_list_box_row_get_index (row);
+	item *it = p->items && i >= 0 && i < (int) p->items->len ? g_ptr_array_index (p->items, i) : NULL;
+	GtkWidget *h;
+
+	if (!it || !it->heading)
+	{
+		gtk_list_box_row_set_header (row, NULL);
+		return;
+	}
+	h = gtk_label_new (it->heading);
+	gtk_label_set_xalign (GTK_LABEL (h), 0);
+	gtk_widget_add_css_class (h, "nx-cmd-group");
+	gtk_list_box_row_set_header (row, h);
+}
+
+/* the list is at most VISIBLE_ROWS rows tall; more scroll */
+static void
+size_list (cmdpopup *p, guint n)
+{
+	GtkListBoxRow *r0 = gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), 0);
+	int row_h = 0;
+
+	if (r0)
+		gtk_widget_measure (GTK_WIDGET (r0), GTK_ORIENTATION_VERTICAL, -1, NULL, &row_h, NULL, NULL);
+	if (row_h <= 0)
+		row_h = 22;
+	if (n > VISIBLE_ROWS)
+	{
+		gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (p->scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (p->scroll), FALSE);
+		/* a little over N rows, so it's clear there's more below */
+		gtk_widget_set_size_request (p->scroll, -1, row_h * VISIBLE_ROWS + row_h / 2);
+	}
+	else
+	{
+		gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (p->scroll), GTK_POLICY_NEVER, GTK_POLICY_NEVER);
+		gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (p->scroll), TRUE);
+		gtk_widget_set_size_request (p->scroll, -1, -1);
+	}
 }
 
 /* show these items (taken over), the first selected */
@@ -350,21 +409,36 @@ popup_set_items (cmdpopup *p, GPtrArray *items)
 	p->items = items;
 	n = MIN (items->len, MAX_ROWS);
 	for (i = 0; i < n; i++)
+	{
+		GtkWidget *r;
 		gtk_list_box_append (GTK_LIST_BOX (p->list), row_new (g_ptr_array_index (items, i), names, middles));
+		/* the keys stay in the input box: rows never take the focus */
+		r = GTK_WIDGET (gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), i));
+		gtk_widget_set_focusable (r, FALSE);
+	}
 	g_object_unref (names);	/* the rows keep the groups alive */
 	g_object_unref (middles);
+	gtk_list_box_invalidate_headers (GTK_LIST_BOX (p->list));
+	size_list (p, n);
+	gtk_widget_set_visible (p->scroll, n > 0);
 	if (n)
+	{
 		gtk_list_box_select_row (GTK_LIST_BOX (p->list),
 										 gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), 0));
-	gtk_widget_set_visible (gtk_widget_get_parent (p->list), n > 0);
+		gtk_adjustment_set_value (gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (p->scroll)), 0);
+	}
+	else if (!p->args)
+		gtk_widget_set_visible (p->details, FALSE);
 }
 
-/* the commands matching word */
+/* the commands matching word; with nothing typed, the everyday ones first
+   under a heading, then the rest in their groups */
 static GPtrArray *
 command_items (const char *word)
 {
 	GPtrArray *cmds = cmdinfo_find (word);
 	GPtrArray *out = g_ptr_array_new_with_free_func ((GDestroyNotify) item_free);
+	const char *last_group = NULL;
 	guint i;
 
 	for (i = 0; i < cmds->len; i++)
@@ -372,18 +446,146 @@ command_items (const char *word)
 		cmdinfo *c = g_ptr_array_index (cmds, i);
 		const char *args = c->usage;
 		char *name = g_strdup_printf ("/%s", c->name);
+		item *it;
 
 		/* the usage repeats the name: show just what comes after it */
 		if (!g_ascii_strncasecmp (args, c->name, strlen (c->name)))
 			args += strlen (c->name);
 		while (*args == ' ')
 			args++;
-		g_ptr_array_add (out, item_new (name, args,
-			c->kind == CMD_PLUGIN && !*c->desc ? _("(plugin)") : c->desc, c->help, c->name));
+		it = item_new (name, args,
+			c->kind == CMD_PLUGIN && !*c->desc ? _("(plugin)") : c->desc, c->help, c->name);
+		it->cmd = g_strdup (c->name);
+		if (!*word)
+		{
+			/* headings: \"Most used\", then each group, then \"More\" */
+			const char *group = c->doc && c->doc->common ? _("Most used")
+				: c->doc ? _(c->doc->group) : c->kind == CMD_PLUGIN ? _("Plugins")
+				: c->kind == CMD_USER ? _("Your commands") : _("More");
+			if (!last_group || strcmp (group, last_group))
+				it->heading = g_strdup (group);
+			last_group = group;
+		}
+		g_ptr_array_add (out, it);
 		g_free (name);
 	}
 	cmdinfo_list_free (cmds);
 	return out;
+}
+
+/* the options a command takes, from its docs or its usage ([ALL|HISTORY],
+   [-m]), as suggestions when the word being typed could be one */
+static void
+add_options (GPtrArray *out, cmdinfo *c, const char *prefix)
+{
+	gsize plen = strlen (prefix);
+	const cmddoc_opt *o;
+
+	if (c->doc && c->doc->opts)
+	{
+		for (o = c->doc->opts; o->flag; o++)
+			if (!g_ascii_strncasecmp (o->flag, prefix, plen))
+				g_ptr_array_add (out, item_new (o->flag, NULL, _(o->what), NULL, o->flag));
+		return;
+	}
+	/* no docs: the words in [...] or <A|B|C> of the usage that look like
+	   options or choices */
+	{
+		const char *u = c->usage;
+		while ((u = strpbrk (u, "[<")))
+		{
+			const char *e = strchr (u, *u == '[' ? ']' : '>');
+			char *inner, **alts;
+			int k;
+			if (!e)
+				break;
+			inner = g_strndup (u + 1, e - u - 1);
+			alts = g_strsplit (inner, "|", 0);
+			for (k = 0; alts[k]; k++)
+			{
+				const char *a = alts[k];
+				/* -flag or a word in capitals (ALL, HISTORY), not <placeholders> */
+				if ((a[0] == '-' && g_ascii_isalpha (a[1])) ||
+					 (g_ascii_isupper (a[0]) && !strchr (a, '<') && !strchr (a, ' ')))
+					if (!g_ascii_strncasecmp (a, prefix, plen))
+						g_ptr_array_add (out, item_new (a, NULL, NULL, NULL, a));
+			}
+			g_strfreev (alts);
+			g_free (inner);
+			u = e + 1;
+		}
+	}
+}
+
+/* the selected command explained below the list: what it does, an
+   example, and its options */
+static void
+show_details (cmdpopup *p, const char *cmd)
+{
+	cmdinfo *c = cmd ? cmdinfo_lookup (cmd) : NULL;
+	GString *m;
+	char *t;
+
+	if (!c)
+	{
+		gtk_widget_set_visible (p->details, FALSE);
+		return;
+	}
+	m = g_string_new (NULL);
+	if (c->doc)
+	{
+		t = g_markup_printf_escaped ("<b>/%s</b> %s  %s", c->name, c->doc->args, _(c->doc->summary));
+		g_string_append (m, t);
+		g_free (t);
+		if (c->doc->more)
+		{
+			t = g_markup_printf_escaped ("\n%s", _(c->doc->more));
+			g_string_append (m, t);
+			g_free (t);
+		}
+		if (c->doc->example)
+		{
+			t = g_markup_printf_escaped ("\n%s  <tt>%s</tt>", _("Example:"), c->doc->example);
+			g_string_append (m, t);
+			g_free (t);
+		}
+		if (c->doc->opts)
+		{
+			const cmddoc_opt *o;
+			g_string_append_printf (m, "\n%s", _("Options:"));
+			for (o = c->doc->opts; o->flag; o++)
+			{
+				t = g_markup_printf_escaped ("  <tt>%s</tt> %s", o->flag, _(o->what));
+				g_string_append (m, t);
+				g_free (t);
+				if (o[1].flag)
+					g_string_append (m, ",");
+			}
+		}
+	}
+	else
+	{
+		/* only the terse built-in help: show it whole */
+		t = g_markup_printf_escaped ("<b>/%s</b>  %s", c->name, *c->help ? c->help : c->desc);
+		g_string_append (m, t);
+		g_free (t);
+	}
+	gtk_label_set_markup (GTK_LABEL (p->details), m->str);
+	gtk_widget_set_visible (p->details, TRUE);
+	g_string_free (m, TRUE);
+	cmdinfo_free (c);
+}
+
+/* the selected row changed */
+static void
+row_selected_cb (GtkListBox *box, GtkListBoxRow *row, cmdpopup *p)
+{
+	item *it;
+
+	if (!row || !p->items || p->args)
+		return;
+	it = g_ptr_array_index (p->items, gtk_list_box_row_get_index (row));
+	show_details (p, it->cmd);
 }
 
 /* the usage line, argument n in bold */
@@ -465,7 +667,12 @@ popup_update (cmdpopup *p)
 		gtk_widget_set_visible (p->hint, FALSE);
 		popup_set_items (p, items);
 		if (items->len)
+		{
+			show_details (p, ((item *) items->pdata[0])->cmd);
+			gtk_label_set_text (GTK_LABEL (p->keys),
+				_("↑↓ choose   Tab fill in   Enter run   Esc close"));
 			popup_show (p);
+		}
 		else
 			popup_hide (p);
 	}
@@ -481,6 +688,11 @@ popup_update (cmdpopup *p)
 		p->word_start = start;
 		if (c && n > 0)
 		{
+			/* options and choices (-a, ALL, PRIV) are offered where the word
+			   could be one: it starts with -, or this argument takes a choice */
+			if (word[0] == '-' || n == 1 || cmdinfo_arg_is_choice (c, n))
+				add_options (items, c, word);
+			if (word[0] != '-')
 			switch (cmdinfo_arg_kind (c, n))
 			{
 			case ARG_NICK:
@@ -514,6 +726,19 @@ popup_update (cmdpopup *p)
 		else
 			gtk_widget_set_visible (p->hint, FALSE);
 		popup_set_items (p, items);
+		/* the example, so it's clear what goes where */
+		if (c && c->doc && c->doc->example)
+		{
+			char *m = g_markup_printf_escaped ("%s  <tt>%s</tt>", _("Example:"), c->doc->example);
+			gtk_label_set_markup (GTK_LABEL (p->details), m);
+			gtk_widget_set_visible (p->details, TRUE);
+			g_free (m);
+		}
+		else
+			gtk_widget_set_visible (p->details, FALSE);
+		gtk_label_set_text (GTK_LABEL (p->keys), items->len
+			? _("↑↓ choose   Tab fill in   Enter send   Esc close")
+			: _("Enter send   Esc close"));
 		if (gtk_widget_get_visible (p->hint) || items->len)
 			popup_show (p);
 		else
@@ -591,7 +816,7 @@ selected (cmdpopup *p)
 {
 	GtkListBoxRow *row = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
 
-	if (!row || !p->items || !gtk_widget_get_visible (gtk_widget_get_parent (p->list)))
+	if (!row || !p->items || !gtk_widget_get_visible (p->scroll))
 		return NULL;
 	return g_ptr_array_index (p->items, gtk_list_box_row_get_index (row));
 }
@@ -605,9 +830,30 @@ move (cmdpopup *p, int by)
 
 	if (!n)
 		return;
-	i = (i + by + n) % n;
-	gtk_list_box_select_row (GTK_LIST_BOX (p->list),
-									 gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), i));
+	if (by == 1 || by == -1)
+		i = (i + by + n) % n;	/* single steps wrap around */
+	else
+		i = CLAMP (i + by, 0, n - 1);
+	row = gtk_list_box_get_row_at_index (GTK_LIST_BOX (p->list), i);
+	gtk_list_box_select_row (GTK_LIST_BOX (p->list), row);
+	if (!p->args)
+		show_details (p, ((item *) g_ptr_array_index (p->items, i))->cmd);
+	/* keep it in sight: scroll the list to the row (only when the list
+	   scrolls at all; adjusting a list that fits does nothing useful) */
+	if (gtk_scrolled_window_get_vscrollbar (GTK_SCROLLED_WINDOW (p->scroll)) &&
+		 gtk_widget_get_visible (gtk_scrolled_window_get_vscrollbar (GTK_SCROLLED_WINDOW (p->scroll))))
+	{
+		graphene_rect_t b;
+		GtkAdjustment *adj = gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (p->scroll));
+		if (gtk_widget_compute_bounds (GTK_WIDGET (row), p->list, &b))
+		{
+			double top = gtk_adjustment_get_value (adj), page = gtk_adjustment_get_page_size (adj);
+			if (b.origin.y < top)
+				gtk_adjustment_set_value (adj, b.origin.y);
+			else if (b.origin.y + b.size.height > top + page)
+				gtk_adjustment_set_value (adj, b.origin.y + b.size.height - page);
+		}
+	}
 }
 
 /* keys while it's up; FALSE lets the entry (and fkeys.c) have them */
@@ -643,6 +889,12 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 			return FALSE;	/* just the hint: Up/Down stay history */
 		move (p, keyval == GDK_KEY_Up || keyval == GDK_KEY_KP_Up ? -1 : 1);
 		return TRUE;
+	case GDK_KEY_Page_Up:
+	case GDK_KEY_Page_Down:
+		if (!it)
+			return FALSE;
+		move (p, keyval == GDK_KEY_Page_Up ? -VISIBLE_ROWS : VISIBLE_ROWS);
+		return TRUE;
 	case GDK_KEY_Tab:
 	case GDK_KEY_ISO_Left_Tab:
 		if (!it)
@@ -677,6 +929,49 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 	return FALSE;
 }
 
+/* the input box (or its text inside) has the keyboard */
+static gboolean
+entry_focused (cmdpopup *p)
+{
+	GtkRoot *root = gtk_widget_get_root (p->entry);
+	GtkWidget *f = root ? gtk_root_get_focus (root) : NULL;
+
+	return f && (f == p->entry || gtk_widget_is_ancestor (f, p->entry));
+}
+
+static gboolean
+reopen_idle (gpointer data)
+{
+	cmdpopup *p = data;
+
+	if (p->want_open && !gtk_widget_get_visible (p->popover) && entry_focused (p))
+		popup_show (p);	/* as it was: same list, same selection */
+	return G_SOURCE_REMOVE;
+}
+
+static void
+popover_closed_cb (GtkPopover *pop, cmdpopup *p)
+{
+	if (p->want_open)
+		g_idle_add (reopen_idle, p);
+}
+
+/* a key that went to the popover: the list's keys go to the list; the
+   arrow keys never reach GtkPopover (it would close on them) */
+static gboolean
+popover_key_cb (GtkEventControllerKey *k, guint keyval, guint keycode, GdkModifierType state, cmdpopup *p)
+{
+	if (cmdpopup_key (p->entry, keyval, state))
+		return TRUE;
+	switch (keyval)
+	{
+	case GDK_KEY_Up: case GDK_KEY_Down: case GDK_KEY_Left: case GDK_KEY_Right:
+	case GDK_KEY_KP_Up: case GDK_KEY_KP_Down:
+		return TRUE;
+	}
+	return FALSE;
+}
+
 static void
 row_activated_cb (GtkListBox *box, GtkListBoxRow *row, cmdpopup *p)
 {
@@ -684,10 +979,22 @@ row_activated_cb (GtkListBox *box, GtkListBoxRow *row, cmdpopup *p)
 	gtk_widget_grab_focus (p->entry);
 }
 
+/* the input lost focus: close, unless it went to the list itself (a click
+   on a row) or the change is only passing (a row being rebuilt) */
+static gboolean
+focus_out_idle (gpointer data)
+{
+	cmdpopup *p = data;
+
+	if (!entry_focused (p))
+		popup_hide (p);
+	return G_SOURCE_REMOVE;
+}
+
 static void
 focus_out_cb (GtkEventControllerFocus *f, cmdpopup *p)
 {
-	popup_hide (p);
+	g_timeout_add (150, focus_out_idle, p);
 }
 
 static void
@@ -716,7 +1023,20 @@ cmdpopup_attach (GtkWidget *entry)
 	gtk_popover_set_position (GTK_POPOVER (p->popover), GTK_POS_TOP);
 	gtk_widget_set_halign (p->popover, GTK_ALIGN_FILL);
 	gtk_widget_set_can_focus (p->popover, FALSE);
+	gtk_widget_set_focusable (p->popover, FALSE);
 	gtk_widget_set_parent (p->popover, entry);
+	/* a key pressed while the pointer is over the list goes to the popover
+	   (GtkPopover would close on Down/Up as its own focus keys): send it to
+	   the same handler as the input box's, then on to the input box */
+	{
+		GtkEventController *k = gtk_event_controller_key_new ();
+		gtk_event_controller_set_propagation_phase (k, GTK_PHASE_CAPTURE);
+		g_signal_connect (k, "key-pressed", G_CALLBACK (popover_key_cb), p);
+		gtk_widget_add_controller (p->popover, k);
+	}
+	/* GTK closes a popover on its own now and then (the surface is redone
+	   when its size changes): put it back if we didn't close it */
+	g_signal_connect (p->popover, "closed", G_CALLBACK (popover_closed_cb), p);
 
 	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtk_popover_set_child (GTK_POPOVER (p->popover), box);
@@ -732,13 +1052,36 @@ cmdpopup_attach (GtkWidget *entry)
 	p->list = gtk_list_box_new ();
 	gtk_list_box_set_selection_mode (GTK_LIST_BOX (p->list), GTK_SELECTION_BROWSE);
 	gtk_list_box_set_activate_on_single_click (GTK_LIST_BOX (p->list), TRUE);
+	gtk_list_box_set_header_func (GTK_LIST_BOX (p->list), header_func, p, NULL);
 	gtk_widget_set_can_focus (p->list, FALSE);
 	g_signal_connect (p->list, "row-activated", G_CALLBACK (row_activated_cb), p);
-	sw = gtk_scrolled_window_new ();
+	g_signal_connect (p->list, "row-selected", G_CALLBACK (row_selected_cb), p);
+	p->scroll = sw = gtk_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_NEVER);
 	gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (sw), TRUE);
 	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), p->list);
 	gtk_box_append (GTK_BOX (box), sw);
+
+	/* the selected command explained: what it does, an example, options */
+	p->details = gtk_label_new (NULL);
+	gtk_label_set_xalign (GTK_LABEL (p->details), 0);
+	gtk_label_set_wrap (GTK_LABEL (p->details), TRUE);
+	gtk_label_set_wrap_mode (GTK_LABEL (p->details), PANGO_WRAP_WORD_CHAR);
+	gtk_label_set_width_chars (GTK_LABEL (p->details), 1);
+	/* always 3 lines tall: moving through the list doesn't resize the popup */
+	gtk_label_set_lines (GTK_LABEL (p->details), 3);
+	gtk_label_set_ellipsize (GTK_LABEL (p->details), PANGO_ELLIPSIZE_END);
+	gtk_widget_add_css_class (p->details, "nx-cmd-details");
+	gtk_box_append (GTK_BOX (box), p->details);
+
+	/* which keys do what, always in sight */
+	p->keys = gtk_label_new (NULL);
+	gtk_label_set_xalign (GTK_LABEL (p->keys), 0);
+	gtk_label_set_ellipsize (GTK_LABEL (p->keys), PANGO_ELLIPSIZE_END);
+	gtk_label_set_width_chars (GTK_LABEL (p->keys), 1);
+	gtk_widget_add_css_class (p->keys, "nx-cmd-keys");
+	gtk_widget_add_css_class (p->keys, "dim-label");
+	gtk_box_append (GTK_BOX (box), p->keys);
 
 	g_signal_connect (entry, "changed", G_CALLBACK (popup_changed_cb), p);
 	/* moving the cursor to another argument changes what's offered */
@@ -808,21 +1151,33 @@ cmdpopup_describe (GtkWidget *entry)
 	if (!p || !p->popover || !gtk_widget_get_visible (p->popover))
 		return g_strdup ("");
 	s = g_string_new (NULL);
-	if (gtk_widget_get_visible (gtk_widget_get_parent (p->list)) && p->items)
+	if (gtk_widget_get_visible (p->scroll) && p->items)
 	{
 		g_string_append (s, "list:");
 		sel = gtk_list_box_get_selected_row (GTK_LIST_BOX (p->list));
-		n = MIN (p->items->len, MAX_ROWS);
+		n = MIN (p->items->len, 12);
 		for (i = 0; i < n; i++)
 		{
 			item *it = g_ptr_array_index (p->items, i);
 			gboolean is_sel = sel && gtk_list_box_row_get_index (sel) == (int) i;
 			/* commands without their slash, as before */
 			const char *name = !p->args && it->name[0] == '/' ? it->name + 1 : it->name;
+			if (it->heading)
+				g_string_append_printf (s, " {%s}", it->heading);
 			g_string_append_printf (s, " %s%s%s", is_sel ? "[" : "", name, is_sel ? "]" : "");
 		}
+		if (p->items->len > n)
+			g_string_append_printf (s, " +%u", p->items->len - n);
 	}
 	if (gtk_widget_get_visible (p->hint))
 		g_string_append_printf (s, "%shint: %s", s->len ? " | " : "", gtk_label_get_text (GTK_LABEL (p->hint)));
+	if (gtk_widget_get_visible (p->details))
+	{
+		/* one line for the test dump */
+		char *d = g_strdup (gtk_label_get_text (GTK_LABEL (p->details)));
+		g_strdelimit (d, "\n", ' ');
+		g_string_append_printf (s, " | details: %s", d);
+		g_free (d);
+	}
 	return g_string_free (s, FALSE);
 }

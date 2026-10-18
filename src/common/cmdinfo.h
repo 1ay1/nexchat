@@ -29,11 +29,13 @@ typedef struct
 	char *help;			/* the whole help text, or "" */
 	cmdinfo_kind kind;
 	int score;			/* how well it matched */
+	const struct _cmddoc *doc;	/* plain-English docs (cmddocs.c), or NULL */
 } cmdinfo;
 
 /* every command whose name starts with or contains prefix (case doesn't
    matter), best matches first: built-ins, the user's commands and plugin
-   commands, each named once. Free with cmdinfo_list_free. */
+   commands, each named once. With an empty prefix the everyday ones come
+   first, then by group. Free with cmdinfo_list_free. */
 GPtrArray *cmdinfo_find (const char *prefix);
 void cmdinfo_list_free (GPtrArray *list);
 /* the one command named exactly name, or NULL; free with cmdinfo_free */
@@ -54,6 +56,9 @@ typedef enum
 	ARG_COMMAND		/* /help */
 } cmdinfo_arg;
 cmdinfo_arg cmdinfo_arg_kind (cmdinfo *c, int n);
+/* argument n takes one of the command's listed options/choices ("<what>"
+   of /ignore, "<SEND|GET...>" of /dcc) */
+gboolean cmdinfo_arg_is_choice (cmdinfo *c, int n);
 /* the place of argument n in c's usage as byte offsets into c->usage
    (for showing it bold); FALSE if the usage doesn't have one */
 gboolean cmdinfo_arg_span (cmdinfo *c, int n, int *start, int *end);

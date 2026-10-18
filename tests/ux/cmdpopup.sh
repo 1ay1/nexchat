@@ -48,6 +48,26 @@ check() {
 	esac
 }
 
+# just "/": everything, the everyday commands first under a heading, with
+# the first one explained in plain words and an example
+t "/"
+check cmdpopup 'cmdpopup: list: {Most used} \[*' '"/" alone lists commands, everyday ones first'
+check cmdpopup '*+[0-9]* | details: */* Example:*' 'the selected one is explained, with an example'
+k Down
+check cmdpopup 'cmdpopup: list: {Most used} * \[*' 'Down moves, and the explanation follows'
+k BackSpace
+
+# options and choices come up for the argument that takes them
+t "/lastlog "
+check cmdpopup 'cmdpopup: list: \[-a\] -m -r -h*' '/lastlog offers its options'
+k ctrl+a BackSpace
+t "/ignore spammer "
+check cmdpopup 'cmdpopup: list: \[ALL\] PRIV CHAN*' '/ignore nick offers what to ignore'
+k ctrl+a BackSpace
+t "/dcc "
+check cmdpopup 'cmdpopup: list: \[SEND\] GET CHAT LIST CLOSE*' '/dcc offers its subcommands'
+k ctrl+a BackSpace
+
 t "/jo"
 check cmdpopup 'cmdpopup: list: \[JOIN\]*' '/jo lists JOIN first, selected'
 # exactly as wide as the box holding the composer, right on top of it
@@ -78,7 +98,7 @@ k Up
 t "o"
 k Tab
 check input 'input: /join ' 'Tab fills in "/join " (lower case, as typed)'
-check cmdpopup 'cmdpopup: list: \[#t\] | hint: /JOIN <channel>*' 'after /join: your channels, under the usage line'
+check cmdpopup 'cmdpopup: list: \[#t\] | hint: /JOIN <#channel>*' 'after /join: your channels, under the usage line'
 k Escape
 check cmdpopup 'cmdpopup: ' 'Escape closes it'
 t "#x"

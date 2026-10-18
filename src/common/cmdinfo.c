@@ -19,6 +19,7 @@
 #include "outbound.h"
 #include "plugin.h"
 #include "cfgfiles.h"
+#include "cmddocs.h"
 #include "cmdinfo.h"
 
 extern const struct prefs vars[];	/* cfgfiles.c */
@@ -110,6 +111,20 @@ cmdinfo_new (const char *name, const char *help, cmdinfo_kind kind)
 	c->help = g_strdup (help ? help : "");
 	split_help (name, help, &c->usage, &c->desc);
 	c->kind = kind;
+	/* plain-English docs replace the terse built-in line where there are some */
+	c->doc = kind == CMD_PLUGIN ? NULL : cmddoc_find (name);
+	if (c->doc)
+	{
+		g_free (c->usage);
+		g_free (c->desc);
+		c->usage = *c->doc->args ? g_strdup_printf ("%s %s", c->name, c->doc->args) : g_strdup (c->name);
+		c->desc = g_strdup (_(c->doc->summary));
+		if (!*c->help)
+		{
+			g_free (c->help);
+			c->help = g_strdup_printf ("%s. %s", _(c->doc->summary), c->doc->more ? _(c->doc->more) : "");
+		}
+	}
 	return c;
 }
 
@@ -141,6 +156,13 @@ add (collect *col, const char *name, const char *help, cmdinfo_kind kind)
 	g_hash_table_add (col->seen, key);
 	c = cmdinfo_new (name, help, kind);
 	c->score = score;
+	/* nothing typed yet: everyday commands first, then the rest of the
+	   documented ones, then everything else */
+	if (!*col->prefix && c->doc)
+		c->score += c->doc->common ? 2000 : 1000;
+	/* typed part of a name: an everyday command wins a tie */
+	else if (c->doc && c->doc->common)
+		c->score += 50;
 	g_ptr_array_add (col->out, c);
 }
 
@@ -191,6 +213,12 @@ cmdinfo_find (const char *prefix)
 	}
 	for (i = 0; xc_cmds[i].name; i++)
 		add (&col, xc_cmds[i].name, xc_cmds[i].help ? _(xc_cmds[i].help) : NULL, CMD_BUILTIN);
+	/* documented commands that go to the server as they are (WHOIS) */
+	{
+		const cmddoc *d;
+		for (d = cmddoc_all (); d->name; d++)
+			add (&col, d->name, NULL, CMD_BUILTIN);
+	}
 
 	g_hash_table_destroy (col.seen);
 	g_ptr_array_sort (col.out, by_score);
@@ -340,6 +368,25 @@ cmdinfo_arg_kind (cmdinfo *c, int n)
 		kind = ARG_CHANNEL;
 	g_free (word);
 	return kind;
+}
+
+gboolean
+cmdinfo_arg_is_choice (cmdinfo *c, int n)
+{
+	int s, e;
+	char *word;
+	gboolean choice;
+
+	if (!cmdinfo_arg_span (c, n, &s, &e))
+		return FALSE;
+	word = g_strndup (c->usage + s + 1, e - s - 2);
+	/* <SEND|GET|CHAT>, <VERSION|TIME|PING>, or a slot the docs fill with
+	   choices: <what>, [options] */
+	choice = strchr (word, '|') != NULL ||
+		(c->doc && c->doc->opts && (!g_ascii_strcasecmp (word, "what") ||
+											 !g_ascii_strcasecmp (word, "options")));
+	g_free (word);
+	return choice;
 }
 
 static int

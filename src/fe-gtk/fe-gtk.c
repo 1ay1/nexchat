@@ -532,7 +532,14 @@ fe_apply_css (void)
 		"popover.nx-cmdpopup list > row:selected { background-color: @theme_selected_bg_color;"
 		" color: @theme_selected_fg_color; }\n"
 		"popover.nx-cmdpopup list > row:selected .dim-label { opacity: 0.85; }\n"
-		"popover.nx-cmdpopup .nx-cmd-hint { padding: 2px 6px; }\n");
+		"popover.nx-cmdpopup .nx-cmd-hint { padding: 2px 6px; }\n"
+		/* group headings in the list, the selected command explained, keys */
+		"popover.nx-cmdpopup .nx-cmd-group { padding: 3px 6px 1px 6px; font-weight: bold;"
+		" font-size: smaller; opacity: 0.7; }\n"
+		"popover.nx-cmdpopup .nx-cmd-details { padding: 3px 6px;"
+		" border-top: 1px solid alpha(currentColor, 0.2); }\n"
+		"popover.nx-cmdpopup .nx-cmd-keys { padding: 1px 6px 2px 6px; font-size: smaller;"
+		" border-top: 1px solid alpha(currentColor, 0.12); }\n");
 
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))
