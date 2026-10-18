@@ -2513,104 +2513,161 @@ cmd_lagcheck (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 	return TRUE;
 }
 
-/* /LASTLOG -l: one log file's matching lines into the (lastlog) window,
-   under the file's name; returns how many */
-static int
-lastlog_file (session *out, const char *path, const char *shown, const char *search,
-				  GRegex *re, gboolean case_match, int room)
-{
-	char *data = NULL, **lines, *needle = NULL;
-	int i, n = 0;
-
-	if (!g_file_get_contents (path, &data, NULL, NULL))
-		return 0;
-	if (!re)
-		needle = case_match ? g_strdup (search) : g_utf8_casefold (search, -1);
-	lines = g_strsplit (data, "\n", -1);
-	g_free (data);
-	for (i = 0; lines[i] && n < room; i++)
-	{
-		char *line = lines[i], *hay;
-		gboolean hit;
-
-		if (!*line || !g_utf8_validate (line, -1, NULL))
-			continue;
-		if (re)
-			hit = g_regex_match (re, line, 0, NULL);
-		else
-		{
-			hay = case_match ? line : g_utf8_casefold (line, -1);
-			hit = strstr (hay, needle) != NULL;
-			if (hay != line)
-				g_free (hay);
-		}
-		if (!hit)
-			continue;
-		if (!n)
-			PrintTextf (out, "\002%s\002\n", shown);
-		PrintTextf (out, "  %s\n", line);
-		n++;
-	}
-	g_strfreev (lines);
-	g_free (needle);
-	return n;
-}
-
 #define LOG_SEARCH_MAX 500
 
+/* /LASTLOG -l runs in a worker thread: it only collects lines here and
+   the (lastlog) window gets them on the main thread when it's done, so a
+   big log folder doesn't freeze the window */
+typedef struct
+{
+	char *dir;
+	char *search;
+	char *needle;		/* casefolded unless case_match */
+	GRegex *re;
+	gboolean case_match;
+	GPtrArray *out;	/* lines to print: "\002file\002" headings and "  line"s */
+	int total;
+	session *sess;		/* (lastlog), checked with is_session () at the end */
+} log_search;
+
 static void
-lastlog_logs_dir (session *out, const char *dir, const char *rel, const char *search,
-						GRegex *re, gboolean case_match, int *total)
+log_search_free (log_search *s)
+{
+	g_free (s->dir);
+	g_free (s->search);
+	g_free (s->needle);
+	if (s->re)
+		g_regex_unref (s->re);
+	g_ptr_array_unref (s->out);
+	g_free (s);
+}
+
+/* one file, read line by line (never all at once) */
+static void
+log_search_file (log_search *s, const char *path, const char *shown)
+{
+	GFile *f = g_file_new_for_path (path);
+	GFileInputStream *in = g_file_read (f, NULL, NULL);
+	GDataInputStream *data;
+	char *line;
+	int n = 0;
+
+	g_object_unref (f);
+	if (!in)
+		return;
+	data = g_data_input_stream_new (G_INPUT_STREAM (in));
+	g_object_unref (in);
+	while (s->total < LOG_SEARCH_MAX &&
+			 (line = g_data_input_stream_read_line_utf8 (data, NULL, NULL, NULL)))
+	{
+		gboolean hit;
+
+		if (!*line)
+		{
+			g_free (line);
+			continue;
+		}
+		if (s->re)
+			hit = g_regex_match (s->re, line, 0, NULL);
+		else if (s->case_match)
+			hit = strstr (line, s->needle) != NULL;
+		else
+		{
+			char *hay = g_utf8_casefold (line, -1);
+			hit = strstr (hay, s->needle) != NULL;
+			g_free (hay);
+		}
+		if (hit)
+		{
+			if (!n++)
+				g_ptr_array_add (s->out, g_strdup_printf ("\002%s\002\n", shown));
+			g_ptr_array_add (s->out, g_strdup_printf ("  %s\n", line));
+			s->total++;
+		}
+		g_free (line);
+	}
+	g_object_unref (data);
+}
+
+static void
+log_search_dir (log_search *s, const char *dir, const char *rel)
 {
 	GDir *d = g_dir_open (dir, 0, NULL);
 	const char *name;
 
 	if (!d)
 		return;
-	while ((name = g_dir_read_name (d)) && *total < LOG_SEARCH_MAX)
+	while ((name = g_dir_read_name (d)) && s->total < LOG_SEARCH_MAX)
 	{
 		char *path = g_build_filename (dir, name, NULL);
 		char *shown = *rel ? g_build_filename (rel, name, NULL) : g_strdup (name);
 
 		if (g_file_test (path, G_FILE_TEST_IS_DIR))
-			lastlog_logs_dir (out, path, shown, search, re, case_match, total);
+			log_search_dir (s, path, shown);
 		else if (g_str_has_suffix (name, ".log"))
-			*total += lastlog_file (out, path, shown, search, re, case_match, LOG_SEARCH_MAX - *total);
+			log_search_file (s, path, shown);
 		g_free (path);
 		g_free (shown);
 	}
 	g_dir_close (d);
 }
 
+static void
+log_search_thread (GTask *task, gpointer src, gpointer data, GCancellable *c)
+{
+	log_search_dir (data, ((log_search *) data)->dir, "");
+	g_task_return_boolean (task, TRUE);
+}
+
+static void
+log_search_done (GObject *src, GAsyncResult *res, gpointer user)
+{
+	log_search *s = g_task_get_task_data (G_TASK (res));
+	guint i;
+
+	if (!is_session (s->sess))
+		return;	/* the (lastlog) tab was closed meanwhile */
+	for (i = 0; i < s->out->len; i++)
+		PrintText (s->sess, g_ptr_array_index (s->out, i));
+	if (!s->total)
+		PrintTextf (s->sess, _("No matches for \"%s\" in the logs.\n"), s->search);
+	else if (s->total >= LOG_SEARCH_MAX)
+		PrintTextf (s->sess, _("Stopped at %d matches. Search for something longer to see fewer.\n"), LOG_SEARCH_MAX);
+	else
+		PrintTextf (s->sess, _("%d matches.\n"), s->total);
+}
+
 /* the logs on disk (config dir/logs, every network and channel) */
 static void
 lastlog_logs (session *out, const char *search, gtk_xtext_search_flags flags)
 {
-	char *dir = g_build_filename (get_xdir (), "logs", NULL);
-	GRegex *re = NULL;
+	log_search *s = g_new0 (log_search, 1);
 	GError *err = NULL;
-	int total = 0;
+	GTask *task;
 
+	s->dir = g_build_filename (get_xdir (), "logs", NULL);
+	s->search = g_strdup (search);
+	s->case_match = (flags & case_match) != 0;
+	s->out = g_ptr_array_new_with_free_func (g_free);
+	s->sess = out;
 	if (flags & regexp)
 	{
-		re = g_regex_new (search, (flags & case_match) ? 0 : G_REGEX_CASELESS, 0, &err);
-		if (!re)
+		s->re = g_regex_new (search, s->case_match ? 0 : G_REGEX_CASELESS, 0, &err);
+		if (!s->re)
 		{
 			PrintText (out, err->message);
 			g_error_free (err);
-			g_free (dir);
+			log_search_free (s);
 			return;
 		}
 	}
-	PrintTextf (out, _("Searching the logs in %s for \"%s\"\n"), dir, search);
-	lastlog_logs_dir (out, dir, "", search, re, flags & case_match, &total);
-	if (!total)
-		PrintTextf (out, _("No matches for \"%s\" in the logs.\n"), search);
-	else if (total >= LOG_SEARCH_MAX)
-		PrintTextf (out, _("Stopped at %d matches. Search for something longer to see fewer.\n"), LOG_SEARCH_MAX);
-	if (re)
-		g_regex_unref (re);
-	g_free (dir);
+	else
+		s->needle = s->case_match ? g_strdup (search) : g_utf8_casefold (search, -1);
+	PrintTextf (out, _("Searching the logs in %s for \"%s\"...\n"), s->dir, search);
+	task = g_task_new (NULL, NULL, log_search_done, NULL);
+	g_task_set_task_data (task, s, (GDestroyNotify) log_search_free);
+	g_task_run_in_thread (task, log_search_thread);
+	g_object_unref (task);
 }
 
 static void
