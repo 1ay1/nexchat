@@ -45,6 +45,7 @@
 #include "../common/userlist.h"
 #include "gtkutil.h"
 #include "maingui.h"
+#include "bncsetup.h"
 #include "chanview.h"
 #include "cmdpopup.h"
 #include "pixmaps.h"
@@ -665,6 +666,11 @@ fe_tabs_dump (gpointer d)
 		pop = cmdpopup_geometry (current_sess->gui->input_box);
 		g_printerr ("cmdgeom: %s\n", pop);
 		g_printerr ("input: %s\n", gtk_editable_get_text (GTK_EDITABLE (current_sess->gui->input_box)));
+		{
+			char *st = bncsetup_describe ();
+			g_printerr ("bncsetup: %s\n", st ? st : "");
+			g_free (st);
+		}
 		g_printerr ("typing: %s\n", current_sess->gui->typing_label && gtk_widget_get_visible (current_sess->gui->typing_label)
 			? gtk_label_get_text (GTK_LABEL (current_sess->gui->typing_label)) : "");
 		g_free (pop);
@@ -836,6 +842,23 @@ fe_zoom_start (gpointer data)
 	return G_SOURCE_REMOVE;
 }
 
+static gboolean
+fe_bnc_setup_open (gpointer d)
+{
+	bncsetup_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL, NULL, NULL);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+fe_probe_print (bnc_probe_result *r, gpointer d)
+{
+	if (r->kind)
+		g_printerr ("probe: %s\n", r->kind);
+	else
+		g_printerr ("probe-error: %s\n", r->error);
+	bnc_probe_result_free (r);
+}
+
 void
 fe_main (void)
 {
@@ -855,6 +878,18 @@ fe_main (void)
 	}
 	if (g_getenv ("NEXCHAT_TABS_DUMP"))
 		g_timeout_add_seconds (1, fe_tabs_dump, NULL);
+	/* tests: NEXCHAT_BNC_PROBE=host:port:tls:user:pass runs the Stay online
+	   check and prints "probe: <kind>" or "probe-error: ..." */
+	if (g_getenv ("NEXCHAT_BNC_PROBE"))
+	{
+		char **f = g_strsplit (g_getenv ("NEXCHAT_BNC_PROBE"), ":", 5);
+		if (g_strv_length (f) == 5)
+			bncsetup_probe (f[0], atoi (f[1]), atoi (f[2]), f[3], f[4], fe_probe_print, NULL);
+		g_strfreev (f);
+	}
+	/* tests: NEXCHAT_BNC_SETUP=1 opens "Stay online" over the main window */
+	if (g_getenv ("NEXCHAT_BNC_SETUP"))
+		g_timeout_add_seconds (1, fe_bnc_setup_open, NULL);
 
 #ifdef __APPLE__
 	/* Started from a terminal (not through Launch Services) the app and every

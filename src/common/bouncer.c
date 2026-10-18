@@ -221,6 +221,13 @@ bouncer_login_end (server *serv)
 		bouncer_refresh (serv);
 	if (s->persist_cap && s->persist_effective < 0)
 		tcp_sendf (serv, "PERSISTENCE GET\r\n");
+	/* set up with "Stay online": turn it on once we're logged in */
+	if (s->persist_cap && serv->network && (((ircnet *) serv->network)->flags & FLAG_STAY_ONLINE))
+	{
+		char *err = NULL;
+		if (!bouncer_set_persist (serv, TRUE, &err))
+			g_free (err);
+	}
 }
 
 /* ---- soju: BOUNCER NETWORK <id> <attrs> ---- */

@@ -98,8 +98,10 @@ EOF
 }
 
 bnc_stop() {
-	[ -n "${BNC_PIDS:-}" ] && kill $BNC_PIDS 2>/dev/null
-	wait 2>/dev/null
+	if [ -n "${BNC_PIDS:-}" ]; then
+		kill $BNC_PIDS 2>/dev/null
+		wait $BNC_PIDS 2>/dev/null
+	fi
 	return 0
 }
 

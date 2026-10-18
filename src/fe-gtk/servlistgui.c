@@ -35,6 +35,7 @@
 #include "menu.h"
 #include "pixmaps.h"
 #include "fkeys.h"
+#include "bncsetup.h"
 
 #define SERVLIST_X_PADDING 4			/* horizontal paddig in the network editor */
 #define SERVLIST_Y_PADDING 0			/* vertical padding in the network editor */
@@ -1081,6 +1082,27 @@ servlist_connect_cb (GtkWidget *button, gpointer userdata)
 	selected_net = NULL;
 }
 
+/* saved by "Stay online": the list goes, like after Connect */
+static void
+servlist_stayonline_done (ircnet *net)
+{
+	if (serverlist_win)
+	{
+		nx_widget_destroy (serverlist_win);
+		serverlist_win = NULL;
+	}
+	selected_net = NULL;
+}
+
+static void
+servlist_stayonline_cb (GtkWidget *button, gpointer userdata)
+{
+	/* the selected network's address and login are the starting point */
+	if (selected_net)
+		servlist_savegui ();
+	bncsetup_open (GTK_WINDOW (serverlist_win), selected_net, servlist_stayonline_done);
+}
+
 static void
 servlist_celledit_cb (nx_row *row, const char *arg2, gpointer user_data)
 {
@@ -1981,6 +2003,14 @@ servlist_open_networks (void)
 	gtk_widget_set_tooltip_text (button_sort, _("Mark or unmark this network as a favorite."));
 	g_signal_connect (G_OBJECT (button_sort), "clicked",
 							G_CALLBACK (servlist_favor), 0);
+	nx_widget_show (button_sort);
+	gtkutil_container_add (GTK_WIDGET (vbuttonbox2), button_sort);
+
+	button_sort = gtk_button_new_with_mnemonic (_("Stay _online..."));
+	gtk_widget_set_tooltip_text (button_sort, _("Stay in your channels when nexchat is closed, "
+				"with a bouncer (soju, ZNC) or a network that can keep you connected."));
+	g_signal_connect (G_OBJECT (button_sort), "clicked",
+							G_CALLBACK (servlist_stayonline_cb), 0);
 	nx_widget_show (button_sort);
 	gtkutil_container_add (GTK_WIDGET (vbuttonbox2), button_sort);
 

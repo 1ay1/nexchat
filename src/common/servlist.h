@@ -62,7 +62,9 @@ extern GSList *network_list;
 #define FLAG_USE_PROXY			16
 #define FLAG_ALLOW_INVALID		32
 #define FLAG_FAVORITE			64
-#define FLAG_COUNT				7
+/* turn the network's own always-on (draft/persistence) on after login */
+#define FLAG_STAY_ONLINE		128
+#define FLAG_COUNT				8
 
 /* Login methods. Use server password by default - if we had a NickServ password, it'd be set to 2 already by servlist_load() */
 #define LOGIN_DEFAULT_REAL		LOGIN_PASS		/* this is to set the default login method for unknown servers */

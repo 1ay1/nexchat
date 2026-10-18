@@ -28,6 +28,7 @@ hexchat_gtk_sources = [
   'plugin-notification.c',
   'rawlog.c',
   'servlistgui.c',
+  'bncsetup.c',
   'setup.c',
   'sexy-spell-entry.c',
   'textgui.c',
@@ -296,6 +297,10 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-multiline', find_program('sh'),
     args: [files('../../tests/ux/multiline.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:99'], timeout: 120)
+  # against real soju, ZNC and Ergo (tests/bnc/fetch.sh; skipped without)
+  test('gui-stayonline', find_program('sh'),
+    args: [files('../../tests/ux/stayonline.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:80'], timeout: 300)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],
