@@ -46,6 +46,7 @@
 #include "maingui.h"
 #include "../common/servlist.h"
 #include "servlistgui.h"
+#include "../common/bouncer.h"
 #include "menu.h"
 #include "fkeys.h"
 #include "userlistgui.h"
@@ -504,6 +505,8 @@ has_key (char *modes)
 }
 #endif
 
+static void mg_title_bouncer (session *sess, char *tbuf, size_t len);
+
 void
 fe_set_title (session *sess)
 {
@@ -561,7 +564,27 @@ fe_set_title (session *sess)
 		return;
 	}
 
+	mg_title_bouncer (sess, tbuf, sizeof tbuf);
 	gtk_window_set_title (GTK_WINDOW (sess->gui->window), tbuf);
+}
+
+/* " - online 24/7" in the title when a bouncer or the network keeps us on */
+static void
+mg_title_bouncer (session *sess, char *tbuf, size_t len)
+{
+	bnc_kind k = bouncer_kind (sess->server);
+	const char *app = _(DISPLAY_NAME);
+	size_t tl = strlen (tbuf), al = strlen (app);
+
+	if (k == BNC_NONE || (k == BNC_PERSIST && bouncer_persist_state (sess->server) != 1))
+		return;
+	/* before the trailing " - nexchat" */
+	if (tl > al + 3 && !strcmp (tbuf + tl - al, app) && !strncmp (tbuf + tl - al - 3, " - ", 3))
+	{
+		char *rest = g_strdup (tbuf + tl - al - 3);
+		g_snprintf (tbuf + tl - al - 3, len - (tl - al - 3), " (%s)%s", _("online 24/7"), rest);
+		g_free (rest);
+	}
 }
 
 static void
@@ -3203,6 +3226,8 @@ void
 fe_bouncer_changed (server *serv)
 {
 	servlist_bouncer_changed (serv);
+	if (current_sess && current_sess->server == serv && current_sess->gui)
+		fe_set_title (current_sess);
 }
 
 static void

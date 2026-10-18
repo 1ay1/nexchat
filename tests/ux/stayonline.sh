@@ -80,6 +80,7 @@ grep -q '^U=ayush$' "$tmp/cfg/servlist.conf" && grep -q '^L=7$' "$tmp/cfg/servli
 until_state tab "tab: *127.0.0.1*" || until_state tab "tab: localhost*" || true
 grep -q "starting bouncer\|registration complete for user \"ayush\"" "$tmp/lab/soju/soju.log" &&
 	ok "soju: connected through it" || bad "soju: no login on soju"
+until_state title "*online 24/7*" && ok "soju: the title says online 24/7" || { bad "soju: title"; state title; }
 
 # ---- soju: a wrong password is caught by Check
 start

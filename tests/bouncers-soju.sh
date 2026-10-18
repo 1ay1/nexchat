@@ -70,6 +70,17 @@ sleep 1
 grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && bad "soju: entry stays after removing" ||
 	ok "soju: removed on the bouncer, gone from the list"
 
+# --- the network behind soju goes down while we're on it: said plainly
+# (soju sends the state change because we asked for -notify)
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
+	"/bouncer add downnet 127.0.0.1:$ERGO_PORT -notls"
+{
+	sleep 1; echo "/server soju/downnet"; sleep 3
+	kill $(echo $BNC_PIDS | cut -d' ' -f1) 2>/dev/null; sleep 4
+	echo "/quit"; sleep 0.5
+} | timeout 25 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+has 'soju lost downnet' "soju: losing the network behind it is said"
+
 if [ $fail -ne 0 ]; then
 	
 	echo "--- last"; cat "$tmp/out"

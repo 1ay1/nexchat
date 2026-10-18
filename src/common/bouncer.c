@@ -437,6 +437,8 @@ bouncer_command (server *serv, const char *sub, const char *arg, const char *att
 		}
 		else
 		{
+			char *was = NULL;
+
 			if (!n)
 			{
 				n = g_new0 (bnc_network, 1);
@@ -444,7 +446,22 @@ bouncer_command (server *serv, const char *sub, const char *arg, const char *att
 				n->tls = TRUE;
 				g_ptr_array_add (s->networks, n);
 			}
+			else
+				was = g_strdup (n->state);
 			apply_attrs (n, attrs);
+			/* the network this connection is on: say so when it drops or
+			   comes back, in plain words (we're still connected to the bouncer) */
+			if (was && s->bound && !strcmp (s->bound, n->id) && g_strcmp0 (was, n->state))
+			{
+				if (!g_strcmp0 (n->state, "disconnected"))
+					PrintTextf (serv->server_session,
+									n->error ? _("\00304*\tsoju lost %s: %s. It keeps trying; you'll see it here when it's back.\n")
+											  : _("\00304*\tsoju lost %s%s. It keeps trying; you'll see it here when it's back.\n"),
+									n->name ? n->name : n->id, n->error ? n->error : "");
+				else if (!g_strcmp0 (n->state, "connected") && !g_strcmp0 (was, "disconnected"))
+					PrintTextf (serv->server_session, _("\00303*\tsoju is back on %s.\n"), n->name ? n->name : n->id);
+			}
+			g_free (was);
 		}
 		set_kind (serv, BNC_SOJU);
 		if (prefs.hex_irc_bouncer_sync)

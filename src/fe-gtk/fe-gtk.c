@@ -666,6 +666,7 @@ fe_tabs_dump (gpointer d)
 		pop = cmdpopup_geometry (current_sess->gui->input_box);
 		g_printerr ("cmdgeom: %s\n", pop);
 		g_printerr ("input: %s\n", gtk_editable_get_text (GTK_EDITABLE (current_sess->gui->input_box)));
+		g_printerr ("title: %s\n", gtk_window_get_title (GTK_WINDOW (current_sess->gui->window)));
 		{
 			char *st = bncsetup_describe ();
 			g_printerr ("bncsetup: %s\n", st ? st : "");
