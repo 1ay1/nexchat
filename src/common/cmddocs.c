@@ -21,6 +21,15 @@
 #define O(f, w) { f, w }
 #define END { NULL, NULL }
 
+static const cmddoc_opt opt_bouncer[] = {
+	O ("LIST", N_("what you're connected through, and its networks")),
+	O ("ADD", N_("have the bouncer join a network: ADD <name> <host>[:port] [-notls]")),
+	O ("DEL", N_("have the bouncer leave a network: DEL <name>")),
+	O ("ON", N_("stay online on this network (networks that can do it)")),
+	O ("OFF", N_("don't stay online after you quit")),
+	END
+};
+
 static const cmddoc_opt opt_lastlog[] = {
 	O ("-a", N_("search every open window, not just this one")),
 	O ("-l", N_("search your saved logs (everything you've logged)")),
@@ -188,6 +197,8 @@ static const cmddoc docs[] = {
 	  "/id mypassword", N_("Only you see the password. Better: set SASL in the network list."), NULL, 0 },
 	{ "GHOST", N_("Connection"), N_("Kick an old connection that's using your nick"), "<nick> <password>",
 	  "/ghost alice mypassword", NULL, NULL, 0 },
+	{ "BOUNCER", N_("Connection"), N_("Stay online when nexchat is closed"), "[LIST|ADD|DEL|ON|OFF]",
+	  "/bouncer add libera irc.libera.chat", N_("Through a bouncer (soju, ZNC) or a network that keeps you on. Network List > Stay online sets it up."), opt_bouncer, 1 },
 
 	/* ---- This window ---- */
 	{ "CLEAR", N_("This window"), N_("Clear the text in this window"), "[ALL|HISTORY|-number]",

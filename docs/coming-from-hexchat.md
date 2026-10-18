@@ -69,9 +69,16 @@ are off until you turn them on.
 - **Command list**: typing `/` shows the commands with what they do and an
   example.
 - **Log search**: `/lastlog -l word` searches every saved log.
-- **Bouncer features** (soju, Ergo, ZNC with the right modules): chat history on
-  join and in private chats, read markers shared between your devices,
-  netsplits shown as one line.
+- **Stay online** (Network List > Stay online...): stay in your channels while
+  nexchat is closed. Point it at your soju or ZNC, or at a network that can
+  keep you connected itself (Ergo), and it checks the login and sets the
+  network up for you. The bouncer's networks show up in your Network List,
+  `/bouncer` adds and removes them, and what you missed is shown between
+  "While you were away" and "N messages you missed". The title says
+  "(online 24/7)" when it's working.
+- **Bouncer features** (soju, Ergo, ZNC): chat history on join and in
+  private chats, read markers shared between your devices, netsplits shown
+  as one line.
 - **Off until you turn them on**: who's typing, letting others see you type,
   showing what replies answer (`/reply`), and messages of several lines
   (Shift+Enter).
