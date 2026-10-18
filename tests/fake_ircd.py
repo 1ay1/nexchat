@@ -181,10 +181,11 @@ try:
                 # three old lines in a batch, the middle one naming us
                 target = parts[2]
                 send(f":fake BATCH +h1 chathistory {target}")
-                for t, who, msg in [("2026-01-01T10:00:00.000Z", "old1", "history-line-one"),
-                                    ("2026-01-01T10:01:00.000Z", "old2", f"history mention {nick}"),
-                                    ("2026-01-01T10:02:00.000Z", "old3", "history-line-three")]:
-                    send(f"@batch=h1;time={t} :{who}!u@h PRIVMSG {target} :{msg}")
+                peer = "old1" if target.startswith("#") else target
+                for t, who, msg in [("2026-01-01T10:00:00.000Z", peer, "history-line-one"),
+                                    ("2026-01-01T10:01:00.000Z", "old2" if target.startswith("#") else peer, f"history mention {nick}"),
+                                    ("2026-01-01T10:02:00.000Z", "old3" if target.startswith("#") else peer, "history-line-three")]:
+                    send(f"@batch=h1;time={t} :{who}!u@h PRIVMSG {target if target.startswith('#') else nick} :{msg}")
                 send(":fake BATCH -h1")
             elif cmd == "NICK":
                 nick = parts[1]

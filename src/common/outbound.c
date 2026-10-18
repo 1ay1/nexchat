@@ -56,6 +56,7 @@
 #include "outbound.h"
 #include "chanopt.h"
 #include "cmdinfo.h"
+#include "batch.h"
 
 #define TBUFSIZE 4096
 
@@ -3132,7 +3133,15 @@ open_query (server *serv, char *nick, gboolean focus_existing)
 
 	sess = find_dialog (serv, nick);
 	if (!sess)
+	{
 		sess = new_ircwindow (serv, nick, SESS_DIALOG, focus_existing);
+		/* a new private chat: what you two said before (bouncer history) */
+		if (serv->connected && !sess->history_asked)
+		{
+			sess->history_asked = TRUE;
+			chathistory_request (sess);
+		}
+	}
 	else if (focus_existing)
 		fe_ctrl_gui (sess, 2, 0);	/* bring-to-front */
 

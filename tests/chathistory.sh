@@ -21,7 +21,7 @@ i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 mkdir -p "$tmp/cfg"
 printf 'net_throttle = 0\nirc_nick1 = hist\nirc_logging = 1\ntext_replay = 0\n' > "$tmp/cfg/hexchat.conf"
 {
-	sleep 1; echo "/join #t"; sleep 2; echo "/quit bye"; sleep 1
+	sleep 1; echo "/join #t"; sleep 2; echo "/query alice"; sleep 2; echo "/quit bye"; sleep 1
 } | timeout 20 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/" > "$tmp/client.log" 2>&1 || true
 
 fail=0
@@ -33,6 +33,7 @@ want 'History from the server' "$tmp/client.log" 'history marker shown'
 want 'history-line-one' "$tmp/client.log" 'history lines shown'
 want 'history-line-three' "$tmp/client.log" 'all of them'
 want 'End of history' "$tmp/client.log" 'end marker shown'
+want '^CHATHISTORY LATEST alice \* 100' "$tmp/server.log" '/query alice asks for your history with her'
 log=$(find "$tmp/cfg/logs" -type f -name '*.log' 2>/dev/null | xargs grep -l 'live-line-after' 2>/dev/null | head -1)
 if [ -z "$log" ]; then log=$(find "$tmp/cfg/logs" -type f 2>/dev/null | grep -i '#t' | head -1); fi
 if [ -n "$log" ]; then

@@ -429,7 +429,7 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 		if (user->me)
 			fromme = TRUE;
 	}
-	if (sess->type == SESS_CHANNEL)
+	if (sess->type == SESS_CHANNEL || sess->type == SESS_DIALOG)
 		sess->history_until = MAX (sess->history_until,
 											tags_data->timestamp ? tags_data->timestamp : time (NULL));
 
