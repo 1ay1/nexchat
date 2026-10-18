@@ -197,6 +197,7 @@ struct hexchatprefs
 	unsigned int hex_irc_chathistory;	/* ask a server that has it for history on join */
 	unsigned int hex_gui_typing_show;	/* show "alice is typing..." */
 	unsigned int hex_gui_typing_send;	/* tell others when we're typing */
+	unsigned int hex_gui_replies;	/* show what a +draft/reply line answers */
 	unsigned int hex_net_auto_reconnect;
 	unsigned int hex_net_auto_reconnectonfail;
 	unsigned int hex_net_proxy_auth;

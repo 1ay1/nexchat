@@ -1656,6 +1656,18 @@ handle_message_tags (server *serv, const char *tags_str,
 			g_free (tags_data->typing);
 			tags_data->typing = g_strdup (value);
 		}
+
+		if (value && *value && !strcmp (key, "msgid"))
+		{
+			g_free (tags_data->msgid);
+			tags_data->msgid = g_strdup (value);
+		}
+
+		if (value && *value && (!strcmp (key, "+draft/reply") || !strcmp (key, "+reply")))
+		{
+			g_free (tags_data->reply);
+			tags_data->reply = g_strdup (value);
+		}
 	}
 	
 	g_strfreev (tags);
@@ -1765,6 +1777,8 @@ message_tags_data_free (message_tags_data *tags_data)
 	g_clear_pointer (&tags_data->account, g_free);
 	g_clear_pointer (&tags_data->batch, g_free);
 	g_clear_pointer (&tags_data->typing, g_free);
+	g_clear_pointer (&tags_data->msgid, g_free);
+	g_clear_pointer (&tags_data->reply, g_free);
 }
 
 void

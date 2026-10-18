@@ -46,6 +46,11 @@ test('lastlog-logs', find_program('sh'),
   timeout: 30,
 )
 
+test('reply', find_program('sh'),
+  args: [files('../../tests/reply.sh'), hexchat_text],
+  timeout: 60,
+)
+
 if libssl_dep.found() and find_program('openssl', required: false).found()
   test('sts', find_program('python3'),
     args: [files('../../tests/sts.py'), hexchat_text],

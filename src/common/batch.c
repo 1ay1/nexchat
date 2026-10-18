@@ -21,6 +21,7 @@
 #include "fe.h"
 #include "modes.h"
 #include "batch.h"
+#include "util.h"
 
 typedef struct
 {
@@ -355,4 +356,125 @@ typing_send (session *sess, gboolean active)
 		sess->typing_sent = 0;
 		tcp_sendf (serv, "@+typing=done TAGMSG %s\r\n", sess->channel);
 	}
+}
+
+/* ---- +draft/reply ---- */
+
+/* the last REPLY_KEEP lines of each window: msgid -> "nick\ttext" */
+#define REPLY_KEEP 200
+
+typedef struct
+{
+	GHashTable *byid;	/* msgid -> "nick\ttext" */
+	GQueue order;		/* msgids, oldest first (owned by byid) */
+	GHashTable *lastby;	/* nick (casefolded) -> msgid of their last line */
+} reply_store;
+
+static GHashTable *stores;	/* session -> reply_store */
+
+static void
+reply_store_free (gpointer p)
+{
+	reply_store *s = p;
+	g_hash_table_destroy (s->lastby);
+	g_hash_table_destroy (s->byid);
+	g_queue_clear (&s->order);
+	g_free (s);
+}
+
+static reply_store *
+reply_get (session *sess, gboolean make)
+{
+	reply_store *s;
+
+	if (!stores)
+	{
+		if (!make)
+			return NULL;
+		stores = g_hash_table_new_full (NULL, NULL, NULL, reply_store_free);
+	}
+	s = g_hash_table_lookup (stores, sess);
+	if (!s && make)
+	{
+		s = g_new0 (reply_store, 1);
+		s->byid = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+		s->lastby = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+		g_queue_init (&s->order);
+		g_hash_table_insert (stores, sess, s);
+	}
+	return s;
+}
+
+void
+reply_remember (session *sess, const char *msgid, const char *nick, const char *text)
+{
+	reply_store *s;
+	char *id;
+
+	if (!msgid || !*msgid || !nick)
+		return;
+	s = reply_get (sess, TRUE);
+	if (g_hash_table_contains (s->byid, msgid))
+		return;
+	id = g_strdup (msgid);
+	g_hash_table_insert (s->byid, id, g_strdup_printf ("%s\t%s", nick, text ? text : ""));
+	g_queue_push_tail (&s->order, id);
+	g_hash_table_insert (s->lastby, g_utf8_casefold (nick, -1), g_strdup (msgid));
+	while (g_queue_get_length (&s->order) > REPLY_KEEP)
+		g_hash_table_remove (s->byid, g_queue_pop_head (&s->order));
+}
+
+const char *
+reply_last_from (session *sess, const char *nick)
+{
+	reply_store *s = reply_get (sess, FALSE);
+	char *key;
+	const char *id;
+
+	if (!s)
+		return NULL;
+	key = g_utf8_casefold (nick, -1);
+	id = g_hash_table_lookup (s->lastby, key);
+	g_free (key);
+	return id;
+}
+
+void
+reply_show (session *sess, const char *msgid, time_t stamp)
+{
+	reply_store *s;
+	const char *line;
+	char *plain, *quote;
+
+	if (!prefs.hex_gui_replies || !msgid || !*msgid)
+		return;
+	s = reply_get (sess, FALSE);
+	line = s ? g_hash_table_lookup (s->byid, msgid) : NULL;
+	if (!line)
+	{
+		/* scrolled out of what we keep, or from before we joined */
+		PrintTextTimeStamp (sess, _("\00314\035replying to an earlier message\017"), stamp);
+		return;
+	}
+	plain = strip_color (strchr (line, '\t') + 1, -1, STRIP_ALL);
+	/* one short line: the first 60 characters */
+	if (g_utf8_strlen (plain, -1) > 60)
+	{
+		char *cut = g_strndup (plain, g_utf8_offset_to_pointer (plain, 60) - plain);
+		g_free (plain);
+		plain = g_strconcat (cut, "...", NULL);
+		g_free (cut);
+	}
+	quote = g_strdup_printf (_("\00314\035replying to %.*s: %s\017"),
+							 (int) (strchr (line, '\t') - line), line, plain);
+	PrintTextTimeStamp (sess, quote, stamp);
+	g_free (quote);
+	g_free (plain);
+}
+
+void
+reply_free (session *sess)
+{
+	if (stores)
+		g_hash_table_remove (stores, sess);
 }

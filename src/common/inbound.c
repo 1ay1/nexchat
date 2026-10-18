@@ -435,6 +435,14 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 
 	inbound_make_idtext (serv, idtext, sizeof (idtext), id);
 
+	reply_show (sess, tags_data->reply, tags_data->timestamp);
+	if (tags_data->msgid)
+	{
+		char *act = g_strdup_printf ("* %s %s", from, text);
+		reply_remember (sess, tags_data->msgid, from, act);
+		g_free (act);
+	}
+
 	if (!fromme && !privaction)
 	{
 		if (is_hilight (from, text, sess, serv))
@@ -512,6 +520,9 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 		if (user->me)
 			fromme = TRUE;
 	}
+
+	reply_show (sess, tags_data->reply, tags_data->timestamp);
+	reply_remember (sess, tags_data->msgid, from, text);
 
 	if (fromme)
 	{

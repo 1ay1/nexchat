@@ -106,6 +106,8 @@ static const cmddoc docs[] = {
 	  "/query alice", N_("Opens a tab just for the two of you."), opt_query, 1 },
 	{ "ME", N_("Talking"), N_("Say what you're doing"), "<action>",
 	  "/me waves hello", N_("Shows as \"* you waves hello\"."), NULL, 1 },
+	{ "REPLY", N_("Talking"), N_("Answer someone's last message"), "<nick> <message>",
+	  "/reply alice sounds good", N_("Clients that show replies point to what you answered. Elsewhere it's sent as \"alice: message\"."), NULL, 0 },
 	{ "SAY", N_("Talking"), N_("Send text as it is, even if it starts with /"), "<text>",
 	  "/say /join is how you join", NULL, NULL, 0 },
 	{ "NOTICE", N_("Talking"), N_("Send a notice (a message that isn't answered automatically)"), "<nick or #channel> <message>",

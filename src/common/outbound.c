@@ -3021,6 +3021,43 @@ cmd_mop (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 }
 
 static int
+cmd_reply (struct session *sess, char *tbuf, char *word[], char *word_eol[])
+{
+	char *nick = word[2], *msg = word_eol[3];
+	const char *msgid;
+	message_tags_data tags = MESSAGE_TAGS_DATA_INIT;
+
+	if (!*nick || !*msg)
+		return FALSE;
+	if (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG)
+	{
+		notj_msg (sess);
+		return TRUE;
+	}
+	if (!sess->server->connected)
+	{
+		notc_msg (sess);
+		return TRUE;
+	}
+	msgid = reply_last_from (sess, nick);
+	if (!sess->server->have_message_tags || !msgid || strpbrk (msgid, " ;\r\n"))
+	{
+		/* the server can't carry it, or nothing of theirs to answer:
+		   say it the old way */
+		g_snprintf (tbuf, TBUFSIZE, "%s%s %s", nick, prefs.hex_completion_suffix, msg);
+		handle_say (sess, tbuf, FALSE);
+		return TRUE;
+	}
+	tcp_sendf (sess->server, "@+draft/reply=%s PRIVMSG %s :%s\r\n", msgid, sess->channel, msg);
+	if (!sess->server->have_echo)
+	{
+		tags.reply = (char *) msgid;
+		inbound_chanmsg (sess->server, sess, sess->channel, sess->server->nick, msg, TRUE, FALSE, &tags);
+	}
+	return TRUE;
+}
+
+static int
 cmd_msg (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
 	char *nick = word[2];
@@ -4327,6 +4364,8 @@ const struct commands xc_cmds[] = {
 #endif
 	{"RECV", cmd_recv, 1, 0, 1, N_("RECV <text>, send raw data to nexchat, as if it was received from the IRC server")},
 	{"RELOAD", cmd_reload, 0, 0, 1, N_("RELOAD <name>, reloads a plugin or script")},
+	{"REPLY", cmd_reply, 1, 1, 1,
+	 N_("REPLY <nick> <message>, answers that person's last message here, on servers that pass replies on")},
 	{"SAY", cmd_say, 0, 0, 1,
 	 N_("SAY <text>, sends the text to the object in the current window")},
 	{"SEND", cmd_send, 0, 0, 1, N_("SEND <nick> [<file>]")},

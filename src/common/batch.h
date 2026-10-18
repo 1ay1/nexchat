@@ -48,4 +48,14 @@ void typing_clear (session *sess, const char *nick);
    active FALSE when the line is sent or emptied */
 void typing_send (session *sess, gboolean active);
 
+/* +draft/reply (behind gui_replies): recent lines by msgid, so a reply
+   can show what it answers */
+void reply_remember (session *sess, const char *msgid, const char *nick, const char *text);
+/* print "replying to alice: ..." above a line that replies to msgid */
+void reply_show (session *sess, const char *msgid, time_t stamp);
+/* the msgid of nick's last line here, or NULL */
+const char *reply_last_from (session *sess, const char *nick);
+/* forget everything for sess (closed) */
+void reply_free (session *sess);
+
 #endif

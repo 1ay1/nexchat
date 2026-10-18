@@ -52,6 +52,7 @@
 #include "text.h"
 #include "url.h"
 #include "hexchatc.h"
+#include "batch.h"
 
 #if ! GLIB_CHECK_VERSION (2, 36, 0)
 #include <glib-object.h>			/* for g_type_init() */
@@ -636,6 +637,7 @@ session_free (session *killsess)
 	if (killsess->readmarker_tag)
 		g_source_remove (killsess->readmarker_tag);
 	g_clear_pointer (&killsess->typers, g_hash_table_destroy);
+	reply_free (killsess);
 
 	if (current_tab == killsess)
 		current_tab = NULL;

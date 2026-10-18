@@ -30,6 +30,8 @@
 		(time_t)0, /* timestamp */		\
 		NULL, /* batch id */			\
 		NULL, /* +typing */			\
+		NULL, /* msgid */			\
+		NULL, /* +draft/reply */		\
 	}
 
 #define STRIP_COLON(word, word_eol, idx) (word)[(idx)][0] == ':' ? (word_eol)[(idx)]+1 : (word)[(idx)]
@@ -45,6 +47,8 @@ typedef struct
 	time_t timestamp;
 	char *batch;		/* the BATCH this line belongs to (IRCv3 batch) */
 	char *typing;		/* +typing: active, paused or done */
+	char *msgid;		/* the server's id for this message */
+	char *reply;		/* +draft/reply: the msgid this one answers */
 } message_tags_data;
 
 void message_tags_data_free (message_tags_data *tags_data);
