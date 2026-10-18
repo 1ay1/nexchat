@@ -18,6 +18,7 @@
 #include "hexchatc.h"
 #include "text.h"
 #include "server.h"
+#include "fe.h"
 #include "batch.h"
 
 typedef struct
@@ -198,4 +199,64 @@ chathistory_end (server *serv, const char *target)
 		sess = find_dialog (serv, (char *) target);
 	if (sess)
 		PrintTextf (sess, _("\00323*\t--- End of history ---\n"));
+}
+
+/* ---- draft/read-marker ---- */
+
+void
+readmarker_from_server (server *serv, const char *target, time_t t)
+{
+	session *sess = find_channel (serv, (char *) target);
+
+	if (!sess)
+		sess = find_dialog (serv, (char *) target);
+	if (!sess || t <= 0)
+		return;
+	if (t > sess->read_until)
+		sess->read_until = t;
+	/* read elsewhere up to (or past) the newest line we have: not unread here */
+	if (sess->read_until >= sess->history_until && (sess->unread || sess->unread_hilight))
+		fe_set_tab_color (sess, FE_COLOR_NONE);
+}
+
+void
+readmarker_send (session *sess)
+{
+	server *serv = sess->server;
+	GDateTime *dt;
+	char *iso;
+
+	if (!serv || !serv->connected || !serv->have_readmarker || !sess->channel[0] ||
+		 (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG))
+		return;
+	/* nothing newer than what the server already has */
+	if (sess->history_until <= sess->read_until)
+		return;
+	sess->read_until = sess->history_until;
+	dt = g_date_time_new_from_unix_utc (sess->read_until);
+	iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
+	tcp_sendf (serv, "MARKREAD %s timestamp=%s\r\n", sess->channel, iso);
+	g_free (iso);
+	g_date_time_unref (dt);
+}
+
+static gboolean
+readmarker_timer (gpointer data)
+{
+	session *sess = data;
+
+	if (is_session (sess))
+	{
+		sess->readmarker_tag = 0;
+		readmarker_send (sess);
+	}
+	return G_SOURCE_REMOVE;
+}
+
+void
+readmarker_soon (session *sess)
+{
+	if (!sess->server->have_readmarker || sess->readmarker_tag)
+		return;
+	sess->readmarker_tag = g_timeout_add_seconds (5, readmarker_timer, sess);
 }

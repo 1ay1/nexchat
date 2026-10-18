@@ -437,6 +437,8 @@ typedef struct session
 	unsigned int unread;		/* messages since the tab was last looked at */
 	unsigned int unread_hilight;	/* of those, highlights */
 	time_t history_until;	/* the newest message seen, to ask chathistory after it */
+	time_t read_until;		/* read up to here (draft/read-marker, any device) */
+	guint readmarker_tag;	/* a MARKREAD waiting to go (readmarker_soon) */
 	gtk_xtext_search_flags lastlog_flags;
 	void (*scrollback_replay_marklast) (struct session *sess);
 } session;
@@ -594,6 +596,7 @@ typedef struct server
 	unsigned int have_echo:1;	/* cap echo-message: our own lines come back from the server */
 	unsigned int have_batch:1;	/* cap batch */
 	unsigned int have_chathistory:1;	/* cap draft/chathistory */
+	unsigned int have_readmarker:1;	/* cap draft/read-marker */
 	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */

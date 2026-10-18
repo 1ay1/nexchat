@@ -1203,6 +1203,17 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			}
 			break;
 
+		case WORDL('M','A','R','K'):
+			if (!strcmp (type, "MARKREAD"))
+			{
+				/* MARKREAD <target> timestamp=... (or *) */
+				const char *ts = word[4];
+				if (!strncmp (ts, "timestamp=", 10))
+					readmarker_from_server (serv, word[3], proto_parse_time (ts + 10));
+				return;
+			}
+			break;
+
 		case WORDL('A', 'U', 'T', 'H'):
 			inbound_sasl_authenticate (sess->server, word_eol[3]);
 			return;
@@ -1576,6 +1587,17 @@ unescape_tag_value (char *v)
 		}
 	}
 	*out = '\0';
+}
+
+/* an IRCv3 time ("2026-01-01T10:00:00.000Z" or ZNC's unix seconds) as
+   unix time; 0 if it doesn't parse */
+time_t
+proto_parse_time (const char *s)
+{
+	message_tags_data t = MESSAGE_TAGS_DATA_INIT;
+
+	handle_message_tag_time (s, &t);
+	return t.timestamp;
 }
 
 /* Handle message tags: https://ircv3.net/specs/extensions/message-tags */

@@ -633,6 +633,9 @@ session_free (session *killsess)
 
 	plugin_emit_dummy_print (killsess, "Close Context");
 
+	if (killsess->readmarker_tag)
+		g_source_remove (killsess->readmarker_tag);
+
 	if (current_tab == killsess)
 		current_tab = NULL;
 

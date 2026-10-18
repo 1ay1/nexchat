@@ -35,6 +35,7 @@
 #include "../common/text.h"
 #include "../common/chanopt.h"
 #include "../common/cfgfiles.h"
+#include "../common/batch.h"
 
 #include "fe-gtk.h"
 #include "banlist.h"
@@ -666,6 +667,8 @@ mg_focus (session *sess)
 		sess->res->tab is still NULL. */
 	if (sess->res->tab)
 		fe_set_tab_color (sess, FE_COLOR_NONE);
+	/* read here: the bouncer tells your other devices */
+	readmarker_send (sess);
 }
 
 /* the connecting indicator: a block bouncing in a framed trough, square

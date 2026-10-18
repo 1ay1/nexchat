@@ -261,7 +261,7 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 - [x] `echo-message`: requested; our own lines, `/me` and `/msg` are shown once, as the server sent them back (its time, its formatting, and lines sent from our other clients on a bouncer). DCC chats still show locally. `tests/echo-message.sh`.
 - [ ] `labeled-response`: tie a reply to the command that asked for it.
 - [x] `draft/chathistory` (soju, Ergo): on joining, the client asks for what was said since the newest line it has seen (`CHATHISTORY AFTER`), or the last 100 lines (`LATEST`) when it has nothing. They're shown between "History from the server" markers with their own times, and aren't logged again, counted unread, alerted or used for the smart filter. `irc_chathistory`, on. `tests/chathistory.sh`, `tests/ux/history-unread.sh`.
-- [ ] `draft/read-marker`: the marker line in the same place on every device.
+- [x] `draft/read-marker`: a channel read on another device (the server sends MARKREAD) stops counting as unread here once nothing newer has come in; looking at a tab tells the server it's read up to its newest line (and a busy channel in front does so at most every 5 s), so your other devices clear it too. `tests/ux/readmarker.sh`.
 - [ ] Big channels: the WHO on join is the only source of who's already away and their real names (`away-notify` only sends changes), so it can't just be skipped. Use WHOX with only the fields needed, and spread it out when joining many channels at once.
 - [ ] Later, behind preferences: `+typing`, `+draft/reply`, `draft/multiline`.
 

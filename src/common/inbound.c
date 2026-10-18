@@ -494,6 +494,10 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 	/* where to ask chathistory from after the next rejoin */
 	sess->history_until = MAX (sess->history_until,
 										tags_data->timestamp ? tags_data->timestamp : time (NULL));
+	/* in front: it's being read as it comes (told to the server at most
+	   every few seconds) */
+	if (sess == current_tab && !serv->line_is_history)
+		readmarker_soon (sess);
 
 	user = userlist_find (sess, from);
 	if (user)
@@ -1746,6 +1750,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_batch = enable;
 		else if (!strcmp (extension, "draft/chathistory") || !strcmp (extension, "chathistory"))
 			serv->have_chathistory = enable;
+		else if (!strcmp (extension, "draft/read-marker"))
+			serv->have_readmarker = enable;
 		else if (!strcmp (extension, "sasl"))
 		{
 			serv->have_sasl = enable;
@@ -1811,6 +1817,7 @@ static const char * const supported_caps[] = {
 	"batch",
 	"draft/chathistory",
 	"chathistory",
+	"draft/read-marker",
 
 	/* ZNC */
 	"znc.in/server-time-iso",

@@ -27,4 +27,14 @@ void chathistory_request (session *sess);
 void chathistory_begin (server *serv, const char *target);
 void chathistory_end (server *serv, const char *target);
 
+/* IRCv3 draft/read-marker: the server says target was read up to t (on
+   another device, or what it remembers from before): clear its unread
+   count when nothing newer has come in */
+void readmarker_from_server (server *serv, const char *target, time_t t);
+/* we looked at sess: tell the server it's read up to its newest line */
+void readmarker_send (session *sess);
+/* the same in a few seconds (a busy channel in front isn't one MARKREAD
+   per line) */
+void readmarker_soon (session *sess);
+
 #endif

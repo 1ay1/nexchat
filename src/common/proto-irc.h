@@ -46,6 +46,8 @@ typedef struct
 } message_tags_data;
 
 void message_tags_data_free (message_tags_data *tags_data);
+/* an IRCv3 server time as unix time; 0 if it doesn't parse */
+time_t proto_parse_time (const char *s);
 
 void proto_fill_her_up (server *serv);
 
