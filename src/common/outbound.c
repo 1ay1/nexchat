@@ -57,6 +57,7 @@
 #include "chanopt.h"
 #include "cmdinfo.h"
 #include "batch.h"
+#include "bouncer.h"
 
 #define TBUFSIZE 4096
 
@@ -3021,6 +3022,12 @@ cmd_mop (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 }
 
 static int
+cmd_bouncer (struct session *sess, char *tbuf, char *word[], char *word_eol[])
+{
+	return bouncer_cmd (sess, word, word_eol);
+}
+
+static int
 cmd_reply (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
 	char *nick = word[2], *msg = word_eol[3];
@@ -4218,6 +4225,8 @@ const struct commands xc_cmds[] = {
 	{"BACK", cmd_back, 1, 0, 1, N_("BACK, sets you back (not away)")},
 	{"BAN", cmd_ban, 1, 1, 1,
 	 N_("BAN <mask> [<bantype>], bans everyone matching the mask from the current channel. If they are already on the channel this doesn't kick them (needs chanop)")},
+	{"BOUNCER", cmd_bouncer, 1, 0, 1,
+	 N_("BOUNCER [LIST | ADD <name> <host>[:port] [-notls] [nick] | DEL <name> | ON | OFF], stay online with a bouncer (soju, ZNC) or a network that keeps you connected")},
 	{"CHANOPT", cmd_chanopt, 0, 0, 1, N_("CHANOPT [-quiet] <variable> [<value>]")},
 	{"CHARSET", cmd_charset, 0, 0, 1, N_("CHARSET [<encoding>], get or set the encoding used for the current connection")},
 	{"CLEAR", cmd_clear, 0, 0, 1, N_("CLEAR [ALL|HISTORY|[-]<amount>], Clears the current text window or command history")},

@@ -44,6 +44,8 @@
 #include "joind.h"
 #include "palette.h"
 #include "maingui.h"
+#include "../common/servlist.h"
+#include "servlistgui.h"
 #include "menu.h"
 #include "fkeys.h"
 #include "userlistgui.h"
@@ -3195,6 +3197,12 @@ fe_typing_changed (session *sess)
 	mg_typing_refresh (sess);
 	if (!typing_tick)
 		typing_tick = g_timeout_add_seconds (1, mg_typing_tick, NULL);
+}
+
+void
+fe_bouncer_changed (server *serv)
+{
+	servlist_bouncer_changed (serv);
 }
 
 static void

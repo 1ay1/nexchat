@@ -23,6 +23,7 @@
 #include "hexchat.h"
 #include "hexchatc.h"
 #include "modes.h"
+#include "bouncer.h"
 #include "server.h"
 #include "text.h"
 #include "fe.h"
@@ -858,6 +859,8 @@ inbound_005 (server * serv, char *word[], const message_tags_data *tags_data)
 	{
 		if (word[w][0] == ':')
 			break; // :are supported by this server
+
+		bouncer_isupport (serv, word[w]);
 
 		parse_005_token(word[w], &tokname, &tokvalue, &tokadding);
 		if (g_strcmp0 (tokname, "MODES") == 0)

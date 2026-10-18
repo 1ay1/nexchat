@@ -45,6 +45,7 @@
 #include "url.h"
 #include "servlist.h"
 #include "batch.h"
+#include "bouncer.h"
 
 static void
 irc_login (server *serv, char *user, char *realname)
@@ -1147,6 +1148,9 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 
 		case WORDL('F','A','I','L'):
 			text = STRIP_COLON(word, word_eol, trailing_index(word_eol));
+			/* our own BOUNCER / PERSISTENCE requests: told in plain words */
+			if (bouncer_fail (serv, word, text))
+				return;
 			if (g_strcmp0(word[3], "*") == 0)
 			{
 				EMIT_SIGNAL_TIMESTAMP (XP_TE_FAIL, sess, word[4], text, NULL, NULL, NULL, tags_data->timestamp);
@@ -1199,6 +1203,23 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			if (!strcmp (type, "BATCH"))
 			{
 				batch_command (serv, word, word_eol);
+				return;
+			}
+			break;
+
+		case WORDL('B','O','U','N'):
+			if (!strcmp (type, "BOUNCER"))
+			{
+				bouncer_command (serv, word[3], word[4][0] == ':' ? word[4] + 1 : word[4],
+									  STRIP_COLON (word, word_eol, 5));
+				return;
+			}
+			break;
+
+		case WORDL('P','E','R','S'):
+			if (!strcmp (type, "PERSISTENCE"))
+			{
+				bouncer_persistence (serv, word[3], word[4], STRIP_COLON (word, word_eol, 5));
 				return;
 			}
 			break;
@@ -1303,6 +1324,10 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 					text = word_eol[4];
 					if (*text == ':')
 						text++;
+
+					/* ZNC's *status / *controlpanel answering us (network list) */
+					if (nick[0] == '*' && bouncer_znc_reply (serv, nick, text))
+						return;
 
 					len = strlen (text);
 					if (text[0] == 1)	/* ctcp */
@@ -1442,7 +1467,7 @@ garbage:
 /* handle named messages that DON'T start with a ':' */
 
 static void
-process_named_servermsg (session *sess, char *buf, char *rawname, char *word_eol[],
+process_named_servermsg (session *sess, char *buf, char *rawname, char *word[], char *word_eol[],
 								 const message_tags_data *tags_data)
 {
 	sess = sess->server->server_session;
@@ -1471,6 +1496,18 @@ process_named_servermsg (session *sess, char *buf, char *rawname, char *word_eol
 	if (!strncmp (buf, "AUTHENTICATE", 12))
 	{
 		inbound_sasl_authenticate (sess->server, word_eol[2]);
+		return;
+	}
+	/* soju sends these without a prefix */
+	if (!strcmp (word[1], "BOUNCER"))
+	{
+		bouncer_command (sess->server, word[2], word[3][0] == ':' ? word[3] + 1 : word[3],
+							  STRIP_COLON (word, word_eol, 4));
+		return;
+	}
+	if (!strcmp (word[1], "PERSISTENCE"))
+	{
+		bouncer_persistence (sess->server, word[2], word[3], STRIP_COLON (word, word_eol, 4));
 		return;
 	}
 
@@ -1758,7 +1795,7 @@ irc_inline (server *serv, char *buf, int len)
 
 	if (buf[0] != ':')
 	{
-		process_named_servermsg (sess, buf, word[0], word_eol, &tags_data);
+		process_named_servermsg (sess, buf, word[0], word, word_eol, &tags_data);
 		goto xit;
 	}
 

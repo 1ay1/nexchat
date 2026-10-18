@@ -804,6 +804,11 @@ fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_s
 	return 0;
 }
 void
+fe_bouncer_changed (server *serv)
+{
+}
+
+void
 fe_typing_changed (session *sess)
 {
 }

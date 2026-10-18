@@ -194,6 +194,8 @@ void fe_tray_set_tooltip (const char *text);
 void fe_open_chan_list (server *serv, char *filter, int do_refresh);
 /* who's typing in sess changed (common/batch.c typing_text) */
 void fe_typing_changed (session *sess);
+/* what we know about serv's bouncer changed (common/bouncer.c) */
+void fe_bouncer_changed (server *serv);
 const char *fe_get_default_font (void);
 
 #endif

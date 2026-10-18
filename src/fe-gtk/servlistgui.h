@@ -21,5 +21,7 @@
 #define HEXCHAT_SERVLISTGUI_H
 
 void servlist_autojoinedit (ircnet *net, char *channel, gboolean add);
+/* the bouncer behind serv told us something new (networks, state) */
+void servlist_bouncer_changed (server *serv);
 
 #endif

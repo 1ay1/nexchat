@@ -49,6 +49,7 @@
 #include "chanopt.h"
 #include "sts.h"
 #include "batch.h"
+#include "bouncer.h"
 
 #ifdef USE_OPENSSL
 typedef struct { server *serv; int port; } sts_upgrade;
@@ -1692,6 +1693,7 @@ inbound_login_end (session *sess, char *text, const message_tags_data *tags_data
 		}
 
 		serv->end_of_motd = TRUE;
+		bouncer_login_end (serv);
 	}
 
 	if (prefs.hex_irc_skip_motd && !serv->motd_skipped)
@@ -1739,6 +1741,7 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 	{
 		const char *extension = extensions[i];
 
+		bouncer_cap_toggle (serv, extension, enable);
 		if (!strcmp (extension, "solanum.chat/identify-msg"))
 			serv->have_idmsg = enable;
 		else if (!strcmp (extension, "multi-prefix"))
@@ -1925,6 +1928,8 @@ inbound_cap_ls (server *serv, char *nick, char *extensions_str,
 
 	EMIT_SIGNAL_TIMESTAMP (XP_TE_CAPLIST, serv->server_session, nick,
 								  extensions_str, NULL, NULL, 0, tags_data->timestamp);
+	/* who answers CAP LS: ZNC does it itself, as irc.znc.in */
+	bouncer_server_name (serv, nick);
 
 	extensions = g_strsplit (extensions_str, " ", 0);
 
@@ -1963,6 +1968,9 @@ inbound_cap_ls (server *serv, char *nick, char *extensions_str,
 			continue;
 		}
 #endif
+
+		/* soju, ZNC, draft/persistence: what kind of server this is */
+		bouncer_cap_ls (serv, extension, value, buffer, sizeof (buffer), &want_cap);
 
 		/* multiline is asked for only when it's turned on; its limits come here */
 		if (!g_strcmp0 (extension, "draft/multiline"))

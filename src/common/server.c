@@ -56,6 +56,7 @@
 #include "server.h"
 #include "sts.h"
 #include "batch.h"
+#include "bouncer.h"
 
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>		  /* SSL_() */
@@ -1822,6 +1823,7 @@ server_set_defaults (server *serv)
 	serv->have_message_tags = FALSE;
 	serv->have_multiline = FALSE;
 	batch_reset (serv);
+	bouncer_reset (serv);
 	serv->have_sasl = FALSE;
 	serv->have_except = FALSE;
 	serv->have_invite = FALSE;
@@ -1949,6 +1951,7 @@ server_free (server *serv)
 	serv->flush_queue (serv);
 	server_away_free_messages (serv);
 	batch_reset (serv);
+	bouncer_reset (serv);
 
 	g_free (serv->nick_modes);
 	g_free (serv->nick_prefixes);

@@ -2046,3 +2046,9 @@ fe_serverlist_open (session *sess)
 
 	nx_widget_show (serverlist_win);
 }
+
+void
+servlist_bouncer_changed (server *serv)
+{
+	(void) serv;
+}
