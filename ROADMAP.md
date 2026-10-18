@@ -262,7 +262,7 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
 - [ ] `labeled-response`: tie a reply to the command that asked for it.
 - [x] `draft/chathistory` (soju, Ergo): on joining, the client asks for what was said since the newest line it has seen (`CHATHISTORY AFTER`), or the last 100 lines (`LATEST`) when it has nothing. They're shown between "History from the server" markers with their own times, and aren't logged again, counted unread, alerted or used for the smart filter. `irc_chathistory`, on. `tests/chathistory.sh`, `tests/ux/history-unread.sh`.
 - [x] `draft/read-marker`: a channel read on another device (the server sends MARKREAD) stops counting as unread here once nothing newer has come in; looking at a tab tells the server it's read up to its newest line (and a busy channel in front does so at most every 5 s), so your other devices clear it too. `tests/ux/readmarker.sh`.
-- [ ] Big channels: the WHO on join is the only source of who's already away and their real names (`away-notify` only sends changes), so it can't just be skipped. Use WHOX with only the fields needed, and spread it out when joining many channels at once.
+- [x] Big channels: checked, already handled. The WHO on join uses WHOX (`%chtsunfra,152`, only the fields needed) when the server has it, and WHO and MODE queries go out at the lowest priority of the send queue (`tcp_send_len`), so joining many channels spreads them behind normal traffic instead of flooding.
 - [ ] Later, behind preferences: `+typing`, `+draft/reply`, `draft/multiline`.
 
 Everyday use (already there: search bar, marker line, Alt+\` to the most active tab, last-spoke completion):
