@@ -192,6 +192,7 @@ struct hexchatprefs
 	unsigned int hex_irc_who_join;
 	unsigned int hex_irc_whois_front;
 	unsigned int hex_irc_cap_server_time;
+	unsigned int hex_irc_chathistory;	/* ask a server that has it for history on join */
 	unsigned int hex_net_auto_reconnect;
 	unsigned int hex_net_auto_reconnectonfail;
 	unsigned int hex_net_proxy_auth;
@@ -430,10 +431,12 @@ typedef struct session
 	int end_of_names:1;
 	int doing_who:1;		/* /who sent on this channel */
 	int done_away_check:1;	/* done checking for away status changes */
+	unsigned int history_asked:1;	/* chathistory asked for since joining */
 	tab_state_flags tab_state;
 	tab_state_flags last_tab_state; /* before event is handled */
 	unsigned int unread;		/* messages since the tab was last looked at */
 	unsigned int unread_hilight;	/* of those, highlights */
+	time_t history_until;	/* the newest message seen, to ask chathistory after it */
 	gtk_xtext_search_flags lastlog_flags;
 	void (*scrollback_replay_marklast) (struct session *sess);
 } session;
@@ -590,6 +593,8 @@ typedef struct server
 	unsigned int have_server_time:1;	/* cap server-time */
 	unsigned int have_echo:1;	/* cap echo-message: our own lines come back from the server */
 	unsigned int have_batch:1;	/* cap batch */
+	unsigned int have_chathistory:1;	/* cap draft/chathistory */
+	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */
 	unsigned int have_invite:1;	/* invite exemptions +I */

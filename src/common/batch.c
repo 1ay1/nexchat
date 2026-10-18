@@ -94,6 +94,8 @@ batch_command (server *serv, char *word[], char *word_eol[])
 		b->params = g_strdup (word_eol[5][0] ? word_eol[5] : "");
 		b->nicks = g_hash_table_new_full (NULL, NULL, NULL, gstring_free);
 		g_hash_table_replace (batches (serv), g_strdup (ref + 1), b);
+		if (!g_ascii_strcasecmp (b->type, "chathistory"))
+			chathistory_begin (serv, word[5]);
 	}
 	else if (ref[0] == '-')
 	{
@@ -102,9 +104,24 @@ batch_command (server *serv, char *word[], char *word_eol[])
 		{
 			if (is_split_type (b->type))
 				batch_end (serv, b);
+			else if (!g_ascii_strcasecmp (b->type, "chathistory"))
+				chathistory_end (serv, b->params);
 			g_hash_table_remove (batches (serv), ref + 1);
 		}
 	}
+}
+
+/* the line with this batch id is history (a chathistory batch, or a batch
+   inside one): shown, but not alerted, counted or logged again */
+gboolean
+batch_is_history (server *serv, const char *id)
+{
+	irc_batch *b;
+
+	if (!id || !serv->batches)
+		return FALSE;
+	b = g_hash_table_lookup (serv->batches, id);
+	return b && !g_ascii_strcasecmp (b->type, "chathistory");
 }
 
 /* a QUIT or JOIN of nick in sess, tagged with batch id: TRUE if it was
@@ -133,4 +150,52 @@ void
 batch_reset (server *serv)
 {
 	g_clear_pointer (&serv->batches, g_hash_table_destroy);
+}
+
+/* ---- draft/chathistory ---- */
+
+#define HISTORY_LINES 100
+
+/* on joining: what was said since the last line we have, or the last
+   HISTORY_LINES if we have nothing (a new channel, scrollback off) */
+void
+chathistory_request (session *sess)
+{
+	server *serv = sess->server;
+
+	if (!serv->have_chathistory || !serv->have_batch || !prefs.hex_irc_chathistory)
+		return;
+	if (sess->history_until > 0)
+	{
+		GDateTime *dt = g_date_time_new_from_unix_utc (sess->history_until);
+		/* AFTER is exclusive: the line we have isn't sent again */
+		char *iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
+		tcp_sendf (serv, "CHATHISTORY AFTER %s timestamp=%s %d\r\n", sess->channel, iso, HISTORY_LINES);
+		g_free (iso);
+		g_date_time_unref (dt);
+	}
+	else
+		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, HISTORY_LINES);
+}
+
+void
+chathistory_begin (server *serv, const char *target)
+{
+	session *sess = target && *target ? find_channel (serv, (char *) target) : NULL;
+
+	if (!sess && target && *target)
+		sess = find_dialog (serv, (char *) target);
+	if (sess)
+		PrintTextf (sess, _("\00323*\t--- History from the server ---\n"));
+}
+
+void
+chathistory_end (server *serv, const char *target)
+{
+	session *sess = target && *target ? find_channel (serv, (char *) target) : NULL;
+
+	if (!sess && target && *target)
+		sess = find_dialog (serv, (char *) target);
+	if (sess)
+		PrintTextf (sess, _("\00323*\t--- End of history ---\n"));
 }

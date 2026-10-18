@@ -1656,6 +1656,9 @@ irc_inline (server *serv, char *buf, int len)
 		handle_message_tags(serv, tags, &tags_data);
 	}
 
+	/* a line from a chathistory batch: shown, not alerted or logged again */
+	serv->line_is_history = batch_is_history (serv, tags_data.batch);
+
 	url_check_line (buf);
 
 	/* split line into words and words_to_end_of_line */
@@ -1713,6 +1716,7 @@ irc_inline (server *serv, char *buf, int len)
 	}
 
 xit:
+	serv->line_is_history = FALSE;
 	message_tags_data_free (&tags_data);
 	g_free (pdibuf);
 }

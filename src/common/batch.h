@@ -17,5 +17,14 @@ void batch_command (server *serv, char *word[], char *word_eol[]);
 gboolean batch_collect (server *serv, const char *id, session *sess, const char *nick);
 /* forget open batches (disconnect) */
 void batch_reset (server *serv);
+/* the line belongs to a chathistory batch */
+gboolean batch_is_history (server *serv, const char *id);
+
+/* IRCv3 draft/chathistory: ask for the latest lines of a channel just
+   joined (newer than what scrollback already shows) */
+void chathistory_request (session *sess);
+/* a chathistory batch for target starts / ends */
+void chathistory_begin (server *serv, const char *target);
+void chathistory_end (server *serv, const char *target);
 
 #endif

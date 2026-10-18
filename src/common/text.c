@@ -342,6 +342,8 @@ scrollback_load (session *sess)
 	g_object_unref (istream);
 
 	sess->scrollwritten = lines;
+	if (stamp > sess->history_until)
+		sess->history_until = stamp;
 
 	if (lines)
 	{
@@ -855,8 +857,13 @@ PrintTextTimeStamp (session *sess, char *text, time_t timestamp)
 		text = text_fixup_invalid_utf8 (text, -1, NULL);
 	}
 
-	log_write (sess, text, timestamp);
-	scrollback_save (sess, text, timestamp);
+	/* history the server replays is in its own logs and was seen before:
+	   show it, don't write it again */
+	if (!sess->server || !sess->server->line_is_history)
+	{
+		log_write (sess, text, timestamp);
+		scrollback_save (sess, text, timestamp);
+	}
 	fe_print_text (sess, text, timestamp, FALSE);
 	g_free (text);
 }
@@ -2102,6 +2109,13 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 	/* If a plugin's callback executes "/close", 'sess' may be invalid */
 	if (!is_session (sess))
 		return;
+
+	/* history from the server: shown as it was, no beeps or flashing */
+	if (sess->server && sess->server->line_is_history)
+	{
+		display_event (sess, index, word, stripcolor_args, timestamp);
+		return;
+	}
 
 	switch (index)
 	{

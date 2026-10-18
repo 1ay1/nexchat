@@ -177,6 +177,15 @@ try:
                     echo = True
             elif cmd == "PRIVMSG" and echo:
                 send(f":{nick}!u@h {line}")
+            elif cmd == "CHATHISTORY" and len(parts) >= 3:
+                # three old lines in a batch, the middle one naming us
+                target = parts[2]
+                send(f":fake BATCH +h1 chathistory {target}")
+                for t, who, msg in [("2026-01-01T10:00:00.000Z", "old1", "history-line-one"),
+                                    ("2026-01-01T10:01:00.000Z", "old2", f"history mention {nick}"),
+                                    ("2026-01-01T10:02:00.000Z", "old3", "history-line-three")]:
+                    send(f"@batch=h1;time={t} :{who}!u@h PRIVMSG {target} :{msg}")
+                send(":fake BATCH -h1")
             elif cmd == "NICK":
                 nick = parts[1]
             elif cmd == "USER":

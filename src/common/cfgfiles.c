@@ -587,6 +587,7 @@ const struct prefs vars[] =
 	{"irc_reconnect_rejoin", P_OFFINT (hex_irc_reconnect_rejoin), TYPE_BOOL},
 	{"irc_ban_type", P_OFFINT (hex_irc_ban_type), TYPE_INT},
 	{"irc_cap_server_time", P_OFFINT (hex_irc_cap_server_time), TYPE_BOOL},
+	{"irc_chathistory", P_OFFINT (hex_irc_chathistory), TYPE_BOOL},
 	{"irc_conf_mode", P_OFFINT (hex_irc_conf_mode), TYPE_BOOL},
 	{"irc_smart_filter", P_OFFINT (hex_irc_smart_filter), TYPE_INT},
 	{"irc_extra_hilight", P_OFFSET (hex_irc_extra_hilight), TYPE_STR},
@@ -872,6 +873,7 @@ load_default_config(void)
 	prefs.hex_input_tray_priv = 1;
 	prefs.hex_irc_reconnect_rejoin = 1;
 	prefs.hex_irc_cap_server_time = 1;
+	prefs.hex_irc_chathistory = 1;
 	prefs.hex_irc_logging = 1;
 	prefs.hex_irc_who_join = 1; /* Can kick with inordinate amount of channels, required for some of our features though, TODO: add cap like away check? */
 	prefs.hex_irc_whois_front = 1;

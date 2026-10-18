@@ -90,6 +90,7 @@ clear_channel (session *sess)
 	sess->channel[0] = 0;
 	sess->doing_who = FALSE;
 	sess->done_away_check = FALSE;
+	sess->history_asked = FALSE;	/* rejoining asks for what was missed */
 
 	log_close (sess);
 
@@ -348,7 +349,7 @@ is_hilight (char *from, char *text, session *sess, server *serv)
 		 alert_match_word (from, prefs.hex_irc_nick_hilight))
 	{
 		g_free (text);
-		if (sess != current_tab)
+		if (sess != current_tab && !serv->line_is_history)
 		{
 			sess->tab_state |= TAB_STATE_NEW_HILIGHT;
 			sess->unread_hilight++;
@@ -405,7 +406,7 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 	if (!sess)
 		sess = def;
 
-	if (sess != current_tab)
+	if (sess != current_tab && !serv->line_is_history)
 	{
 		if (fromme)
 			sess->tab_state |= TAB_STATE_NEW_DATA;
@@ -421,12 +422,16 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 	if (user)
 	{
 		nickchar[0] = user->prefix[0];
-		user->lasttalk = time (0);
+		if (!serv->line_is_history)
+			user->lasttalk = time (0);
 		if (user->account)
 			id = TRUE;
 		if (user->me)
 			fromme = TRUE;
 	}
+	if (sess->type == SESS_CHANNEL)
+		sess->history_until = MAX (sess->history_until,
+											tags_data->timestamp ? tags_data->timestamp : time (NULL));
 
 	inbound_make_idtext (serv, idtext, sizeof (idtext), id);
 
@@ -479,13 +484,16 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 			return;
 	}
 
-	if (sess != current_tab)
+	if (sess != current_tab && !serv->line_is_history)
 	{
 		sess->tab_state |= TAB_STATE_NEW_MSG;
 		if (!fromme)
 			sess->unread++;
 		lastact_update (sess);
 	}
+	/* where to ask chathistory from after the next rejoin */
+	sess->history_until = MAX (sess->history_until,
+										tags_data->timestamp ? tags_data->timestamp : time (NULL));
 
 	user = userlist_find (sess, from);
 	if (user)
@@ -493,14 +501,15 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 		if (user->account)
 			id = TRUE;
 		nickchar[0] = user->prefix[0];
-		user->lasttalk = time (0);
+		if (!serv->line_is_history)
+			user->lasttalk = time (0);
 		if (user->me)
 			fromme = TRUE;
 	}
 
 	if (fromme)
 	{
-		if (prefs.hex_away_auto_unmark && serv->is_away && !tags_data->timestamp)
+		if (prefs.hex_away_auto_unmark && serv->is_away && !tags_data->timestamp && !serv->line_is_history)
 			sess->server->p_set_back (sess->server);
 		EMIT_SIGNAL_TIMESTAMP (XP_TE_UCHANMSG, sess, from, text, nickchar, NULL,
 									  0, tags_data->timestamp);
@@ -1175,6 +1184,12 @@ inbound_nameslist_end (server *serv, char *chan,
 		sess->end_of_names = TRUE;
 		sess->ignore_names = FALSE;
 		fe_userlist_numbers (sess);
+		/* just joined: what was said while we weren't here */
+		if (!sess->history_asked)
+		{
+			sess->history_asked = TRUE;
+			chathistory_request (sess);
+		}
 		return TRUE;
 	}
 	return FALSE;
@@ -1729,6 +1744,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_echo = enable;
 		else if (!strcmp (extension, "batch"))
 			serv->have_batch = enable;
+		else if (!strcmp (extension, "draft/chathistory") || !strcmp (extension, "chathistory"))
+			serv->have_chathistory = enable;
 		else if (!strcmp (extension, "sasl"))
 		{
 			serv->have_sasl = enable;
@@ -1792,6 +1809,8 @@ static const char * const supported_caps[] = {
 	"extended-monitor",
 	"echo-message",
 	"batch",
+	"draft/chathistory",
+	"chathistory",
 
 	/* ZNC */
 	"znc.in/server-time-iso",
