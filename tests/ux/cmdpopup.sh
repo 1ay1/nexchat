@@ -48,6 +48,12 @@ check() {
 	esac
 }
 
+closed() {
+	got=$(state cmdpopup)
+	if [ -z "$(echo "$got" | sed 's/^cmdpopup: *//')" ]; then echo "ok:   $1"
+	else echo "FAIL: $1 (got: $got)"; fail=1; fi
+}
+
 # just "/": everything, the everyday commands first under a heading, with
 # the first one explained in plain words and an example
 t "/"
@@ -100,9 +106,9 @@ k Tab
 check input 'input: /join ' 'Tab fills in "/join " (lower case, as typed)'
 check cmdpopup 'cmdpopup: list: \[#t\]* | hint: /JOIN <#channel>*' 'after /join: your channels, under the usage line'
 k Escape
-check cmdpopup 'cmdpopup: ' 'Escape closes it'
+closed 'Escape closes it'
 t "#x"
-check cmdpopup 'cmdpopup: ' 'stays closed while typing on'
+closed 'stays closed while typing on'
 k Return
 sleep 1
 grep -q '^JOIN #x' "$tmp/server.log" && echo "ok:   Enter sends /join #x" || { echo "FAIL: /join #x not sent"; fail=1; }
@@ -115,7 +121,7 @@ grep -q '^AWAY' "$tmp/server.log" && echo "ok:   Enter on a whole name sends it"
 check input 'input: ' 'box empty after sending'
 
 t "//"
-check cmdpopup 'cmdpopup: ' '"//" (a plain slash) shows nothing'
+closed '"//" (a plain slash) shows nothing'
 k ctrl+a BackSpace
 
 # a nick argument: the people in the channel (the fake server has bob)
@@ -136,7 +142,7 @@ t "/help joi"
 check cmdpopup 'cmdpopup: list: \[JOIN\]*' '/help joi offers JOIN'
 k ctrl+a BackSpace
 t "hello"
-check cmdpopup 'cmdpopup: ' 'plain text shows nothing'
+closed 'plain text shows nothing'
 k ctrl+a BackSpace
 
 # stays up and keeps the selection in sight however the arrows are used:
@@ -152,6 +158,19 @@ check cmdpopup 'cmdpopup: list: * sel=*:in-view*' '40 quick Downs: still up'
 k Page_Down Page_Down Page_Up
 check cmdpopup 'cmdpopup: list: * sel=*:in-view*' 'Page Down/Up: still up'
 k Escape ctrl+a BackSpace
+
+# closed stays closed: nothing typed, then a layout change (the user list
+# hidden and back) and switching tabs. The refit on resize used to open it.
+t "/join #b"; k Return
+wait_for grep -q '^tab: #b' "$tmp/log"
+closed 'after sending /join: closed'
+k ctrl+F7
+closed 'user list hidden: still closed'
+k ctrl+F7
+k ctrl+Page_Up
+closed 'switched tabs: still closed'
+k ctrl+Page_Down
+closed 'and back: still closed'
 
 if [ $fail -ne 0 ]; then
 	echo "--- last dump"; awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log"

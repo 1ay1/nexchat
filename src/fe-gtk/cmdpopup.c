@@ -794,6 +794,9 @@ refit_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
 	graphene_rect_t b;
 	GtkWidget *row = gtk_widget_get_parent (p->entry);
 
+	/* a hidden box stays realized and keeps ticking: only move it while open */
+	if (!p->want_open || !gtk_widget_get_visible (p->popover))
+		return G_SOURCE_CONTINUE;
 	if (row && gtk_widget_compute_bounds (row, p->host, &b) &&
 		 ((int) b.size.width != p->last_width || (int) b.origin.x != p->last_x ||
 		  gtk_widget_get_height (p->host) - (int) b.origin.y != p->last_bottom))
