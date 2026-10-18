@@ -49,6 +49,8 @@
 #define LABEL_INDENT 12
 
 static GtkWidget *setup_window = NULL;
+static gboolean setup_saved;
+static GtkWidget *swatch[MAX_COL + 1];
 static int last_selected_page = 0;
 static int last_selected_row = 0; /* sound row */
 static gboolean color_change;
@@ -193,11 +195,23 @@ static const char *const tabcompmenu[] =
 	NULL
 };
 
+static const char *const cursormenu[] =
+{
+	N_("Line"),
+	N_("Thick bar"),
+	N_("Block"),
+	N_("Underline"),
+	N_("Hollow box"),
+	NULL
+};
+
 static const setting inputbox_settings[] =
 {
 	{ST_HEADER, N_("Input Box"),0,0,0},
 	{ST_TOGGLE, N_("Use the text box font and colors"), P_OFFINTNL(hex_gui_input_style),0,0,0},
 	{ST_TOGGLE, N_("Render colors and attributes"), P_OFFINTNL (hex_gui_input_attr),0,0,0},
+	{ST_MENU,   N_("Cursor:"), P_OFFINTNL(hex_gui_input_cursor), 0, cursormenu, 0},
+	{ST_TOGGLE, N_("Blinking cursor"), P_OFFINTNL(hex_gui_input_blink), N_("Off keeps the cursor on all the time."),0,0},
 	{ST_TOGGLE, N_("Show nick box"), P_OFFINTNL(hex_gui_input_nick),0,0,1},
 	{ST_TOGGLE, N_("Show user mode icon in nick box"), P_OFFINTNL(hex_gui_input_icon),0,0,0},
 	{ST_NUMBER, N_("Ask before sending a paste of more than:"), P_OFFINTNL(hex_gui_input_paste_max), N_("Pasting many lines by accident floods the channel. 0 never asks."), (const char **)N_("lines."), 1000},
@@ -1518,6 +1532,61 @@ setup_create_color_button (GtkWidget *table, int num, int row, int col)
 	g_signal_connect (G_OBJECT (but), "clicked",
 							G_CALLBACK (setup_color_cb), GINT_TO_POINTER (num));
 	setup_color_button_paint (but, &colors[num]);
+	swatch[num] = but;
+}
+
+static void
+setup_scheme_cb (GtkWidget *dd, gpointer userdata)
+{
+	guint i = gtk_drop_down_get_selected (GTK_DROP_DOWN (dd));
+	char *id;
+	int n;
+
+	if (i == GTK_INVALID_LIST_POSITION)
+		return;
+	id = palette_scheme_id (i);
+	palette_set_scheme (id);
+	g_free (id);
+	color_change = TRUE;
+	for (n = 0; n <= MAX_COL; n++)
+		if (swatch[n])
+			setup_color_button_paint (swatch[n], &colors[n]);
+}
+
+/* the scheme list, typing filters it */
+static GtkWidget *
+setup_create_scheme_row (void)
+{
+	GtkWidget *box, *label, *dd;
+	GtkStringList *names = gtk_string_list_new (NULL);
+	const char *cur = palette_scheme ();
+	int i, sel = 0;
+
+	for (i = 0; i < palette_scheme_count (); i++)
+	{
+		char *id = palette_scheme_id (i), *label_text = palette_scheme_label (i);
+		gtk_string_list_append (names, label_text);
+		if (!strcmp (id, cur))
+			sel = i;
+		g_free (id);
+		g_free (label_text);
+	}
+
+	box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+	nx_set_border_width (box, 6);
+	label = gtk_label_new_with_mnemonic (_("Color _scheme:"));
+	nx_box_pack_start (box, label, FALSE, FALSE, 0);
+
+	dd = gtk_drop_down_new (G_LIST_MODEL (names),
+			gtk_property_expression_new (GTK_TYPE_STRING_OBJECT, NULL, "string"));
+	gtk_drop_down_set_enable_search (GTK_DROP_DOWN (dd), TRUE);
+	gtk_drop_down_set_search_match_mode (GTK_DROP_DOWN (dd), GTK_STRING_FILTER_MATCH_MODE_SUBSTRING);
+	gtk_drop_down_set_selected (GTK_DROP_DOWN (dd), sel);
+	gtk_widget_set_tooltip_text (dd, _("Sets every color below; you can still change any of them after."));
+	gtk_label_set_mnemonic_widget (GTK_LABEL (label), dd);
+	nx_combo_on_changed (dd, setup_scheme_cb, NULL);
+	nx_box_pack_start (box, dd, FALSE, FALSE, 0);
+	return box;
 }
 
 static void
@@ -1552,6 +1621,8 @@ setup_create_color_page (void)
 
 	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	nx_set_border_width (box, 6);
+
+	gtkutil_container_add (GTK_WIDGET (box), setup_create_scheme_row ());
 
 	tab = gtk_grid_new ();
 	nx_set_border_width (tab, 6);
@@ -1953,6 +2024,10 @@ setup_create_tree (GtkWidget *box, GtkWidget *book)
 
 	model = nx_store_new (TRUE, 2, G_TYPE_STRING, G_TYPE_INT);
 
+	/* tests: NEXCHAT_PREFS_PAGE=N opens on page N */
+	if (g_getenv ("NEXCHAT_PREFS_PAGE"))
+		last_selected_page = atoi (g_getenv ("NEXCHAT_PREFS_PAGE"));
+
 	i = 0;
 	page = 0;
 	do
@@ -2009,6 +2084,7 @@ setup_apply_to_sess (session_gui *gui)
 
 	sexy_spell_entry_set_checked ((SexySpellEntry *)gui->input_box, prefs.hex_gui_input_spell);
 	sexy_spell_entry_set_parse_attributes ((SexySpellEntry *)gui->input_box, prefs.hex_gui_input_attr);
+	sexy_spell_entry_set_cursor ((SexySpellEntry *)gui->input_box, prefs.hex_gui_input_cursor, prefs.hex_gui_input_blink);
 }
 
 static void
@@ -2215,6 +2291,7 @@ setup_apply (struct hexchatprefs *pr)
 static void
 setup_ok_cb (GtkWidget *but, GtkWidget *win)
 {
+	setup_saved = TRUE;
 	nx_widget_destroy (win);
 	setup_apply (&setup_prefs);
 	save_config ();
@@ -2263,6 +2340,10 @@ static void
 setup_close_cb (GtkWidget *win, GtkWidget **swin)
 {
 	*swin = NULL;
+	memset (swatch, 0, sizeof swatch);
+	/* Cancel: colours were changed in place, put them back */
+	if (!setup_saved)
+		palette_restore ();
 
 	if (font_dialog)
 	{
@@ -2283,6 +2364,8 @@ setup_open (void)
 	memcpy (&setup_prefs, &prefs, sizeof (prefs));
 
 	color_change = FALSE;
+	setup_saved = FALSE;
+	palette_backup ();
 	setup_window = setup_window_open ();
 
 	g_signal_connect (G_OBJECT (setup_window), "destroy",

@@ -123,6 +123,8 @@ struct hexchatprefs
 	unsigned int hex_gui_input_cmdhelp;	/* "/" shows the command list */
 	int hex_gui_input_paste_max;	/* ask before sending more lines; 0 never asks */
 	unsigned int hex_gui_input_style;
+	int hex_gui_input_cursor;	/* 0 GTK's line, 1 thick bar, 2 block, 3 underline */
+	unsigned int hex_gui_input_blink;	/* off: the cursor doesn't blink */
 	unsigned int hex_gui_jump_button;
 	unsigned int hex_gui_zoom_keys;
 	unsigned int hex_gui_join_dialog;

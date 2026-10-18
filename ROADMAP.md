@@ -205,6 +205,8 @@ Order matters: first make the GTK4 build trustworthy (tests and CI), then make i
 - [x] Step 24, switch. GTK4 is the only frontend on every platform (b446ea59): no `-Dgtk` option, no GTK3 fallback release. Every GTK3 branch was resolved to its GTK4 side, and the GTK3-only pieces (GtkStatusIcon tray, `tray-backend-none.c`, the GTK3 drag test and probes) removed. The build is gnu11, GLib 2.76, meson 0.59.
   - Left: fold `gtkcompat.h`/`gtkevents.h`/`gtkdnd.h` into plain GTK4 calls. They no longer have a GTK3 side, so this is cleanup, not a behaviour change.
 - [x] Colours follow the system's light/dark mode by default: HexChat's palette in light mode, a matching dark one in dark mode, switched live; colours the user picked stay. `colors.conf` keeps only those.
+- [x] Color schemes (Preferences > Colors): 819 to pick from, the list filters as you type. HexChat's own (light/dark), Native (the system's text colours: the GTK theme on Linux, system colours on Windows, NSColor on macOS), 25 light/dark pairs that switch with the system (Catppuccin, Gruvbox, Solarized, Nord, Tokyo Night, ...), mIRC and HexChat 2.9's, and every scheme of iTerm2-Color-Schemes (MIT), generated into `palette-presets.h` by `palette-presets.py`. Picking one resets every colour; you can change any of them after. Saved as `scheme = ...` in `colors.conf`; Cancel puts the old colours back.
+- [x] Input box cursor style: line (GTK's), thick bar, block, underline or hollow box, and blinking can be turned off. GTK's own caret is used for the default; otherwise it's made transparent and ours is drawn on top. `gui-schemes` checks schemes reach the chat and shoots every cursor style.
 
 Tree views moved off GtkTreeView in phase 5.
 

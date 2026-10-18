@@ -408,3 +408,33 @@ macos_is_dark (void)
 	}
 	return FALSE;
 }
+
+static GdkRGBA
+macos_rgba (NSColor *c)
+{
+	GdkRGBA r = { 0, 0, 0, 1 };
+	NSColor *s = [c colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+	if (s)
+	{
+		r.red = [s redComponent];
+		r.green = [s greenComponent];
+		r.blue = [s blueComponent];
+	}
+	return r;
+}
+
+void
+macos_text_colors (GdkRGBA out[4])
+{
+	/* dynamic colours resolve against the current appearance */
+	void (^get) (void) = ^{
+		out[0] = macos_rgba ([NSColor textBackgroundColor]);
+		out[1] = macos_rgba ([NSColor textColor]);
+		out[2] = macos_rgba ([NSColor selectedTextBackgroundColor]);
+		out[3] = macos_rgba ([NSColor selectedTextColor]);
+	};
+	if (@available (macOS 11.0, *))
+		[[NSApp effectiveAppearance] performAsCurrentDrawingAppearance:get];
+	else
+		get ();
+}

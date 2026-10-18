@@ -52,12 +52,25 @@ void palette_load (void);
 /* writes only the colours that differ from the current defaults */
 void palette_save (void);
 /* light or dark defaults for every colour the user didn't pick; TRUE if
-   that changed anything */
+   any colour changed ("native" also follows a theme change) */
 gboolean palette_set_dark (gboolean dark);
 gboolean palette_dark (void);
 /* any colour picked by the user */
 gboolean palette_is_custom (void);
 /* forget the user's picks: every colour follows the system */
 void palette_use_defaults (void);
+
+/* color schemes: "" is HexChat's (follows light/dark), "native" takes
+   the system's text colours, "pair:X" a light/dark pair, else a scheme
+   name. Setting one drops the user's picks. */
+const char *palette_scheme (void);
+void palette_set_scheme (const char *id);
+/* the list Preferences shows: id and label of entry i */
+int palette_scheme_count (void);
+char *palette_scheme_id (int i);
+char *palette_scheme_label (int i);
+/* Preferences keeps these to undo on Cancel */
+void palette_backup (void);
+void palette_restore (void);
 
 #endif

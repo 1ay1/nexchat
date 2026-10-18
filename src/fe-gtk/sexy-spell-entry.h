@@ -86,6 +86,10 @@ void       sexy_spell_entry_activate_default_languages(SexySpellEntry *entry);
 typedef void (*SexySpellEntryMenuHook) (SexySpellEntry *entry, nx_menu *menu, gpointer data);
 void       sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntryMenuHook hook, gpointer data);
 
+/* the text cursor: 0 GTK's line, 1 thick bar, 2 block, 3 underline,
+   4 hollow box; blink or stay on */
+void       sexy_spell_entry_set_cursor (SexySpellEntry *entry, int style, gboolean blink);
+
 G_END_DECLS
 
 #endif

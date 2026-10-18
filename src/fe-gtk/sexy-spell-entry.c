@@ -103,6 +103,11 @@ struct _SexySpellEntryPriv
 	gint                  preedit_length;	/* chars of IM preedit; GtkEntry hides its own in GTK3 */
 	SexySpellEntryMenuHook menu_hook;
 	gpointer              menu_hook_data;
+	int                   cursor_style;	/* 0 GTK's own, else SexyCursorStyle */
+	gboolean              cursor_blink;
+	gboolean              cursor_off;	/* blinked out */
+	guint                 blink_id;
+	gint64                blink_start;
 };
 
 static void sexy_spell_entry_class_init(SexySpellEntryClass *klass);
@@ -111,6 +116,9 @@ static void sexy_spell_entry_init(SexySpellEntry *entry);
 static void sexy_spell_entry_finalize(GObject *obj);
 static void sexy_spell_entry_destroy(GObject *obj);
 static void sexy_spell_entry_menu_init (SexySpellEntry *entry);
+static void sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot);
+static void cursor_notify_cb (GObject *o, GParamSpec *ps, gpointer entry);
+static void cursor_focus_cb (GtkEventControllerFocus *c, gpointer entry);
 
 /* GtkEditable handlers */
 static void sexy_spell_entry_changed(GtkEditable *editable, gpointer data);
@@ -261,7 +269,7 @@ sexy_spell_entry_class_init(SexySpellEntryClass *klass)
 
 	object_class->dispose = sexy_spell_entry_destroy;
 
-	(void) widget_class;
+	widget_class->snapshot = sexy_spell_entry_snapshot;
 
 	/**
 	 * SexySpellEntry::word-check:
@@ -812,9 +820,16 @@ sexy_spell_entry_init(SexySpellEntry *entry)
 
 	entry->priv->checked = TRUE;
 	entry->priv->parseattr = TRUE;
+	entry->priv->cursor_blink = TRUE;
 
 	sexy_spell_entry_menu_init (entry);
 	g_signal_connect(G_OBJECT(entry), "changed", G_CALLBACK(sexy_spell_entry_changed), NULL);
+	g_signal_connect (entry, "notify::cursor-position", G_CALLBACK (cursor_notify_cb), entry);
+	{
+		GtkEventController *fc = gtk_event_controller_focus_new ();
+		g_signal_connect (fc, "enter", G_CALLBACK (cursor_focus_cb), entry);
+		gtk_widget_add_controller (GTK_WIDGET (entry), fc);
+	}
 }
 
 static void
@@ -862,8 +877,206 @@ sexy_spell_entry_finalize(GObject *obj)
 static void
 sexy_spell_entry_destroy(GObject *obj)
 {
+	SexySpellEntry *entry = SEXY_SPELL_ENTRY (obj);
+
+	if (entry->priv && entry->priv->blink_id)
+	{
+		g_source_remove (entry->priv->blink_id);
+		entry->priv->blink_id = 0;
+	}
 	if (G_OBJECT_CLASS(parent_class)->dispose)
 		G_OBJECT_CLASS(parent_class)->dispose(obj);
+}
+
+/* the cursor: GTK's own unless another style or no blinking is picked;
+   then GtkText's caret is made transparent and ours is drawn on top */
+
+static GtkWidget *
+cursor_text (SexySpellEntry *entry)
+{
+	GtkEditable *d = gtk_editable_get_delegate (GTK_EDITABLE (entry));
+	return GTK_IS_TEXT (d) ? GTK_WIDGET (d) : NULL;
+}
+
+static gboolean
+cursor_own (SexySpellEntry *entry)
+{
+	return entry->priv->cursor_style != 0 || !entry->priv->cursor_blink;
+}
+
+static gboolean
+cursor_blink_cb (gpointer data)
+{
+	SexySpellEntry *entry = data;
+	SexySpellEntryPriv *p = entry->priv;
+	GtkWidget *text = cursor_text (entry);
+	int timeout = 10;
+
+	g_object_get (gtk_widget_get_settings (GTK_WIDGET (entry)), "gtk-cursor-blink-timeout", &timeout, NULL);
+	/* like GTK: stop blinking (cursor on) when not focused or idle a while */
+	if (!text || !gtk_widget_has_focus (text) ||
+		 g_get_monotonic_time () - p->blink_start > (gint64) timeout * G_USEC_PER_SEC)
+	{
+		p->cursor_off = FALSE;
+		p->blink_id = 0;
+		gtk_widget_queue_draw (GTK_WIDGET (entry));
+		return G_SOURCE_REMOVE;
+	}
+	p->cursor_off = !p->cursor_off;
+	gtk_widget_queue_draw (GTK_WIDGET (entry));
+	return G_SOURCE_CONTINUE;
+}
+
+/* typing or moving shows the cursor and starts the blinking over */
+static void
+cursor_wake (SexySpellEntry *entry)
+{
+	SexySpellEntryPriv *p = entry->priv;
+	gboolean blink = TRUE;
+	int time = 1200;
+
+	if (!cursor_own (entry))
+		return;
+	p->cursor_off = FALSE;
+	p->blink_start = g_get_monotonic_time ();
+	g_object_get (gtk_widget_get_settings (GTK_WIDGET (entry)),
+					  "gtk-cursor-blink", &blink, "gtk-cursor-blink-time", &time, NULL);
+	if (p->cursor_blink && blink && !p->blink_id)
+		p->blink_id = g_timeout_add (MAX (time / 2, 50), cursor_blink_cb, entry);
+	gtk_widget_queue_draw (GTK_WIDGET (entry));
+}
+
+static void
+cursor_notify_cb (GObject *o, GParamSpec *ps, gpointer entry)
+{
+	cursor_wake (entry);
+}
+
+static void
+cursor_focus_cb (GtkEventControllerFocus *c, gpointer entry)
+{
+	cursor_wake (entry);
+}
+
+static void
+sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
+{
+	SexySpellEntry *entry = SEXY_SPELL_ENTRY (widget);
+	SexySpellEntryPriv *p = entry->priv;
+	GtkWidget *text;
+	graphene_rect_t cur, next, clip;
+	graphene_point_t at;
+	GdkRGBA fg;
+	const char *str;
+	int pos, len, start, end;
+	float w, h;
+
+	GTK_WIDGET_CLASS (parent_class)->snapshot (widget, snapshot);
+
+	text = cursor_text (entry);
+	if (!cursor_own (entry) || p->cursor_off || !text || !gtk_widget_has_focus (text) ||
+		 gtk_editable_get_selection_bounds (GTK_EDITABLE (entry), &start, &end))
+		return;
+
+	str = gtk_editable_get_text (GTK_EDITABLE (entry));
+	len = g_utf8_strlen (str, -1);
+	pos = gtk_editable_get_position (GTK_EDITABLE (entry));
+	gtk_text_compute_cursor_extents (GTK_TEXT (text), pos, &cur, NULL);
+	h = cur.size.height;
+
+	/* the character under the cursor; past the end, a digit's width */
+	w = 0;
+	if (pos < len)
+	{
+		gtk_text_compute_cursor_extents (GTK_TEXT (text), pos + 1, &next, NULL);
+		w = next.origin.x - cur.origin.x;
+	}
+	if (w <= 0)
+	{
+		PangoLayout *l = gtk_widget_create_pango_layout (text, "0");
+		int lw;
+		pango_layout_get_pixel_size (l, &lw, NULL);
+		g_object_unref (l);
+		w = lw;
+	}
+
+	if (!gtk_widget_compute_point (text, widget, &GRAPHENE_POINT_INIT (cur.origin.x, cur.origin.y), &at) ||
+		 !gtk_widget_compute_bounds (text, widget, &clip))
+		return;
+	gtk_widget_get_color (text, &fg);
+
+	gtk_snapshot_push_clip (snapshot, &clip);
+	switch (p->cursor_style)
+	{
+	case 1:	/* thick bar */
+		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, MAX (2, h / 8), h));
+		break;
+	case 2:	/* block, the character drawn over it in the background colour */
+	{
+		GdkRGBA bg = colors[COL_BG];
+		if (!prefs.hex_gui_input_style)
+			bg = (0.299 * fg.red + 0.587 * fg.green + 0.114 * fg.blue) < 0.5 ?
+				(GdkRGBA) { 1, 1, 1, 1 } : (GdkRGBA) { 0, 0, 0, 1 };
+		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, w, h));
+		if (pos < len)
+		{
+			const char *c = g_utf8_offset_to_pointer (str, pos);
+			char *ch = g_strndup (c, g_utf8_next_char (c) - c);
+			PangoLayout *l = gtk_widget_create_pango_layout (text, ch);
+			gtk_snapshot_save (snapshot);
+			gtk_snapshot_translate (snapshot, &at);
+			gtk_snapshot_append_layout (snapshot, l, &bg);
+			gtk_snapshot_restore (snapshot);
+			g_object_unref (l);
+			g_free (ch);
+		}
+		break;
+	}
+	case 3:	/* underline */
+		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y + h - 2, w, 2));
+		break;
+	case 4:	/* hollow box */
+	{
+		GskRoundedRect r;
+		float bw[4] = { 1, 1, 1, 1 };
+		GdkRGBA bc[4] = { fg, fg, fg, fg };
+		gsk_rounded_rect_init_from_rect (&r, &GRAPHENE_RECT_INIT (at.x, at.y, w, h), 0);
+		gtk_snapshot_append_border (snapshot, &r, bw, bc);
+		break;
+	}
+	default:	/* GTK's thin line, just not blinking */
+		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, MAX (1, h * 0.04f), h));
+		break;
+	}
+	gtk_snapshot_pop (snapshot);
+}
+
+void
+sexy_spell_entry_set_cursor (SexySpellEntry *entry, int style, gboolean blink)
+{
+	static GtkCssProvider *prov;
+	SexySpellEntryPriv *p = entry->priv;
+
+	if (!prov)
+	{
+		prov = gtk_css_provider_new ();
+		gtk_css_provider_load_from_string (prov, "entry.nx-own-cursor > text { caret-color: transparent; }\n");
+		gtk_style_context_add_provider_for_display (gtk_widget_get_display (GTK_WIDGET (entry)),
+				GTK_STYLE_PROVIDER (prov), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
+	}
+	p->cursor_style = CLAMP (style, 0, 4);
+	p->cursor_blink = blink;
+	if (cursor_own (entry))
+		gtk_widget_add_css_class (GTK_WIDGET (entry), "nx-own-cursor");
+	else
+		gtk_widget_remove_css_class (GTK_WIDGET (entry), "nx-own-cursor");
+	if (p->blink_id && !blink)
+	{
+		g_source_remove (p->blink_id);
+		p->blink_id = 0;
+	}
+	cursor_wake (entry);
+	gtk_widget_queue_draw (GTK_WIDGET (entry));
 }
 
 /**

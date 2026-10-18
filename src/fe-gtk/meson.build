@@ -309,4 +309,7 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-colors-roundtrip', find_program('sh'),
     args: [files('../../tests/ux/colors-roundtrip.sh'), hexchat_gtk],
     env: gui_env + ['SHOT_DISPLAY=:83'], timeout: 120)
+  test('gui-schemes', find_program('sh'),
+    args: [files('../../tests/ux/schemes.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:86'], timeout: 180)
 endif

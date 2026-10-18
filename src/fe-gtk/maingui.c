@@ -3220,6 +3220,7 @@ mg_create_entry (session *sess, GtkWidget *box)
 	gui->input_box = entry = sexy_spell_entry_new ();
 	sexy_spell_entry_set_checked ((SexySpellEntry *)entry, prefs.hex_gui_input_spell);
 	sexy_spell_entry_set_parse_attributes ((SexySpellEntry *)entry, prefs.hex_gui_input_attr);
+	sexy_spell_entry_set_cursor ((SexySpellEntry *)entry, prefs.hex_gui_input_cursor, prefs.hex_gui_input_blink);
 
 	gtk_entry_set_max_length (GTK_ENTRY (gui->input_box), 0);
 	g_signal_connect (G_OBJECT (entry), "activate",

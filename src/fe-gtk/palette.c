@@ -28,8 +28,11 @@
 #include <unistd.h>
 #endif
 
+#include <string.h>
+
 #include "fe-gtk.h"
 #include "palette.h"
+#include "platform-style.h"
 
 #include "../common/hexchat.h"
 #include "../common/util.h"
@@ -152,10 +155,107 @@ static gboolean custom[MAX_COL + 1];
 static gboolean palette_is_dark;
 static gboolean palette_ready;
 
+/* the colour scheme: "" HexChat's, "native", "pair:Label" or a name */
+static char scheme[64];
+static GdkRGBA scheme_cols[MAX_COL + 1];
+
+typedef struct
+{
+	const char *name;
+	guint32 c[20];	/* mIRC 0-15, background, text, selection, selected text */
+} nx_scheme;
+
+typedef struct
+{
+	const char *label;
+	int light, dark;
+} nx_scheme_pair;
+
+#include "palette-presets.h"
+
+static GdkRGBA
+rgb24 (guint32 c)
+{
+	GdkRGBA r = { ((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0, 1.0 };
+	return r;
+}
+
+static double
+luma (const GdkRGBA *c)
+{
+	return 0.299 * c->red + 0.587 * c->green + 0.114 * c->blue;
+}
+
+static void
+scheme_fill (GdkRGBA *out, const guint32 *c)
+{
+	int i;
+
+	for (i = 0; i < 16; i++)
+		out[i] = out[i + 16] = rgb24 (c[i]);
+	out[COL_BG] = rgb24 (c[16]);
+	out[COL_FG] = rgb24 (c[17]);
+	out[COL_MARK_BG] = rgb24 (c[18]);
+	out[COL_MARK_FG] = rgb24 (c[19]);
+	out[COL_MARKER] = out[4];
+	out[COL_NEW_DATA] = out[12];
+	out[COL_HILIGHT] = out[9];
+	out[COL_NEW_MSG] = out[7];
+	out[COL_AWAY] = out[14];
+	out[COL_SPELL] = out[4];
+}
+
+static int
+scheme_find (const char *name)
+{
+	int i;
+
+	for (i = 0; i < (int) G_N_ELEMENTS (nx_schemes); i++)
+		if (!strcmp (nx_schemes[i].name, name))
+			return i;
+	return -1;
+}
+
+/* the colours of the current scheme, for the current light/dark mode */
+static void
+scheme_compute (GdkRGBA *out)
+{
+	int i = -1;
+
+	if (!strcmp (scheme, "native"))
+	{
+		GdkRGBA t[4];
+
+		platform_style_text_colors (t);
+		/* the rest from HexChat's own, light or dark to match */
+		memcpy (out, luma (&t[0]) < 0.5 ? defaults_dark : defaults_light, sizeof scheme_cols);
+		out[COL_BG] = t[0];
+		out[COL_FG] = t[1];
+		out[COL_MARK_BG] = t[2];
+		out[COL_MARK_FG] = t[3];
+		return;
+	}
+	if (!strncmp (scheme, "pair:", 5))
+	{
+		int p;
+
+		for (p = 0; p < (int) G_N_ELEMENTS (nx_scheme_pairs); p++)
+			if (!strcmp (nx_scheme_pairs[p].label, scheme + 5))
+				i = palette_is_dark ? nx_scheme_pairs[p].dark : nx_scheme_pairs[p].light;
+	}
+	else if (scheme[0])
+		i = scheme_find (scheme);
+
+	if (i >= 0)
+		scheme_fill (out, nx_schemes[i].c);
+	else
+		memcpy (out, palette_is_dark ? defaults_dark : defaults_light, sizeof scheme_cols);
+}
+
 static const GdkRGBA *
 palette_defaults (void)
 {
-	return palette_is_dark ? defaults_dark : defaults_light;
+	return scheme_cols;
 }
 
 static gboolean
@@ -164,15 +264,23 @@ same_color (const GdkRGBA *a, const GdkRGBA *b)
 	return C16R (*a) == C16R (*b) && C16G (*a) == C16G (*b) && C16B (*a) == C16B (*b);
 }
 
-static void
+/* recompute the scheme's colours and apply those not picked by the user;
+   TRUE if any colour changed */
+static gboolean
 palette_reset (void)
 {
-	const GdkRGBA *def = palette_defaults ();
+	GdkRGBA old[MAX_COL + 1];
 	int i;
 
+	memcpy (old, colors, sizeof old);
+	scheme_compute (scheme_cols);
 	for (i = 0; i <= MAX_COL; i++)
 		if (!custom[i])
-			colors[i] = def[i];
+			colors[i] = scheme_cols[i];
+	for (i = 0; i <= MAX_COL; i++)
+		if (!same_color (&old[i], &colors[i]))
+			return TRUE;
+	return FALSE;
 }
 
 /* colors.conf name of colors[i]: mIRC 0-31 as is, ours from 256 */
@@ -185,12 +293,14 @@ palette_name (int i, char *buf, gsize len)
 gboolean
 palette_set_dark (gboolean dark)
 {
-	if (palette_ready && palette_is_dark == !!dark)
+	gboolean changed = !palette_ready || palette_is_dark != !!dark;
+
+	/* "native" also changes with the GTK theme, at the same moments */
+	if (!changed && strcmp (scheme, "native"))
 		return FALSE;
 	palette_is_dark = !!dark;
-	palette_reset ();
 	palette_ready = TRUE;
-	return TRUE;
+	return palette_reset () || changed;
 }
 
 gboolean
@@ -217,6 +327,87 @@ palette_use_defaults (void)
 	palette_reset ();
 }
 
+const char *
+palette_scheme (void)
+{
+	return scheme;
+}
+
+void
+palette_set_scheme (const char *id)
+{
+	g_strlcpy (scheme, id ? id : "", sizeof scheme);
+	memset (custom, 0, sizeof custom);
+	palette_reset ();
+}
+
+/* "" and "native", the pairs, then every scheme */
+int
+palette_scheme_count (void)
+{
+	return 2 + G_N_ELEMENTS (nx_scheme_pairs) + G_N_ELEMENTS (nx_schemes);
+}
+
+char *
+palette_scheme_id (int i)
+{
+	if (i == 0)
+		return g_strdup ("");
+	if (i == 1)
+		return g_strdup ("native");
+	i -= 2;
+	if (i < (int) G_N_ELEMENTS (nx_scheme_pairs))
+		return g_strdup_printf ("pair:%s", nx_scheme_pairs[i].label);
+	i -= G_N_ELEMENTS (nx_scheme_pairs);
+	return g_strdup (nx_schemes[i].name);
+}
+
+char *
+palette_scheme_label (int i)
+{
+	if (i == 0)
+		return g_strdup (_("HexChat (follows light/dark)"));
+	if (i == 1)
+		return g_strdup (_("Native (system text colors)"));
+	i -= 2;
+	if (i < (int) G_N_ELEMENTS (nx_scheme_pairs))
+		return g_strdup_printf (_("%s (follows light/dark)"), nx_scheme_pairs[i].label);
+	i -= G_N_ELEMENTS (nx_scheme_pairs);
+	return g_strdup (nx_schemes[i].name);
+}
+
+static struct
+{
+	char scheme[sizeof scheme];
+	gboolean custom[MAX_COL + 1];
+	GdkRGBA colors[MAX_COL + 1];
+} backup;
+
+void
+palette_backup (void)
+{
+	memcpy (backup.scheme, scheme, sizeof scheme);
+	memcpy (backup.custom, custom, sizeof custom);
+	memcpy (backup.colors, colors, sizeof backup.colors);
+}
+
+void
+palette_restore (void)
+{
+	memcpy (scheme, backup.scheme, sizeof scheme);
+	memcpy (custom, backup.custom, sizeof custom);
+	scheme_compute (scheme_cols);
+	memcpy (colors, backup.colors, sizeof backup.colors);
+}
+
+/* a colour that isn't a choice: HexChat's light/dark or the scheme's */
+static gboolean
+is_default (int i, const GdkRGBA *c)
+{
+	return same_color (c, &scheme_cols[i]) ||
+		(!scheme[0] && (same_color (c, &defaults_light[i]) || same_color (c, &defaults_dark[i])));
+}
+
 void
 palette_alloc (GtkWidget * widget)
 {
@@ -234,38 +425,43 @@ palette_load (void)
 	guint16 red, green, blue;
 
 	memset (custom, 0, sizeof custom);
+	scheme[0] = 0;
 	palette_ready = TRUE;
-	palette_reset ();
 
 	fh = hexchat_open_file ("colors.conf", O_RDONLY, 0, 0);
-	if (fh != -1)
+	if (fh == -1)
 	{
-		fstat (fh, &st);
-		cfg = g_malloc0 (st.st_size + 1);
-		read (fh, cfg, st.st_size);
-
-		for (i = 0; i <= MAX_COL; i++)
-		{
-			GdkRGBA c = { 0, 0, 0, 1.0 };
-
-			palette_name (i, prefname, sizeof prefname);
-			/* a missing name keeps the default (this used to reuse the
-			   previous colour's numbers) */
-			if (!cfg_get_color (cfg, prefname, &red, &green, &blue))
-				continue;
-			c.red = red / 65535.0;
-			c.green = green / 65535.0;
-			c.blue = blue / 65535.0;
-			/* older files list every colour: one that's a built-in default
-			   wasn't picked, so it follows the system */
-			if (same_color (&c, &defaults_light[i]) || same_color (&c, &defaults_dark[i]))
-				continue;
-			colors[i] = c;
-			custom[i] = TRUE;
-		}
-		g_free (cfg);
-		close (fh);
+		palette_reset ();
+		return;
 	}
+	fstat (fh, &st);
+	cfg = g_malloc0 (st.st_size + 1);
+	read (fh, cfg, st.st_size);
+
+	if (!cfg_get_str (cfg, "scheme", scheme, sizeof scheme))
+		scheme[0] = 0;
+	palette_reset ();
+
+	for (i = 0; i <= MAX_COL; i++)
+	{
+		GdkRGBA c = { 0, 0, 0, 1.0 };
+
+		palette_name (i, prefname, sizeof prefname);
+		/* a missing name keeps the default (this used to reuse the
+		   previous colour's numbers) */
+		if (!cfg_get_color (cfg, prefname, &red, &green, &blue))
+			continue;
+		c.red = red / 65535.0;
+		c.green = green / 65535.0;
+		c.blue = blue / 65535.0;
+		/* older files list every colour: a default one wasn't picked */
+		if (is_default (i, &c))
+			continue;
+		colors[i] = c;
+		custom[i] = TRUE;
+	}
+	g_free (cfg);
+	close (fh);
 }
 
 void
@@ -283,6 +479,13 @@ palette_save (void)
 	fh = hexchat_open_file ("colors.conf", O_TRUNC | O_WRONLY | O_CREAT, 0600, XOF_DOMODE);
 	if (fh != -1)
 	{
+		if (scheme[0])
+		{
+			char *line = g_strdup_printf ("scheme = %s\n", scheme);
+			if (write (fh, line, strlen (line)) < 0)
+				perror ("colors.conf");
+			g_free (line);
+		}
 		for (i = 0; i <= MAX_COL; i++)
 		{
 			if (!custom[i])

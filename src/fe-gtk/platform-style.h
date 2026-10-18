@@ -16,6 +16,9 @@
 void platform_style_init (void);
 /* the system asks for dark mode */
 gboolean platform_style_dark (void);
+/* the system's colours for text: background, text, selection, selected
+   text ("native" color scheme) */
+void platform_style_text_colors (GdkRGBA out[4]);
 /* make GTK's own widgets match platform_style_dark() (Windows/macOS: GTK
    doesn't follow the system there; Linux: only when NEXCHAT_SCHEME pins it) */
 void platform_style_sync_scheme (void);

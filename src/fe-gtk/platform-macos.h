@@ -11,6 +11,7 @@
 #define NEXCHAT_PLATFORM_MACOS_H
 
 #include <glib.h>
+#include <gdk/gdk.h>
 
 /* bring the app to the front (started from a terminal it stays behind) */
 void macos_activate (void);
@@ -27,6 +28,8 @@ void macos_dump_focus (void);
 void macos_request_attention (gboolean urgent);
 /* the system is in dark mode */
 gboolean macos_is_dark (void);
+/* NSColor's text background, text, selection, selected text */
+void macos_text_colors (GdkRGBA out[4]);
 /* the NSWindow (gdk_macos_surface_get_native_window) moved/placed; y
    counts down from the top of the main screen like elsewhere */
 gboolean macos_window_get_position (void *nswindow, int *x, int *y);
