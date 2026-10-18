@@ -71,5 +71,5 @@ test('migrate-config', find_program('sh'),
 # against real soju, ZNC and Ergo (tests/bnc/fetch.sh gets them; skipped without)
 test('bouncers', find_program('sh'),
   args: [files('../../tests/bouncers.sh'), hexchat_text],
-  timeout: 300,
+  timeout: 480,
 )

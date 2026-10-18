@@ -93,6 +93,133 @@ changed (server *serv)
 	fe_bouncer_changed (serv);
 }
 
+/* ---- the bouncer's networks in the Network List ----
+   Each network the bouncer has gets an entry "<bouncer entry>/<name>":
+   the same address and account, with "/<name>" on the user name so
+   soju and ZNC put the connection on that network. Entries made this way
+   carry the bouncer entry's name in front, so they're found again (and
+   removed when the network goes away on the bouncer). */
+
+static char *
+sync_name (ircnet *base, const char *netname)
+{
+	return g_strdup_printf ("%s/%s", base->name, netname);
+}
+
+/* a server is connected with this entry */
+static gboolean
+is_in_use (ircnet *net)
+{
+	GSList *l;
+	for (l = serv_list; l; l = l->next)
+		if (((server *) l->data)->network == net)
+			return TRUE;
+	return FALSE;
+}
+
+/* the bouncer's own entry: the one we connected with, minus any /network */
+static ircnet *
+sync_base (server *serv)
+{
+	ircnet *net = serv->network;
+	GSList *l;
+	char *slash;
+
+	if (!net || !net->user)
+		return NULL;
+	slash = strchr (net->user, '/');
+	if (!slash)
+		return net;
+	/* connected to one network of it: find the entry without /network */
+	for (l = network_list; l; l = l->next)
+	{
+		ircnet *n = l->data;
+		if (n->user && strlen (n->user) == (size_t) (slash - net->user) &&
+			 !strncmp (n->user, net->user, slash - net->user) && n->servlist && net->servlist &&
+			 !g_ascii_strcasecmp (((ircserver *) n->servlist->data)->hostname,
+									 ((ircserver *) net->servlist->data)->hostname))
+			return n;
+	}
+	return NULL;
+}
+
+static void
+sync_networks (server *serv)
+{
+	bnc_state *s = g_hash_table_lookup (states, serv);
+	ircnet *base = sync_base (serv);
+	char *prefix;
+	GSList *l, *next;
+	guint i;
+	gboolean dirty = FALSE;
+
+	if (!s || !base || !base->servlist || (s->kind != BNC_SOJU && s->kind != BNC_ZNC))
+		return;
+	prefix = g_strdup_printf ("%s/", base->name);
+
+	/* one entry per network on the bouncer */
+	for (i = 0; i < s->networks->len; i++)
+	{
+		bnc_network *n = s->networks->pdata[i];
+		const char *nn = n->name ? n->name : n->id;
+		char *name = sync_name (base, nn);
+		ircnet *e = servlist_net_find (name, NULL, strcmp);
+
+		if (!e)
+		{
+			GSList *sl;
+
+			e = servlist_net_add (name, "", FALSE);
+			e->encoding = g_strdup (base->encoding ? base->encoding : IRC_DEFAULT_CHARSET);
+			for (sl = base->servlist; sl; sl = sl->next)
+				servlist_server_add (e, ((ircserver *) sl->data)->hostname);
+			e->flags = (base->flags & ~(FLAG_AUTO_CONNECT | FLAG_FAVORITE)) & ~FLAG_USE_GLOBAL;
+			e->nick = g_strdup (n->nick ? n->nick : base->nick ? base->nick : prefs.hex_irc_nick1);
+			e->real = g_strdup (base->real);
+			e->pass = g_strdup (base->pass);
+			e->logintype = base->logintype;
+			dirty = TRUE;
+		}
+		/* soju picks by name or address, ZNC by name: the name it has */
+		{
+			char *u = g_strdup_printf ("%.*s/%s", (int) strcspn (base->user, "/"), base->user, nn);
+			if (g_strcmp0 (e->user, u))
+			{
+				g_free (e->user);
+				e->user = u;
+				dirty = TRUE;
+			}
+			else
+				g_free (u);
+		}
+		g_free (name);
+	}
+
+	/* entries for networks the bouncer doesn't have any more */
+	for (l = network_list; l; l = next)
+	{
+		ircnet *e = l->data;
+		gboolean still = FALSE;
+
+		next = l->next;
+		if (!g_str_has_prefix (e->name, prefix))
+			continue;
+		for (i = 0; i < s->networks->len && !still; i++)
+		{
+			bnc_network *n = s->networks->pdata[i];
+			still = !strcmp (e->name + strlen (prefix), n->name ? n->name : n->id);
+		}
+		if (!still && !is_in_use (e))
+		{
+			servlist_net_remove (e);
+			dirty = TRUE;
+		}
+	}
+	g_free (prefix);
+	if (dirty)
+		servlist_save ();
+}
+
 void
 bouncer_reset (server *serv)
 {
@@ -320,6 +447,8 @@ bouncer_command (server *serv, const char *sub, const char *arg, const char *att
 			apply_attrs (n, attrs);
 		}
 		set_kind (serv, BNC_SOJU);
+		if (prefs.hex_irc_bouncer_sync)
+			sync_networks (serv);
 		changed (serv);
 	}
 	else if (!g_ascii_strcasecmp (sub, "ADDNETWORK") || !g_ascii_strcasecmp (sub, "DELNETWORK") ||
@@ -446,6 +575,8 @@ bouncer_znc_reply (server *serv, const char *from, const char *text)
 			s->networks = s->znc_new;
 			s->znc_new = NULL;
 			s->znc_listing = FALSE;
+			if (prefs.hex_irc_bouncer_sync)
+				sync_networks (serv);
 			changed (serv);
 		}
 		return TRUE;
@@ -454,6 +585,8 @@ bouncer_znc_reply (server *serv, const char *from, const char *text)
 	{
 		g_ptr_array_set_size (s->networks, 0);
 		s->znc_listing = FALSE;
+		if (prefs.hex_irc_bouncer_sync)
+			sync_networks (serv);
 		changed (serv);
 		return TRUE;
 	}

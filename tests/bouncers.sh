@@ -23,10 +23,12 @@ has() { grep -q -- "$1" "$tmp/out" && ok "$2" || bad "$2"; }
 run () # name host/port user pass logintype extra-flags "lines"...
 {
 	name=$1 hostport=$2 user=$3 pass=$4 login=$5 flags=$6; shift 6
+	if [ -z "${keepcfg:-}" ] || [ ! -f "$tmp/cfg/servlist.conf" ]; then
 	rm -rf "$tmp/cfg"; mkdir -p "$tmp/cfg"
 	printf 'net_throttle = 0\nirc_nick1 = ayush\nirc_user_name = ayush\n' > "$tmp/cfg/hexchat.conf"
 	printf 'v=2.16.2\n\nN=%s\nU=%s\nP=%s\nL=%s\nF=%s\nD=0\nS=%s\n\n' \
 		"$name" "$user" "$pass" "$login" "$flags" "$hostport" > "$tmp/cfg/servlist.conf"
+	fi
 	{
 		sleep 2
 		for l in "$@"; do echo "$l"; sleep 1.2; done
@@ -50,6 +52,24 @@ has 'Removed from the bouncer' "soju: remove said so"
 n=$(grep -c "ergonet  127.0.0.1" "$tmp/out" || true)
 [ "$n" -eq 1 ] && ok "soju: gone after removing (listed once)" || bad "soju: listed $n times"
 cp "$tmp/out" "$tmp/soju.out"
+
+# --- soju: its networks become Network List entries, and one connects
+# straight onto its network
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
+	"/bouncer add libera 127.0.0.1:$ERGO_PORT -notls"
+grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && ok "soju: its network is an entry in the Network List" ||
+	{ bad "soju: no entry"; cat "$tmp/cfg/servlist.conf"; }
+grep -A3 '^N=soju/libera$' "$tmp/cfg/servlist.conf" | grep -q '^U=ayush/libera$' &&
+	ok "soju: the entry logs in as ayush/libera" || bad "soju: entry user"
+{
+	sleep 1; echo "/server soju/libera"; sleep 3; echo "/quit"; sleep 0.5
+} | timeout 20 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+grep -q 'BOUNCER_NETID=' "$tmp/out" && grep -q 'NETWORK=ErgoTest' "$tmp/out" &&
+	ok "soju: connecting with the entry lands on that network" || { bad "soju: entry connect"; tail -20 "$tmp/out"; }
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 "/bouncer del libera"
+sleep 1
+grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && bad "soju: entry stays after removing" ||
+	ok "soju: removed on the bouncer, gone from the list"
 
 # --- ZNC: detected, its network listed, add/remove through *controlpanel
 run znc "127.0.0.1/$ZNC_PORT" "ayush/ergo" secret123 7 0 \

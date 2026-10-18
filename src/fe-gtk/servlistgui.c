@@ -2080,5 +2080,7 @@ fe_serverlist_open (session *sess)
 void
 servlist_bouncer_changed (server *serv)
 {
-	(void) serv;
+	/* new or gone entries for the bouncer's networks */
+	if (serverlist_win && networks_tree && !edit_win)
+		servlist_networks_populate (networks_tree, network_list);
 }
