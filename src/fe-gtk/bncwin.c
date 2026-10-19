@@ -26,7 +26,7 @@
 typedef struct
 {
 	GtkWidget *win, *head, *sub, *list, *note;
-	GtkWidget *start, *stop, *remove, *setup;
+	GtkWidget *start, *stop, *remove, *setup, *other;
 	GPtrArray *rows;	/* row widgets, data "net", "switch", "state" */
 	char *status;		/* the last mybouncer_status () */
 	guint tick;
@@ -49,6 +49,7 @@ typedef struct
 static bncwin *open_win;
 
 static void refresh (bncwin *w);
+static void say (bncwin *w, const char *kind, const char *text);
 
 static GtkWidget *
 label (const char *markup, gboolean dim)
@@ -113,6 +114,8 @@ update_head (bncwin *w)
 	gtk_widget_set_visible (w->stop, running);
 	gtk_widget_set_visible (w->remove, st == MYBNC_SET_UP);
 	gtk_widget_set_visible (w->setup, st == MYBNC_AVAILABLE);
+	if (w->other)
+		gtk_button_set_label (GTK_BUTTON (w->other), w->remote ? _("_Add another bouncer...") : _("Use _another bouncer..."));
 
 	/* Channels, Access, Storage are about our own soju */
 	if (w->tabs)
@@ -123,10 +126,10 @@ update_head (bncwin *w)
 	}
 	if (st != MYBNC_SET_UP && w->remote)
 	{
-		gtk_label_set_markup (GTK_LABEL (w->head), _("<b>You're using a bouncer</b>"));
+		gtk_label_set_markup (GTK_LABEL (w->head), w->remote > 1 ? _("<b>Your bouncers</b>") : _("<b>Your bouncer</b>"));
 		gtk_label_set_text (GTK_LABEL (w->sub),
-			_("Its networks are below: change your nick and login on each with \"Nick and login...\". "
-			  "You don't need one on this computer too."));
+			_("It stays on your networks while nexchat is closed, and you get what you missed when you "
+			  "come back. Connect to it here, and add or remove the networks it keeps you on."));
 		gtk_widget_set_visible (w->setup, FALSE);
 		return;
 	}
@@ -726,63 +729,423 @@ redit_cb (GtkWidget *b, gpointer data)
 			redit_open (data, serv, nets->pdata[i]);
 }
 
-/* each soju you're connected to: its networks, each editable */
-static int
-fill_remote (bncwin *w)
+/* ---- bouncers elsewhere you log in to (irc.agentty.org) ----
+   One card each, there whether it's connected or not: how it's doing in
+   plain words, Connect / Disconnect, Edit, Forget, and once it's in, its
+   networks with Open, Nick and login, Remove, and "Add a network". */
+
+static void
+rb_connect (GtkWidget *b, gpointer data)
 {
-	GSList *servs = bouncer_soju_servers (), *l;
-	int shown = 0;
+	bncwin *w = data;
+	ircnet *net = g_object_get_data (G_OBJECT (b), "net");
+	server *sv = bouncer_server_of (net);
 
-	for (l = servs; l; l = l->next)
+	if (sv)
+		sv->disconnect (sv->server_session, TRUE, -1);
+	else
+		servlist_connect (NULL, net, TRUE);
+	refresh (w);
+}
+
+static void
+rb_edit (GtkWidget *b, gpointer data)
+{
+	bncwin *w = data;
+	bncsetup_open (GTK_WINDOW (w->win), g_object_get_data (G_OBJECT (b), "net"), NULL);
+}
+
+static void
+rb_forget (GtkWidget *b, gpointer data)
+{
+	bncwin *w = data;
+	ircnet *net = g_object_get_data (G_OBJECT (b), "net");
+	server *sv;
+
+	/* the first press asks */
+	if (!g_object_get_data (G_OBJECT (b), "sure"))
 	{
-		server *serv = l->data;
-		GPtrArray *nets = bouncer_networks (serv);
-		const char *where = serv->network ? ((ircnet *) serv->network)->name : serv->servername;
-		char *m;
-		guint i;
+		g_object_set_data (G_OBJECT (b), "sure", GINT_TO_POINTER (1));
+		gtk_button_set_label (GTK_BUTTON (b), _("Forget it, sure?"));
+		gtk_widget_add_css_class (b, "destructive-action");
+		return;
+	}
+	if ((sv = bouncer_server_of (net)))
+		sv->disconnect (sv->server_session, TRUE, -1);
+	bouncer_forget (net);
+	say (w, "ok", _("Forgotten here. The bouncer itself and what's on it are unchanged."));
+	refresh (w);
+}
 
-		/* our own soju shows above */
-		if (serv->network && mybouncer_owns (serv->network))
-			continue;
-		m = g_markup_printf_escaped (_("<b>%s</b>  <span alpha=\"60%%\">soju, connected</span>"), where);
-		gtk_box_append (GTK_BOX (w->list), label (m, FALSE));
-		g_free (m);
-		shown++;
-		if (!nets || !nets->len)
+/* a network of a connected bouncer: open its tab */
+static void
+rn_open (GtkWidget *b, gpointer data)
+{
+	bncwin *w = data;
+	ircnet *base = g_object_get_data (G_OBJECT (b), "base");
+	const char *name = g_object_get_data (G_OBJECT (b), "name");
+	char *full = g_strdup_printf ("%s/%s", base->name, name);
+	ircnet *e = servlist_net_find (full, NULL, strcmp);
+	GSList *l;
+
+	g_free (full);
+	if (!e)
+	{
+		say (w, "no", _("Its entry isn't there yet; give it a second and try again."));
+		return;
+	}
+	for (l = serv_list; l; l = l->next)
+	{
+		server *sv = l->data;
+		if (sv->network == e)
 		{
-			gtk_box_append (GTK_BOX (w->list), label (_("No networks on it yet: /bouncer add NAME HOST in its tab."), TRUE));
-			continue;
+			fe_ctrl_gui (sv->front_session ? sv->front_session : sv->server_session, FE_GUI_FOCUS, 0);
+			return;
 		}
+	}
+	servlist_connect (NULL, e, TRUE);
+}
+
+static void
+rn_remove (GtkWidget *b, gpointer data)
+{
+	bncwin *w = data;
+	server *serv = g_object_get_data (G_OBJECT (b), "serv");
+	const char *id = g_object_get_data (G_OBJECT (b), "id");
+	char *err = NULL;
+
+	if (!g_object_get_data (G_OBJECT (b), "sure"))
+	{
+		g_object_set_data (G_OBJECT (b), "sure", GINT_TO_POINTER (1));
+		gtk_button_set_label (GTK_BUTTON (b), _("Remove, sure?"));
+		gtk_widget_add_css_class (b, "destructive-action");
+		return;
+	}
+	if (!is_server (serv) || !bouncer_del_network (serv, id, &err))
+	{
+		say (w, "no", err ? err : _("Not connected to the bouncer any more."));
+		g_free (err);
+		return;
+	}
+	say (w, "ok", _("Removed from the bouncer: it leaves that network."));
+}
+
+/* "Add a network": a name and an address, or one of the usual ones */
+typedef struct
+{
+	bncwin *w;
+	server *serv;
+	GtkWidget *win, *name, *addr, *note;
+} adder;
+
+static const char *const usual[][2] = {
+	{ "Libera.Chat", "irc.libera.chat" },
+	{ "OFTC", "irc.oftc.net" },
+	{ "EFnet", "irc.efnet.org" },
+	{ "IRCnet", "open.ircnet.net" },
+	{ "Rizon", "irc.rizon.net" },
+	{ "hackint", "irc.hackint.org" },
+};
+
+static void
+adder_pick (GtkWidget *b, gpointer data)
+{
+	adder *a = data;
+	int i = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (b), "i"));
+	nx_entry_set_text (a->name, usual[i][0]);
+	nx_entry_set_text (a->addr, usual[i][1]);
+}
+
+static void
+adder_add (GtkWidget *b, gpointer data)
+{
+	adder *a = data;
+	const char *name = nx_entry_get_text (a->name);
+	char *addr = g_strstrip (g_strdup (nx_entry_get_text (a->addr))), *host = addr, *colon, *err = NULL;
+	gboolean tls = TRUE;
+	int port = 6697;
+
+	/* "host", "host:port", "host:+port", "irc://host" (plain), "ircs://host" */
+	if (g_str_has_prefix (host, "ircs://"))
+		host += 7;
+	else if (g_str_has_prefix (host, "irc://"))
+	{
+		host += 6;
+		tls = FALSE;
+		port = 6667;
+	}
+	if ((colon = strrchr (host, ':')))
+	{
+		*colon = 0;
+		if (colon[1] == '+')
+			tls = TRUE, colon++;
+		port = atoi (colon + 1);
+		if (port == 6667 && colon[0] != '+')
+			tls = FALSE;
+	}
+	if (strchr (host, '/'))
+		*strchr (host, '/') = 0;
+	if (!*host)
+	{
+		gtk_label_set_text (GTK_LABEL (a->note), _("Write the network's address, like irc.libera.chat."));
+		g_free (addr);
+		return;
+	}
+	if (!is_server (a->serv) || !bouncer_add_network (a->serv, *name ? name : host, host, port, tls,
+															  NULL, &err))
+	{
+		gtk_label_set_text (GTK_LABEL (a->note), err ? err : _("Not connected to the bouncer any more."));
+		g_free (err);
+		g_free (addr);
+		return;
+	}
+	say (a->w, "ok", _("Added: the bouncer is connecting to it, and its tab opens here when it's in."));
+	g_free (addr);
+	gtk_window_destroy (GTK_WINDOW (a->win));
+}
+
+static void
+rn_add (GtkWidget *b, gpointer data)
+{
+	bncwin *w = data;
+	adder *a = g_new0 (adder, 1);
+	GtkWidget *vbox, *grid, *flow, *bb, *add, *cancel;
+	guint i;
+
+	a->w = w;
+	a->serv = g_object_get_data (G_OBJECT (b), "serv");
+	a->win = nx_window_new ();
+	gtk_window_set_title (GTK_WINDOW (a->win), _("Add a network to the bouncer"));
+	gtk_window_set_transient_for (GTK_WINDOW (a->win), GTK_WINDOW (w->win));
+	gtk_window_set_modal (GTK_WINDOW (a->win), TRUE);
+	gtk_window_set_default_size (GTK_WINDOW (a->win), 420, -1);
+	g_object_set_data_full (G_OBJECT (a->win), "adder", a, g_free);
+
+	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
+	nx_set_border_width (vbox, 12);
+	gtk_window_set_child (GTK_WINDOW (a->win), vbox);
+	gtk_box_append (GTK_BOX (vbox), label (_("<b>Which network should it stay on?</b>"), FALSE));
+	flow = gtk_flow_box_new ();
+	gtk_flow_box_set_selection_mode (GTK_FLOW_BOX (flow), GTK_SELECTION_NONE);
+	gtk_flow_box_set_max_children_per_line (GTK_FLOW_BOX (flow), 3);
+	for (i = 0; i < G_N_ELEMENTS (usual); i++)
+	{
+		GtkWidget *p = gtk_button_new_with_label (usual[i][0]);
+		g_object_set_data (G_OBJECT (p), "i", GINT_TO_POINTER (i));
+		g_signal_connect (p, "clicked", G_CALLBACK (adder_pick), a);
+		gtk_flow_box_append (GTK_FLOW_BOX (flow), p);
+	}
+	gtk_box_append (GTK_BOX (vbox), flow);
+	grid = gtk_grid_new ();
+	gtk_grid_set_row_spacing (GTK_GRID (grid), 6);
+	gtk_grid_set_column_spacing (GTK_GRID (grid), 10);
+	a->name = erow (grid, 0, _("_Name:"), gtk_entry_new ());
+	a->addr = erow (grid, 1, _("_Address:"), gtk_entry_new ());
+	gtk_entry_set_placeholder_text (GTK_ENTRY (a->name), "Libera.Chat");
+	gtk_entry_set_placeholder_text (GTK_ENTRY (a->addr), "irc.libera.chat");
+	gtk_box_append (GTK_BOX (vbox), grid);
+	gtk_box_append (GTK_BOX (vbox), label (_("Encrypted (TLS, port 6697) unless you write irc:// in front or "
+															 "another port. Your nick there is your nick on the bouncer."), TRUE));
+	a->note = label ("", FALSE);
+	gtk_box_append (GTK_BOX (vbox), a->note);
+	bb = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+	gtk_widget_set_halign (bb, GTK_ALIGN_END);
+	cancel = gtk_button_new_with_mnemonic (_("Ca_ncel"));
+	add = gtk_button_new_with_mnemonic (_("A_dd"));
+	gtk_widget_add_css_class (add, "suggested-action");
+	gtk_box_append (GTK_BOX (bb), cancel);
+	gtk_box_append (GTK_BOX (bb), add);
+	gtk_box_append (GTK_BOX (vbox), bb);
+	gtk_window_set_default_widget (GTK_WINDOW (a->win), add);
+	g_signal_connect (add, "clicked", G_CALLBACK (adder_add), a);
+	g_signal_connect_swapped (cancel, "clicked", G_CALLBACK (gtk_window_destroy), a->win);
+	gtk_window_present (GTK_WINDOW (a->win));
+	gtk_widget_grab_focus (a->name);
+}
+
+/* the soju/ZNC connection of a bouncer entry, logged in; or NULL */
+static server *
+rb_live (ircnet *net)
+{
+	server *sv = bouncer_server_of (net);
+	return sv && sv->connected && sv->end_of_motd ? sv : NULL;
+}
+
+static GtkWidget *
+small_button (const char *text, const char *tip)
+{
+	GtkWidget *b = gtk_button_new_with_mnemonic (text);
+	gtk_widget_set_valign (b, GTK_ALIGN_CENTER);
+	if (tip)
+		gtk_widget_set_tooltip_text (b, tip);
+	return b;
+}
+
+/* one bouncer: its card */
+static void
+fill_one_remote (bncwin *w, ircnet *net)
+{
+	ircserver *isv = net->servlist->data;
+	server *sv = bouncer_server_of (net), *live = rb_live (net);
+	const char *err = bouncer_last_error (net);
+	GPtrArray *nets = live ? bouncer_networks (live) : NULL;
+	bnc_kind kind = live ? bouncer_kind (live) : BNC_NONE;
+	GtkWidget *card, *top, *box, *btns, *b;
+	const char *colour, *what;
+	char *m, *where;
+
+	card = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
+	gtk_widget_add_css_class (card, "card");
+	nx_set_border_width (card, 10);
+
+	/* name, where, how it's doing */
+	top = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 10);
+	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
+	gtk_widget_set_hexpand (box, TRUE);
+	/* "host/+port", "host/port" or just "host" */
+	{
+		const char *dflt = (net->flags & FLAG_USE_SSL) ? "6697" : "6667";
+		char **hp = g_strsplit (isv->hostname, "/", 2);
+		where = g_strdup_printf ("%s%s:%s", (net->flags & FLAG_USE_SSL) ? "" : "irc://", hp[0],
+										 !hp[1] ? dflt : hp[1][0] == '+' ? hp[1] + 1 : hp[1]);
+		g_strfreev (hp);
+	}
+	m = g_markup_printf_escaped ("<b>%s</b>  <span alpha=\"60%%\">%s, as %s</span>", net->name, where,
+										  net->user ? net->user : "?");
+	g_free (where);
+	gtk_box_append (GTK_BOX (box), label (m, FALSE));
+	g_free (m);
+
+	if (live)
+	{
+		colour = "#2e7d32";
+		what = kind == BNC_ZNC ? _("Connected (ZNC)") : _("Connected (soju)");
+	}
+	else if (sv)
+	{
+		colour = "#f9a825";
+		what = _("Connecting...");
+	}
+	else if (err)
+	{
+		colour = "#c62828";
+		what = _("Couldn't log in");
+	}
+	else
+	{
+		colour = "#9e9e9e";
+		what = _("Not connected");
+	}
+	m = g_markup_printf_escaped ("<span foreground=\"%s\">\xe2\x97\x8f</span> %s%s%s", colour, what,
+										  !live && err ? ": " : "", !live && err ? err : "");
+	gtk_box_append (GTK_BOX (box), label (m, TRUE));
+	g_free (m);
+	gtk_box_append (GTK_BOX (top), box);
+
+	btns = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+	b = small_button (sv ? _("_Disconnect") : _("_Connect"), NULL);
+	if (!sv)
+		gtk_widget_add_css_class (b, "suggested-action");
+	g_object_set_data (G_OBJECT (b), "net", net);
+	g_signal_connect (b, "clicked", G_CALLBACK (rb_connect), w);
+	gtk_box_append (GTK_BOX (btns), b);
+	b = small_button (_("_Edit..."), _("Its address, user name and password"));
+	g_object_set_data (G_OBJECT (b), "net", net);
+	g_signal_connect (b, "clicked", G_CALLBACK (rb_edit), w);
+	gtk_box_append (GTK_BOX (btns), b);
+	b = small_button (_("_Forget"), _("Take it out of nexchat. Nothing changes on the bouncer."));
+	g_object_set_data (G_OBJECT (b), "net", net);
+	g_signal_connect (b, "clicked", G_CALLBACK (rb_forget), w);
+	gtk_box_append (GTK_BOX (btns), b);
+	gtk_box_append (GTK_BOX (top), btns);
+	gtk_box_append (GTK_BOX (card), top);
+
+	/* what to do next, when it isn't in */
+	if (!live)
+	{
+		const char *hint = sv ? _("Logging in. Its networks show here once it's in.")
+			: err ? _("Check the user name and password with Edit, then Connect again.")
+			: _("Connect to see the networks it keeps you on, and to add more.");
+		GtkWidget *h = label (hint, TRUE);
+		gtk_widget_set_margin_start (h, 14);
+		gtk_box_append (GTK_BOX (card), h);
+		gtk_box_append (GTK_BOX (w->list), card);
+		return;
+	}
+
+	/* its networks */
+	if (!nets || !nets->len)
+	{
+		GtkWidget *h = label (_("It isn't on any network yet. Add one and it stays there for you, "
+										"even while nexchat is closed."), TRUE);
+		gtk_widget_set_margin_start (h, 14);
+		gtk_box_append (GTK_BOX (card), h);
+	}
+	else
+	{
+		guint i;
 		for (i = 0; i < nets->len; i++)
 		{
 			bnc_network *n = nets->pdata[i];
-			GtkWidget *row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 10);
-			GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0), *edit;
+			GtkWidget *row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
+			GtkWidget *nb = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 			gboolean up = n->state && !strcmp (n->state, "connected");
-			char *m2;
+			gboolean going = n->state && !strcmp (n->state, "connecting");
+			const char *nm = n->name ? n->name : n->id;
 
-			gtk_widget_set_hexpand (box, TRUE);
-			m2 = g_markup_printf_escaped ("<b>%s</b>  <span alpha=\"60%%\">%s:%d</span>", n->name ? n->name : n->id,
-												n->host ? n->host : "", n->port);
-			gtk_box_append (GTK_BOX (box), label (m2, FALSE));
-			g_free (m2);
-			m2 = g_markup_printf_escaped (_("<span foreground=\"%s\">\xe2\x97\x8f</span> %s as <b>%s</b>%s%s"),
-												up ? "#2e7d32" : "#c62828", n->state ? n->state : "?",
-												n->nick ? n->nick : "?", n->error ? ": " : "", n->error ? n->error : "");
-			gtk_box_append (GTK_BOX (box), label (m2, TRUE));
-			g_free (m2);
-			edit = gtk_button_new_with_label (_("Nick and login..."));
-			gtk_widget_set_valign (edit, GTK_ALIGN_CENTER);
-			g_object_set_data (G_OBJECT (edit), "serv", serv);
-			g_object_set_data_full (G_OBJECT (edit), "id", g_strdup (n->id), g_free);
-			g_signal_connect (edit, "clicked", G_CALLBACK (redit_cb), w);
+			gtk_widget_set_hexpand (nb, TRUE);
+			m = g_markup_printf_escaped ("<b>%s</b>  <span alpha=\"60%%\">%s</span>", nm, n->host ? n->host : "");
+			gtk_box_append (GTK_BOX (nb), label (m, FALSE));
+			g_free (m);
+			m = g_markup_printf_escaped (_("<span foreground=\"%s\">\xe2\x97\x8f</span> %s as <b>%s</b>%s%s"),
+												  up ? "#2e7d32" : going ? "#f9a825" : "#c62828",
+												  up ? _("online") : going ? _("connecting") : _("offline"),
+												  n->nick ? n->nick : "?", n->error ? ": " : "", n->error ? n->error : "");
+			gtk_box_append (GTK_BOX (nb), label (m, TRUE));
+			g_free (m);
+			gtk_box_append (GTK_BOX (row), nb);
+
+			if (kind == BNC_SOJU)
+			{
+				b = small_button (_("Open"), _("Its tab, with its channels"));
+				g_object_set_data (G_OBJECT (b), "base", net);
+				g_object_set_data_full (G_OBJECT (b), "name", g_strdup (nm), g_free);
+				g_signal_connect (b, "clicked", G_CALLBACK (rn_open), w);
+				gtk_box_append (GTK_BOX (row), b);
+				b = small_button (_("Nick and login..."), NULL);
+				g_object_set_data (G_OBJECT (b), "serv", live);
+				g_object_set_data_full (G_OBJECT (b), "id", g_strdup (n->id), g_free);
+				g_signal_connect (b, "clicked", G_CALLBACK (redit_cb), w);
+				gtk_box_append (GTK_BOX (row), b);
+			}
+			b = small_button (_("Remove"), _("The bouncer leaves this network"));
+			g_object_set_data (G_OBJECT (b), "serv", live);
+			g_object_set_data_full (G_OBJECT (b), "id", g_strdup (n->id), g_free);
+			g_signal_connect (b, "clicked", G_CALLBACK (rn_remove), w);
+			gtk_box_append (GTK_BOX (row), b);
 			gtk_widget_set_margin_start (row, 14);
-			gtk_box_append (GTK_BOX (row), box);
-			gtk_box_append (GTK_BOX (row), edit);
-			gtk_box_append (GTK_BOX (w->list), row);
+			gtk_box_append (GTK_BOX (card), row);
 		}
 	}
-	g_slist_free (servs);
+	b = gtk_button_new_with_mnemonic (_("_Add a network..."));
+	gtk_widget_set_halign (b, GTK_ALIGN_START);
+	gtk_widget_set_margin_start (b, 14);
+	g_object_set_data (G_OBJECT (b), "serv", live);
+	g_signal_connect (b, "clicked", G_CALLBACK (rn_add), w);
+	gtk_box_append (GTK_BOX (card), b);
+	gtk_box_append (GTK_BOX (w->list), card);
+}
+
+/* every bouncer elsewhere you use */
+static int
+fill_remote (bncwin *w)
+{
+	GSList *nets = bouncer_entries (), *l;
+	int shown = 0;
+
+	for (l = nets; l; l = l->next, shown++)
+		fill_one_remote (w, l->data);
+	g_slist_free (nets);
 	return shown;
 }
 
@@ -903,8 +1266,8 @@ update_states (bncwin *w)
 static void
 refresh (bncwin *w)
 {
-	update_head (w);
 	fill_list (w);
+	update_head (w);
 	update_states (w);
 }
 
@@ -913,20 +1276,22 @@ static char *
 remote_key (void)
 {
 	GString *k = g_string_new (NULL);
-	GSList *servs = bouncer_soju_servers (), *l;
+	GSList *ents = bouncer_entries (), *l;
 
-	for (l = servs; l; l = l->next)
+	for (l = ents; l; l = l->next)
 	{
-		GPtrArray *nets = bouncer_networks (l->data);
+		ircnet *net = l->data;
+		server *sv = bouncer_server_of (net), *live = rb_live (net);
+		GPtrArray *nets = live ? bouncer_networks (live) : NULL;
 		guint i;
-		g_string_append_printf (k, "%p:", l->data);
+		g_string_append_printf (k, "%p:%p:%d:%s:", net, sv, live != NULL, bouncer_last_error (net) ? bouncer_last_error (net) : "");
 		for (i = 0; nets && i < nets->len; i++)
 		{
 			bnc_network *n = nets->pdata[i];
 			g_string_append_printf (k, "%s/%s/%s/%s/%s;", n->id, n->name, n->nick, n->state, n->error);
 		}
 	}
-	g_slist_free (servs);
+	g_slist_free (ents);
 	return g_string_free (k, FALSE);
 }
 
@@ -953,7 +1318,34 @@ tick (gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
-/* ---- buttons ---- */
+static guint poke_tag;
+
+static gboolean
+poke_now (gpointer data)
+{
+	char *k;
+
+	poke_tag = 0;
+	if (!open_win || open_win->busy)
+		return G_SOURCE_REMOVE;
+	k = remote_key ();
+	if (g_strcmp0 (k, open_win->remote_key))
+	{
+		g_free (open_win->remote_key);
+		open_win->remote_key = k;
+		refresh (open_win);
+	}
+	else
+		g_free (k);
+	return G_SOURCE_REMOVE;
+}
+
+void
+bncwin_poke (void)
+{
+	if (open_win && !poke_tag)
+		poke_tag = g_idle_add (poke_now, NULL);
+}
 
 static void
 say (bncwin *w, const char *kind, const char *text)
@@ -1741,7 +2133,7 @@ bncwin_open (GtkWindow *parent, ircnet *from)
 	gtk_box_append (GTK_BOX (vbox), w->note);
 
 	bb = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-	other = gtk_button_new_with_mnemonic (_("Use _another bouncer..."));
+	w->other = other = gtk_button_new_with_mnemonic (_("Use _another bouncer..."));
 	gtk_widget_set_tooltip_text (other, _("One on another computer, or that someone runs for you"));
 	close = gtk_button_new_with_mnemonic (_("_Close"));
 	gtk_widget_set_hexpand (other, TRUE);

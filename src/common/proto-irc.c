@@ -487,6 +487,12 @@ process_numeric (session * sess, int n,
 	if (prefs.hex_irc_whois_front)
 		whois_sess = serv->front_session;
 
+	/* a bouncer turning the login down: shown in the Bouncer window */
+	if ((n == 464 || n == 904) && !serv->end_of_motd)
+		bouncer_note_error (serv, _("The user name or password is wrong."));
+	else if (n == 432 && !serv->end_of_motd)
+		bouncer_note_error (serv, _("The nick isn't allowed there."));
+
 	switch (n)
 	{
 	case 1:
@@ -1498,6 +1504,8 @@ process_named_servermsg (session *sess, char *buf, char *rawname, char *word[], 
 	}
 	if (!strncmp (buf, "ERROR", 5))
 	{
+		if (!sess->server->end_of_motd)
+			bouncer_note_error (sess->server, buf[6] == ':' ? buf + 7 : buf + 6);
 		EMIT_SIGNAL_TIMESTAMP (XP_TE_SERVERERROR, sess, buf + 7, NULL, NULL, NULL,
 									  0, tags_data->timestamp);
 		return;

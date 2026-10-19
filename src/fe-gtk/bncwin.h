@@ -24,5 +24,7 @@ void bncwin_open (GtkWindow *parent, ircnet *from);
 
 /* tests: one line of what it shows */
 char *bncwin_describe (void);
+/* a bouncer's state changed: show it now */
+void bncwin_poke (void);
 
 #endif

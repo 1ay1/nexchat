@@ -102,4 +102,16 @@ void bouncer_search_batch (server *serv, const char *id, gboolean start);
 /* /BOUNCER */
 int bouncer_cmd (session *sess, char *word[], char *word_eol[]);
 
+/* the bouncers you log in to (FLAG_BOUNCER entries, not our own soju),
+   connected or not; free the list only */
+GSList *bouncer_entries (void);
+/* the control connection of that entry (connecting or up), or NULL */
+server *bouncer_server_of (ircnet *net);
+/* why the last login to that entry failed, or NULL */
+const char *bouncer_last_error (ircnet *net);
+/* the login to serv failed: why, in its words */
+void bouncer_note_error (server *serv, const char *why);
+/* forget a bouncer entry and the entries of its networks */
+void bouncer_forget (ircnet *net);
+
 #endif

@@ -57,6 +57,7 @@
 #include "sexy-spell-entry.h"
 #include "cmdpopup.h"
 #include "gtkutil.h"
+#include "bncwin.h"
 
 #ifdef G_OS_WIN32
 #include <windows.h>
@@ -3229,6 +3230,7 @@ void
 fe_bouncer_changed (server *serv)
 {
 	servlist_bouncer_changed (serv);
+	bncwin_poke ();
 	if (current_sess && current_sess->server == serv && current_sess->gui)
 		fe_set_title (current_sess);
 }

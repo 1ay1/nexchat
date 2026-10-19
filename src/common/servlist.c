@@ -408,9 +408,14 @@ servlist_connect (session *sess, ircnet *net, gboolean join)
 	}
 	else
 	{
-		if (net->nick)
+		if (net->nick && *net->nick)
 			strcpy (serv->nick, net->nick);
 	}
+	/* an empty nick never logs in ("NICK :Not enough parameters", then the
+	   server times us out): the global one, then the user name */
+	if (!serv->nick[0])
+		safe_strcpy (serv->nick, prefs.hex_irc_nick1[0] ? prefs.hex_irc_nick1 :
+						 prefs.hex_irc_user_name[0] ? prefs.hex_irc_user_name : "nexchat", NICKLEN);
 
 	serv->dont_use_proxy = (net->flags & FLAG_USE_PROXY) ? FALSE : TRUE;
 

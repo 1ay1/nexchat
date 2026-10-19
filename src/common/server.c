@@ -657,6 +657,7 @@ ssl_do_connect (server * serv)
 conn_fail:
 			EMIT_SIGNAL (XP_TE_CONNFAIL, serv->server_session, buf, NULL, NULL,
 							 NULL, 0);
+			bouncer_note_error (serv, buf);
 
 			server_cleanup (serv);
 
@@ -831,6 +832,7 @@ server_read_child (GIOChannel *source, GIOCondition condition, server *serv)
 		if (serv->proxy_sok6 != -1)
 			closesocket (serv->proxy_sok6);
 		EMIT_SIGNAL (XP_TE_UKNHOST, sess, NULL, NULL, NULL, NULL, 0);
+		bouncer_note_error (serv, _("That address wasn't found. Is it spelled right?"));
 		if (!servlist_cycle (serv))
 			if (prefs.hex_net_auto_reconnectonfail)
 				auto_reconnect (serv, FALSE, -1);
@@ -847,6 +849,7 @@ server_read_child (GIOChannel *source, GIOCondition condition, server *serv)
 			closesocket (serv->proxy_sok6);
 		EMIT_SIGNAL (XP_TE_CONNFAIL, sess, errorstring (atoi (tbuf)), NULL,
 						 NULL, NULL, 0);
+		bouncer_note_error (serv, errorstring (atoi (tbuf)));
 		if (!servlist_cycle (serv))
 			if (prefs.hex_net_auto_reconnectonfail)
 				auto_reconnect (serv, FALSE, -1);

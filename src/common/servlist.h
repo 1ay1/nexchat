@@ -64,6 +64,9 @@ extern GSList *network_list;
 #define FLAG_FAVORITE			64
 /* turn the network's own always-on (draft/persistence) on after login */
 #define FLAG_STAY_ONLINE		128
+/* a bouncer (soju, ZNC) we log in to: listed in the Bouncer window even
+   while it's not connected. Not one of the editor's toggles */
+#define FLAG_BOUNCER			256
 #define FLAG_COUNT				8
 
 /* Login methods. Use server password by default - if we had a NickServ password, it'd be set to 2 already by servlist_load() */

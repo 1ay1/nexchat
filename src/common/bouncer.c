@@ -54,6 +54,9 @@ static GHashTable *states;	/* server -> bnc_state */
 
 static void search_finish (bnc_state *s);
 
+/* ircnet -> why its last login failed */
+static GHashTable *last_errors;
+
 /* ircnet -> "name host\n..." still to add on that bouncer */
 static GHashTable *queued;
 
@@ -417,6 +420,16 @@ set_kind (server *serv, bnc_kind k)
 	if (s->kind == BNC_NONE || (k != BNC_PERSIST && s->kind == BNC_PERSIST))
 	{
 		s->kind = k;
+		/* a bouncer elsewhere: remembered in the Bouncer window from now on */
+		if (k == BNC_SOJU || k == BNC_ZNC)
+		{
+			ircnet *base = sync_base (serv);
+			if (base && !(base->flags & FLAG_BOUNCER) && !mybouncer_owns (base))
+			{
+				base->flags |= FLAG_BOUNCER;
+				servlist_save ();
+			}
+		}
 		changed (serv);
 	}
 }
@@ -501,6 +514,9 @@ bouncer_login_end (server *serv)
 {
 	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
 
+	/* in: whatever went wrong before is past */
+	if (last_errors && serv->network && g_hash_table_remove (last_errors, serv->network))
+		changed (serv);
 	if (!s)
 		return;
 	/* without -notify the list doesn't come by itself */
@@ -1529,4 +1545,83 @@ bouncer_cmd (session *sess, char *word[], char *word_eol[])
 		g_free (err);
 	}
 	return TRUE;
+}
+
+/* ---- bouncers you log in to, remembered while they're not connected ---- */
+
+GSList *
+bouncer_entries (void)
+{
+	GSList *out = NULL, *l;
+
+	for (l = network_list; l; l = l->next)
+	{
+		ircnet *n = l->data;
+		/* "My bouncer (host)": made by the setup before the flag existed */
+		gboolean made = n->logintype == LOGIN_PASS && n->name && g_str_has_prefix (n->name, "My bouncer (");
+		if (((n->flags & FLAG_BOUNCER) || made) && n->servlist && !mybouncer_owns (n) &&
+			 !(n->user && strchr (n->user, '/')))
+			out = g_slist_append (out, n);
+	}
+	return out;
+}
+
+server *
+bouncer_server_of (ircnet *net)
+{
+	GSList *l;
+	for (l = serv_list; l; l = l->next)
+	{
+		server *sv = l->data;
+		if (sv->network == net && (sv->connected || sv->connecting))
+			return sv;
+	}
+	return NULL;
+}
+
+const char *
+bouncer_last_error (ircnet *net)
+{
+	return last_errors && net ? g_hash_table_lookup (last_errors, net) : NULL;
+}
+
+void
+bouncer_note_error (server *serv, const char *why)
+{
+	ircnet *net = serv->network;
+
+	if (!net || !why || !*why)
+		return;
+	/* only the bouncers' (ones known, or just set up) */
+	if (!(net->flags & FLAG_BOUNCER) && net->logintype != LOGIN_PASS)
+		return;
+	if (!last_errors)
+		last_errors = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+	g_hash_table_insert (last_errors, net, g_strdup (why));
+	changed (serv);
+}
+
+void
+bouncer_forget (ircnet *net)
+{
+	char *prefix = g_strdup_printf ("%s/", net->name);
+	GSList *l, *next;
+
+	for (l = network_list; l; l = next)
+	{
+		ircnet *e = l->data;
+		next = l->next;
+		if (g_str_has_prefix (e->name, prefix) && !is_in_use (e))
+			servlist_net_remove (e);
+	}
+	g_free (prefix);
+	if (last_errors)
+		g_hash_table_remove (last_errors, net);
+	if (queued)
+		g_hash_table_remove (queued, net);
+	if (is_in_use (net))
+		net->flags &= ~FLAG_BOUNCER;
+	else
+		servlist_net_remove (net);
+	servlist_save ();
 }
