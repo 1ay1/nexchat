@@ -1262,8 +1262,7 @@ bouncer_cmd (session *sess, char *word[], char *word_eol[])
 		if (mybouncer_state () != MYBNC_SET_UP)
 			PrintText (sess, _("nexchat isn't running a bouncer for you.\n"));
 		else if (mybouncer_remove (&err))
-			PrintText (sess, _("\00303*\tYour bouncer is stopped; your networks connect directly again. "
-									 "Their passwords went to the bouncer, so set them again in the Network List.\n"));
+			PrintText (sess, _("\00303*\tYour bouncer is stopped; your networks connect directly again, as they did before.\n"));
 		else
 			PrintTextf (sess, "%s\n", err);
 		g_free (err);

@@ -62,6 +62,7 @@
 #include "userlistgui.h"
 #include "menu.h"
 #include "bncsetup.h"
+#include "bncwin.h"
 #include "servlistgui.h"
 
 static GSList *submenu_list;
@@ -1182,8 +1183,8 @@ menu_open_server_list (GtkWidget *wid, gpointer none)
 static void
 menu_stayonline (GtkWidget *wid, gpointer none)
 {
-	bncsetup_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL,
-						current_sess && current_sess->server ? current_sess->server->network : NULL, NULL);
+	bncwin_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL,
+					 current_sess && current_sess->server ? current_sess->server->network : NULL);
 }
 
 static void
@@ -1965,7 +1966,7 @@ static struct mymenu mymenu[] = {
 	{N_("_Reconnect"), menu_reconnect, NX_STOCK_CONNECT, M_MENUSTOCK, MENU_ID_RECONNECT, 0, 1},
 	{N_("_Join a Channel" ELLIPSIS), menu_join, NX_STOCK_JUMP_TO, M_MENUSTOCK, MENU_ID_JOIN, 0, 1},
 	{N_("Channel _List"), menu_chanlist, NX_STOCK_INDEX, M_MENUITEM, 0, 0, 1},
-	{N_("Stay _Online" ELLIPSIS), menu_stayonline, 0, M_MENUITEM, 0, 0, 1},
+	{N_("_Bouncer" ELLIPSIS), menu_stayonline, 0, M_MENUITEM, 0, 0, 1},
 	{0, 0, 0, M_SEP, 0, 0, 0},
 #define AWAY_OFFSET (42)
 	{N_("Marked _Away"), menu_away, 0, M_MENUTOG, MENU_ID_AWAY, 0, 1, GDK_KEY_a},

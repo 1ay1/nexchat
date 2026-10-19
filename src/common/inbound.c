@@ -50,6 +50,7 @@
 #include "sts.h"
 #include "batch.h"
 #include "bouncer.h"
+#include "mybouncer.h"
 
 #ifdef USE_OPENSSL
 typedef struct { server *serv; int port; } sts_upgrade;
@@ -1447,6 +1448,9 @@ inbound_login_start (session *sess, char *nick, char *servname,
 {
 	inbound_newnick (sess->server, sess->server->nick, nick, TRUE, tags_data);
 	server_set_name (sess->server, servname);
+	/* through the bouncer nexchat runs: it answers with the nick it kept;
+	   the one in your settings wins, and soju keeps that from now on */
+	mybouncer_logged_in (sess->server, nick);
 	if (sess->type == SESS_SERVER)
 		log_open_or_close (sess);
 	/* reset our away status */

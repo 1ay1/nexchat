@@ -25,6 +25,7 @@
 #include "cfgfiles.h"
 #include "servlist.h"
 #include "mybouncer.h"
+#include "server.h"
 
 #ifdef G_OS_WIN32
 /* soju doesn't run on Windows: nothing to set up there */
@@ -37,6 +38,17 @@ void mybouncer_adopt (GSList *nets, mybnc_progress cb, gpointer data) { cb ("", 
 gboolean mybouncer_remove (char **err) { *err = NULL; return TRUE; }
 void mybouncer_init (void) { }
 gboolean mybouncer_owns (ircnet *net) { return FALSE; }
+char *mybouncer_own_password (ircnet *net) { return NULL; }
+void mybouncer_identity (ircnet *net, char **nick, char **nick_from, char **login, char **account)
+{ *nick = g_strdup (""); *nick_from = g_strdup (""); *login = g_strdup (""); *account = NULL; }
+gboolean mybouncer_set_login (ircnet *net, const char *account, const char *password, char **err)
+{ *err = NULL; return FALSE; }
+void mybouncer_logged_in (server *serv, const char *nick) { }
+const char *mybouncer_wanted_nick (ircnet *net) { return net->nick ? net->nick : prefs.hex_irc_nick1; }
+gboolean mybouncer_release (ircnet *net, char **err) { *err = NULL; return FALSE; }
+gboolean mybouncer_start (char **err) { *err = NULL; return FALSE; }
+void mybouncer_stop (void) { }
+char *mybouncer_status (void) { return NULL; }
 #else
 
 #define UNIT "nexchat-bouncer.service"
@@ -443,9 +455,10 @@ word (GString *s, const char *w)
 	g_string_append_c (s, '"');
 }
 
-/* run a soju service command as our user; its error, or NULL */
+/* run a soju service command as our user; its error, or NULL. With
+   out, what it printed goes there */
 static char *
-admin (const char *const *words)
+admin_out (const char *const *words, GString *out)
 {
 	char *path = file ("admin.sock"), *line, *res = NULL;
 	GSocketClient *c = g_socket_client_new ();
@@ -491,6 +504,8 @@ admin (const char *const *words)
 			g_free (line);
 			break;
 		}
+		if (out && strstr (line, " :"))
+			g_string_append_printf (out, "%s\n", strstr (line, " :") + 2);
 		g_free (line);
 	}
 	g_object_unref (in);
@@ -504,10 +519,78 @@ out:
 	return res;
 }
 
+static char *
+admin (const char *const *words)
+{
+	return admin_out (words, NULL);
+}
+
 /* ---- moving networks onto it ---- */
 
 /* <bouncer>/direct: "name\tserver\ttls\tuser\tlogintype" per entry moved,
    so Remove can put them back as they were */
+static void
+restore_one (ircnet *net, char **f)
+{
+	char *pw;
+
+	while (net->servlist)
+		servlist_server_remove (net, net->servlist->data);
+	servlist_server_add (net, f[1]);
+	net->selected = 0;
+	if (atoi (f[2]))
+		net->flags |= FLAG_USE_SSL;
+	g_free (net->user);
+	net->user = *f[3] ? g_strdup (f[3]) : NULL;
+	net->logintype = atoi (f[4]);
+	/* its own password, kept in the bouncer folder (private) */
+	pw = g_strdup_printf ("pass-%s", f[0]);
+	g_strdelimit (pw, "/ ", '-');
+	g_free (net->pass);
+	net->pass = read_file (pw);
+	g_free (pw);
+}
+
+static void
+keep_pass (ircnet *net)
+{
+	char *f = g_strdup_printf ("pass-%s", net->name);
+	g_strdelimit (f, "/ ", '-');
+	if (net->pass && *net->pass)
+		write_file (f, net->pass, 0600);
+	g_free (f);
+}
+
+/* the "direct" line for net, removed from the file; NULL if none */
+static char **
+take_direct (ircnet *net)
+{
+	char *all = read_file ("direct"), **lines, **found = NULL;
+	GString *rest = g_string_new (NULL);
+	int i;
+
+	if (!all)
+		return NULL;
+	lines = g_strsplit (all, "\n", 0);
+	for (i = 0; lines[i]; i++)
+	{
+		char **f = g_strsplit (lines[i], "\t", 5);
+		if (!found && g_strv_length (f) == 5 && !strcmp (f[0], net->name))
+			found = f;
+		else
+		{
+			if (*lines[i])
+				g_string_append_printf (rest, "%s%s", rest->len ? "\n" : "", lines[i]);
+			g_strfreev (f);
+		}
+	}
+	write_file ("direct", rest->str, 0600);
+	g_string_free (rest, TRUE);
+	g_strfreev (lines);
+	g_free (all);
+	return found;
+}
+
 static void
 remember_direct (ircnet *net, const char *server, gboolean tls, const char *user, int logintype)
 {
@@ -536,19 +619,7 @@ restore_direct (void)
 		ircnet *net;
 
 		if (g_strv_length (f) == 5 && (net = servlist_net_find (f[0], NULL, strcmp)) && mybouncer_owns (net))
-		{
-			while (net->servlist)
-				servlist_server_remove (net, net->servlist->data);
-			servlist_server_add (net, f[1]);
-			net->selected = 0;
-			if (atoi (f[2]))
-				net->flags |= FLAG_USE_SSL;
-			g_free (net->user);
-			net->user = *f[3] ? g_strdup (f[3]) : NULL;
-			/* the network's own password went to soju; it's asked for again */
-			g_clear_pointer (&net->pass, g_free);
-			net->logintype = atoi (f[4]);
-		}
+			restore_one (net, f);
 		g_strfreev (f);
 	}
 	g_strfreev (lines);
@@ -657,9 +728,11 @@ adopt_one (ircnet *net)
 		g_free (chan);
 	}
 
-	/* the entry now goes through soju; its own address is kept, to go back */
+	/* the entry now goes through soju; its own address and login are kept,
+	   to go back exactly as it was */
 	pw = read_file ("password");
 	remember_direct (net, sv->hostname, tls, net->user, net->logintype);
+	keep_pass (net);
 	while (net->servlist)
 		servlist_server_remove (net, net->servlist->data);
 	{
@@ -674,12 +747,19 @@ adopt_one (ircnet *net)
 	g_free (net->pass);
 	net->pass = pw;
 	net->logintype = LOGIN_PASS;
-	net->flags = (net->flags & ~(FLAG_USE_SSL | FLAG_USE_GLOBAL | FLAG_ALLOW_INVALID));
-	if (!net->nick)
-		net->nick = g_strdup (nick);
-	/* soju joins them now; nexchat joining as well is harmless but noisy */
-	g_slist_free_full (net->favchanlist, (GDestroyNotify) servlist_favchan_free);
-	net->favchanlist = NULL;
+	/* the global nick setting stays as it was: change your nick there (or on
+	   the network's own entry) and soju gets it on the next connect. The
+	   user name is soju's login now, so it's no longer \"global\". */
+	{
+		gboolean global = (net->flags & FLAG_USE_GLOBAL) != 0;
+		net->flags = (net->flags & ~(FLAG_USE_SSL | FLAG_USE_GLOBAL | FLAG_ALLOW_INVALID));
+		if (global)
+			g_clear_pointer (&net->nick, g_free);
+		else if (!net->nick)
+			net->nick = g_strdup (nick);
+	}
+	/* the channels stay on the entry: soju is in them already, so joining
+	   again is a no-op, and they're there when it goes back */
 out:
 	g_free (host);
 	g_free (addr);
@@ -774,6 +854,261 @@ mybouncer_remove (char **err)
 		g_free (p);
 	}
 	return TRUE;
+}
+
+gboolean
+mybouncer_start (char **err)
+{
+	*err = NULL;
+	return mybouncer_state () == MYBNC_SET_UP && start (err);
+}
+
+void
+mybouncer_stop (void)
+{
+	if (!strcmp (mybouncer_kept_by (), "systemd"))
+		systemctl ("stop", UNIT, NULL);
+	else
+	{
+		char *cfg = file ("config"), *pat = g_strdup_printf ("soju -config %s", cfg);
+		if (find ("pkill"))
+			g_spawn_sync (NULL, (char *[]) { (char *) find ("pkill"), "-f", pat, NULL }, NULL,
+							  G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		g_free (pat);
+		g_free (cfg);
+	}
+}
+
+gboolean
+mybouncer_release (ircnet *net, char **err)
+{
+	char **f, *name;
+
+	*err = NULL;
+	if (!mybouncer_owns (net))
+	{
+		*err = g_strdup (_("That network isn't on your bouncer."));
+		return FALSE;
+	}
+	name = safe_name (net->name);
+	{
+		const char *w[] = { "network", "delete", name, NULL };
+		char *e = admin (w);
+		/* gone already is fine */
+		if (e && !strstr (e, "unknown network"))
+		{
+			*err = e;
+			g_free (name);
+			return FALSE;
+		}
+		g_free (e);
+	}
+	g_free (name);
+	f = take_direct (net);
+	if (f)
+	{
+		restore_one (net, f);
+		g_strfreev (f);
+	}
+	servlist_save ();
+	return TRUE;
+}
+
+/* "Lab (irc+insecure://h:p) [connected as dee]: 3 channels" per network */
+char *
+mybouncer_status (void)
+{
+	const char *w[] = { "network", "status", NULL };
+	GString *out = g_string_new (NULL), *res = g_string_new (NULL);
+	char *e, **lines;
+	int i;
+
+	if (!mybouncer_running ())
+	{
+		g_string_free (out, TRUE);
+		g_string_free (res, TRUE);
+		return NULL;
+	}
+	e = admin_out (w, out);
+	g_free (e);
+	lines = g_strsplit (out->str, "\n", 0);
+	for (i = 0; lines[i]; i++)
+	{
+		char *l = lines[i], *br = strchr (l, '['), *end, *name;
+		if (!br || !(end = strchr (br, ']')))
+			continue;
+		name = g_strndup (l, strcspn (l, " ("));
+		g_string_append_printf (res, "%s\t%.*s\t%s\n", name, (int) (end - br - 1), br + 1,
+										end[1] == ':' ? g_strstrip (end + 2) : "");
+		g_free (name);
+	}
+	g_strfreev (lines);
+	g_string_free (out, TRUE);
+	return g_string_free (res, FALSE);
+}
+
+const char *
+mybouncer_wanted_nick (ircnet *net)
+{
+	return (net->flags & FLAG_USE_GLOBAL) || !net->nick || !*net->nick ? prefs.hex_irc_nick1 : net->nick;
+}
+
+void
+mybouncer_logged_in (server *serv, const char *nick)
+{
+	ircnet *net = serv->network;
+	const char *want;
+
+	if (!net || !mybouncer_owns (net))
+		return;
+	want = mybouncer_wanted_nick (net);
+	/* soju answers with the nick it has for that network: settings win */
+	if (*want && serv->p_cmp (want, nick))
+		tcp_sendf (serv, "NICK %s\r\n", want);
+}
+
+/* the \"direct\" record of net, without taking it out */
+static char **
+peek_direct (ircnet *net)
+{
+	char *all = read_file ("direct"), **lines, **found = NULL;
+	int i;
+
+	if (!all)
+		return NULL;
+	lines = g_strsplit (all, "\n", 0);
+	for (i = 0; lines[i] && !found; i++)
+	{
+		char **f = g_strsplit (lines[i], "\t", 5);
+		if (g_strv_length (f) == 5 && !strcmp (f[0], net->name))
+			found = f;
+		else
+			g_strfreev (f);
+	}
+	g_strfreev (lines);
+	g_free (all);
+	return found;
+}
+
+static char *
+own_pass (ircnet *net)
+{
+	char *f = g_strdup_printf ("pass-%s", net->name), *p;
+	g_strdelimit (f, "/ ", '-');
+	p = read_file (f);
+	g_free (f);
+	return p;
+}
+
+void
+mybouncer_identity (ircnet *net, char **nick, char **nick_from, char **login, char **account)
+{
+	char **d = peek_direct (net), *pw = own_pass (net);
+	int lt = d ? atoi (d[4]) : LOGIN_DEFAULT;
+	const char *acct = d && *d[3] ? d[3] : NULL;
+
+	*nick = g_strdup (mybouncer_wanted_nick (net));
+	*nick_from = g_strdup ((net->flags & FLAG_USE_GLOBAL) || !net->nick || !*net->nick ?
+								  _("your nick in the Network List") : _("this network's own nick"));
+	*account = NULL;
+	if (!pw || !*pw)
+		*login = g_strdup (_("no login: you're connected as a guest"));
+	else if (lt == LOGIN_SASL || lt == LOGIN_DEFAULT)
+	{
+		*account = g_strdup (acct ? acct : *nick);
+		*login = g_strdup_printf (_("logged in to the account %s (SASL)"), *account);
+	}
+	else if (lt == LOGIN_NICKSERV || lt == LOGIN_MSG_NICKSERV)
+	{
+		*account = g_strdup (*nick);
+		*login = g_strdup_printf (_("identified to NickServ as %s"), *nick);
+	}
+	else
+		*login = g_strdup (_("with the server password"));
+	g_strfreev (d);
+	g_free (pw);
+}
+
+gboolean
+mybouncer_set_login (ircnet *net, const char *account, const char *password, char **err)
+{
+	char *name = safe_name (net->name), *e, **d, *line, *pwf, *all, **lines;
+	GString *rest;
+	int i;
+
+	*err = NULL;
+	if (!mybouncer_owns (net))
+	{
+		*err = g_strdup (_("That network isn't on your bouncer."));
+		g_free (name);
+		return FALSE;
+	}
+	if (account && *account)
+	{
+		const char *w[] = { "sasl", "set-plain", "-network", name, account, password ? password : "", NULL };
+		e = admin (w);
+	}
+	else
+	{
+		const char *w[] = { "sasl", "reset", "-network", name, NULL };
+		e = admin (w);
+	}
+	if (e)
+	{
+		*err = e;
+		g_free (name);
+		return FALSE;
+	}
+	/* soju logs in again with it */
+	{
+		const char *w[] = { "network", "update", name, "-enabled", "false", NULL };
+		const char *w2[] = { "network", "update", name, "-enabled", "true", NULL };
+		g_free (admin (w));
+		g_free (admin (w2));
+	}
+	g_free (name);
+
+	/* the record and the kept password, for going back later */
+	pwf = g_strdup_printf ("pass-%s", net->name);
+	g_strdelimit (pwf, "/ ", '-');
+	if (account && *account && password)
+		write_file (pwf, password, 0600);
+	else
+	{
+		char *f = file (pwf);
+		g_unlink (f);
+		g_free (f);
+	}
+	g_free (pwf);
+	d = peek_direct (net);
+	all = read_file ("direct");
+	rest = g_string_new (NULL);
+	lines = g_strsplit (all ? all : "", "\n", 0);
+	for (i = 0; lines[i]; i++)
+	{
+		char **f = g_strsplit (lines[i], "\t", 5);
+		if (g_strv_length (f) == 5 && !strcmp (f[0], net->name))
+			line = g_strdup_printf ("%s\t%s\t%s\t%s\t%d", f[0], f[1], f[2], account ? account : "",
+											account && *account ? LOGIN_SASL : LOGIN_DEFAULT);
+		else
+			line = g_strdup (lines[i]);
+		if (*line)
+			g_string_append_printf (rest, "%s%s", rest->len ? "\n" : "", line);
+		g_free (line);
+		g_strfreev (f);
+	}
+	write_file ("direct", rest->str, 0600);
+	g_string_free (rest, TRUE);
+	g_strfreev (lines);
+	g_free (all);
+	g_strfreev (d);
+	return TRUE;
+}
+
+char *
+mybouncer_own_password (ircnet *net)
+{
+	return own_pass (net);
 }
 
 #endif

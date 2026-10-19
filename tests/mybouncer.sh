@@ -89,8 +89,9 @@ grep ' 353 ' "$tmp/whois" | grep -q 'me1' && ok "still in #home with nexchat clo
 
 # put it back
 run "/bouncer remove"
-has 'your networks connect directly again' "remove says what happened"
-grep -A12 '^N=Lab$' "$tmp/cfg/servlist.conf" | grep -q "^S=127.0.0.1/$ERGO_PORT$" && ok "the entry has its own address back" || bad "not restored"
+has "connect directly again" "remove says what happened"
+grep -A12 "^N=Lab$" "$tmp/cfg/servlist.conf" | grep -q "^S=127.0.0.1/$ERGO_PORT$" && ok "the entry has its own address back" || bad "not restored"
+grep -A12 "^N=Lab$" "$tmp/cfg/servlist.conf" | grep -q "^P=pw12345$" && grep -A12 "^N=Lab$" "$tmp/cfg/servlist.conf" | grep -q "^L=6$" && ok "and its own password and SASL login" || bad "login not restored"
 
 pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && bad "soju still running after remove" || ok "soju stopped by remove"
 

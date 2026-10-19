@@ -47,6 +47,7 @@
 #include "maingui.h"
 #include "bncsetup.h"
 #include "bncdetect.h"
+#include "bncwin.h"
 #include "../common/servlist.h"
 #include "chanview.h"
 #include "cmdpopup.h"
@@ -676,6 +677,9 @@ fe_tabs_dump (gpointer d)
 			st = bncsetup_describe_more ();
 			g_printerr ("%s\n", st);
 			g_free (st);
+			st = bncwin_describe ();
+			g_printerr ("bncwin: %s\n", st ? st : "");
+			g_free (st);
 		}
 		g_printerr ("typing: %s\n", current_sess->gui->typing_label && gtk_widget_get_visible (current_sess->gui->typing_label)
 			? gtk_label_get_text (GTK_LABEL (current_sess->gui->typing_label)) : "");
@@ -858,6 +862,16 @@ fe_bnc_setup_open (gpointer d)
 	return G_SOURCE_REMOVE;
 }
 
+static gboolean
+fe_bnc_win_open (gpointer d)
+{
+	const char *from = g_getenv ("NEXCHAT_BNC_WIN");
+	ircnet *net = from && strcmp (from, "1") ? servlist_net_find ((char *) from, NULL, strcmp) : NULL;
+
+	bncwin_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL, net);
+	return G_SOURCE_REMOVE;
+}
+
 static void
 fe_detect_print (bnc_found *f, gpointer d)
 {
@@ -909,6 +923,9 @@ fe_main (void)
 	/* tests: NEXCHAT_BNC_SETUP=1 opens "Stay online" over the main window */
 	if (g_getenv ("NEXCHAT_BNC_SETUP"))
 		g_timeout_add_seconds (1, fe_bnc_setup_open, NULL);
+	/* tests: NEXCHAT_BNC_WIN=1 (or a network's name) opens Server > Bouncer */
+	if (g_getenv ("NEXCHAT_BNC_WIN"))
+		g_timeout_add_seconds (1, fe_bnc_win_open, NULL);
 	/* tests: NEXCHAT_BNC_DETECT=1 prints which bouncers this computer has */
 	if (g_getenv ("NEXCHAT_BNC_DETECT"))
 		bncdetect_run (fe_detect_print, NULL);
