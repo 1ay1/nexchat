@@ -23,20 +23,39 @@
 #include "../common/mybouncer.h"
 #include "bncdetect.h"
 
-/* ---- the login probe: one connection, CAP LS, PASS/NICK/USER, wait ---- */
+#ifdef USE_OPENSSL
+#include <openssl/err.h>
+#include <openssl/x509v3.h>
+#include "../common/ssl.h"
+#endif
+
+/* ---- the login probe: one connection, CAP LS, PASS/NICK/USER, wait ----
+   Runs in a thread over a non-blocking socket. TLS goes through OpenSSL like
+   every other connection nexchat makes, not GIO's TLS, whose backend
+   (glib-networking) often isn't there: Homebrew, the macOS bundle. */
+
+#define PROBE_SECONDS 15
 
 typedef struct
 {
-	GSocketConnection *conn;
-	GDataInputStream *in;
-	GCancellable *cancel;
+	char *host;
+	int port;
+	gboolean tls;
 	char *user, *pass;
 	gboolean znc, soju, persist;
 	GTlsCertificateFlags cert_errors;	/* what's wrong with its certificate */
 	bnc_probe_cb cb;
 	gpointer data;
-	guint timeout;
+	/* the thread's */
+	GSocketConnection *conn;
+	GSocket *sock;
+#ifdef USE_OPENSSL
+	SSL_CTX *ctx;
+	SSL *ssl;
+#endif
+	gint64 deadline;
 	gboolean done;
+	char *kind, *error;	/* the answer */
 } probe;
 
 void
@@ -52,20 +71,30 @@ bnc_probe_result_free (bnc_probe_result *r)
 	g_free (r);
 }
 
+/* in the thread: the answer, once */
 static void
 probe_finish (probe *p, const char *kind, const char *error)
 {
-	bnc_probe_result *r;
-
 	if (p->done)
 		return;
 	p->done = TRUE;
-	if (p->timeout)
-		g_source_remove (p->timeout);
-	g_cancellable_cancel (p->cancel);
+	p->kind = g_strdup (kind);
+	p->error = g_strdup (error);
+}
+
+/* on the main thread: hand it over */
+static gboolean
+probe_report (gpointer data)
+{
+	probe *p = data;
+	bnc_probe_result *r;
+
 	r = g_new0 (bnc_probe_result, 1);
-	r->kind = g_strdup (kind);
-	r->error = g_strdup (error);
+	r->kind = p->kind;
+	r->error = p->error;
+	p->kind = p->error = NULL;
+	if (!r->kind && !r->error)
+		r->error = g_strdup (_("The connection was closed without an answer."));
 	r->seen = g_strdup (p->soju ? "soju" : p->znc ? "znc" : p->persist ? "persist" : NULL);
 	r->cert_untrusted = p->cert_errors != 0;
 	if (p->cert_errors)
@@ -76,53 +105,115 @@ probe_finish (probe *p, const char *kind, const char *error)
 			(p->cert_errors & G_TLS_CERTIFICATE_EXPIRED) ?
 			_("its certificate has expired") : _("its certificate isn't valid"));
 	p->cb (r, p->data);
-	/* the read in flight finishes cancelled and frees the rest */
-}
 
-static void
-probe_free (probe *p)
-{
-	if (p->in)
-		g_object_unref (p->in);
-	if (p->conn)
-	{
-		g_io_stream_close (G_IO_STREAM (p->conn), NULL, NULL);
-		g_object_unref (p->conn);
-	}
-	g_object_unref (p->cancel);
+	g_free (p->host);
 	g_free (p->user);
 	g_free (p->pass);
 	g_free (p);
+	return G_SOURCE_REMOVE;
+}
+
+/* time left before the deadline, in ms; 0 when it's passed */
+static int
+probe_left (probe *p)
+{
+	gint64 left = (p->deadline - g_get_monotonic_time ()) / 1000;
+	return left > 0 ? (int) left : 0;
+}
+
+/* wait until the socket can be read (or written); FALSE on timeout */
+static gboolean
+probe_wait (probe *p, GIOCondition cond)
+{
+	int left = probe_left (p);
+	GError *err = NULL;
+
+	if (!left)
+		return FALSE;
+	g_socket_set_timeout (p->sock, (left + 999) / 1000);
+	if (!g_socket_condition_timed_wait (p->sock, cond, (gint64) left * 1000, NULL, &err))
+	{
+		g_error_free (err);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 static void
 probe_send (probe *p, const char *line)
 {
-	GOutputStream *out = g_io_stream_get_output_stream (G_IO_STREAM (p->conn));
 	char *l = g_strconcat (line, "\r\n", NULL);
-	g_output_stream_write_all (out, l, strlen (l), NULL, NULL, NULL);
+	gsize len = strlen (l), off = 0;
+
+	while (off < len && !p->done)
+	{
+		gssize n;
+#ifdef USE_OPENSSL
+		if (p->ssl)
+		{
+			n = SSL_write (p->ssl, l + off, len - off);
+			if (n <= 0)
+			{
+				int e = SSL_get_error (p->ssl, n);
+				if ((e == SSL_ERROR_WANT_WRITE || e == SSL_ERROR_WANT_READ) &&
+					 probe_wait (p, e == SSL_ERROR_WANT_READ ? G_IO_IN : G_IO_OUT))
+					continue;
+				break;
+			}
+		}
+		else
+#endif
+		{
+			n = g_socket_send (p->sock, l + off, len - off, NULL, NULL);
+			if (n <= 0)
+				break;
+		}
+		off += n;
+	}
 	g_free (l);
 }
 
-static void probe_read (probe *p);
-
-static void
-probe_line (GObject *src, GAsyncResult *res, gpointer data)
+/* some bytes, or -1 when it's closed, failed or timed out */
+static gssize
+probe_recv (probe *p, char *buf, gsize size)
 {
-	probe *p = data;
-	GError *err = NULL;
-	char *line = g_data_input_stream_read_line_finish_utf8 (p->in, res, NULL, &err);
+	for (;;)
+	{
+		gssize n;
+#ifdef USE_OPENSSL
+		if (p->ssl)
+		{
+			n = SSL_read (p->ssl, buf, size);
+			if (n > 0)
+				return n;
+			switch (SSL_get_error (p->ssl, n))
+			{
+			case SSL_ERROR_WANT_READ:
+				if (!probe_wait (p, G_IO_IN))
+					return -1;
+				continue;
+			case SSL_ERROR_WANT_WRITE:
+				if (!probe_wait (p, G_IO_OUT))
+					return -1;
+				continue;
+			default:
+				return -1;
+			}
+		}
+#endif
+		if (!probe_wait (p, G_IO_IN))
+			return -1;
+		n = g_socket_receive (p->sock, buf, size, NULL, NULL);
+		return n > 0 ? n : -1;
+	}
+}
+
+/* one line from the server */
+static void
+probe_line (probe *p, char *line)
+{
 	char **w;
 
-	if (p->done || !line)
-	{
-		if (!p->done)
-			probe_finish (p, NULL, err ? err->message : _("The connection was closed without an answer."));
-		g_clear_error (&err);
-		g_free (line);
-		probe_free (p);
-		return;
-	}
 	g_strchomp (line);
 	/* tags off */
 	if (line[0] == '@' && strchr (line, ' '))
@@ -155,42 +246,118 @@ probe_line (GObject *src, GAsyncResult *res, gpointer data)
 		g_free (pong);
 	}
 	g_strfreev (w);
-	g_free (line);
-	probe_read (p);
 }
 
-static void
-probe_read (probe *p)
+#ifdef USE_OPENSSL
+/* look at everything, judge afterwards */
+static int
+probe_verify_any (int ok, X509_STORE_CTX *ctx)
 {
-	g_data_input_stream_read_line_async (p->in, G_PRIORITY_DEFAULT, p->cancel, probe_line, p);
+	return 1;
 }
 
-static void
-probe_connected (GObject *src, GAsyncResult *res, gpointer data)
+/* encrypt the connection; FALSE (and the answer) when that fails */
+static gboolean
+probe_tls (probe *p)
+{
+	X509 *cert;
+	long v;
+
+	ERR_clear_error ();
+	if (!(p->ctx = _SSL_context_init (NULL)) || _SSL_set_verify (p->ctx, probe_verify_any))
+	{
+		probe_finish (p, NULL, _("TLS couldn't be set up."));
+		return FALSE;
+	}
+	p->ssl = SSL_new (p->ctx);
+	SSL_set_fd (p->ssl, g_socket_get_fd (p->sock));
+	SSL_set_connect_state (p->ssl);
+	if (!g_hostname_is_ip_address (p->host))
+		SSL_set_tlsext_host_name (p->ssl, p->host);
+
+	for (;;)
+	{
+		int r = SSL_connect (p->ssl), e;
+		unsigned long why;
+
+		if (r == 1)
+			break;
+		e = SSL_get_error (p->ssl, r);
+		if (e == SSL_ERROR_WANT_READ || e == SSL_ERROR_WANT_WRITE)
+		{
+			if (probe_wait (p, e == SSL_ERROR_WANT_READ ? G_IO_IN : G_IO_OUT))
+				continue;
+			probe_finish (p, NULL, _("No answer within 15 seconds."));
+			return FALSE;
+		}
+		why = ERR_peek_last_error ();
+		/* encrypted to a plain-text port: what came back wasn't TLS */
+		if (ERR_GET_LIB (why) == ERR_LIB_SSL &&
+			 (ERR_GET_REASON (why) == SSL_R_WRONG_VERSION_NUMBER ||
+			  ERR_GET_REASON (why) == SSL_R_PACKET_LENGTH_TOO_LONG ||
+			  ERR_GET_REASON (why) == SSL_R_HTTP_REQUEST))
+			probe_finish (p, NULL, _("It doesn't speak TLS on that port. Write irc:// in front of the address "
+											 "for a plain-text connection."));
+		else if (why)
+		{
+			char buf[256];
+			ERR_error_string_n (why, buf, sizeof buf);
+			probe_finish (p, NULL, buf);
+		}
+		else
+			probe_finish (p, NULL, _("The connection was closed during the TLS handshake."));
+		return FALSE;
+	}
+
+	/* trusted? the same checks a real connection makes */
+	v = SSL_get_verify_result (p->ssl);
+	if (v == X509_V_ERR_CERT_HAS_EXPIRED || v == X509_V_ERR_CERT_NOT_YET_VALID)
+		p->cert_errors |= G_TLS_CERTIFICATE_EXPIRED;
+	else if (v != X509_V_OK)
+		p->cert_errors |= G_TLS_CERTIFICATE_UNKNOWN_CA;
+	if ((cert = SSL_get_peer_certificate (p->ssl)))
+	{
+		if (_SSL_check_hostname (cert, p->host) != 0)
+			p->cert_errors |= G_TLS_CERTIFICATE_BAD_IDENTITY;
+		X509_free (cert);
+	}
+	else
+		p->cert_errors |= G_TLS_CERTIFICATE_UNKNOWN_CA;
+	return TRUE;
+}
+#endif
+
+static gpointer
+probe_thread (gpointer data)
 {
 	probe *p = data;
+	GSocketClient *client = g_socket_client_new ();
 	GError *err = NULL;
+	GString *buf;
 
-	p->conn = g_socket_client_connect_to_host_finish (G_SOCKET_CLIENT (src), res, &err);
-	g_object_unref (src);
+	g_socket_client_set_timeout (client, PROBE_SECONDS);
+	p->conn = g_socket_client_connect_to_host (client, p->host, p->port, NULL, &err);
+	g_object_unref (client);
 	if (!p->conn)
 	{
-		if (!p->done)
-		{
-			/* encrypted to a plain-text port (or the other way round) */
-			if (g_error_matches (err, G_TLS_ERROR, G_TLS_ERROR_NOT_TLS) ||
-				 (err->domain == G_TLS_ERROR && strstr (err->message, "TLS packet")))
-				probe_finish (p, NULL, _("It doesn't speak TLS on that port. Write irc:// in front of the address "
-												 "for a plain-text connection."));
-			else
-				probe_finish (p, NULL, err->message);
-		}
+		probe_finish (p, NULL, err->message);
 		g_error_free (err);
-		probe_free (p);
-		return;
+		goto out;
 	}
-	p->in = g_data_input_stream_new (g_io_stream_get_input_stream (G_IO_STREAM (p->conn)));
-	g_data_input_stream_set_newline_type (p->in, G_DATA_STREAM_NEWLINE_TYPE_ANY);
+	p->sock = g_socket_connection_get_socket (p->conn);
+	g_socket_set_blocking (p->sock, FALSE);
+
+	if (p->tls)
+	{
+#ifdef USE_OPENSSL
+		if (!probe_tls (p))
+			goto out;
+#else
+		probe_finish (p, NULL, _("This nexchat was built without TLS."));
+		goto out;
+#endif
+	}
+
 	probe_send (p, "CAP LS 302");
 	if (*p->pass)
 	{
@@ -205,33 +372,54 @@ probe_connected (GObject *src, GAsyncResult *res, gpointer data)
 		g_free (l);
 	}
 	probe_send (p, "CAP END");
-	probe_read (p);
-}
 
-static gboolean
-probe_timeout (gpointer data)
-{
-	probe *p = data;
-	p->timeout = 0;
-	probe_finish (p, NULL, _("No answer within 15 seconds."));
-	return G_SOURCE_REMOVE;
-}
+	/* lines until it's decided */
+	buf = g_string_new (NULL);
+	while (!p->done)
+	{
+		char chunk[4096], *nl;
+		gssize n = probe_recv (p, chunk, sizeof chunk);
 
-static gboolean
-accept_any (GTlsConnection *c, GTlsCertificate *cert, GTlsCertificateFlags errors, gpointer d)
-{
-	probe *p = d;
-	/* go on to see what it is, but remember it isn't trusted */
-	p->cert_errors = errors;
-	return TRUE;
-}
+		if (n < 0)
+		{
+			probe_finish (p, NULL, probe_left (p) ? _("The connection was closed without an answer.")
+												  : _("No answer within 15 seconds."));
+			break;
+		}
+		g_string_append_len (buf, chunk, n);
+		while (!p->done && (nl = memchr (buf->str, '\n', buf->len)))
+		{
+			char *line = g_strndup (buf->str, nl - buf->str);
+			g_string_erase (buf, 0, nl - buf->str + 1);
+			if (!g_utf8_validate (line, -1, NULL))
+			{
+				char *u = g_utf8_make_valid (line, -1);
+				g_free (line);
+				line = u;
+			}
+			probe_line (p, line);
+			g_free (line);
+		}
+	}
+	g_string_free (buf, TRUE);
 
-static void
-probe_tls_event (GSocketClient *client, GSocketClientEvent event, GSocketConnectable *conn,
-					  GIOStream *stream, gpointer data)
-{
-	if (event == G_SOCKET_CLIENT_TLS_HANDSHAKING)
-		g_signal_connect (stream, "accept-certificate", G_CALLBACK (accept_any), data);
+out:
+#ifdef USE_OPENSSL
+	if (p->ssl)
+	{
+		SSL_shutdown (p->ssl);
+		SSL_free (p->ssl);
+	}
+	if (p->ctx)
+		SSL_CTX_free (p->ctx);
+#endif
+	if (p->conn)
+	{
+		g_io_stream_close (G_IO_STREAM (p->conn), NULL, NULL);
+		g_object_unref (p->conn);
+	}
+	g_idle_add (probe_report, p);
+	return NULL;
 }
 
 void
@@ -239,19 +427,16 @@ bncsetup_probe (const char *host, int port, gboolean tls, const char *user,
 					 const char *pass, bnc_probe_cb cb, gpointer data)
 {
 	probe *p = g_new0 (probe, 1);
-	GSocketClient *client = g_socket_client_new ();
 
-	p->cancel = g_cancellable_new ();
+	p->host = g_strdup (host);
+	p->port = port;
+	p->tls = tls;
 	p->user = g_strdup (user ? user : "");
 	p->pass = g_strdup (pass ? pass : "");
 	p->cb = cb;
 	p->data = data;
-	g_socket_client_set_tls (client, tls);
-	if (tls)
-		g_signal_connect (client, "event", G_CALLBACK (probe_tls_event), p);
-	g_socket_client_set_timeout (client, 15);
-	p->timeout = g_timeout_add_seconds (15, probe_timeout, p);
-	g_socket_client_connect_to_host_async (client, host, port, p->cancel, probe_connected, p);
+	p->deadline = g_get_monotonic_time () + (gint64) PROBE_SECONDS * G_USEC_PER_SEC;
+	g_thread_unref (g_thread_new ("bnc-probe", probe_thread, p));
 }
 
 /* ---- the window ----
@@ -943,13 +1128,16 @@ finish_bouncer (setup *s)
 	srv = g_strdup_printf ("%s/%s%d", a.host, a.tls ? "+" : "", a.port);
 	servlist_server_add (net, srv);
 	g_free (srv);
-	net->flags = (net->flags & ~(FLAG_USE_SSL | FLAG_ALLOW_INVALID | FLAG_USE_GLOBAL)) | FLAG_CYCLE;
+	net->flags = (net->flags & ~(FLAG_USE_SSL | FLAG_ALLOW_INVALID | FLAG_USE_GLOBAL)) | FLAG_CYCLE | FLAG_BOUNCER;
 	if (a.tls)
 		net->flags |= FLAG_USE_SSL;
 	if (a.tls && s->cert_bad && gtk_check_button_get_active (GTK_CHECK_BUTTON (s->trust)))
 		net->flags |= FLAG_ALLOW_INVALID;
-	if (!net->nick)
-		net->nick = g_strdup (prefs.hex_irc_nick1);
+	if (!net->nick || !*net->nick)
+	{
+		g_free (net->nick);
+		net->nick = g_strdup (*prefs.hex_irc_nick1 ? prefs.hex_irc_nick1 : nx_entry_get_text (s->user));
+	}
 	g_free (net->user);
 	net->user = g_strdup (nx_entry_get_text (s->user));
 	g_free (net->pass);
