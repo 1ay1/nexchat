@@ -18,7 +18,7 @@ trap 'st=$?; cleanup; exit $st' EXIT
 start_xvfb "$xvfb" "$disp"
 bnc_start "$tmp/lab"
 # soju has one network, to Ergo
-export NEXCHAT_SOJU_DIR=$BNC_HOME/usr/bin NEXCHAT_BOUNCER_NO_SYSTEMD=1
+export NEXCHAT_SOJU_DIR=$SOJU_BIN_DIR NEXCHAT_BOUNCER_NO_SYSTEMD=1
 
 fail=0
 ok() { echo "ok:   $1"; }
@@ -55,7 +55,7 @@ printf 'v=2.16.2\n\nN=Elsewhere\nI=ayush\nU=ayush\nP=secret123\nL=7\nF=8\nD=0\nS
 DISPLAY=$disp NEXCHAT_TABS_DUMP=1 NEXCHAT_BNC_WIN=1 NEXCHAT_BNCWIN_REDIT="$tmp/redit" "$bin" -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
 
-until_state bncwin "bncwin: You're using a bouncer*remote *: connected as *" && ok "lists the bouncer's network" ||
+until_state bncwin "bncwin: Your bouncer*remote *: connected as *" && ok "lists the bouncer's network" ||
 	{ bad "not listed"; state bncwin; }
 net=$(state bncwin | sed -n 's/.*| remote \([^:]*\): .*/\1/p')
 printf '%s\tdeenew\tDee Real\tacct2\tpw2pw2pw2\n' "$net" > "$tmp/redit"

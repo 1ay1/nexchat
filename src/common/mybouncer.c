@@ -207,6 +207,16 @@ systemctl (const char *a, const char *b, char **err)
 
 static GPid child;	/* ours, when nexchat keeps it */
 
+#ifndef G_OS_WIN32
+/* in the child: a session of its own, so it isn't stopped with nexchat
+   (what the setsid tool does; macOS doesn't have that tool) */
+static void
+own_session (gpointer data)
+{
+	setsid ();
+}
+#endif
+
 static gboolean
 start (char **err)
 {
@@ -225,14 +235,17 @@ start (char **err)
 	{
 		/* in a session of its own, so it stays up after nexchat quits (it's
 		   found running next time); only a reboot stops it */
-		char *argv[] = { "setsid", (char *) find ("soju"), "-config", cfg, NULL };
+		char *argv[] = { (char *) find ("soju"), "-config", cfg, NULL };
 		int fd = g_open (log, O_WRONLY | O_CREAT | O_APPEND, 0600);
 		GError *e = NULL;
 
-		if (!find ("setsid"))
-			argv[0] = (char *) find ("soju"), argv[1] = "-config", argv[2] = cfg, argv[3] = NULL;
-		ok = g_spawn_async_with_fds (NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDIN_FROM_DEV_NULL,
+#ifndef G_OS_WIN32
+		ok = g_spawn_async_with_fds (NULL, argv, NULL, G_SPAWN_STDIN_FROM_DEV_NULL,
+											  own_session, NULL, &child, -1, fd, fd, &e);
+#else
+		ok = g_spawn_async_with_fds (NULL, argv, NULL, G_SPAWN_STDIN_FROM_DEV_NULL,
 											  NULL, NULL, &child, -1, fd, fd, &e);
+#endif
 		if (fd >= 0)
 			close (fd);
 		if (!ok)

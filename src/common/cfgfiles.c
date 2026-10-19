@@ -887,6 +887,7 @@ load_default_config(void)
 	prefs.hex_irc_logging = 1;
 	prefs.hex_irc_who_join = 1; /* Can kick with inordinate amount of channels, required for some of our features though, TODO: add cap like away check? */
 	prefs.hex_irc_whois_front = 1;
+	prefs.hex_identd_port = 113;
 	prefs.hex_net_auto_reconnect = 1;
 	prefs.hex_net_throttle = 1;
 	prefs.hex_stamp_log = 1;

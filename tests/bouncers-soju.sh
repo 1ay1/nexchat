@@ -76,7 +76,7 @@ keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
 {
 	sleep 6; echo "/quit"; sleep 0.5
 } | timeout 20 "$bin" -n -d "$tmp/cfg" "irc://soju" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
-has 'opened in tab' "soju: its networks open by themselves"
+has 'opened in \(a \)\?tab' "soju: its networks open by themselves"
 grep -q 'BOUNCER_NETID=' "$tmp/out" && ok "soju: and connect straight onto them" || bad "soju: no network tab"
 
 # --- the network behind soju goes down while we're on it: said plainly

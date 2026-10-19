@@ -964,6 +964,9 @@ xchat_init (void)
 	nx_mark ("  menus/buttons/commands lists");
 
 	servlist_init ();							/* load server list */
+	/* tests: NEXCHAT_SERVLIST_SAVE=1 writes it straight back (round trip) */
+	if (g_getenv ("NEXCHAT_SERVLIST_SAVE"))
+		servlist_save ();
 	mybouncer_init ();	/* our own soju, if nexchat runs it */
 	nx_mark ("  server list loaded");
 

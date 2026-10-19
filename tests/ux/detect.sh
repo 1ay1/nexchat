@@ -31,7 +31,7 @@ DISPLAY=$disp LD_LIBRARY_PATH=$obref/lib XDG_CONFIG_DIRS=$obref/../etc/xdg XDG_D
 wm=$!
 bnc_start "$tmp/lab"
 # soju "installed" (the lab's), run by nexchat itself, not systemd
-export NEXCHAT_SOJU_DIR=$BNC_HOME/usr/bin NEXCHAT_BOUNCER_NO_SYSTEMD=1
+export NEXCHAT_SOJU_DIR=$SOJU_BIN_DIR NEXCHAT_BOUNCER_NO_SYSTEMD=1
 
 k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.15 "$@"; }
 fail=0

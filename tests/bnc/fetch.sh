@@ -2,6 +2,23 @@
 # Download the bouncers the tests run against, into ~/.cache/nexchat-ref/bnc
 # (no root): soju and ZNC from Arch's packages, Ergo's release build.
 set -eu
+# macOS: soju built with Go, Ergo's macOS release, ZNC from Homebrew
+if [ "$(uname)" = Darwin ]; then
+	dir=${BNC_MAC_HOME:-$HOME/.cache/nexchat-ref/bnc-mac}
+	mkdir -p "$dir"
+	cd "$dir"
+	[ -x bin/soju ] || GOBIN=$dir/bin go install codeberg.org/emersion/soju/cmd/soju@v0.11.1
+	[ -x bin/sojudb ] || GOBIN=$dir/bin go install codeberg.org/emersion/soju/cmd/sojudb@v0.11.1
+	[ -x bin/sojuctl ] || GOBIN=$dir/bin go install codeberg.org/emersion/soju/cmd/sojuctl@v0.11.1
+	arch=$(uname -m)
+	[ -d "ergo-2.19.1-macos-$arch" ] || {
+		curl -sfL -o ergo.tgz "https://github.com/ergochat/ergo/releases/download/v2.19.1/ergo-2.19.1-macos-$arch.tar.gz"
+		tar xf ergo.tgz
+	}
+	brew list znc >/dev/null 2>&1 || brew install znc
+	echo "bouncers in $dir (ZNC from Homebrew)"
+	exit 0
+fi
 dir=${BNC_HOME:-$HOME/.cache/nexchat-ref/bnc}
 mkdir -p "$dir"
 cd "$dir"

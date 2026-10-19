@@ -81,6 +81,16 @@ test('bouncers-search', find_program('sh'),
   args: [files('../../tests/bouncers-search.sh'), hexchat_text],
   timeout: 300,
 )
+
+# every setting and every network-list field survives a save and a restart
+test('prefs-roundtrip', find_program('python3'),
+  args: [files('../../tests/prefs-roundtrip.py'), hexchat_text],
+  timeout: 120,
+)
+test('servlist-roundtrip', find_program('python3'),
+  args: [files('../../tests/servlist-roundtrip.py'), hexchat_text],
+  timeout: 60,
+)
 test('redact', find_program('sh'),
   args: [files('../../tests/redact.sh'), hexchat_text],
   timeout: 120,

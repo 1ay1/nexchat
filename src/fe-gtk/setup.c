@@ -2291,6 +2291,13 @@ setup_apply (struct hexchatprefs *pr)
 #endif
 }
 
+static gboolean
+setup_press_ok (gpointer b)
+{
+	g_signal_emit_by_name (b, "clicked");
+	return G_SOURCE_REMOVE;
+}
+
 static void
 setup_ok_cb (GtkWidget *but, GtkWidget *win)
 {
@@ -2333,6 +2340,9 @@ setup_window_open (void)
 	g_signal_connect (G_OBJECT (wid), "clicked",
 							G_CALLBACK (setup_ok_cb), win);
 	nx_box_pack_start (hbbox, wid, FALSE, FALSE, 0);
+	/* tests: NEXCHAT_PREFS_OK=1 presses OK once the window is up */
+	if (g_getenv ("NEXCHAT_PREFS_OK"))
+		g_timeout_add (1500, setup_press_ok, wid);
 
 	nx_widget_show_all (win);
 

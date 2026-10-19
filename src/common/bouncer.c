@@ -204,15 +204,50 @@ sync_name (ircnet *base, const char *netname)
 	return g_strdup_printf ("%s/%s", base->name, netname);
 }
 
-/* a server is connected with this entry */
+/* a tab (connected or not) is on this entry */
 static gboolean
-is_in_use (ircnet *net)
+has_tab (ircnet *net)
 {
 	GSList *l;
 	for (l = serv_list; l; l = l->next)
 		if (((server *) l->data)->network == net)
 			return TRUE;
 	return FALSE;
+}
+
+/* a server is connected (or connecting) with this entry */
+static gboolean
+is_in_use (ircnet *net)
+{
+	GSList *l;
+	for (l = serv_list; l; l = l->next)
+	{
+		server *sv = l->data;
+		if (sv->network == net && (sv->connected || sv->connecting))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/* an entry is going: tabs that still point at it let go, and don't come
+   back on their own (soju closed them because the network was removed) */
+static void
+release_entry (ircnet *net)
+{
+	GSList *l;
+	for (l = serv_list; l; l = l->next)
+	{
+		server *sv = l->data;
+		if (sv->network == net)
+		{
+			if (sv->recondelay_tag)
+			{
+				fe_timeout_remove (sv->recondelay_tag);
+				sv->recondelay_tag = 0;
+			}
+			sv->network = NULL;
+		}
+	}
 }
 
 /* the bouncer's own entry: the one we connected with, minus any /network */
@@ -266,9 +301,11 @@ open_networks_now (gpointer data)
 		char *name = sync_name (base, n->name ? n->name : n->id);
 		ircnet *e = servlist_net_find (name, NULL, strcmp);
 
-		if (e && !is_in_use (e))
+		if (e && !has_tab (e))
 		{
-			servlist_connect (NULL, e, TRUE);
+			/* in the background: you stay where you were typing */
+			session *bg = new_ircwindow (NULL, NULL, SESS_SERVER, FALSE);
+			servlist_connect (bg, e, TRUE);
 			opened++;
 		}
 		g_free (name);
@@ -399,8 +436,10 @@ sync_networks (server *serv)
 		g_free (name);
 	}
 
-	/* entries for networks the bouncer doesn't have any more */
-	for (l = network_list; l; l = next)
+	/* entries for networks the bouncer doesn't have any more. Only the
+	   bouncer's own connection decides that: a network tab's list can be
+	   a moment behind, and would take away one that was just added */
+	for (l = s->bound ? NULL : network_list; l; l = next)
 	{
 		ircnet *e = l->data;
 		gboolean still = FALSE;
@@ -413,8 +452,11 @@ sync_networks (server *serv)
 			bnc_network *n = s->networks->pdata[i];
 			still = !strcmp (e->name + strlen (prefix), n->name ? n->name : n->id);
 		}
-		if (!still && !is_in_use (e))
+		/* gone from the bouncer: its entry goes too, even if a tab is still
+		   on it (soju is closing that tab; it mustn't dial again) */
+		if (!still)
 		{
+			release_entry (e);
 			servlist_net_remove (e);
 			dirty = TRUE;
 		}
@@ -1701,7 +1743,10 @@ bouncer_forget (ircnet *net)
 		ircnet *e = l->data;
 		next = l->next;
 		if (g_str_has_prefix (e->name, prefix) && !is_in_use (e))
+		{
+			release_entry (e);
 			servlist_net_remove (e);
+		}
 	}
 	g_free (prefix);
 	if (last_errors)
@@ -1711,6 +1756,9 @@ bouncer_forget (ircnet *net)
 	if (is_in_use (net))
 		net->flags &= ~FLAG_BOUNCER;
 	else
+	{
+		release_entry (net);
 		servlist_net_remove (net);
+	}
 	servlist_save ();
 }

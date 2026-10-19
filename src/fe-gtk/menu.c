@@ -1144,6 +1144,8 @@ menu_delautoconn_cb (nx_item *item, gpointer data)
 {
 	server *serv = data;
 
+	if (!serv->network)
+		return;
 	((ircnet*)serv->network)->flags &= ~FLAG_AUTO_CONNECT;
 	servlist_save ();
 }
@@ -1153,6 +1155,8 @@ menu_addautoconn_cb (nx_item *item, gpointer data)
 {
 	server *serv = data;
 
+	if (!serv->network)
+		return;
 	((ircnet*)serv->network)->flags |= FLAG_AUTO_CONNECT;
 	servlist_save ();
 }

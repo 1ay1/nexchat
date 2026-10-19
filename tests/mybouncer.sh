@@ -14,7 +14,7 @@ bnc_have || { echo "mybouncer: not fetched (tests/bnc/fetch.sh), skipped"; exit 
 tmp=$(mktemp -d)
 trap 'st=$?; [ -f "$tmp/cfg/bouncer/port" ] && pkill -f "soju -config $tmp/cfg/bouncer/config" 2>/dev/null; bnc_stop; rm -rf "$tmp"; exit $st' EXIT
 bnc_start "$tmp/lab"
-export NEXCHAT_SOJU_DIR=$BNC_HOME/usr/bin NEXCHAT_BOUNCER_NO_SYSTEMD=1
+export NEXCHAT_SOJU_DIR=$SOJU_BIN_DIR NEXCHAT_BOUNCER_NO_SYSTEMD=1
 
 fail=0
 ok() { echo "ok:   $1"; }
@@ -52,7 +52,7 @@ has 'Your bouncer is running while nexchat is' "set up, and says how it's kept r
 has 'Lab: done' "the network was moved"
 has '1 network moved to your bouncer' "and counted"
 [ -f "$tmp/cfg/bouncer/config" ] && grep -q '127.0.0.1' "$tmp/cfg/bouncer/config" && ok "its config is in nexchat's folder, loopback only" || bad "config"
-perm=$(stat -c %a "$tmp/cfg/bouncer/password")
+perm=$(stat -c %a "$tmp/cfg/bouncer/password" 2>/dev/null || stat -f %Lp "$tmp/cfg/bouncer/password")
 [ "$perm" = 600 ] && ok "its password file is private ($perm)" || bad "password file mode $perm"
 port=$(cat "$tmp/cfg/bouncer/port")
 grep -A12 '^N=Lab$' "$tmp/cfg/servlist.conf" | grep -q "^S=127.0.0.1/$port$" && ok "the entry now goes through the bouncer" || { bad "entry"; cat "$tmp/cfg/servlist.conf"; }
@@ -96,8 +96,8 @@ grep -q '^title "My Bouncer"' "$tmp/cfg/bouncer/config" && ok "title in soju's c
 grep -q '^message-store fs ' "$tmp/cfg/bouncer/config" && ok "logs kept as files" || bad "logs as files"
 has 'logs files, title "My Bouncer"' "/bouncer set shows them"
 pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && ok "soju running again after the restart" || bad "soju didn't come back"
-"$BNC_HOME/usr/bin/sojuctl" -config "$tmp/cfg/bouncer/config" user run me network status > "$tmp/ns" 2>&1 || true
-"$BNC_HOME/usr/bin/sojuctl" -config "$tmp/cfg/bouncer/config" user run me channel status -network Lab > "$tmp/cs" 2>&1 || true
+"$SOJU_BIN_DIR/sojuctl" -config "$tmp/cfg/bouncer/config" user run me network status > "$tmp/ns" 2>&1 || true
+"$SOJU_BIN_DIR/sojuctl" -config "$tmp/cfg/bouncer/config" user run me channel status -network Lab > "$tmp/cs" 2>&1 || true
 grep -q '#other' "$tmp/cs" && grep '#other' "$tmp/cs" | grep -q detached && ok "#other added, detached" || { bad "channel"; cat "$tmp/cs"; }
 
 # put it back

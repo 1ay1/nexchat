@@ -7,10 +7,26 @@
 # The binaries come from tests/bnc/fetch.sh (into ~/.cache/nexchat-ref/bnc).
 
 BNC_HOME=${BNC_HOME:-$HOME/.cache/nexchat-ref/bnc}
-ERGO=$BNC_HOME/ergo-2.19.1-linux-x86_64/ergo
-SOJU=$BNC_HOME/usr/bin/soju
-SOJUDB=$BNC_HOME/usr/bin/sojudb
+ERGO_DIR=$BNC_HOME/ergo-2.19.1-linux-x86_64
+ERGO=$ERGO_DIR/ergo
+SOJU_BIN_DIR=$BNC_HOME/usr/bin
+SOJU=$SOJU_BIN_DIR/soju
+SOJUDB=$SOJU_BIN_DIR/sojudb
 ZNC=$BNC_HOME/usr/bin/znc
+ZNC_MODS=$BNC_HOME/usr/lib/znc
+# macOS: Linux binaries don't run; tests/bnc/fetch.sh builds soju with Go,
+# takes Ergo's macOS build, and ZNC comes from Homebrew
+if [ "$(uname)" = Darwin ]; then
+	BNC_HOME=${BNC_MAC_HOME:-$HOME/.cache/nexchat-ref/bnc-mac}
+	ERGO_DIR=$BNC_HOME/ergo-2.19.1-macos-$(uname -m | sed 's/x86_64/x86_64/;s/arm64/arm64/')
+	ERGO=$ERGO_DIR/ergo
+	SOJU=$BNC_HOME/bin/soju
+	SOJUDB=$BNC_HOME/bin/sojudb
+	SOJU_BIN_DIR=$BNC_HOME/bin
+	ZNC_PREFIX=$(brew --prefix znc 2>/dev/null || echo /opt/homebrew/opt/znc)
+	ZNC=$ZNC_PREFIX/bin/znc
+	ZNC_MODS=$ZNC_PREFIX/lib/znc
+fi
 
 bnc_have() { [ -x "$ERGO" ] && [ -x "$SOJU" ] && [ -x "$ZNC" ]; }
 
@@ -35,7 +51,7 @@ bnc_start() {
 	ERGO_PORT=$(bnc_port); SOJU_PORT=$(bnc_port); ZNC_PORT=$(bnc_port)
 
 	# Ergo: its default config, plaintext on loopback, no STS, always-on opt-in
-	python3 - "$BNC_HOME/ergo-2.19.1-linux-x86_64/default.yaml" "$BNC_DIR/ergo/ircd.yaml" "$ERGO_PORT" "$BNC_DIR/ergo" <<'EOF'
+	python3 - "$ERGO_DIR/default.yaml" "$BNC_DIR/ergo/ircd.yaml" "$ERGO_PORT" "$BNC_DIR/ergo" <<'EOF'
 import re, sys
 s = open(sys.argv[1]).read()
 s = re.sub(r'    listeners:\n(.*?)\n    # sets the permissions',
@@ -49,7 +65,7 @@ s = s.replace('enabled: true # verification', 'enabled: false # verification')
 s = s.replace('allow-individual-delete: false', 'allow-individual-delete: true')
 open(sys.argv[2], 'w').write(s)
 EOF
-	cp -r "$BNC_HOME/ergo-2.19.1-linux-x86_64/languages" "$BNC_DIR/ergo/"
+	cp -r "$ERGO_DIR/languages" "$BNC_DIR/ergo/"
 	(cd "$BNC_DIR/ergo" && "$ERGO" initdb --conf ircd.yaml >/dev/null 2>&1)
 	(cd "$BNC_DIR/ergo" && exec "$ERGO" run --conf ircd.yaml >ergo.log 2>&1) &
 	BNC_PIDS=$!
@@ -61,6 +77,7 @@ EOF
 	cat > "$BNC_DIR/soju/config" <<EOF
 listen irc+insecure://127.0.0.1:$SOJU_PORT
 listen ircs://127.0.0.1:$SOJU_TLS_PORT
+listen unix+admin://$BNC_DIR/soju/admin.sock
 tls $BNC_DIR/soju/cert.pem $BNC_DIR/soju/key.pem
 hostname localhost
 db sqlite3 $BNC_DIR/soju/soju.db
@@ -71,7 +88,7 @@ EOF
 	BNC_PIDS="$BNC_PIDS $!"
 
 	# ZNC: the modules it needs linked in, one user with a network to Ergo
-	for m in chansaver controlpanel simple_away; do ln -sf "$BNC_HOME/usr/lib/znc/$m.so" "$BNC_DIR/znc/modules/"; done
+	for m in chansaver controlpanel simple_away; do ln -sf "$ZNC_MODS/$m.so" "$BNC_DIR/znc/modules/"; done
 	cat > "$BNC_DIR/znc/configs/znc.conf" <<EOF
 Version = 1.10.3
 <Listener l>
