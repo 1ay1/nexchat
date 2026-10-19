@@ -796,6 +796,18 @@ pevt_topic_help
 %C22*%O$tTopic for %C22$1%C is: $2%O
 2
 
+Started Typing
+XP_TE_TYPINGSTART
+pevt_typing_help
+%C24*%O$t%C24$1 started typing%O
+1
+
+Stopped Typing
+XP_TE_TYPINGSTOP
+pevt_typing_help
+%C24*%O$t%C24$1 stopped typing%O
+1
+
 Topic Change
 XP_TE_NEWTOPIC
 pevt_newtopic_help

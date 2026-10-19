@@ -532,6 +532,7 @@ const struct prefs vars[] =
 	{"gui_tab_sort", P_OFFINT (hex_gui_tab_sort), TYPE_BOOL},
 	{"gui_tab_trunc", P_OFFINT (hex_gui_tab_trunc), TYPE_INT},
 	{"gui_tab_unread", P_OFFINT (hex_gui_tab_unread), TYPE_BOOL},
+	{"gui_typing_chat", P_OFFINT (hex_gui_typing_chat), TYPE_BOOL},
 	{"gui_typing_send", P_OFFINT (hex_gui_typing_send), TYPE_BOOL},
 	{"gui_typing_show", P_OFFINT (hex_gui_typing_show), TYPE_BOOL},
 	{"gui_tab_utils", P_OFFINT (hex_gui_tab_utils), TYPE_BOOL},

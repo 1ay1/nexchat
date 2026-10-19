@@ -1334,6 +1334,10 @@ static char * const pevt_sconnect_help[] = {
 	"PID"
 };
 
+static char * const pevt_typing_help[] = {
+	N_("Nickname"),
+};
+
 static char * const pevt_generic_nick_help[] = {
 	N_("Nickname"),
 	N_("Server Name"),

@@ -449,6 +449,69 @@ typing_changed (session *sess)
 	fe_typing_changed (sess);
 }
 
+/* "alice started typing" / "alice stopped typing" in the window and its
+   log, when that's turned on. Not for our own echo or history replays. */
+static void
+typing_say (session *sess, const char *nick, gboolean started)
+{
+	if (!prefs.hex_gui_typing_chat || sess->server->line_is_history ||
+		 !sess->server->p_cmp (nick, sess->server->nick))
+		return;
+	EMIT_SIGNAL (started ? XP_TE_TYPINGSTART : XP_TE_TYPINGSTOP, sess, (char *) nick, NULL, NULL, NULL, 0);
+}
+
+/* stale typers: they stopped without saying so */
+void
+typing_expire (session *sess)
+{
+	GHashTableIter it;
+	gpointer k, v;
+	gint64 now = g_get_monotonic_time () / G_USEC_PER_SEC;
+	GPtrArray *gone;
+	guint i;
+
+	if (!sess->typers)
+		return;
+	gone = g_ptr_array_new_with_free_func (g_free);
+	g_hash_table_iter_init (&it, sess->typers);
+	while (g_hash_table_iter_next (&it, &k, &v))
+		if (GPOINTER_TO_INT (v) < now)
+		{
+			g_ptr_array_add (gone, g_strdup (k));
+			g_hash_table_iter_remove (&it);
+		}
+	for (i = 0; i < gone->len; i++)
+		typing_say (sess, gone->pdata[i], FALSE);
+	g_ptr_array_free (gone, TRUE);
+}
+
+/* while anyone's typing anywhere: every second, the stale ones go (and
+   "stopped typing" is said), in every frontend */
+static guint expire_tag;
+
+static gboolean
+typing_expire_all (gpointer d)
+{
+	GSList *l;
+	gboolean any = FALSE;
+
+	for (l = sess_list; l; l = l->next)
+	{
+		session *s = l->data;
+		if (s->typers && g_hash_table_size (s->typers))
+		{
+			guint before = g_hash_table_size (s->typers);
+			typing_expire (s);
+			if (g_hash_table_size (s->typers) != before)
+				typing_changed (s);
+			any = any || g_hash_table_size (s->typers);
+		}
+	}
+	if (!any)
+		expire_tag = 0;
+	return any ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+}
+
 void
 typing_from (server *serv, const char *nick, const char *target, const char *state)
 {
@@ -464,15 +527,23 @@ typing_from (server *serv, const char *nick, const char *target, const char *sta
 		return;
 	if (!sess->typers)
 		sess->typers = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
-	if (!strcmp (state, "active"))
-		g_hash_table_replace (sess->typers, g_strdup (nick), GINT_TO_POINTER ((int) (now + 6)));
-	else if (!strcmp (state, "paused"))
-		g_hash_table_replace (sess->typers, g_strdup (nick), GINT_TO_POINTER ((int) (now + 30)));
-	else
-		g_hash_table_remove (sess->typers, nick);
+	if (!strcmp (state, "active") || !strcmp (state, "paused"))
+	{
+		gboolean was = g_hash_table_contains (sess->typers, nick);
+		g_hash_table_replace (sess->typers, g_strdup (nick),
+									 GINT_TO_POINTER ((int) (now + (!strcmp (state, "active") ? 6 : 30))));
+		if (!was)
+			typing_say (sess, nick, TRUE);
+	}
+	else if (g_hash_table_remove (sess->typers, nick))
+		typing_say (sess, nick, FALSE);
+	if (g_hash_table_size (sess->typers) && !expire_tag)
+		expire_tag = g_timeout_add_seconds (1, typing_expire_all, NULL);
 	typing_changed (sess);
 }
 
+/* their line came: they're done typing it (the line says so: no
+   "stopped typing" for it) */
 void
 typing_clear (session *sess, const char *nick)
 {
@@ -486,20 +557,15 @@ typing_text (session *sess)
 	GHashTableIter it;
 	gpointer k, v;
 	GPtrArray *who;
-	gint64 now = g_get_monotonic_time () / G_USEC_PER_SEC;
 	char *text = NULL;
 
 	if (!sess->typers || !prefs.hex_gui_typing_show)
 		return NULL;
+	typing_expire (sess);
 	who = g_ptr_array_new ();
 	g_hash_table_iter_init (&it, sess->typers);
 	while (g_hash_table_iter_next (&it, &k, &v))
-	{
-		if (GPOINTER_TO_INT (v) < now)
-			g_hash_table_iter_remove (&it);
-		else
-			g_ptr_array_add (who, k);
-	}
+		g_ptr_array_add (who, k);
 	if (who->len == 1)
 		text = g_strdup_printf (_("%s is typing..."), (char *) who->pdata[0]);
 	else if (who->len == 2)

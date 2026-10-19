@@ -52,6 +52,8 @@ void readmarker_soon (session *sess);
 void typing_from (server *serv, const char *nick, const char *target, const char *state);
 /* what to show for sess ("alice is typing..."), or NULL; g_free it */
 char *typing_text (session *sess);
+/* drop typers gone stale (6 s / 30 s), saying they stopped */
+void typing_expire (session *sess);
 /* someone stopped being a typer by sending their line */
 void typing_clear (session *sess, const char *nick);
 /* we're typing in sess (gui_typing_send): tell the server, throttled;

@@ -3203,6 +3203,9 @@ mg_typing_tick (gpointer d)
 		session *s = l->data;
 		if (s->typers && g_hash_table_size (s->typers))
 		{
+			/* every tab, not just the one shown: \"stopped typing\" is said
+			   when it happens */
+			typing_expire (s);
 			mg_typing_refresh (s);
 			any = any || (s->typers && g_hash_table_size (s->typers));
 		}

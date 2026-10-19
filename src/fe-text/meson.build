@@ -89,3 +89,7 @@ test('mybouncer', find_program('sh'),
   args: [files('../../tests/mybouncer.sh'), hexchat_text],
   timeout: 240,
 )
+test('typing-chat', find_program('sh'),
+  args: [files('../../tests/typing-chat.sh'), hexchat_text],
+  timeout: 120,
+)

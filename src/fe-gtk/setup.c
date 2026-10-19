@@ -217,6 +217,7 @@ static const setting inputbox_settings[] =
 	{ST_NUMBER, N_("Ask before sending a paste of more than:"), P_OFFINTNL(hex_gui_input_paste_max), N_("Pasting many lines by accident floods the channel. 0 never asks."), (const char **)N_("lines."), 1000},
 	{ST_TOGGLE, N_("Show commands and their usage while typing /"), P_OFFINTNL(hex_gui_input_cmdhelp), N_("A list above the input box: Up/Down pick, Tab or Enter fill in, Escape closes."),0,0},
 	{ST_TOGGLE, N_("Show who is typing"), P_OFFINTNL(hex_gui_typing_show), N_("\"alice is typing...\" under the input box, on servers that pass it on."),0,0},
+	{ST_TOGGLE, N_("Also say in the chat when someone starts and stops typing"), P_OFFINTNL(hex_gui_typing_chat), N_("\"alice started typing\" and \"alice stopped typing\" lines in the window, and in its log."),0,0},
 	{ST_TOGGLE, N_("Let others see when I'm typing"), P_OFFINTNL(hex_gui_typing_send), N_("Tells the channel or person you're typing to, on servers that pass it on."),0,0},
 	{ST_TOGGLE, N_("Show what replies answer"), P_OFFINTNL(hex_gui_replies), N_("A line like \"replying to alice: ...\" above a reply, on servers that pass replies on. Send one with /reply."),0,0},
 	{ST_TOGGLE, N_("Messages of several lines (Shift+Enter)"), P_OFFINTNL(hex_gui_multiline), N_("Shift+Enter starts a new line. On servers that allow it the lines go as one message; elsewhere each is sent on its own. Takes effect on the next connect."),0,0},
