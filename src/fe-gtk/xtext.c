@@ -201,13 +201,22 @@ static guint xtext_signals[LAST_SIGNAL];
 char *nocasestrstr (const char *text, const char *tofind);	/* util.c */
 int xtext_get_stamp_str (time_t, char **);
 static void gtk_xtext_render_page (GtkXText * xtext);
+static void gtk_xtext_render_page_now (GtkXText * xtext);
 static void gtk_xtext_calc_lines (xtext_buffer *buf, int);
-static gboolean gtk_xtext_is_selecting (GtkXText *xtext);
 static char *gtk_xtext_selection_get_text (GtkXText *xtext, int *len_ret);
+static void xtext_set_cursor (GtkXText *xtext, const char *name);
+
+/* the page looks different now: drawn on the next frame (GTK4: only
+   ::snapshot draws) */
+static void
+xtext_queue_draw (GtkXText *xtext)
+{
+	xtext->redraw_pending = TRUE;
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+}
 static textentry *gtk_xtext_nth (GtkXText *xtext, int line, int *subline);
 static void gtk_xtext_adjustment_changed (GtkAdjustment * adj,
 														GtkXText * xtext);
-static int gtk_xtext_render_ents (GtkXText * xtext, textentry *, textentry *);
 static void gtk_xtext_recalc_widths (xtext_buffer *buf, int);
 static void gtk_xtext_fix_indent (xtext_buffer *buf);
 static int gtk_xtext_find_subline (GtkXText *xtext, textentry *ent, int line);
@@ -248,7 +257,7 @@ static void
 xtext_damage (GtkXText *xtext)
 {
 	if (!xtext->in_draw)
-		gtk_widget_queue_draw (GTK_WIDGET (xtext));
+		xtext_queue_draw (xtext);
 }
 
 static void
@@ -669,21 +678,9 @@ gtk_xtext_init (GtkXText * xtext)
 	xtext->hidden = FALSE;
 	xtext->font = NULL;
 	xtext->layout = NULL;
-	xtext->jump_out_offset = 0;
-	xtext->jump_in_offset = 0;
-	xtext->clip_x = 0;
-	xtext->clip_x2 = 1000000;
-	xtext->clip_y = 0;
-	xtext->clip_y2 = 1000000;
 	xtext->urlcheck_function = NULL;
 	xtext->color_paste = FALSE;
-	xtext->skip_border_fills = FALSE;
-	xtext->skip_stamp = FALSE;
-	xtext->render_hilights_only = FALSE;
-	xtext->un_hilight = FALSE;
-	xtext->recycle = FALSE;
 	xtext->dont_render = FALSE;
-	xtext->dont_render2 = FALSE;
 	xtext->backing = NULL;
 	xtext->cr = NULL;
 	xtext->backing_scale = 1;
@@ -702,6 +699,9 @@ gtk_xtext_init (GtkXText * xtext)
 	nx_on_motion (GTK_WIDGET (xtext), gtk_xtext_motion_notify, NULL);
 	nx_on_scroll (GTK_WIDGET (xtext), gtk_xtext_scroll, NULL);
 	nx_on_crossing (GTK_WIDGET (xtext), gtk_xtext_crossing, NULL);
+	/* the I-beam is the widget's own cursor from the start: GTK shows it as
+	   soon as the pointer is over the text, before any motion handler runs */
+	xtext_set_cursor (xtext, "text");
 
 	/* separator bar colours, these never change (16-bit values from GTK2) */
 	{
@@ -792,14 +792,14 @@ gtk_xtext_adjustment_changed (GtkAdjustment * adj, GtkXText * xtext)
 		if (gtk_adjustment_get_value (xtext->adj) >= gtk_adjustment_get_upper (xtext->adj) - gtk_adjustment_get_page_size (xtext->adj))
 		{
 			if (!xtext->buffer->scrollbar_down || xtext->jump_unread)
-				gtk_widget_queue_draw (GTK_WIDGET (xtext));
+				xtext_queue_draw (xtext);
 			xtext->buffer->scrollbar_down = TRUE;
 			xtext->jump_unread = 0;
 		}
 		else
 		{
 			if (xtext->buffer->scrollbar_down)
-				gtk_widget_queue_draw (GTK_WIDGET (xtext));
+				xtext_queue_draw (xtext);
 			xtext->buffer->scrollbar_down = FALSE;
 		}
 
@@ -924,7 +924,7 @@ gtk_xtext_unrealize (GtkWidget * widget)
 {
 	backend_deinit (GTK_XTEXT (widget));
 	xtext_backing_free (GTK_XTEXT (widget));
-	GTK_XTEXT (widget)->cursor_name = NULL;
+	/* the cursor is the widget's (GTK4), it stays across unrealize */
 
 	/* GTK3: GtkWidget's unrealize unregisters and destroys our GdkWindow */
 	if (GTK_WIDGET_CLASS (parent_class)->unrealize)
@@ -1005,16 +1005,18 @@ gtk_xtext_selection_clear (xtext_buffer *buf)
 	textentry *ent;
 	int ret = 0;
 
-	ent = buf->last_ent_start;
-	while (ent)
+	/* every entry, not just last_ent_start..last_ent_end: if that range
+	   was ever out of date (a selection grown while the page scrolled, the
+	   ends recorded the other way round) the marks outside it stayed lit
+	   for good. One int test per line is nothing next to a redraw. */
+	for (ent = buf->text_first; ent; ent = ent->next)
 	{
 		if (ent->mark_start != -1)
+		{
 			ret = 1;
-		ent->mark_start = -1;
-		ent->mark_end = -1;
-		if (ent == buf->last_ent_end)
-			break;
-		ent = ent->next;
+			ent->mark_start = -1;
+			ent->mark_end = -1;
+		}
 	}
 
 	return ret;
@@ -1239,74 +1241,6 @@ gtk_xtext_draw_marker (GtkXText * xtext, textentry * ent, int y)
 	}
 }
 
-static void
-gtk_xtext_paint (GtkWidget *widget, GdkRectangle *area)
-{
-	GtkXText *xtext = GTK_XTEXT (widget);
-	textentry *ent_start, *ent_end;
-	int x, y;
-	int alloc_w = nx_widget_get_allocated_width (widget);
-	int alloc_h = nx_widget_get_allocated_height (widget);
-
-	if (area->x == 0 && area->y == 0 &&
-		 area->height == alloc_h &&
-		 area->width == alloc_w)
-	{
-		dontscroll (xtext->buffer);	/* force scrolling off */
-		gtk_xtext_render_page (xtext);
-		return;
-	}
-
-	ent_start = gtk_xtext_find_char (xtext, area->x, area->y, NULL, NULL);
-	if (!ent_start)
-	{
-		xtext_draw_bg (xtext, area->x, area->y, area->width, area->height);
-		goto xit;
-	}
-	ent_end = gtk_xtext_find_char (xtext, area->x + area->width,
-											 area->y + area->height, NULL, NULL);
-	if (!ent_end)
-		ent_end = xtext->buffer->text_last;
-
-	/* can't set a clip here, because fgc/bgc are used to draw the DB too */
-/*	backend_set_clip (xtext, area);*/
-	xtext->clip_x = area->x;
-	xtext->clip_x2 = area->x + area->width;
-	xtext->clip_y = area->y;
-	xtext->clip_y2 = area->y + area->height;
-
-	/* y is the last pixel y location it rendered text at */
-	y = gtk_xtext_render_ents (xtext, ent_start, ent_end);
-
-	if (y && y < alloc_h && !ent_end->next)
-	{
-		GdkRectangle rect;
-
-		rect.x = 0;
-		rect.y = y;
-		rect.width = alloc_w;
-		rect.height = alloc_h - y;
-
-		/* fill any space below the last line that also intersects with
-			the exposure rectangle */
-		if (gdk_rectangle_intersect (area, &rect, &rect))
-		{
-			xtext_draw_bg (xtext, rect.x, rect.y, rect.width, rect.height);
-		}
-	}
-
-	/*backend_clear_clip (xtext);*/
-	xtext->clip_x = 0;
-	xtext->clip_x2 = 1000000;
-	xtext->clip_y = 0;
-	xtext->clip_y2 = 1000000;
-
-xit:
-	x = xtext->buffer->indent - ((xtext->space_width + 1) / 2);
-	if (area->x <= x)
-		gtk_xtext_draw_sep (xtext, -1);
-}
-
 /* the "jump to latest" pill: shown while scrolled up, bottom right, with
    the number of lines that came in since; click it to go to the bottom */
 static gboolean
@@ -1417,14 +1351,14 @@ gtk_xtext_scroll_to_end (GtkXText *xtext)
 
 	gtk_adjustment_set_value (adj, gtk_adjustment_get_upper (adj) - gtk_adjustment_get_page_size (adj));
 	xtext->jump_unread = 0;
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 }
 
 void
 gtk_xtext_set_jump_button (GtkXText *xtext, gboolean show)
 {
 	xtext->jump_button = show;
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 }
 
 /* a short message ("Zoom 125%") centred near the top, then gone */
@@ -1435,7 +1369,7 @@ xtext_toast_timeout (gpointer data)
 
 	xtext->toast_tag = 0;
 	g_clear_pointer (&xtext->toast, g_free);
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 	return G_SOURCE_REMOVE;
 }
 
@@ -1447,7 +1381,7 @@ gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms)
 	if (xtext->toast_tag)
 		g_source_remove (xtext->toast_tag);
 	xtext->toast_tag = g_timeout_add (ms, xtext_toast_timeout, xtext);
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 }
 
 static void
@@ -1506,14 +1440,16 @@ gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_fu
 	all.x = all.y = 0;
 	all.width = nx_widget_get_allocated_width (GTK_WIDGET (xtext));
 	all.height = nx_widget_get_allocated_height (GTK_WIDGET (xtext));
-	/* the reference: the whole page from scratch, onto a cleared backing */
+	/* "now" is what the last frame drew; the reference is the same state
+	   drawn again onto a cleared backing. Equal unless drawing depends on
+	   anything but the current state. */
 	{
 		cairo_t *c = cairo_create (xtext->backing);
 		cairo_set_source_rgb (c, 1, 0, 1);
 		cairo_paint (c);
 		cairo_destroy (c);
 	}
-	gtk_xtext_render_page (xtext);
+	gtk_xtext_render_page_now (xtext);
 	(void) all;
 	cairo_surface_flush (xtext->backing);
 	if (png_full)
@@ -1547,6 +1483,10 @@ gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y)
 		gtk_xtext_motion_notify (w, x, y, 0, NULL);
 	else if (!strcmp (what, "release"))
 		gtk_xtext_button_release (w, 1, 1, x, y, 0, NULL);
+	else if (!strcmp (what, "leave"))
+		gtk_xtext_crossing (w, FALSE, NULL);
+	else if (!strcmp (what, "enter"))
+		gtk_xtext_crossing (w, TRUE, NULL);
 }
 
 char *
@@ -1555,10 +1495,43 @@ gtk_xtext_selection_text (GtkXText *xtext, int *len)
 	return gtk_xtext_selection_get_text (xtext, len);
 }
 
-/* Everything was already rendered into ->backing by the code that changed
-   it (append, scroll, select...), exactly when GTK2 used to draw to the
-   window. Here we just put it on screen. Only a resize leaves the backing
-   stale, then we render the whole page first. */
+gboolean
+gtk_xtext_redraw_pending (GtkXText *xtext)
+{
+	return xtext->redraw_pending && gtk_widget_get_mapped (GTK_WIDGET (xtext));
+}
+
+/* tests: entries that carry a mark but lie outside last_ent_start..
+   last_ent_end (shown highlighted, never copied: a stale selection) */
+int
+gtk_xtext_stray_marks (GtkXText *xtext)
+{
+	xtext_buffer *buf = xtext->buffer;
+	textentry *e;
+	gboolean inside = FALSE;
+	int stray = 0;
+
+	for (e = buf->text_first; e; e = e->next)
+	{
+		if (e == buf->last_ent_start)
+			inside = TRUE;
+		if (!inside && e->mark_start != -1)
+			stray++;
+		if (e == buf->last_ent_end)
+			inside = FALSE;
+	}
+	return stray;
+}
+
+/* GTK4: draw from the current state, every frame, in ::snapshot. State
+   changes (a line appended, a scroll, a selection, a link under the
+   pointer, a resize) only call gtk_widget_queue_draw(); the whole page is
+   rendered here into the backing image and put on screen. GTK2's way, kept
+   until now, was to paint the change straight away into a persistent
+   image and patch it up piece by piece (shifted for scrolls, a few rows
+   or characters redrawn), which is where half-drawn rows came from when
+   any one of those patches was off. A page is a few dozen rows: Pango
+   draws that well within a frame. */
 static gboolean
 gtk_xtext_draw (GtkWidget * widget, cairo_t * cr)
 {
@@ -1568,15 +1541,10 @@ gtk_xtext_draw (GtkWidget * widget, cairo_t * cr)
 	if (!xtext->backing)
 		return FALSE;
 
-	if (xtext->backing_stale)
-	{
-		GdkRectangle all = { 0, 0, nx_widget_get_allocated_width (widget),
-									nx_widget_get_allocated_height (widget) };
-		xtext->backing_stale = FALSE;
-		xtext->in_draw = TRUE;
-		gtk_xtext_paint (widget, &all);
-		xtext->in_draw = FALSE;
-	}
+	xtext->in_draw = TRUE;
+	xtext->redraw_pending = FALSE;
+	gtk_xtext_render_page_now (xtext);
+	xtext->in_draw = FALSE;
 
 	cairo_surface_flush (xtext->backing);
 	cairo_save (cr);
@@ -1601,73 +1569,33 @@ gtk_xtext_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 	cairo_destroy (cr);
 }
 
-/* render a selection that has extended or contracted upward */
-
-/* the entries from a to b (either order) on screen, every row of each
-   redrawn whole: background, stamp and text */
+/* how rows look changed without anything moving (the selection, a link
+   under the pointer, the separator): draw again on the next frame */
 static void
-xtext_render_span (GtkXText *xtext, textentry *a, textentry *b)
+xtext_render_visible (GtkXText *xtext)
 {
-	textentry *e;
-
-	if (!a)
-		a = b;
-	if (!b)
-		b = a;
-	if (!a)
-		return;
-	/* is b after a? */
-	for (e = a; e && e != b; e = e->next)
-		;
-	if (!e)
-	{
-		e = a;
-		a = b;
-		b = e;
-	}
-	if (a == b)
-		gtk_xtext_render_ents (xtext, a, NULL);
-	else
-		gtk_xtext_render_ents (xtext, a, b);
-}
-
-/* earlier of two entries */
-static textentry *
-xtext_first_of (textentry *a, textentry *b)
-{
-	textentry *e;
-
-	if (!a || !b)
-		return a ? a : b;
-	for (e = a; e; e = e->next)
-		if (e == b)
-			return a;
-	return b;
+	xtext_queue_draw (xtext);
 }
 
 /* the selection changed from last_ent_start..last_ent_end to start..end:
-   repaint every entry in either. GTK2 redrew only the characters that
-   changed (jump_in/jump_out offsets, no background fills) straight onto
-   the window; with proportional fonts, colour runs and HiDPI that leaves
-   slivers of the old glyphs, a row half drawn twice. Whole rows of a few
-   entries into our own backing cost nothing. */
+   repaint what's on screen, every row whole. GTK2 redrew only the
+   characters that changed (jump_in/jump_out offsets, no background fills)
+   straight onto the window; with proportional fonts, colour runs and
+   HiDPI that left slivers of old glyphs. Redrawing a span of entries
+   instead missed the part of a selection scrolled above the page (the
+   range walk starts at the page top), leaving rows highlighted that
+   weren't selected any more. The visible page is a few dozen rows into
+   our own backing: cheap, and always right. */
 static void
 gtk_xtext_selection_render (GtkXText *xtext, textentry *start_ent, textentry *end_ent)
 {
 	xtext_buffer *buf = xtext->buffer;
-	textentry *from, *to;
-
-	from = xtext_first_of (start_ent, buf->last_ent_start);
-	/* the later of the two ends */
-	to = xtext_first_of (end_ent, buf->last_ent_end) == end_ent ? buf->last_ent_end : end_ent;
-	if (!to)
-		to = end_ent;
-	xtext_render_span (xtext, from, to);
 
 	buf->last_ent_start = start_ent;
 	buf->last_ent_end = end_ent;
 	buf->last_offset_start = start_ent->mark_start;
 	buf->last_offset_end = end_ent->mark_end;
+	xtext_render_visible (xtext);
 }
 
 static void
@@ -1783,6 +1711,16 @@ gtk_xtext_selection_draw (GtkXText * xtext, gboolean render)
 
 	if (render)
 		gtk_xtext_selection_render (xtext, low_ent, high_ent);
+	else
+	{
+		/* drawn by the caller (a full redraw follows), but the range must
+		   be known now: the next clear only unmarks inside it, and marks
+		   left outside it stay highlighted and never go away */
+		xtext->buffer->last_ent_start = low_ent;
+		xtext->buffer->last_ent_end = high_ent;
+		xtext->buffer->last_offset_start = low_ent->mark_start;
+		xtext->buffer->last_offset_end = high_ent->mark_end;
+	}
 }
 
 static int
@@ -1817,8 +1755,8 @@ gtk_xtext_scrolldown_timeout (GtkXText * xtext)
 	xtext->select_start_y -= xtext->fontsize;
 	xtext->select_start_adj++;
 	gtk_adjustment_set_value (adj, gtk_adjustment_get_value (adj) + 1);
+	/* draws the scrolled page with the new selection */
 	gtk_xtext_selection_draw (xtext, TRUE);
-	gtk_xtext_render_ents (xtext, buf->pagetop_ent->next, buf->last_ent_end);
 	xtext->scroll_tag = g_timeout_add (gtk_xtext_timeout_ms (xtext, p_y - win_height),
 													(GSourceFunc)
 													gtk_xtext_scrolldown_timeout,
@@ -1861,7 +1799,6 @@ gtk_xtext_scrollup_timeout (GtkXText * xtext)
 		gtk_adjustment_set_value (adj, value);
 	}
 	gtk_xtext_selection_draw (xtext, TRUE);
-	gtk_xtext_render_ents (xtext, buf->pagetop_ent->prev, buf->last_ent_end);
 	xtext->scroll_tag = g_timeout_add (gtk_xtext_timeout_ms (xtext, p_y),
 													(GSourceFunc)
 													gtk_xtext_scrollup_timeout,
@@ -1979,18 +1916,6 @@ gtk_xtext_get_word (GtkXText * xtext, int x, int y, textentry ** ret_ent,
 	return word;
 }
 
-static void
-gtk_xtext_unrender_hilight (GtkXText *xtext)
-{
-	/* the link's entry again, whole rows, without the underline (drawing
-	   only the link's text over itself left the old underline behind) */
-	textentry *ent = xtext->hilight_ent;
-
-	xtext->hilight_ent = NULL;
-	gtk_xtext_render_ents (xtext, ent, NULL);
-	xtext->hilight_ent = ent;
-}
-
 /* pointer shape, set only when it changes */
 static void
 xtext_set_cursor (GtkXText *xtext, const char *name)
@@ -2005,11 +1930,13 @@ xtext_set_cursor (GtkXText *xtext, const char *name)
 static void
 xtext_set_base_cursor (GtkXText *xtext, int x, int y)
 {
-	int off, oob = TRUE;
-
-	if (!gtk_xtext_find_char (xtext, x, y, &off, &oob))
-		oob = TRUE;
-	xtext_set_cursor (xtext, oob ? NULL : "text");
+	/* the whole text area takes text (you can start a selection anywhere
+	   in it, past the end of a line or below the last one), so the I-beam
+	   everywhere; GTK2 showed the arrow off the characters, which made the
+	   I-beam come and go as the pointer crossed the end of each line */
+	(void) x;
+	(void) y;
+	xtext_set_cursor (xtext, "text");
 }
 
 /* within a few px of the separator line (a 1px target is too fiddly) */
@@ -2048,33 +1975,41 @@ gtk_xtext_set_url_tooltip (GtkXText *xtext, int word_type, int x, int y)
 static void
 gtk_xtext_unhover (GtkXText *xtext)
 {
-	gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), NULL);
-	if (xtext->cursor_hand)
+	/* only when there is one: clearing it on every motion makes GTK tear
+	   down and re-query the tooltip popup each time (on macOS a hide/show of
+	   its window, flickering the pointer and tripping GTK's surface freeze
+	   bug) */
+	if (gtk_widget_get_has_tooltip (GTK_WIDGET (xtext)))
+		gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), NULL);
+	if (xtext->cursor_hand || xtext->cursor_resize)
 	{
-		gtk_xtext_unrender_hilight (xtext);
+		gboolean had_link = xtext->hilight_ent != NULL;
+
 		xtext->hilight_start = -1;
 		xtext->hilight_end = -1;
 		xtext->cursor_hand = FALSE;
-		xtext->hilight_ent = NULL;
-	}
-
-	if (xtext->cursor_resize)
-	{
-		gtk_xtext_unrender_hilight (xtext);
-		xtext->hilight_start = -1;
-		xtext->hilight_end = -1;
 		xtext->cursor_resize = FALSE;
 		xtext->hilight_ent = NULL;
+		/* the link's underline off: one redraw */
+		if (had_link)
+			xtext_render_visible (xtext);
 	}
 }
 
 static void
 gtk_xtext_crossing (GtkWidget *widget, gboolean entered, gpointer unused)
 {
-	if (!entered && !GTK_XTEXT (widget)->moving_separator && !GTK_XTEXT (widget)->button_down)
+	GtkXText *xtext = GTK_XTEXT (widget);
+
+	/* GTK shows a widget's cursor itself whenever the pointer is over it;
+	   leaving just drops the link/separator hover. The cursor is the
+	   I-beam again for the next entry (it used to be cleared here and only
+	   set back on the next motion, so coming in without moving left the
+	   arrow, or the last link's hand) */
+	if (!entered && !xtext->moving_separator && !xtext->button_down)
 	{
-		gtk_xtext_unhover (GTK_XTEXT (widget));
-		xtext_set_cursor (GTK_XTEXT (widget), NULL);
+		gtk_xtext_unhover (xtext);
+		xtext_set_cursor (xtext, "text");
 	}
 }
 
@@ -2191,6 +2126,18 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 
 	if (xtext->button_down)
 	{
+		/* a click, not a drag, until the pointer has moved past the drag
+		   threshold: a hand (a trackpad more so) moves a pixel or two between
+		   press and release, and that must not select a character or two
+		   instead of clearing the selection */
+		if (!xtext->drag_started)
+		{
+			int t = 8;
+			g_object_get (gtk_widget_get_settings (widget), "gtk-dnd-drag-threshold", &t, NULL);
+			if (abs (x - xtext->select_start_x) <= t && abs (y - xtext->select_start_y) <= t)
+				return;
+			xtext->drag_started = TRUE;
+		}
 		xtext_set_cursor (xtext, "text");
 		redraw = gtk_xtext_check_mark_stamp (xtext, mask);
 		xtext->select_end_x = x;
@@ -2201,8 +2148,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 		if (redraw)
 		{
 			xtext->force_stamp = TRUE;
-			gtk_xtext_render_ents (xtext, xtext->buffer->last_ent_start,
-										  xtext->buffer->last_ent_end);
+			xtext_render_visible (xtext);
 			xtext->force_stamp = FALSE;
 		}
 		return;
@@ -2213,7 +2159,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 		if (hover != xtext->jump_hover)
 		{
 			xtext->jump_hover = hover;
-			gtk_widget_queue_draw (widget);
+			xtext_queue_draw (GTK_XTEXT (widget));
 		}
 		if (hover)
 		{
@@ -2258,15 +2204,12 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 			}
 			xtext_set_cursor (xtext, "pointer");
 
-			/* un-render the old hilight */
-			if (xtext->hilight_ent)
-				gtk_xtext_unrender_hilight (xtext);
-
+			/* the underline moves to this link: one redraw does both */
 			xtext->hilight_ent = word_ent;
 			xtext->hilight_start = offset;
 			xtext->hilight_end = offset + len;
 
-			gtk_xtext_render_ents (xtext, word_ent, NULL);
+			xtext_render_visible (xtext);
 		}
 		return;
 	}
@@ -2382,15 +2325,11 @@ gtk_xtext_line_text_at (GtkXText *xtext, int x, int y)
 static void
 gtk_xtext_unselect (GtkXText *xtext)
 {
-	xtext_buffer *buf = xtext->buffer;
-	textentry *a = buf->last_ent_start, *b = buf->last_ent_end;
-
 	gtk_xtext_selection_clear (xtext->buffer);
-	/* whole rows, see gtk_xtext_selection_render */
-	xtext_render_span (xtext, a, b);
-
 	xtext->buffer->last_ent_start = NULL;
 	xtext->buffer->last_ent_end = NULL;
+	/* whole page, see gtk_xtext_selection_render */
+	xtext_render_visible (xtext);
 }
 
 static void
@@ -2428,7 +2367,7 @@ gtk_xtext_button_release (GtkWidget * widget, guint button, int n_press,
 			gtk_xtext_adjustment_set (xtext->buffer, TRUE);
 			gtk_xtext_render_page (xtext);
 		} else
-			gtk_xtext_draw_sep (xtext, -1);
+			xtext_render_visible (xtext);
 		if (!xtext_on_separator (xtext, x))
 		{
 			xtext->cursor_resize = FALSE;
@@ -2447,8 +2386,9 @@ gtk_xtext_button_release (GtkWidget * widget, guint button, int n_press,
 		}
 
 
-		/* got a new selection? */
-		if (xtext->buffer->last_ent_start)
+		/* got a new selection? (a drag, or a double/triple click) */
+		if (xtext->buffer->last_ent_start &&
+			 (xtext->drag_started || xtext->word_select || xtext->line_select))
 		{
 			xtext->color_paste = FALSE;
 			if (state & STATE_CTRL || prefs.hex_text_autocopy_color)
@@ -2465,23 +2405,25 @@ gtk_xtext_button_release (GtkWidget * widget, guint button, int n_press,
 		{
 			xtext->word_select = FALSE;
 			xtext->line_select = FALSE;
+			xtext->drag_started = FALSE;
 			return FALSE;
 		}
 
-		if (xtext->select_start_x == x &&
-			 xtext->select_start_y == y &&
-			 xtext->buffer->last_ent_start)
+		/* a click (no drag past the threshold): clears any selection, and is
+		   a click on whatever's there (a link, a nick) */
+		if (!xtext->drag_started)
 		{
-			gtk_xtext_unselect (xtext);
-			xtext->mark_stamp = FALSE;
-			return FALSE;
-		}
-
-		if (!gtk_xtext_is_selecting (xtext))
-		{
+			if (xtext->buffer->last_ent_start)
+			{
+				gtk_xtext_unselect (xtext);
+				xtext->mark_stamp = FALSE;
+				return FALSE;
+			}
 			word = gtk_xtext_get_word (xtext, x, y, 0, 0, 0, 0);
 			gtk_xtext_emit_click (xtext, (char *) word, button, 1, state);
+			return FALSE;
 		}
+		xtext->drag_started = FALSE;
 	}
 
 	return FALSE;
@@ -2552,12 +2494,13 @@ gtk_xtext_button_press (GtkWidget * widget, guint button, int n_press,
 	if (xtext_on_separator (xtext, x))
 	{
 		xtext->moving_separator = TRUE;
-		/* draw the separator line */
-		gtk_xtext_draw_sep (xtext, -1);
+		/* the separator drawn in its "moving" look */
+		xtext_render_visible (xtext);
 		return FALSE;
 	}
 
 	xtext->button_down = TRUE;
+	xtext->drag_started = FALSE;
 	xtext->select_start_x = x;
 	xtext->select_start_y = y;
 	xtext->select_start_adj = gtk_adjustment_get_value (xtext->adj);
@@ -2575,28 +2518,6 @@ gtk_xtext_selection_kill (GtkXText *xtext, gpointer unused)
 		gtk_xtext_unselect (xtext);
 #endif
 	return TRUE;
-}
-
-static gboolean
-gtk_xtext_is_selecting (GtkXText *xtext)
-{
-	textentry *ent;
-	xtext_buffer *buf;
-
-	buf = xtext->selection_buffer;
-	if (!buf)
-		return FALSE;
-
-	for (ent = buf->last_ent_start; ent; ent = ent->next)
-	{
-		if (ent->mark_start != -1 && ent->mark_end - ent->mark_start > 0)
-			return TRUE;
-
-		if (ent == buf->last_ent_end)
-			break;
-	}
-
-	return FALSE;
 }
 
 static char *
@@ -2966,61 +2887,17 @@ gtk_xtext_render_flush (GtkXText * xtext, int x, int y, unsigned char *str,
 								int len, xtext_gc *gc, int *emphasis)
 {
 	int str_width, dofill;
-	GdkRectangle clip, dest;
-	int clipped;
 
 	if (xtext->dont_render || len < 1 || xtext->hidden)
 		return 0;
 
 	str_width = backend_get_text_width_emph (xtext, str, len, *emphasis);
 
-	if (xtext->dont_render2)
-		return str_width;
-
-	/* roll-your-own clipping (avoiding XftDrawString is always good!) */
-	if (x > xtext->clip_x2 || x + str_width < xtext->clip_x)
-		return str_width;
-	if (y - xtext->font->ascent > xtext->clip_y2 || (y - xtext->font->ascent) + xtext->fontsize < xtext->clip_y)
-		return str_width;
-
-	if (xtext->render_hilights_only)
-	{
-		if (!xtext->in_hilight)	/* is it a hilight prefix? */
-			return str_width;
-		if (!xtext->un_hilight)	/* doing a hilight? no need to draw the text */
-			goto dounder;
-	}
-
-	/* GTK2 rendered each run into a scratch pixmap and copied only the part
-	   inside clip_x/x2/y/y2 to the window (to avoid flicker). We already draw
-	   off-screen, so clipping the backing context does the same job. */
-	clip.x = xtext->clip_x;
-	clip.y = xtext->clip_y;
-	clip.width = xtext->clip_x2 - xtext->clip_x;
-	clip.height = xtext->clip_y2 - xtext->clip_y;
-
-	dest.x = x;
-	dest.y = y - xtext->font->ascent;
-	dest.width = str_width;
-	dest.height = xtext->fontsize;
-
-	if (!gdk_rectangle_intersect (&clip, &dest, &dest))
-		goto decorations;
-
-	clipped = xtext->cr != NULL;
-	if (clipped)
-	{
-		cairo_save (xtext->cr);
-		cairo_rectangle (xtext->cr, dest.x, dest.y, dest.width, dest.height);
-		cairo_clip (xtext->cr);
-	}
-
 	dofill = TRUE;
 
-	/* backcolor is always handled by XDrawImageString */
+	/* a background image behind text that has no colour of its own */
 	if (!xtext->backcolor && xtext->pixmap)
 	{
-		/* draw the background image behind the text */
 		xtext_draw_bg (xtext, x, y - xtext->font->ascent, str_width,
 							xtext->fontsize);
 		dofill = FALSE;	/* already drawn the background */
@@ -3028,10 +2905,6 @@ gtk_xtext_render_flush (GtkXText * xtext, int x, int y, unsigned char *str,
 
 	backend_draw_text_emph (xtext, dofill, gc, x, y, str, len, str_width, *emphasis);
 
-	if (clipped)
-		cairo_restore (xtext->cr);
-
-decorations:
 	if (xtext->strikethrough)
 	{
 		/* pango_attr_strikethrough_new does not render in the custom widget so we need to reinvent the wheel */
@@ -3041,9 +2914,7 @@ decorations:
 
 	if (xtext->underline)
 	{
-dounder:
-		/* one pixel under the baseline; not clipped, same as GTK2 which drew
-		   this straight to the window outside its scratch pixmap */
+		/* one pixel under the baseline */
 		xtext_draw_line (xtext, &gc->fg, x, y + 1, x + str_width - 1, y + 1);
 	}
 
@@ -3168,14 +3039,11 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 	if (xtext->hilight_ent == ent &&
 		 xtext->hilight_start <= i + offset && xtext->hilight_end > i + offset)
 	{
-		if (!xtext->un_hilight)
-		{
-			xtext->underline = TRUE;
-		}
+		xtext->underline = TRUE;
 		xtext->in_hilight = TRUE;
 	}
 
-	if (!xtext->skip_border_fills && !xtext->dont_render)
+	if (!xtext->dont_render)
 	{
 		/* draw background to the left of the text */
 		if (str == ent->str && indent > MARGIN && xtext->buffer->time_stamp)
@@ -3189,16 +3057,9 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 		} else
 		{
 			/* fill the indent area with background gc */
-			if (indent >= xtext->clip_x)
-			{
-				xtext_draw_bg (xtext, 0, y - xtext->font->ascent,
-									MIN (indent, xtext->clip_x2), xtext->fontsize);
-			}
+			xtext_draw_bg (xtext, 0, y - xtext->font->ascent, indent, xtext->fontsize);
 		}
 	}
-
-	if (xtext->jump_in_offset > 0 && offset < xtext->jump_in_offset)
-		xtext->dont_render2 = TRUE;
 
 	while (i < len)
 	{
@@ -3208,10 +3069,7 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 			RENDER_FLUSH;
 			pstr += j;
 			j = 0;
-			if (!xtext->un_hilight)
-			{
-				xtext->underline = TRUE;
-			}
+			xtext->underline = TRUE;
 
 			xtext->in_hilight = TRUE;
 		}
@@ -3432,23 +3290,6 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 			}
 		}
 
-		/* have we been told to stop rendering at this point? */
-		if (xtext->jump_out_offset > 0 && xtext->jump_out_offset <= (i + offset))
-		{
-			gtk_xtext_render_flush (xtext, x, y, pstr, j, gc, emphasis);
-			ret = 0;	/* skip the rest of the lines, we're done. */
-			j = 0;
-			break;
-		}
-
-		if (xtext->jump_in_offset > 0 && xtext->jump_in_offset == (i + offset))
-		{
-			RENDER_FLUSH;
-			pstr += j;
-			j = 0;
-			xtext->dont_render2 = FALSE;
-		}
-
 		if (xtext->hilight_ent == ent && xtext->hilight_end == (i + offset))
 		{
 			RENDER_FLUSH;
@@ -3456,12 +3297,6 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 			j = 0;
 			xtext->underline = FALSE;
 			xtext->in_hilight = FALSE;
-			if (xtext->render_hilights_only)
-			{
-				/* stop drawing this ent */
-				ret = 0;
-				break;
-			}
 		}
 
 		if (!mark && ent->mark_start == (i + offset))
@@ -3514,19 +3349,12 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 	{
 		/* draw separator now so it doesn't appear to flicker */
 		gtk_xtext_draw_sep (xtext, y - xtext->font->ascent);
-		if (!xtext->skip_border_fills && xtext->clip_x2 >= x)
-		{
-			int xx = MAX (x, xtext->clip_x);
-
-			xtext_draw_bg (xtext,
-								xx,	/* x */
-								y - xtext->font->ascent, /* y */
-				MIN (xtext->clip_x2 - xx, (win_width + MARGIN) - xx), /* width */
-								xtext->fontsize);		/* height */
-		}
+		xtext_draw_bg (xtext,
+							x,	/* x */
+							y - xtext->font->ascent, /* y */
+							(win_width + MARGIN) - x, /* width */
+							xtext->fontsize);		/* height */
 	}
-
-	xtext->dont_render2 = FALSE;
 
 	/* return how much we drew in the x direction */
 	if (x_size_ret)
@@ -3701,16 +3529,12 @@ gtk_xtext_render_stamp (GtkXText * xtext, textentry * ent,
 								char *text, int len, int line, int win_width)
 {
 	textentry tmp_ent;
-	int jo, ji, hs;
+	int hs;
 	int xsize, y, emphasis;
 
 	/* trashing ent here, so make a backup first */
 	memcpy (&tmp_ent, ent, sizeof (tmp_ent));
-	jo = xtext->jump_out_offset;	/* back these up */
-	ji = xtext->jump_in_offset;
 	hs = xtext->hilight_start;
-	xtext->jump_out_offset = 0;
-	xtext->jump_in_offset = 0;
 	xtext->hilight_start = 0xffff;	/* temp disable */
 	emphasis = 0;
 
@@ -3736,8 +3560,6 @@ gtk_xtext_render_stamp (GtkXText * xtext, textentry * ent,
 
 	/* restore everything back to how it was */
 	memcpy (ent, &tmp_ent, sizeof (tmp_ent));
-	xtext->jump_out_offset = jo;
-	xtext->jump_in_offset = ji;
 	xtext->hilight_start = hs;
 
 	/* with a non-fixed-width font, sometimes we don't draw enough
@@ -3770,8 +3592,7 @@ gtk_xtext_render_line (GtkXText * xtext, textentry * ent, int line,
 	start_subline = subline;
 
 	/* draw the timestamp */
-	if (xtext->auto_indent && xtext->buffer->time_stamp &&
-		 (!xtext->skip_stamp || xtext->mark_stamp || xtext->force_stamp))
+	if (xtext->auto_indent && xtext->buffer->time_stamp)
 	{
 		char *time_str;
 		int len;
@@ -4032,7 +3853,7 @@ gtk_xtext_set_background (GtkXText * xtext, GdkPixbuf * pixbuf)
 	}
 
 	xtext->backing_stale = TRUE;
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 }
 
 void
@@ -4180,93 +4001,35 @@ gtk_xtext_nth (GtkXText *xtext, int line, int *subline)
 
 /* render enta (or an inclusive range enta->entb) */
 
-static int
-gtk_xtext_render_ents (GtkXText * xtext, textentry * enta, textentry * entb)
-{
-	textentry *ent, *orig_ent, *tmp_ent;
-	int line;
-	int lines_max;
-	int width;
-	int height;
-	int subline;
-	int drawing = FALSE;
 
-	if (xtext->buffer->indent < MARGIN)
-		xtext->buffer->indent = MARGIN;	  /* 2 pixels is our left margin */
+/* render a whole page/window, starting from 'startline': only from
+   ::snapshot (gtk_xtext_draw). Everything else asks for it with
+   gtk_xtext_render_page(), which just queues a draw. */
 
-	height = nx_widget_get_height (GTK_WIDGET (xtext));
-	width = nx_widget_get_width (GTK_WIDGET (xtext));
-	width -= MARGIN;
+static void gtk_xtext_render_page_now (GtkXText * xtext);
 
-	if (width < 32 || height < xtext->fontsize || width < xtext->buffer->indent + 30)
-		return 0;
-
-	lines_max = ((height + xtext->pixel_offset) / xtext->fontsize) + 1;
-	line = 0;
-	orig_ent = xtext->buffer->pagetop_ent;
-	subline = xtext->buffer->pagetop_subline;
-
-	/* used before a complete page is in buffer */
-	if (orig_ent == NULL)
-		orig_ent = xtext->buffer->text_first;
-
-	/* check if enta is before the start of this page */
-	if (entb)
-	{
-		tmp_ent = orig_ent;
-		while (tmp_ent)
-		{
-			if (tmp_ent == enta)
-				break;
-			if (tmp_ent == entb)
-			{
-				drawing = TRUE;
-				break;
-			}
-			tmp_ent = tmp_ent->next;
-		}
-	}
-
-	ent = orig_ent;
-	while (ent)
-	{
-		if (entb && ent == enta)
-			drawing = TRUE;
-
-		if (drawing || ent == entb || ent == enta)
-		{
-			gtk_xtext_reset (xtext, FALSE, TRUE);
-			line += gtk_xtext_render_line (xtext, ent, line, lines_max,
-													 subline, width);
-			subline = 0;
-			xtext->jump_in_offset = 0;	/* jump_in_offset only for the 1st */
-		} else
-		{
-			if (ent == orig_ent)
-			{
-				line -= subline;
-				subline = 0;
-			}
-			line += g_slist_length (ent->sublines);
-		}
-
-		if (ent == entb)
-			break;
-
-		if (line >= lines_max)
-			break;
-
-		ent = ent->next;
-	}
-
-	/* space below last line */
-	return (xtext->fontsize * line) - xtext->pixel_offset;
-}
-
-/* render a whole page/window, starting from 'startline' */
-
+/* the page changed: draw it on the next frame. The page top is worked out
+   now too, since clicks and selections look rows up from it before the
+   frame comes. */
 static void
 gtk_xtext_render_page (GtkXText * xtext)
+{
+	int startline, subline = 0;
+	textentry *ent;
+
+	if (!gtk_widget_get_realized (GTK_WIDGET (xtext)))
+		return;
+	startline = gtk_adjustment_get_value (xtext->adj);
+	xtext->pixel_offset = (gtk_adjustment_get_value (xtext->adj) - startline) * xtext->fontsize;
+	ent = startline > 0 ? gtk_xtext_nth (xtext, startline, &subline) : xtext->buffer->text_first;
+	xtext->buffer->pagetop_ent = ent;
+	xtext->buffer->pagetop_subline = subline;
+	xtext->buffer->pagetop_line = startline;
+	xtext_queue_draw (xtext);
+}
+
+static void
+gtk_xtext_render_page_now (GtkXText * xtext)
 {
 	textentry *ent;
 	int line;
@@ -4275,7 +4038,7 @@ gtk_xtext_render_page (GtkXText * xtext)
 	int height;
 	int subline;
 	int startline = gtk_adjustment_get_value (xtext->adj);
-	int pos, overlap;
+	int pos;
 
 	if(!gtk_widget_get_realized(GTK_WIDGET(xtext)))
 	  return;
@@ -4305,54 +4068,7 @@ gtk_xtext_render_page (GtkXText * xtext)
 		dontscroll (xtext->buffer);
 
 	pos = gtk_adjustment_get_value (xtext->adj) * xtext->fontsize;
-	overlap = xtext->buffer->last_pixel_pos - pos;
 	xtext->buffer->last_pixel_pos = pos;
-
-	/* Scrolling: shift what's already in the backing surface and only render
-	   the strip that came into view. GTK2 did this with an XCopyArea on the
-	   window (and skipped it on macOS, where that was broken); on our own
-	   image surface it works everywhere. */
-	if (!xtext->pixmap && xtext->cr && !xtext->backing_stale && abs (overlap) < height)
-	{
-		GdkRectangle area;
-
-		/* cairo can't copy a surface onto itself directly; going through a
-		   group makes it a copy of a snapshot */
-		cairo_save (xtext->cr);
-		cairo_rectangle (xtext->cr, 0, 0, width, height);
-		cairo_clip (xtext->cr);
-		cairo_push_group (xtext->cr);
-		cairo_set_source_surface (xtext->cr, xtext->backing, 0, overlap);
-		cairo_paint (xtext->cr);
-		cairo_pop_group_to_source (xtext->cr);
-		cairo_set_operator (xtext->cr, CAIRO_OPERATOR_SOURCE);
-		cairo_paint (xtext->cr);
-		cairo_restore (xtext->cr);
-		xtext_damage (xtext);
-
-		if (overlap < 1)	/* DOWN */
-		{
-			int remainder;
-
-			remainder = ((height - xtext->font->descent) % xtext->fontsize) +
-							xtext->font->descent;
-			area.y = (height + overlap) - remainder;
-			area.height = remainder - overlap;
-		} else
-		{
-			area.y = 0;
-			area.height = overlap;
-		}
-
-		if (area.height > 0)
-		{
-			area.x = 0;
-			area.width = width;
-			gtk_xtext_paint (GTK_WIDGET (xtext), &area);
-		}
-
-		return;
-	}
 
 	width -= MARGIN;
 	lines_max = ((height + xtext->pixel_offset) / xtext->fontsize) + 1;
@@ -5009,7 +4725,7 @@ gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags fl
 		gtk_adjustment_set_value (adj, value);
 	}
 
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext_queue_draw (xtext);
 
 	return buf->hintsearch;
 }
@@ -5115,7 +4831,7 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 		{
 			buf->xtext->jump_unread++;
 			if (buf->xtext->jump_button)
-				gtk_widget_queue_draw (GTK_WIDGET (buf->xtext));
+				xtext_queue_draw (buf->xtext);
 		}
 
 		if (!buf->xtext->add_io_tag)

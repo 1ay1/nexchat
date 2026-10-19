@@ -519,7 +519,7 @@ banlist_clear_cb (GtkWidget *dialog, gint response, gpointer data)
 
 	nx_widget_destroy (GTK_WIDGET (dialog));
 
-	if (response == GTK_RESPONSE_OK)
+	if (response == NX_RESPONSE_OK)
 	{
 		nx_view_select_all (get_view (banl->sess));
 		banlist_unban (NULL, banl);

@@ -31,8 +31,6 @@ static void chanview_populate (chanview *cv);
 
 /* ignore "toggled" signal? */
 static int ignore_toggle = FALSE;
-static int tab_left_is_moving = 0;
-static int tab_right_is_moving = 0;
 
 /* userdata for gobjects used here:
  *
@@ -103,98 +101,102 @@ tab_search_offset (GtkWidget *inner, gint start_offset,
 	return 0;
 }
 
-static void
-tab_scroll_left_up_clicked (GtkWidget *widget, chanview *cv)
+/* the tab strip's scroll position and the room it shows */
+static GtkAdjustment *
+tab_adj (chanview *cv, int *page)
 {
-	GtkAdjustment *adj;
-	gint viewport_size;
-	gfloat new_value;
-	GtkWidget *inner;
-	gdouble i;
-
-	inner = ((tabview *)cv)->inner;
+	GtkWidget *view = gtk_widget_get_parent (((tabview *)cv)->inner);
 
 	if (cv->vertical)
 	{
-		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
-	} else
-	{
-		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
+		*page = nx_widget_get_height (view);
+		return gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (view));
 	}
+	*page = nx_widget_get_width (view);
+	return gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (view));
+}
 
-	new_value = tab_search_offset (inner, gtk_adjustment_get_value (adj), 0, cv->vertical);
+/* A short eased glide to the next tab, on the frame clock (GTK4's
+   animation tick): a press while it's still gliding starts from where it
+   is. GTK2 stepped it 0.1 px at a time inside a nested main loop. */
+typedef struct
+{
+	GtkAdjustment *adj;
+	double from, to;
+	gint64 start;
+	guint tick;
+} tab_glide;
 
-	if (new_value + viewport_size > gtk_adjustment_get_upper (adj))
-		new_value = gtk_adjustment_get_upper (adj) - viewport_size;
+#define TAB_GLIDE_US 180000
 
-	if (!tab_left_is_moving)
+static gboolean
+tab_glide_step (GtkWidget *w, GdkFrameClock *clock, gpointer data)
+{
+	tab_glide *g = data;
+	double t = (double) (gdk_frame_clock_get_frame_time (clock) - g->start) / TAB_GLIDE_US;
+
+	if (t >= 1.0)
 	{
-		tab_left_is_moving = 1;
-
-		for (i = gtk_adjustment_get_value (adj); ((i > new_value) && (tab_left_is_moving)); i -= 0.1)
-		{
-			gtk_adjustment_set_value (adj, i);
-			while (g_main_context_pending (NULL))
-				g_main_context_iteration (NULL, TRUE);
-		}
-
-		gtk_adjustment_set_value (adj, new_value);
-
-		tab_left_is_moving = 0;		/* hSP: set to false in case we didnt get stopped (the normal case) */
+		gtk_adjustment_set_value (g->adj, g->to);
+		g->tick = 0;
+		return G_SOURCE_REMOVE;
 	}
-	else
+	t = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);	/* ease out */
+	gtk_adjustment_set_value (g->adj, g->from + (g->to - g->from) * t);
+	return G_SOURCE_CONTINUE;
+}
+
+static void
+tab_glide_to (chanview *cv, GtkAdjustment *adj, double to)
+{
+	GtkWidget *inner = ((tabview *)cv)->inner;
+	tab_glide *g = g_object_get_data (G_OBJECT (inner), "nx-glide");
+
+	if (!g)
 	{
-		tab_left_is_moving = 0;		/* hSP: jump directly to next element if user is clicking faster than we can scroll.. */
+		g = g_new0 (tab_glide, 1);
+		g_object_set_data_full (G_OBJECT (inner), "nx-glide", g, g_free);
 	}
+	g->adj = adj;
+	g->from = gtk_adjustment_get_value (adj);
+	g->to = to;
+	if (!gtk_widget_get_mapped (inner) || g->from == to)
+	{
+		gtk_adjustment_set_value (adj, to);
+		return;
+	}
+	g->start = gdk_frame_clock_get_frame_time (gtk_widget_get_frame_clock (inner));
+	if (!g->tick)
+		g->tick = gtk_widget_add_tick_callback (inner, tab_glide_step, g, NULL);
+}
+
+static void
+tab_scroll_left_up_clicked (GtkWidget *widget, chanview *cv)
+{
+	int page;
+	GtkAdjustment *adj = tab_adj (cv, &page);
+	tab_glide *g = g_object_get_data (G_OBJECT (((tabview *)cv)->inner), "nx-glide");
+	/* from where a glide still going is heading */
+	double from = g && g->tick ? g->to : gtk_adjustment_get_value (adj);
+	double to = tab_search_offset (((tabview *)cv)->inner, from, 0, cv->vertical);
+
+	if (to + page > gtk_adjustment_get_upper (adj))
+		to = gtk_adjustment_get_upper (adj) - page;
+	tab_glide_to (cv, adj, MAX (to, gtk_adjustment_get_lower (adj)));
 }
 
 static void
 tab_scroll_right_down_clicked (GtkWidget *widget, chanview *cv)
 {
-	GtkAdjustment *adj;
-	gint viewport_size;
-	gfloat new_value;
-	GtkWidget *inner;
-	gdouble i;
+	int page;
+	GtkAdjustment *adj = tab_adj (cv, &page);
+	tab_glide *g = g_object_get_data (G_OBJECT (((tabview *)cv)->inner), "nx-glide");
+	double from = g && g->tick ? g->to : gtk_adjustment_get_value (adj);
+	double to = tab_search_offset (((tabview *)cv)->inner, from, 1, cv->vertical);
 
-	inner = ((tabview *)cv)->inner;
-
-	if (cv->vertical)
-	{
-		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
-	} else
-	{
-		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent(inner)));
-		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
-	}
-
-	new_value = tab_search_offset (inner, gtk_adjustment_get_value (adj), 1, cv->vertical);
-
-	if (new_value == 0 || new_value + viewport_size > gtk_adjustment_get_upper (adj))
-		new_value = gtk_adjustment_get_upper (adj) - viewport_size;
-
-	if (!tab_right_is_moving)
-	{
-		tab_right_is_moving = 1;
-
-		for (i = gtk_adjustment_get_value (adj); ((i < new_value) && (tab_right_is_moving)); i += 0.1)
-		{
-			gtk_adjustment_set_value (adj, i);
-			while (g_main_context_pending (NULL))
-				g_main_context_iteration (NULL, TRUE);
-		}
-
-		gtk_adjustment_set_value (adj, new_value);
-
-		tab_right_is_moving = 0;		/* hSP: set to false in case we didnt get stopped (the normal case) */
-	}
-	else
-	{
-		tab_right_is_moving = 0;		/* hSP: jump directly to next element if user is clicking faster than we can scroll.. */
-	}
+	if (to == 0 || to + page > gtk_adjustment_get_upper (adj))
+		to = gtk_adjustment_get_upper (adj) - page;
+	tab_glide_to (cv, adj, MAX (to, gtk_adjustment_get_lower (adj)));
 }
 
 static gboolean

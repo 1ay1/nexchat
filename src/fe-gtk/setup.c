@@ -58,7 +58,6 @@ static int last_selected_row = 0; /* sound row */
 static gboolean color_change;
 static struct hexchatprefs setup_prefs;
 static GtkWidget *cancel_button;
-static GtkWidget *font_dialog = NULL;
 
 enum
 {
@@ -1161,26 +1160,21 @@ setup_browsefile_cb (GtkWidget *button, GtkWidget *entry)
    three columns), but it returns the same Pango font string that goes into
    text_font, so nothing stored changes. Listed in ROADMAP section 9. */
 static void
-setup_fontsel_response (GtkWidget *dialog, int response, GtkWidget *entry)
+setup_font_chosen (GObject *src, GAsyncResult *res, gpointer data)
 {
-	if (response == GTK_RESPONSE_OK)
-	{
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-		char *font_name = gtk_font_chooser_get_font (GTK_FONT_CHOOSER (dialog));
-G_GNUC_END_IGNORE_DEPRECATIONS
-		if (font_name)
-		{
-			nx_entry_set_text (entry, font_name);
-			g_free (font_name);
-		}
-	}
-	nx_widget_destroy (GTK_WIDGET (dialog));
-}
+	GtkWidget *entry = data;
+	PangoFontDescription *fd = gtk_font_dialog_choose_font_finish (GTK_FONT_DIALOG (src), res, NULL);
 
-static void
-setup_fontsel_destroy (GtkWidget *dialog, gpointer unused)
-{
-	font_dialog = NULL;
+	if (fd)
+	{
+		char *font_name = pango_font_description_to_string (fd);
+		/* the entry's "changed" stores it and applies it live */
+		if (GTK_IS_WIDGET (entry))
+			nx_entry_set_text (entry, font_name);
+		g_free (font_name);
+		pango_font_description_free (fd);
+	}
+	g_object_unref (entry);
 }
 
 static void
@@ -1192,25 +1186,18 @@ setup_browsefolder_cb (GtkWidget *button, GtkEntry *entry)
 static void
 setup_browsefont_cb (GtkWidget *button, GtkWidget *entry)
 {
-	GtkWidget *dialog;
+	GtkFontDialog *dialog = gtk_font_dialog_new ();
+	PangoFontDescription *cur = NULL;
 
-	/* GtkFontDialog makes this same dialog underneath; kept for the
-	   synchronous response flow (deprecation known, ROADMAP step 22) */
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-	dialog = gtk_font_chooser_dialog_new (_("Select font"), GTK_WINDOW (setup_window));
-	font_dialog = dialog;	/* global var */
-	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-
+	gtk_font_dialog_set_title (dialog, _("Select font"));
+	gtk_font_dialog_set_modal (dialog, TRUE);
 	if (nx_entry_get_text (entry)[0])
-		gtk_font_chooser_set_font (GTK_FONT_CHOOSER (dialog), nx_entry_get_text (entry));
-G_GNUC_END_IGNORE_DEPRECATIONS
-
-	g_signal_connect (G_OBJECT (dialog), "destroy",
-							G_CALLBACK (setup_fontsel_destroy), NULL);
-	g_signal_connect (G_OBJECT (dialog), "response",
-							G_CALLBACK (setup_fontsel_response), entry);
-
-	nx_widget_show (dialog);
+		cur = pango_font_description_from_string (nx_entry_get_text (entry));
+	gtk_font_dialog_choose_font (dialog, GTK_WINDOW (setup_window), cur, NULL,
+										 setup_font_chosen, g_object_ref (entry));
+	if (cur)
+		pango_font_description_free (cur);
+	g_object_unref (dialog);
 }
 
 static void
@@ -1480,50 +1467,41 @@ setup_color_button_paint (GtkWidget *button, const GdkRGBA *col)
 	g_string_free (all, TRUE);
 }
 
-/* GtkColorSelectionDialog (GTK2's triangle picker) is deprecated in GTK3 and
-   gone in GTK4; GtkColorChooserDialog is its replacement. It opens straight
-   in the custom editor (hue/saturation plane + hex entry) so any colour can
-   be picked, and returns the same RGB, so colors.conf is unaffected.
-   Visual difference listed in ROADMAP section 9. */
+/* GTK4's GtkColorDialog: the system-look picker, the same RGB back, so
+   colors.conf is unaffected */
 static void
-setup_color_response (GtkWidget *dialog, int response, GtkWidget *button)
+setup_color_chosen (GObject *src, GAsyncResult *res, gpointer data)
 {
-	GdkRGBA *col = g_object_get_data (G_OBJECT (dialog), "c");
+	GtkWidget *button = data;
+	GdkRGBA *picked = gtk_color_dialog_choose_rgba_finish (GTK_COLOR_DIALOG (src), res, NULL);
+	GdkRGBA *col = g_object_get_data (G_OBJECT (button), "c");
 
-	if (response == GTK_RESPONSE_OK && GTK_IS_WIDGET (button) && col)
+	if (picked && col && gtk_widget_get_root (button))
 	{
 		color_change = TRUE;
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-		gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (dialog), col);
-G_GNUC_END_IGNORE_DEPRECATIONS
+		*col = *picked;
 		col->alpha = 1.0;	/* the palette has no transparency */
 		setup_color_button_paint (button, col);
 		setup_live ();
 	}
-	nx_widget_destroy (GTK_WIDGET (dialog));
+	if (picked)
+		gdk_rgba_free (picked);
+	g_object_unref (button);
 }
 
 static void
 setup_color_cb (GtkWidget *button, gpointer userdata)
 {
-	GtkWidget *dialog;
-	GdkRGBA *color;
+	GtkColorDialog *dialog = gtk_color_dialog_new ();
+	GdkRGBA *color = &colors[GPOINTER_TO_INT (userdata)];
 
-	color = &colors[GPOINTER_TO_INT (userdata)];
-
-	/* GtkColorDialog makes this same dialog but can't open it in the editor,
-	   which is how this always opened (deprecation known, ROADMAP step 22) */
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-	dialog = gtk_color_chooser_dialog_new (_("Select color"), GTK_WINDOW (setup_window));
-	gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (dialog), FALSE);
-	gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (dialog), color);
-G_GNUC_END_IGNORE_DEPRECATIONS
-	g_object_set (G_OBJECT (dialog), "show-editor", TRUE, NULL);
-	g_object_set_data (G_OBJECT (dialog), "c", color);
-	g_signal_connect (G_OBJECT (dialog), "response",
-							G_CALLBACK (setup_color_response), button);
-	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-	nx_widget_show (dialog);
+	gtk_color_dialog_set_title (dialog, _("Select color"));
+	gtk_color_dialog_set_modal (dialog, TRUE);
+	gtk_color_dialog_set_with_alpha (dialog, FALSE);
+	g_object_set_data (G_OBJECT (button), "c", color);
+	gtk_color_dialog_choose_rgba (dialog, GTK_WINDOW (setup_window), color, NULL,
+											setup_color_chosen, g_object_ref (button));
+	g_object_unref (dialog);
 }
 
 static void
@@ -2585,12 +2563,6 @@ setup_close_cb (GtkWidget *win, GtkWidget **swin)
 	}
 	if (setup_needs_restart)
 		fe_message (_("Some settings you changed take full effect after a restart."), FE_MSG_INFO);
-
-	if (font_dialog)
-	{
-		nx_widget_destroy (font_dialog);
-		font_dialog = NULL;
-	}
 }
 
 void

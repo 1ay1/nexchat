@@ -17,6 +17,8 @@ python3 - "$tmp/script" <<'EOF'
 import sys
 B, C, I, U, O = "\x02", "\x03", "\x1d", "\x1f", "\x0f"
 lines = [
+ ":p%d!p@h PRIVMSG #sel :earlier line %d, for scrolling up while selecting" % (i, i) for i in range(40)
+] + [
  ":alice!a@h PRIVMSG #sel :plain words on a line of their own",
  f":bob!b@h PRIVMSG #sel :{C}04red{C} {C}03green{C} {B}bold{B} {I}italic{I} {U}under{U} done",
  ":carol!c@h PRIVMSG #sel :emoji \U0001F600\U0001F389\U0001F44D and CJK \u6f22\u5b57\u304b\u306a \ud55c\uad6d\uc5b4 mixed in",
@@ -47,9 +49,10 @@ run () # name "steps"
 		timeout 30 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/#sel" >"$tmp/$1.log" 2>&1 || true
 	kill $srv 2>/dev/null || true; wait $srv 2>/dev/null || true; srv=
 	d=$(sed -n 's/^xdrag-diff: //p' "$tmp/$1.log" | tail -1)
+	s=$(sed -n 's/^xdrag-stray: //p' "$tmp/$1.log" | tail -1)
 	c=$(grep -c CRITICAL "$tmp/$1.log" || true)
-	if [ "$d" = 0 ] && [ "$c" -eq 0 ]; then ok "$1: no leftovers"
-	else bad "$1: ${d:-no result} pixels differ, $c criticals"
+	if [ "$d" = 0 ] && [ "$s" = 0 ] && [ "$c" -eq 0 ]; then ok "$1: no leftovers"
+	else bad "$1: ${d:-no result} pixels differ, ${s:-?} lines highlighted outside the selection, $c criticals"
 		[ -n "${KEEP:-}" ] && cp "$tmp/$1-now.png" "$KEEP/$1-now.png" 2>/dev/null && cp "$tmp/$1-full.png" "$KEEP/$1-full.png" 2>/dev/null
 	fi
 }
@@ -64,6 +67,43 @@ run drag-back "press 200 15$back;move 520 140;release 520 140"
 run word "dpress 220 50;release 220 50"
 run reselect "press 120 15;move 300 120;release 300 120;press 160 40;move 500 200;release 500 200;press 300 300;release 300 300"
 run hover "hover 260 70;hover 300 70;hover 360 70;hover 600 70;hover 260 70;hover 50 300"
+# a hand that wobbles: grows far down, back up past the start, down again
+wob=""; for y in 60 120 200 240 180 100 40 15 10 30 90 160 230 140 50; do wob="$wob;move $((200 + y)) $y"; done
+run wobble "press 200 120$wob;release 260 50"
+# selected, then a fresh press elsewhere and a short drag
+run press-again "press 120 15;move 400 230;release 400 230;press 300 140;move 320 150;release 320 150"
+
+# selected, then a click elsewhere clears it: exactly still, a pixel of
+# hand jitter, a few pixels (all inside the drag threshold)
+desel () # name steps
+{
+	run "$1" "$2"
+	sel=$(sed -n 's/^xdrag-sel: //p' "$tmp/$1.log" | tail -1)
+	[ -z "$sel" ] && ok "$1: deselected" || bad "$1: still selected: '$sel'"
+}
+desel click-still "press 120 15;move 400 200;release 400 200;press 250 120;release 250 120"
+desel click-jitter "press 120 15;move 400 200;release 400 200;press 250 120;move 251 120;release 251 121"
+desel click-wobble "press 120 15;move 400 200;release 400 200;press 250 120;move 253 122;move 252 119;release 254 121"
+desel click-below "press 120 15;move 400 60;release 400 60;press 300 300;release 300 300"
+# scrolled: a selection that runs above the page is cleared too
+desel click-after-scroll "press 120 230;move 300 -40;wait 30;move 300 100;release 300 100;press 200 160;release 200 160"
+
+# the pointer: the I-beam over the whole text area (on characters, past
+# the end of a line, below the last line), the hand over a link and the
+# I-beam again off it, the I-beam after leaving and coming back, and after
+# a drag
+run cursor "cursor 0 0;hover 250 30;cursor 250 30;hover 690 30;cursor 690 30;hover 400 380;cursor 400 380;hover 260 70;cursor 260 70;hover 600 70;cursor 600 70;hover 310 70;cursor 310 70;leave 0 0;enter 0 0;cursor 0 0;press 120 15;move 300 120;release 300 120;cursor 300 120"
+expect () # x y cursor
+{
+	got=$(sed -n "s/^xdrag-at: $1 $2 //p" "$tmp/cursor.log" | head -1)
+	[ "$got" = "$3" ] && ok "cursor at $1,$2: $3" || bad "cursor at $1,$2: '$got', want $3"
+}
+expect 0 0 text
+expect 250 30 text
+expect 690 30 text
+expect 400 380 text
+expect 600 70 text
+expect 300 120 text
 
 [ $fail -eq 0 ] && echo "select: ok"
 exit $fail

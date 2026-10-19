@@ -230,7 +230,7 @@ ignore_clear_cb (GtkWidget *dialog, gint response)
 
 	nx_widget_destroy (GTK_WIDGET (dialog));
 
-	if ((row = nx_store_first (store)) && response == GTK_RESPONSE_OK)
+	if ((row = nx_store_first (store)) && response == NX_RESPONSE_OK)
 	{
 		/* remove from ignore_list */
 		do

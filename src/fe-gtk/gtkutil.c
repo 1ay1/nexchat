@@ -144,68 +144,6 @@ gtkutil_container_add (GtkWidget *container, GtkWidget *child)
 					  G_OBJECT_TYPE_NAME (container));
 }
 
-typedef struct
-{
-	GMainLoop *loop;
-	int response;
-	gboolean destroyed;
-} run_info;
-
-static void
-run_response_cb (GtkWidget *dialog, int response, run_info *ri)
-{
-	ri->response = response;
-	if (g_main_loop_is_running (ri->loop))
-		g_main_loop_quit (ri->loop);
-}
-
-static void
-run_destroy_cb (GtkWidget *dialog, run_info *ri)
-{
-	ri->destroyed = TRUE;
-	if (g_main_loop_is_running (ri->loop))
-		g_main_loop_quit (ri->loop);
-}
-
-static gboolean
-run_delete_cb (GtkWidget *dialog, run_info *ri)
-{
-	/* like gtk_dialog_run: closing the window answers DELETE_EVENT and the
-	   dialog stays alive for the caller to destroy */
-	ri->response = GTK_RESPONSE_DELETE_EVENT;
-	if (g_main_loop_is_running (ri->loop))
-		g_main_loop_quit (ri->loop);
-	return TRUE;
-}
-
-int
-gtkutil_dialog_run_blocking (NxDialog *dialog)
-{
-	run_info ri = { NULL, GTK_RESPONSE_NONE, FALSE };
-	gulong h1, h2, h3;
-
-	g_object_ref (dialog);
-	h1 = g_signal_connect (dialog, "response", G_CALLBACK (run_response_cb), &ri);
-	h2 = g_signal_connect (dialog, "destroy", G_CALLBACK (run_destroy_cb), &ri);
-	h3 = g_signal_connect (dialog, "close-request", G_CALLBACK (run_delete_cb), &ri);
-
-	gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
-	nx_widget_show (GTK_WIDGET (dialog));
-
-	ri.loop = g_main_loop_new (NULL, FALSE);
-	g_main_loop_run (ri.loop);
-	g_main_loop_unref (ri.loop);
-
-	if (!ri.destroyed)
-	{
-		g_signal_handler_disconnect (dialog, h1);
-		g_signal_handler_disconnect (dialog, h2);
-		g_signal_handler_disconnect (dialog, h3);
-	}
-	g_object_unref (dialog);
-	return ri.response;
-}
-
 gboolean
 gtkutil_window_can_position (GtkWindow *win)
 {
@@ -996,11 +934,11 @@ gtkutil_get_str_response (GtkWidget *dialog, gint arg1, gpointer entry)
 
 	switch (arg1)
 	{
-	case GTK_RESPONSE_REJECT:
+	case NX_RESPONSE_REJECT:
 		callback (TRUE, text, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
-	case GTK_RESPONSE_ACCEPT:
+	case NX_RESPONSE_ACCEPT:
 		callback (FALSE, text, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
@@ -1010,7 +948,7 @@ gtkutil_get_str_response (GtkWidget *dialog, gint arg1, gpointer entry)
 static void
 gtkutil_str_enter (GtkWidget *entry, GtkWidget *dialog)
 {
-	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), NX_RESPONSE_ACCEPT);
 }
 
 void
@@ -1023,8 +961,8 @@ fe_get_str (char *msg, char *def, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = nx_dialog_new (msg, NULL, FALSE);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, NX_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, NX_RESPONSE_ACCEPT);
 
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
@@ -1073,11 +1011,11 @@ gtkutil_get_number_response (GtkWidget *dialog, gint arg1, gpointer spin)
 
 	switch (arg1)
 	{
-	case GTK_RESPONSE_REJECT:
+	case NX_RESPONSE_REJECT:
 		callback (TRUE, num, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
-	case GTK_RESPONSE_ACCEPT:
+	case NX_RESPONSE_ACCEPT:
 		callback (FALSE, num, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
@@ -1095,11 +1033,11 @@ gtkutil_get_bool_response (GtkWidget *dialog, gint arg1, gpointer spin)
 
 	switch (arg1)
 	{
-	case GTK_RESPONSE_REJECT:
+	case NX_RESPONSE_REJECT:
 		callback (0, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
-	case GTK_RESPONSE_ACCEPT:
+	case NX_RESPONSE_ACCEPT:
 		callback (1, user_data);
 		nx_widget_destroy (GTK_WIDGET (dialog));
 		break;
@@ -1117,8 +1055,8 @@ fe_get_int (char *msg, int def, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = nx_dialog_new (msg, NULL, FALSE);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, NX_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, NX_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
@@ -1155,8 +1093,8 @@ fe_get_bool (char *title, char *prompt, void *callback, void *userdata)
 	extern GtkWidget *parent_window;
 
 	dialog = nx_dialog_new (title, NULL, FALSE);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_NO, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_YES, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_NO, NX_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_YES, NX_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));

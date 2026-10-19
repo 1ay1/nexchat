@@ -12,9 +12,7 @@
    different layout, no content area, async only. nexchat's dialogs are a
    content area above a row of buttons answering with a response id, so
    NxDialog is exactly that on a plain GtkWindow: same "response" signal,
-   same ids, same Escape and close button behaviour.
-
-   GTK3: these are the GtkDialog calls themselves. */
+   same ids, same Escape and close button behaviour. */
 
 #ifndef NEXCHAT_NXDIALOG_H
 #define NEXCHAT_NXDIALOG_H
@@ -24,6 +22,24 @@
 
 #define NX_TYPE_DIALOG (nx_dialog_get_type ())
 G_DECLARE_FINAL_TYPE (NxDialog, nx_dialog, NX, DIALOG, GtkWindow)
+
+/* what a button (or closing the window) answers; our own, since
+   GtkResponseType lives in GTK4's deprecated GtkDialog header. Same
+   values, so nothing that compares numbers changes. */
+typedef enum
+{
+	NX_RESPONSE_NONE = -1,
+	NX_RESPONSE_REJECT = -2,
+	NX_RESPONSE_ACCEPT = -3,
+	NX_RESPONSE_DELETE_EVENT = -4,
+	NX_RESPONSE_OK = -5,
+	NX_RESPONSE_CANCEL = -6,
+	NX_RESPONSE_CLOSE = -7,
+	NX_RESPONSE_YES = -8,
+	NX_RESPONSE_NO = -9,
+	NX_RESPONSE_APPLY = -10,
+	NX_RESPONSE_HELP = -11
+} NxResponse;
 
 GtkWidget *nx_dialog_new (const char *title, GtkWindow *parent, gboolean modal);
 GtkWidget *nx_dialog_get_content_area (NxDialog *d);

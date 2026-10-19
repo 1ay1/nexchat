@@ -33,7 +33,7 @@ nx_dialog_close_request (GtkWindow *w)
 {
 	/* closing answers DELETE_EVENT, as GtkDialog did; the window stays
 	   for the response handler to destroy */
-	nx_dialog_response (NX_DIALOG (w), GTK_RESPONSE_DELETE_EVENT);
+	nx_dialog_response (NX_DIALOG (w), NX_RESPONSE_DELETE_EVENT);
 	return TRUE;
 }
 
@@ -57,7 +57,7 @@ nx_dialog_init (NxDialog *d)
 {
 	GtkWidget *vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 
-	d->default_response = GTK_RESPONSE_NONE;
+	d->default_response = NX_RESPONSE_NONE;
 	gtk_widget_add_css_class (GTK_WIDGET (d), "dialog");
 	d->content = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
 	gtk_widget_set_vexpand (d->content, TRUE);
@@ -126,7 +126,7 @@ nx_dialog_add_action_widget (NxDialog *d, GtkWidget *child, int response_id)
 	if (GTK_IS_BUTTON (child))
 		gtk_widget_set_size_request (child, 85, -1);
 	/* HELP sat at the other end */
-	if (response_id == GTK_RESPONSE_HELP)
+	if (response_id == NX_RESPONSE_HELP)
 		gtk_box_insert_child_after (GTK_BOX (d->action), child, NULL);
 	else
 		gtk_box_append (GTK_BOX (d->action), child);
@@ -207,17 +207,17 @@ nx_message_dialog_new (GtkWindow *parent, gboolean modal, nx_msg_type type,
 	switch (buttons)
 	{
 	case NX_BUTTONS_OK:
-		nx_dialog_add_button (d, ok, GTK_RESPONSE_OK);
-		nx_dialog_set_default_response (d, GTK_RESPONSE_OK);
+		nx_dialog_add_button (d, ok, NX_RESPONSE_OK);
+		nx_dialog_set_default_response (d, NX_RESPONSE_OK);
 		break;
 	case NX_BUTTONS_CLOSE:
-		nx_dialog_add_button (d, close, GTK_RESPONSE_CLOSE);
-		nx_dialog_set_default_response (d, GTK_RESPONSE_CLOSE);
+		nx_dialog_add_button (d, close, NX_RESPONSE_CLOSE);
+		nx_dialog_set_default_response (d, NX_RESPONSE_CLOSE);
 		break;
 	case NX_BUTTONS_OK_CANCEL:
-		nx_dialog_add_button (d, cancel, GTK_RESPONSE_CANCEL);
-		nx_dialog_add_button (d, ok, GTK_RESPONSE_OK);
-		nx_dialog_set_default_response (d, GTK_RESPONSE_OK);
+		nx_dialog_add_button (d, cancel, NX_RESPONSE_CANCEL);
+		nx_dialog_add_button (d, ok, NX_RESPONSE_OK);
+		nx_dialog_set_default_response (d, NX_RESPONSE_OK);
 		break;
 	default:
 		break;

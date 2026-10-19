@@ -512,7 +512,7 @@ static void
 servlist_deletenetdialog_cb (GtkWidget *dialog, gint arg1, ircnet *net)
 {
 	nx_widget_destroy (GTK_WIDGET (dialog));
-	if (arg1 == GTK_RESPONSE_OK)
+	if (arg1 == NX_RESPONSE_OK)
 		servlist_deletenetwork (net);
 }
 

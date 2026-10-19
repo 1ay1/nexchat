@@ -396,17 +396,27 @@ nx_widget_unparent_child (GtkWidget *child)
    A plain box stands in where code packed a child into one. */
 #define nx_event_box_new() gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0)
 
-/* GdkPixbuf -> GdkTexture (gdk_texture_new_for_pixbuf is deprecated) */
+/* GdkPixbuf -> GdkTexture (gdk_texture_new_for_pixbuf is deprecated).
+   The texture is made once and kept on the pixbuf: GTK4 uploads a texture
+   to the GPU the first time it's drawn and reuses it after, so a new one
+   per repaint (every list row, every redraw) re-uploaded the same icon
+   over and over. Returns a new reference. */
 static inline GdkTexture *
 nx_texture_new_for_pixbuf (GdkPixbuf *pix)
 {
-	GBytes *b = gdk_pixbuf_read_pixel_bytes (pix);
-	GdkTexture *t = gdk_memory_texture_new (gdk_pixbuf_get_width (pix), gdk_pixbuf_get_height (pix),
-														 gdk_pixbuf_get_has_alpha (pix) ? GDK_MEMORY_R8G8B8A8
-																							: GDK_MEMORY_R8G8B8,
-														 b, gdk_pixbuf_get_rowstride (pix));
-	g_bytes_unref (b);
-	return t;
+	GdkTexture *t = g_object_get_data (G_OBJECT (pix), "nx-texture");
+
+	if (!t)
+	{
+		GBytes *b = gdk_pixbuf_read_pixel_bytes (pix);
+		t = gdk_memory_texture_new (gdk_pixbuf_get_width (pix), gdk_pixbuf_get_height (pix),
+											 gdk_pixbuf_get_has_alpha (pix) ? GDK_MEMORY_R8G8B8A8
+																			: GDK_MEMORY_R8G8B8,
+											 b, gdk_pixbuf_get_rowstride (pix));
+		g_bytes_unref (b);
+		g_object_set_data_full (G_OBJECT (pix), "nx-texture", t, g_object_unref);
+	}
+	return g_object_ref (t);
 }
 
 /* the pixbuf an image shows: we keep it on the image ourselves */

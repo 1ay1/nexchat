@@ -24,6 +24,7 @@
 #include "platform-style.h"
 #ifdef __APPLE__
 #include "platform-macos.h"
+#include <dlfcn.h>
 #endif
 
 #ifdef WIN32
@@ -118,14 +119,17 @@ create_msg_dialog (gchar *title, gchar *message)
 #endif
 
 #if defined(__APPLE__)
-/* GTK 4.24's macOS backend logs these from inside its own frame clock:
-   "gdk_frame_timings_presented() called on skipped frame", "Duplicate
-   call to gdk_frame_timings_presented()", and "gdk_surface_thaw_updates:
-   assertion 'surface->update_freeze_count > 0'" (a surface hidden as its
-   frame is presented gets thawed twice: _gdk_macos_surface_frame_presented
-   and _gdk_macos_surface_cancel_frame both thaw). None come from nexchat
-   calls and none change what's drawn, so those lines are dropped; every
-   other message passes through. */
+/* GTK's macOS backend, not nexchat, logs these:
+   - "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count >
+     0' failed": _gdk_macos_surface_show() thaws a surface each time it's
+     mapped, but hiding never re-freezes it, so every popover, tooltip or
+     dialog shown a second time thaws a count already at 0 (reproduced in a
+     40-line GTK-only program; fixed by osx/gtk-patches/0001, sent upstream);
+   - "Duplicate call to gdk_frame_timings_presented()" / "called on skipped
+     frame": 4.24's frame presentation, rewritten in GTK 4.25.
+   nexchat built against osx/build-gtk.sh's GTK has neither, and nothing
+   is hidden there. With an unpatched GTK those exact lines are dropped so
+   real warnings stay visible; NEXCHAT_GDK_NOISE=1 shows them anyway. */
 static GLogWriterOutput
 quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpointer data)
 {
@@ -143,6 +147,28 @@ quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpoint
 		  strstr (msg, "gdk_surface_thaw_updates: assertion")))
 		return G_LOG_WRITER_HANDLED;
 	return g_log_writer_default (level, fields, n, data);
+}
+
+/* the GTK we run on has osx/gtk-patches applied: osx/build-gtk.sh leaves
+   share/nexchat/gtk-patched in its prefix, next to lib/libgtk-4 */
+static gboolean
+gtk_has_macos_fixes (void)
+{
+	const char *v = g_getenv ("NEXCHAT_GTK_PATCHED");
+	Dl_info info;
+	gboolean yes = FALSE;
+
+	if (v)
+		return *v == '1';
+	if (dladdr ((void *) gtk_get_major_version, &info) && info.dli_fname)
+	{
+		char *lib = g_path_get_dirname (info.dli_fname);
+		char *mark = g_build_filename (lib, "..", "share", "nexchat", "gtk-patched", NULL);
+		yes = g_file_test (mark, G_FILE_TEST_EXISTS);
+		g_free (mark);
+		g_free (lib);
+	}
+	return yes;
 }
 #endif
 
@@ -270,7 +296,7 @@ fe_args (int argc, char *argv[])
 
 #if defined(__APPLE__)
 	/* NEXCHAT_GDK_NOISE=1: show them anyway (to find what sets them off) */
-	if (!g_getenv ("NEXCHAT_GDK_NOISE"))
+	if (!g_getenv ("NEXCHAT_GDK_NOISE") && !gtk_has_macos_fixes ())
 		g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
 #endif
 
@@ -915,6 +941,10 @@ fe_xdrag_step (gpointer data)
 	if (!current_sess || !current_sess->gui || !current_sess->gui->xtext)
 		return G_SOURCE_CONTINUE;
 	xt = GTK_XTEXT (current_sess->gui->xtext);
+	/* the last step asked for a redraw: let the frame happen first, as it
+	   would between two real events */
+	if (gtk_xtext_redraw_pending (xt))
+		return G_SOURCE_CONTINUE;
 	if (steps[i])
 	{
 		char what[16];
@@ -931,11 +961,18 @@ fe_xdrag_step (gpointer data)
 		{
 			gtk_xtext_test_event (xt, what, x, y);
 			/* "check": what a release left, now (several drags per run) */
+			if (!strcmp (what, "cursor"))
+			{
+				GdkCursor *c = gtk_widget_get_cursor (GTK_WIDGET (xt));
+				g_printerr ("xdrag-at: %d %d %s\n", (int) x, (int) y,
+							c && gdk_cursor_get_name (c) ? gdk_cursor_get_name (c) : "(default)");
+			}
 			if (!strcmp (what, "check"))
 			{
 				int n = 0;
 				char *sel = gtk_xtext_selection_text (xt, &n);
-				g_printerr ("xdrag-step: %d %d %d ", (int) x, (int) y, gtk_xtext_backing_diff (xt, NULL, NULL));
+				g_printerr ("xdrag-step: %d %d %d ", (int) x, (int) y,
+							gtk_xtext_backing_diff (xt, NULL, NULL) + 100000 * gtk_xtext_stray_marks (xt));
 				if (sel)
 					fwrite (sel, 1, n > 0 ? n : strlen (sel), stderr);
 				g_printerr ("\n");
@@ -950,6 +987,11 @@ fe_xdrag_step (gpointer data)
 		char *a = p ? g_strdup_printf ("%s-now.png", p) : NULL;
 		char *b = p ? g_strdup_printf ("%s-full.png", p) : NULL;
 		g_printerr ("xdrag-diff: %d\n", gtk_xtext_backing_diff (xt, a, b));
+		g_printerr ("xdrag-stray: %d\n", gtk_xtext_stray_marks (xt));
+		{
+			GdkCursor *c = gtk_widget_get_cursor (GTK_WIDGET (xt));
+			g_printerr ("xdrag-cursor: %s\n", c && gdk_cursor_get_name (c) ? gdk_cursor_get_name (c) : "(default)");
+		}
 		{
 			int n = 0;
 			char *sel = gtk_xtext_selection_text (xt, &n);
@@ -1305,16 +1347,23 @@ fe_message (char *msg, int flags)
 	if (flags & FE_MSG_INFO)
 		type = NX_MSG_INFO;
 
-	dialog = nx_message_dialog_new (GTK_WINDOW (parent_window), FALSE, type,
+	dialog = nx_message_dialog_new (GTK_WINDOW (parent_window), (flags & FE_MSG_WAIT) != 0, type,
 											  NX_BUTTONS_OK, (flags & FE_MSG_MARKUP) != 0, msg);
 	g_signal_connect (G_OBJECT (dialog), "response",
 							G_CALLBACK (fe_message_response), 0);
 	gtk_window_set_resizable (GTK_WINDOW (dialog), FALSE);
 	nx_window_set_position_mouse (dialog);
-	nx_widget_show (dialog);
+	gtk_window_present (GTK_WINDOW (dialog));
 
+	/* FE_MSG_WAIT: the caller goes on only once it's been read (it may be
+	   about to exit). The main loop keeps running meanwhile, as GTK4 wants;
+	   modal, so the rest of the app can't be used in between */
 	if (flags & FE_MSG_WAIT)
-		gtkutil_dialog_run_blocking (NX_DIALOG_CAST (dialog));
+	{
+		g_object_add_weak_pointer (G_OBJECT (dialog), (gpointer *) &dialog);
+		while (dialog)
+			g_main_context_iteration (NULL, TRUE);
+	}
 }
 
 void

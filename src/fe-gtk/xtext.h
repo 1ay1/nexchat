@@ -178,6 +178,7 @@ struct _GtkXText
 	int select_start_y;
 	int select_end_x;
 	int select_end_y;
+	gboolean drag_started;		/* the button moved past the drag threshold */
 
 	int max_lines;
 
@@ -212,15 +213,6 @@ struct _GtkXText
 	/* Ctrl+wheel: step is +1/-1; NULL: no zoom */
 	void (*zoom_cb) (GtkWidget *xtext, int step);
 
-	int jump_out_offset;	/* point at which to stop rendering */
-	int jump_in_offset;	/* "" start rendering */
-
-	int clip_x;			/* clipping (x directions) */
-	int clip_x2;		/* from x to x2 */
-
-	int clip_y;			/* clipping (y directions) */
-	int clip_y2;		/* from y to y2 */
-
 	/* current text states */
 	unsigned int underline:1;
 	unsigned int strikethrough:1;
@@ -237,19 +229,14 @@ struct _GtkXText
 	unsigned int line_select:1;
 	unsigned int button_down:1;
 	unsigned int dont_render:1;
-	unsigned int dont_render2:1;
 	unsigned int cursor_hand:1;
 	unsigned int cursor_resize:1;
-	unsigned int skip_border_fills:1;
-	unsigned int skip_stamp:1;
 	unsigned int mark_stamp:1;	/* Cut&Paste with stamps? */
 	unsigned int force_stamp:1;	/* force redrawing it */
-	unsigned int render_hilights_only:1;
 	unsigned int in_hilight:1;
-	unsigned int un_hilight:1;
-	unsigned int recycle:1;
 	unsigned int force_render:1;
 	unsigned int color_paste:1; /* CTRL was pressed when selection finished */
+	unsigned int redraw_pending:1;	/* a frame was asked for and hasn't been drawn yet */
 	unsigned int backing_stale:1;	/* backing surface needs a full render_page */
 	unsigned int in_draw:1;			/* inside draw(): don't queue more redraws */
 
@@ -297,6 +284,10 @@ int gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *pn
 void gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y);
 /* the selected text, as it would be copied (g_free it) */
 char *gtk_xtext_selection_text (GtkXText *xtext, int *len);
+/* tests: entries highlighted outside the selection (should be 0) */
+int gtk_xtext_stray_marks (GtkXText *xtext);
+/* tests: a redraw was asked for and the frame hasn't come yet */
+gboolean gtk_xtext_redraw_pending (GtkXText *xtext);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);
 int gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area);
 textentry *gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags flags, GError **err);

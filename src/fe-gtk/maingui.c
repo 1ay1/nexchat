@@ -427,7 +427,7 @@ mg_paste_ask_cb (GtkWidget *dialog, int response, paste_ask *p)
 	nx_widget_destroy (dialog);
 	if (is_session (p->sess))
 	{
-		if (response == GTK_RESPONSE_OK)
+		if (response == NX_RESPONSE_OK)
 			handle_multiline (p->sess, p->text, TRUE, FALSE);
 		else if (p->entry)
 			/* cancelled: back in the box, to edit or send */
@@ -1216,7 +1216,7 @@ mg_tab_close_cb (GtkWidget *dialog, gint arg1, session *sess)
 	GSList *list, *next;
 
 	nx_widget_destroy (dialog);
-	if (arg1 == GTK_RESPONSE_OK && is_session (sess))
+	if (arg1 == NX_RESPONSE_OK && is_session (sess))
 	{
 		/* force it NOT to send individual PARTs */
 		sess->server->sent_quit = TRUE;
@@ -1435,7 +1435,7 @@ mg_open_quit_dialog (gboolean minimize_button)
 	button = gtkutil_button_new_from_stock ("gtk-cancel");
 	nx_widget_show (button);
 	nx_dialog_add_action_widget (NX_DIALOG_CAST (dialog), button,
-										  GTK_RESPONSE_CANCEL);
+										  NX_RESPONSE_CANCEL);
 	gtk_widget_grab_focus (button);
 
 	button = gtkutil_button_new_from_stock ("gtk-quit");

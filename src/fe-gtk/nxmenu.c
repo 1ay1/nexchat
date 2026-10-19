@@ -888,13 +888,6 @@ nx_menu_popup (nx_menu *m, GtkWidget *widget, GdkEvent *event,
 	double x = 0, y = 0;
 	GdkRectangle r;
 
-	/* a popover added after a tree view's header buttons trips a css node
-	   critical; hang it off the parent */
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-	while (GTK_IS_TREE_VIEW (anchor) && gtk_widget_get_parent (anchor))
-		anchor = gtk_widget_get_parent (anchor);
-G_GNUC_END_IGNORE_DEPRECATIONS
-
 	sync_models (m);
 	p = gtk_popover_menu_new_from_model_full (G_MENU_MODEL (m->model), GTK_POPOVER_MENU_NESTED);
 	m->popover = p;

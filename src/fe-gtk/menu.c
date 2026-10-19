@@ -1428,11 +1428,11 @@ menu_join_cb (GtkWidget *dialog, gint response, GtkEntry *entry)
 {
 	switch (response)
 	{
-	case GTK_RESPONSE_ACCEPT:
+	case NX_RESPONSE_ACCEPT:
 		menu_chan_join (NULL, (char *) nx_entry_get_text (entry));
 		break;
 
-	case GTK_RESPONSE_HELP:
+	case NX_RESPONSE_HELP:
 		chanlist_opengui (current_sess->server, TRUE);
 		break;
 	}
@@ -1443,7 +1443,7 @@ menu_join_cb (GtkWidget *dialog, gint response, GtkEntry *entry)
 static void
 menu_join_entry_cb (GtkWidget *entry, GtkWidget *dialog)
 {
-	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), NX_RESPONSE_ACCEPT);
 }
 
 static void
@@ -1452,9 +1452,9 @@ menu_join (GtkWidget * wid, gpointer none)
 	GtkWidget *hbox, *dialog, *entry, *label;
 
 	dialog = nx_dialog_new (_("Join Channel"), GTK_WINDOW (parent_window), FALSE);
-	nx_dialog_add_button (NX_DIALOG_CAST (dialog), _("Retrieve channel list"), GTK_RESPONSE_HELP);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	nx_dialog_add_button (NX_DIALOG_CAST (dialog), _("Retrieve channel list"), NX_RESPONSE_HELP);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, NX_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, NX_RESPONSE_ACCEPT);
 	gtk_box_set_homogeneous (GTK_BOX (nx_dialog_get_content_area (NX_DIALOG_CAST (dialog))), TRUE);
 	nx_window_set_position_mouse (dialog);
 	hbox = gtkutil_box_new (GTK_ORIENTATION_HORIZONTAL, TRUE, 0);
@@ -1882,8 +1882,8 @@ about_dialog_show (GtkWindow *parent, const char *comment, const char *license,
 		gtk_widget_set_hexpand (l, TRUE);
 		gtk_box_append (GTK_BOX (action), l);
 	}
-	b = nx_dialog_add_button (d, g_dgettext ("gtk30", "_Close"), GTK_RESPONSE_CLOSE);
-	nx_dialog_set_default_response (d, GTK_RESPONSE_CLOSE);
+	b = nx_dialog_add_button (d, g_dgettext ("gtk30", "_Close"), NX_RESPONSE_CLOSE);
+	nx_dialog_set_default_response (d, NX_RESPONSE_CLOSE);
 	g_signal_connect (d, "response", G_CALLBACK (about_response), NULL);
 
 	gtk_window_present (GTK_WINDOW (d));

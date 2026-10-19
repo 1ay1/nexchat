@@ -283,7 +283,7 @@ notifygui_add_cb (GtkWidget *dialog, gint response, gpointer entry)
 	char *text;
 
 	text = (char *)nx_entry_get_text (entry);
-	if (text[0] && response == GTK_RESPONSE_ACCEPT)
+	if (text[0] && response == NX_RESPONSE_ACCEPT)
 	{
 		networks = (char*)nx_entry_get_text (g_object_get_data (G_OBJECT (entry), "net"));
 		if (g_ascii_strcasecmp (networks, "ALL") == 0 || networks[0] == 0)
@@ -298,7 +298,7 @@ notifygui_add_cb (GtkWidget *dialog, gint response, gpointer entry)
 static void
 notifygui_add_enter (GtkWidget *entry, GtkWidget *dialog)
 {
-	nx_dialog_response (NX_DIALOG_CAST (dialog), GTK_RESPONSE_ACCEPT);
+	nx_dialog_response (NX_DIALOG_CAST (dialog), NX_RESPONSE_ACCEPT);
 }
 
 void
@@ -313,8 +313,8 @@ fe_notify_ask (char *nick, char *networks)
 	char buf[256];
 
 	dialog = nx_dialog_new (msg, NULL, FALSE);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, GTK_RESPONSE_REJECT);
-	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, GTK_RESPONSE_ACCEPT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_CANCEL, NX_RESPONSE_REJECT);
+	gtkutil_dialog_add_stock_button (NX_DIALOG_CAST (dialog), NX_STOCK_OK, NX_RESPONSE_ACCEPT);
 	if (parent_window)
 		gtk_window_set_transient_for (GTK_WINDOW (dialog), GTK_WINDOW (parent_window));
 	nx_window_set_position_mouse (dialog);

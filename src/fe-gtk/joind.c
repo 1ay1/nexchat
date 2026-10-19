@@ -274,7 +274,7 @@ joind_show_dialog (server *serv)
 
 	okbutton1 = gtkutil_button_new_from_stock ("gtk-ok");
 	nx_widget_show (okbutton1);
-	nx_dialog_add_action_widget (NX_DIALOG_CAST (dialog1), okbutton1, GTK_RESPONSE_OK);
+	nx_dialog_add_action_widget (NX_DIALOG_CAST (dialog1), okbutton1, NX_RESPONSE_OK);
 
 	g_signal_connect (G_OBJECT (dialog1), "destroy",
 							G_CALLBACK (joind_destroy_cb), serv);

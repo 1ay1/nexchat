@@ -30,6 +30,9 @@ click() { printf '%s\n' "$1" > "$tmp/click"; i=0; while [ -f "$tmp/click" ] && [
 
 i=0; while ! grep -q '^tab: #sixteen$' "$tmp/log" && [ $i -lt 60 ]; do sleep 0.5; i=$((i+1)); done
 grep -q '^tab: #sixteen$' "$tmp/log" && ok "16 channel tabs" || bad "tabs didn't all open"
+# the last join brings its tab to the front (Focus new tabs): settle first
+i=0; while [ "$(front)" != "#sixteen" ] && [ $i -lt 30 ]; do sleep 0.3; i=$((i+1)); done
+sleep 1
 
 click "#three"
 [ "$(front)" = "#three" ] && ok "click a tab: it's in front" || bad "click #three: front is $(front)"
