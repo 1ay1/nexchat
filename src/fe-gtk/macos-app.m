@@ -116,6 +116,121 @@ path_changed (nw_path_t path)
 		hooks.network_back ();
 }
 
+/* ---- the pointer between windows ----
+
+   GDK sets the pointer's shape only on the window it thinks the pointer
+   is in, and learns that from AppKit's tracking-area enter/exit events.
+   Those go by rectangle, not by what's visible: leave a dialog, popover or
+   menu that sits over the main window and the main window gets no
+   "entered" (the pointer was inside its rectangle all along), so GDK
+   believes the pointer is in no window and every cursor change (I-beam,
+   hand over a link, resize) is dropped until it leaves and comes back.
+   Same when a window closes from under the pointer.
+
+   Watch the events GDK takes off the queue: follow which window it was
+   last told the pointer entered, and when the pointer moves over another
+   of our windows (the one actually on top there), tell GDK it entered
+   that one, the way GDK itself does for a window opening under the
+   pointer (-[GdkMacosWindow checkSendEnterNotify]). */
+
+static NSWindow *ptr_believed;		/* GDK's idea: the pointer is in this one */
+static id ptr_monitor;
+
+/* GdkMacosBaseView keeps its tracking area; only that one's events count
+   (the title bar buttons have their own) */
+static NSTrackingArea *
+gdk_tracking_area (NSWindow *w)
+{
+	NSView *v = [w contentView];
+
+	if (v && [v respondsToSelector:@selector(trackingArea)])
+		return [v performSelector:@selector(trackingArea)];
+	return nil;
+}
+
+/* ours, a GDK window, on top at this screen point, inside its view */
+static NSWindow *
+window_on_top_at (NSPoint screen)
+{
+	NSInteger n = [NSWindow windowNumberAtPoint:screen belowWindowWithWindowNumber:0];
+	NSWindow *w = [NSApp windowWithWindowNumber:n];
+	NSTrackingArea *ta;
+	NSPoint p;
+
+	if (!w || ![w isVisible] || !(ta = gdk_tracking_area (w)))
+		return nil;
+	p = [[w contentView] convertPoint:[w convertPointFromScreen:screen] fromView:nil];
+	return NSPointInRect (p, [ta rect]) ? w : nil;
+}
+
+static NSEvent *
+ptr_watch (NSEvent *e)
+{
+	NSEventType t = [e type];
+	NSWindow *w;
+
+	if (t == NSEventTypeMouseEntered || t == NSEventTypeMouseExited)
+	{
+		w = [e window];
+		if (w && [e trackingArea] && [e trackingArea] == gdk_tracking_area (w))
+			ptr_believed = t == NSEventTypeMouseEntered ? w : nil;
+		return e;
+	}
+
+	/* a button held: the pointer belongs to where it went down (GDK's
+	   implicit grab), crossings don't apply */
+	if ([NSEvent pressedMouseButtons])
+		return e;
+
+	w = window_on_top_at ([NSEvent mouseLocation]);
+	if (w && w != ptr_believed)
+	{
+		NSEvent *enter = [NSEvent enterExitEventWithType:NSEventTypeMouseEntered
+			location:[w mouseLocationOutsideOfEventStream]
+			modifierFlags:[e modifierFlags]
+			timestamp:[e timestamp]
+			windowNumber:[w windowNumber]
+			context:nil
+			eventNumber:0
+			trackingNumber:(NSInteger) gdk_tracking_area (w)
+			userData:NULL];
+
+		if (g_getenv ("NEXCHAT_PTR_DEBUG"))
+			g_printerr ("ptr: entered %s (was %s)\n", [[w title] UTF8String] ?: "?",
+						ptr_believed ? ([[ptr_believed title] UTF8String] ?: "?") : "none");
+		ptr_believed = w;
+		/* the enter first, then this move again (it comes back through
+		   here, now with nothing to do) */
+		[NSApp postEvent:e atStart:YES];
+		[NSApp postEvent:enter atStart:YES];
+		return nil;
+	}
+	return e;
+}
+
+/* ---- focus after a window goes ----
+
+   A window closing or hiding while nexchat is in front leaves no key
+   window unless GDK knew a parent to give it to (transient dialogs); a
+   detached tab, the Preferences, a list window closing left the keyboard
+   going nowhere until a click. AppKit apps pass it to the frontmost window
+   left: do that, once the closing is done. */
+static void
+focus_next_window (void)
+{
+	if (![NSApp isActive] || [NSApp keyWindow] || [NSApp modalWindow])
+		return;
+	for (NSWindow *w in [NSApp orderedWindows])
+	{
+		if ([w isVisible] && ![w isMiniaturized] && [w canBecomeKeyWindow] &&
+			gdk_tracking_area (w))
+		{
+			[w makeKeyAndOrderFront:nil];
+			return;
+		}
+	}
+}
+
 void
 macos_app_install (const macos_app_hooks *h)
 {
@@ -123,6 +238,16 @@ macos_app_install (const macos_app_hooks *h)
 	Class c;
 
 	hooks = *h;
+
+	[[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidResignKeyNotification
+		object:nil queue:nil usingBlock:^(NSNotification *n) {
+			(void) n;
+			dispatch_async (dispatch_get_main_queue (), ^{ focus_next_window (); });
+		}];
+
+	ptr_monitor = [NSEvent addLocalMonitorForEventsMatchingMask:
+		(NSEventMaskMouseMoved | NSEventMaskMouseEntered | NSEventMaskMouseExited)
+		handler:^NSEvent *(NSEvent *e) { return ptr_watch (e); }];
 	if (delegate)
 	{
 		c = [delegate class];
