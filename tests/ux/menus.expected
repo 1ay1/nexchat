@@ -48,6 +48,7 @@ item "_Server"
   item "_Reconnect"
   item "_Join a Channel…" insensitive
   item "Channel _List"
+  item "Stay _Online…"
   ---
   check "Marked _Away" [<Alt>a] insensitive
     = off
@@ -137,6 +138,7 @@ item "_Server"
   item "_Reconnect"
   item "_Join a Channel…"
   item "Channel _List"
+  item "Stay _Online…"
   ---
   check "Marked _Away" [<Alt>a]
     = off
@@ -226,6 +228,7 @@ item "_Server"
   item "_Reconnect"
   item "_Join a Channel…"
   item "Channel _List"
+  item "Stay _Online…"
   ---
   check "Marked _Away" [<Alt>a]
     = off

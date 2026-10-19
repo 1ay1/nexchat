@@ -16,6 +16,7 @@
 #define NEXCHAT_BOUNCER_H
 
 #include "hexchat.h"
+#include "servlist.h"
 
 typedef enum
 {
@@ -74,6 +75,11 @@ gboolean bouncer_del_network (server *serv, const char *id, char **err);
 gboolean bouncer_set_persist (server *serv, gboolean on, char **err);
 /* list again (ZNC has no notifications) */
 void bouncer_refresh (server *serv);
+
+/* networks to put on the bouncer behind net the next time it's connected
+   ("name host[:port]" lines; ":-port" is plain text). Ones it already
+   has are left alone. */
+void bouncer_queue_networks (ircnet *net, const char *lines);
 
 /* soju.im/search: search the bouncer's history of each target for text,
    results printed in out as they come. FALSE (with *err) if it can't */

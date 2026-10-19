@@ -61,6 +61,7 @@
 #include "urlgrab.h"
 #include "userlistgui.h"
 #include "menu.h"
+#include "bncsetup.h"
 #include "servlistgui.h"
 
 static GSList *submenu_list;
@@ -1177,6 +1178,14 @@ menu_open_server_list (GtkWidget *wid, gpointer none)
 	fe_serverlist_open (current_sess);
 }
 
+/* the network of this tab is where it starts */
+static void
+menu_stayonline (GtkWidget *wid, gpointer none)
+{
+	bncsetup_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL,
+						current_sess && current_sess->server ? current_sess->server->network : NULL, NULL);
+}
+
 static void
 menu_settings (GtkWidget * wid, gpointer none)
 {
@@ -1956,8 +1965,9 @@ static struct mymenu mymenu[] = {
 	{N_("_Reconnect"), menu_reconnect, NX_STOCK_CONNECT, M_MENUSTOCK, MENU_ID_RECONNECT, 0, 1},
 	{N_("_Join a Channel" ELLIPSIS), menu_join, NX_STOCK_JUMP_TO, M_MENUSTOCK, MENU_ID_JOIN, 0, 1},
 	{N_("Channel _List"), menu_chanlist, NX_STOCK_INDEX, M_MENUITEM, 0, 0, 1},
+	{N_("Stay _Online" ELLIPSIS), menu_stayonline, 0, M_MENUITEM, 0, 0, 1},
 	{0, 0, 0, M_SEP, 0, 0, 0},
-#define AWAY_OFFSET (41)
+#define AWAY_OFFSET (42)
 	{N_("Marked _Away"), menu_away, 0, M_MENUTOG, MENU_ID_AWAY, 0, 1, GDK_KEY_a},
 
 	{N_("_Usermenu"), 0, 0, M_NEWMENU, MENU_ID_USERMENU, 0, 1},	/* 40 */
@@ -1991,7 +2001,7 @@ static struct mymenu mymenu[] = {
 	{N_("_Copy Selection"), menu_copy_selection, 0, M_MENUITEM, 0, 0, 1, GDK_KEY_C},
 	{N_("C_lear Text"), menu_flushbuffer, NX_STOCK_CLEAR, M_MENUSTOCK, 0, 0, 1},
 	{N_("Save Text" ELLIPSIS), menu_savebuffer, NX_STOCK_SAVE, M_MENUSTOCK, 0, 0, 1},
-#define SEARCH_OFFSET (70)
+#define SEARCH_OFFSET (72)
 	{N_("Search"), 0, NX_STOCK_JUSTIFY_LEFT, M_MENUSUB, 0, 0, 1},
 		{N_("Search Text" ELLIPSIS), menu_search, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_f},
 		{N_("Search Next"   ), menu_search_next, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_g},

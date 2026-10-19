@@ -19,6 +19,7 @@
 #include "gtkutil.h"
 #include "gtkcompat.h"
 #include "bncsetup.h"
+#include "../common/bouncer.h"
 
 /* ---- the login probe: one connection, CAP LS, PASS/NICK/USER, wait ---- */
 
@@ -241,252 +242,668 @@ bncsetup_probe (const char *host, int port, gboolean tls, const char *user,
 	g_socket_client_connect_to_host_async (client, host, port, p->cancel, probe_connected, p);
 }
 
-/* ---- the window ---- */
+/* ---- the window ----
+   A few steps in one window, each a page of a GtkStack:
+     choose:   what you have (a bouncer / a network that can keep you on /
+               explain)
+     bouncer:  address, user, password; checked as you type, and the
+               check says what it is and whether the password works
+     networks: which IRC networks the bouncer should be on (popular ones,
+               or your own); added on the bouncer once connected
+     persist:  a network from your list and your account on it
+     explain:  what a bouncer is, in plain words
+   Nothing is saved until Connect. */
+
+typedef enum { STEP_CHOOSE, STEP_BOUNCER, STEP_NETWORKS, STEP_PERSIST, STEP_EXPLAIN } step;
 
 typedef struct
 {
-	GtkWidget *win;
-	GtkWidget *have, *network, *learn;	/* the three choices */
-	GtkWidget *bnc_box, *net_box;
-	GtkWidget *host, *port, *tls, *user, *pass, *upstream;
-	GtkWidget *nhost, *nport, *ntls, *naccount, *npass;
-	GtkWidget *status, *check, *save;
-	GtkWidget *trust;	/* "connect even though the certificate isn't trusted" */
-	char *kind;	/* what Check found */
+	GtkWidget *win, *stack, *back, *next;
+	step at;
+	/* bouncer */
+	GtkWidget *addr, *user, *pass, *trust, *status;
+	guint check_tag;
+	gboolean checking;
+	int check_gen;			/* the newest check: older answers are dropped */
+	char *kind;				/* what the check found: "soju", "znc", NULL */
+	gboolean cert_bad;
+	/* networks */
+	GtkWidget *netbox;		/* the check buttons */
+	GtkWidget *other_name, *other_host;
+	GPtrArray *net_checks;	/* GtkCheckButton*, data "host" */
+	/* persist */
+	GtkWidget *pnet, *paccount, *ppass, *pstatus;
+	GStrv pnet_names;
+	char *pkind;			/* what the network's check found */
+	/* where it came from */
 	ircnet *net;
 	void (*done) (ircnet *net);
-	gboolean checking;
 } setup;
 
 static setup *open_setup;
 
-static void
-set_status (setup *s, const char *markup)
+/* the networks offered on the networks page: name, address */
+static const char *const popular[][2] = {
+	{ "Libera.Chat", "irc.libera.chat" },
+	{ "OFTC", "irc.oftc.net" },
+	{ "EFnet", "irc.efnet.org" },
+	{ "IRCnet", "open.ircnet.net" },
+	{ "Rizon", "irc.rizon.net" },
+	{ "hackint", "irc.hackint.org" },
+	{ "Snoonet", "irc.snoonet.org" },
+	{ "Undernet", "irc.undernet.org" },
+};
+
+/* ---- the address: "host", "host:port", "ircs://host:port", "irc://..." ---- */
+
+typedef struct
 {
-	gtk_label_set_markup (GTK_LABEL (s->status), markup);
+	char *host;
+	int port;
+	gboolean tls;
+} address;
+
+static gboolean
+parse_address (const char *in, address *a)
+{
+	char *s = g_strstrip (g_strdup (in)), *p, *colon;
+
+	a->host = NULL;
+	a->tls = TRUE;
+	a->port = 0;
+	p = s;
+	if (g_str_has_prefix (p, "ircs://"))
+		p += 7;
+	else if (g_str_has_prefix (p, "irc+insecure://"))
+		p += 15, a->tls = FALSE;
+	else if (g_str_has_prefix (p, "irc://"))
+		p += 6, a->tls = FALSE;
+	/* a path after it (irc://host/#chan) */
+	if (strchr (p, '/'))
+		*strchr (p, '/') = 0;
+	colon = strrchr (p, ':');
+	if (colon && !strchr (p, ']'))
+	{
+		*colon = 0;
+		/* "+6697" is TLS too, as in HexChat's server list */
+		if (colon[1] == '+')
+			a->tls = TRUE, colon++;
+		a->port = atoi (colon + 1);
+		/* a bare 6667 means plain text */
+		if (a->port == 6667 && !g_str_has_prefix (in, "ircs://"))
+			a->tls = FALSE;
+	}
+	if (*p && !strpbrk (p, " \t/"))
+		a->host = g_strdup (p);
+	g_free (s);
+	if (!a->port)
+		a->port = a->tls ? 6697 : 6667;
+	return a->host != NULL;
+}
+
+/* ---- small widgets ---- */
+
+static GtkWidget *
+label (const char *markup, gboolean dim)
+{
+	GtkWidget *l = gtk_label_new (NULL);
+	gtk_label_set_markup (GTK_LABEL (l), markup);
+	gtk_label_set_xalign (GTK_LABEL (l), 0);
+	gtk_label_set_wrap (GTK_LABEL (l), TRUE);
+	gtk_label_set_wrap_mode (GTK_LABEL (l), PANGO_WRAP_WORD_CHAR);
+	/* wrap at the window's width instead of making it wider: a wrapped
+	   label's natural width is the whole text on one line otherwise */
+	gtk_label_set_width_chars (GTK_LABEL (l), 1);
+	gtk_label_set_max_width_chars (GTK_LABEL (l), 1);
+	gtk_label_set_natural_wrap_mode (GTK_LABEL (l), GTK_NATURAL_WRAP_WORD);
+	if (dim)
+		gtk_widget_add_css_class (l, "dim-label");
+	return l;
+}
+
+static GtkWidget *
+entry (const char *placeholder, gboolean secret)
+{
+	GtkWidget *e = gtk_entry_new ();
+	if (placeholder)
+		gtk_entry_set_placeholder_text (GTK_ENTRY (e), placeholder);
+	gtk_entry_set_visibility (GTK_ENTRY (e), !secret);
+	gtk_entry_set_activates_default (GTK_ENTRY (e), FALSE);
+	gtk_widget_set_hexpand (e, TRUE);
+	return e;
 }
 
 static void
-update_sensitive (setup *s)
+row (GtkWidget *grid, int r, const char *text, GtkWidget *w)
 {
-	gboolean have = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have));
-	gboolean net = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->network));
+	GtkWidget *l = gtk_label_new_with_mnemonic (text);
+	gtk_label_set_xalign (GTK_LABEL (l), 0);
+	gtk_label_set_mnemonic_widget (GTK_LABEL (l), w);
+	gtk_grid_attach (GTK_GRID (grid), l, 0, r, 1, 1);
+	gtk_grid_attach (GTK_GRID (grid), w, 1, r, 1, 1);
+}
 
-	gtk_widget_set_visible (s->bnc_box, have);
-	gtk_widget_set_visible (s->net_box, net);
-	gtk_widget_set_sensitive (s->check, (have || net) && !s->checking);
-	gtk_widget_set_sensitive (s->save, (have || net) && !s->checking);
-	if (!have && !net)
-		set_status (s, "");
+static GtkWidget *
+page (const char *title)
+{
+	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
+	char *m = g_markup_printf_escaped ("<b>%s</b>", title);
+	gtk_box_append (GTK_BOX (box), label (m, FALSE));
+	g_free (m);
+	return box;
 }
 
 static void
-choice_cb (GtkCheckButton *b, gpointer data)
+set_status (GtkWidget *l, const char *markup)
 {
-	setup *s = data;
-	g_clear_pointer (&s->kind, g_free);
-	gtk_widget_set_visible (s->trust, FALSE);
-	update_sensitive (s);
-	if (gtk_check_button_get_active (GTK_CHECK_BUTTON (s->learn)))
-		set_status (s, _("IRC only delivers messages to people who are connected. When your computer "
-							  "is off or asleep, you're not in your channels and what's said there is "
-							  "gone.\n\nA <b>bouncer</b> is a small program on a computer that's always "
-							  "on (a cheap server, a Raspberry Pi, your router). It stays in your channels "
-							  "for you and keeps what you missed; nexchat connects to it instead of the "
-							  "network. <b>soju</b> and <b>ZNC</b> are the usual ones, and some people "
-							  "share one with friends.\n\nSome networks (ones running Ergo) can keep you "
-							  "connected themselves, with no bouncer: pick the second choice to check."));
+	gtk_label_set_markup (GTK_LABEL (l), markup ? markup : "");
 }
 
-static int
-port_of (GtkWidget *e, gboolean tls)
-{
-	int p = atoi (nx_entry_get_text (e));
-	return p > 0 && p < 65536 ? p : (tls ? 6697 : 6667);
-}
-
-static const char *
-kind_label (const char *kind)
-{
-	if (!strcmp (kind, "soju")) return "soju";
-	if (!strcmp (kind, "znc")) return "ZNC";
-	return kind;
-}
-
+/* "ok" green, "no" red, "wait" plain */
 static void
-probe_done (bnc_probe_result *r, gpointer data)
+set_status_kind (GtkWidget *l, const char *kind, const char *text)
 {
-	setup *s = data;
 	char *m;
 
-	s->checking = FALSE;
-	update_sensitive (s);
-	g_clear_pointer (&s->kind, g_free);
-	if (!r->kind)
-	{
-		m = g_markup_printf_escaped ("<span foreground=\"#cc0000\">%s</span>", r->error);
-		set_status (s, m);
-		g_free (m);
-	}
+	if (!strcmp (kind, "ok"))
+		m = g_markup_printf_escaped ("<span foreground=\"#2e7d32\">\xe2\x9c\x93 %s</span>", text);
+	else if (!strcmp (kind, "no"))
+		m = g_markup_printf_escaped ("<span foreground=\"#c62828\">\xe2\x9c\x97 %s</span>", text);
 	else
+		m = g_markup_printf_escaped ("%s", text);
+	set_status (l, m);
+	g_free (m);
+}
+
+/* ---- moving between steps ---- */
+
+static void update_buttons (setup *s);
+static gboolean bouncer_check_now (gpointer data);
+static void next_cb (GtkWidget *b, gpointer data);
+
+static void
+go (setup *s, step to)
+{
+	static const char *const names[] = { "choose", "bouncer", "networks", "persist", "explain" };
+
+	s->at = to;
+	gtk_stack_set_visible_child_name (GTK_STACK (s->stack), names[to]);
+	switch (to)
 	{
-		gboolean bnc = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have));
+	case STEP_BOUNCER: gtk_widget_grab_focus (s->addr); break;
+	case STEP_PERSIST: gtk_widget_grab_focus (s->paccount); break;
+	default: break;
+	}
+}
+
+static void
+update_buttons (setup *s)
+{
+	gtk_button_set_use_underline (GTK_BUTTON (s->next), TRUE);
+	gtk_widget_set_visible (s->back, s->at != STEP_CHOOSE);
+	switch (s->at)
+	{
+	case STEP_CHOOSE:
+	case STEP_EXPLAIN:
+		gtk_widget_set_visible (s->next, FALSE);
+		break;
+	case STEP_BOUNCER:
+		gtk_widget_set_visible (s->next, TRUE);
+		gtk_button_set_label (GTK_BUTTON (s->next), _("_Next"));
+		gtk_widget_set_sensitive (s->next, s->kind && !s->checking &&
+										  (!s->cert_bad || gtk_check_button_get_active (GTK_CHECK_BUTTON (s->trust))));
+		break;
+	case STEP_NETWORKS:
+		gtk_widget_set_visible (s->next, TRUE);
+		gtk_button_set_label (GTK_BUTTON (s->next), _("Co_nnect"));
+		gtk_widget_set_sensitive (s->next, TRUE);
+		break;
+	case STEP_PERSIST:
+		gtk_widget_set_visible (s->next, TRUE);
+		gtk_button_set_label (GTK_BUTTON (s->next), _("Co_nnect"));
+		gtk_widget_set_sensitive (s->next, s->pkind && !strcmp (s->pkind, "persist") &&
+										  *nx_entry_get_text (s->paccount) && *nx_entry_get_text (s->ppass));
+		break;
+	}
+}
+
+/* ---- the bouncer page: checked as you type ---- */
+
+static void
+bouncer_checked (bnc_probe_result *r, gpointer data)
+{
+	int *gen = data;
+	setup *s = open_setup;
+
+	/* the window is gone, or something was typed since */
+	if (!s || *gen != s->check_gen)
+	{
+		g_free (gen);
+		bnc_probe_result_free (r);
+		return;
+	}
+	g_free (gen);
+	s->checking = FALSE;
+	g_clear_pointer (&s->kind, g_free);
+	s->cert_bad = FALSE;
+	gtk_widget_set_visible (s->trust, FALSE);
+
+	if (!r->kind)
+		set_status_kind (s->status, "no", r->error);
+	else if (!strcmp (r->kind, "soju") || !strcmp (r->kind, "znc"))
+	{
+		char *t = g_strdup_printf (_("That's %s, and the password is right."),
+											!strcmp (r->kind, "soju") ? "soju" : "ZNC");
 		s->kind = g_strdup (r->kind);
-		if (bnc && (!strcmp (r->kind, "soju") || !strcmp (r->kind, "znc")))
-			m = g_markup_printf_escaped (_("<b>That works:</b> it's %s and the password is right. "
-													 "Save and connect, then add the networks you want "
-													 "it to stay on (or keep the one it has)."),
-												  kind_label (r->kind));
-		else if (!strcmp (r->kind, "persist"))
-			m = g_strdup (bnc ? _("<b>That's not a bouncer</b>, but this network can keep you online by "
-										 "itself. Pick the second choice instead.")
-								: _("<b>Yes:</b> this network can keep you online. Save and connect, and "
-									 "nexchat turns it on after you've logged in."));
-		else if (bnc)
-			m = g_strdup (_("<span foreground=\"#cc0000\">That's a plain IRC server, not a bouncer. Check the "
-								 "address and port of your bouncer.</span>"));
-		else
-			m = g_strdup (_("<span foreground=\"#cc0000\">This network can't keep you online by itself. "
-								 "You'll need a bouncer for it.</span>"));
+		set_status_kind (s->status, "ok", t);
+		g_free (t);
 		if (r->cert_untrusted)
 		{
-			char *w = g_markup_printf_escaped (_("\n\n<span foreground=\"#cc0000\"><b>Careful:</b> %s.</span> "
-															 "If it's your own bouncer with a self-made certificate, tick "
-															 "the box below; otherwise someone could be in the middle."),
-														  r->cert_why);
-			char *both = g_strconcat (m, w, NULL);
-			set_status (s, both);
+			char *w = g_markup_printf_escaped (_("\n<span foreground=\"#c62828\">But %s.</span> "
+															 "Fine for your own bouncer with a self-made certificate; "
+															 "otherwise someone could be listening in."), r->cert_why);
+			char *both = g_strconcat (gtk_label_get_label (GTK_LABEL (s->status)), w, NULL);
+			set_status (s->status, both);
 			g_free (both);
 			g_free (w);
+			s->cert_bad = TRUE;
+			gtk_widget_set_visible (s->trust, TRUE);
 		}
-		else
-			set_status (s, m);
-		gtk_widget_set_visible (s->trust, r->cert_untrusted);
-		g_free (m);
 	}
+	else if (!strcmp (r->kind, "persist"))
+		set_status_kind (s->status, "no", _("That's an IRC network, not a bouncer. But it can keep you online "
+														"by itself: go back and pick \"Keep me online on my network\"."));
+	else
+		set_status_kind (s->status, "no", _("That's a plain IRC server, not a bouncer. Check the address and port."));
+	update_buttons (s);
 	bnc_probe_result_free (r);
 }
 
-static void
-check_cb (GtkWidget *b, gpointer data)
+static gboolean
+bouncer_check_now (gpointer data)
 {
 	setup *s = data;
-	gboolean bnc = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have));
-	GtkWidget *host = bnc ? s->host : s->nhost, *port = bnc ? s->port : s->nport;
-	GtkWidget *tls = bnc ? s->tls : s->ntls;
-	gboolean t = gtk_check_button_get_active (GTK_CHECK_BUTTON (tls));
-	const char *h = nx_entry_get_text (host);
+	address a;
+	int *gen;
 
-	if (!*h)
+	s->check_tag = 0;
+	if (!parse_address (nx_entry_get_text (s->addr), &a))
 	{
-		set_status (s, _("<span foreground=\"#cc0000\">Fill in the address first.</span>"));
-		gtk_widget_grab_focus (host);
-		return;
+		set_status (s->status, *nx_entry_get_text (s->addr) ?
+						_("That doesn't look like an address: a name like bnc.example.org, maybe with :port.") : "");
+		return G_SOURCE_REMOVE;
+	}
+	if (!*nx_entry_get_text (s->user) || !*nx_entry_get_text (s->pass))
+	{
+		set_status (s->status, _("Fill in your user name and password on the bouncer."));
+		g_free (a.host);
+		return G_SOURCE_REMOVE;
 	}
 	s->checking = TRUE;
-	update_sensitive (s);
-	set_status (s, _("Checking..."));
-	bncsetup_probe (h, port_of (port, t), t,
-						 bnc ? nx_entry_get_text (s->user) : "",
-						 bnc ? nx_entry_get_text (s->pass) : "", probe_done, s);
+	gen = g_new (int, 1);
+	*gen = ++s->check_gen;
+	{
+		char *t = g_strdup_printf (_("Checking %s:%d%s..."), a.host, a.port, a.tls ? _(" (encrypted)") : "");
+		set_status_kind (s->status, "wait", t);
+		g_free (t);
+	}
+	update_buttons (s);
+	bncsetup_probe (a.host, a.port, a.tls, nx_entry_get_text (s->user), nx_entry_get_text (s->pass),
+						 bouncer_checked, gen);
+	g_free (a.host);
+	return G_SOURCE_REMOVE;
 }
 
-/* the entry, written the way this kind of server wants to be logged in to */
+/* typing: check 0.8 s after the last key */
 static void
-save_cb (GtkWidget *b, gpointer data)
+bouncer_changed (GtkEditable *e, gpointer data)
 {
 	setup *s = data;
-	gboolean bnc = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have));
-	GtkWidget *hostw = bnc ? s->host : s->nhost, *portw = bnc ? s->port : s->nport;
-	gboolean tls = gtk_check_button_get_active (GTK_CHECK_BUTTON (bnc ? s->tls : s->ntls));
-	const char *host = nx_entry_get_text (hostw);
-	char *srv;
-	ircnet *net = s->net;
 
-	if (!*host)
+	s->check_gen++;	/* an answer still on its way is out of date */
+	s->checking = FALSE;
+	g_clear_pointer (&s->kind, g_free);
+	gtk_widget_set_visible (s->trust, FALSE);
+	if (s->check_tag)
+		g_source_remove (s->check_tag);
+	s->check_tag = g_timeout_add (800, bouncer_check_now, s);
+	update_buttons (s);
+}
+
+static void
+trust_toggled (GtkCheckButton *b, gpointer data)
+{
+	update_buttons (data);
+}
+
+/* ---- the networks page ---- */
+
+static void
+networks_fill (setup *s)
+{
+	GtkWidget *c;
+	guint i;
+
+	/* clear what was there (going back and forth) */
+	while ((c = gtk_widget_get_first_child (s->netbox)))
+		gtk_box_remove (GTK_BOX (s->netbox), c);
+	g_ptr_array_set_size (s->net_checks, 0);
+
+	for (i = 0; i < G_N_ELEMENTS (popular); i++)
 	{
-		set_status (s, _("<span foreground=\"#cc0000\">Fill in the address first.</span>"));
-		gtk_widget_grab_focus (hostw);
+		char *t = g_strdup_printf ("%s  <span alpha=\"60%%\">%s</span>", popular[i][0], popular[i][1]);
+		GtkWidget *b = gtk_check_button_new ();
+		GtkWidget *l = gtk_label_new (NULL);
+
+		gtk_label_set_markup (GTK_LABEL (l), t);
+		gtk_check_button_set_child (GTK_CHECK_BUTTON (b), l);
+		g_object_set_data (G_OBJECT (b), "name", (gpointer) popular[i][0]);
+		g_object_set_data (G_OBJECT (b), "host", (gpointer) popular[i][1]);
+		/* the one it came from in the Network List is ticked */
+		if (s->net && servlist_net_find ((char *) popular[i][0], NULL, g_ascii_strcasecmp) == s->net)
+			gtk_check_button_set_active (GTK_CHECK_BUTTON (b), TRUE);
+		gtk_box_append (GTK_BOX (s->netbox), b);
+		g_ptr_array_add (s->net_checks, b);
+		g_free (t);
+	}
+}
+
+/* ---- the persist page ---- */
+
+static void
+persist_checked (bnc_probe_result *r, gpointer data)
+{
+	int *gen = data;
+	setup *s = open_setup;
+
+	if (!s || *gen != s->check_gen)
+	{
+		g_free (gen);
+		bnc_probe_result_free (r);
 		return;
 	}
-
-	if (!net)
+	g_free (gen);
+	g_clear_pointer (&s->pkind, g_free);
+	if (!r->kind)
+		set_status_kind (s->pstatus, "no", r->error);
+	else if (!strcmp (r->kind, "persist"))
 	{
-		char *name = g_strdup_printf (bnc ? _("My bouncer (%s)") : "%s", host);
-		net = servlist_net_add (name, "", TRUE);
-		net->encoding = g_strdup (IRC_DEFAULT_CHARSET);
+		s->pkind = g_strdup ("persist");
+		set_status_kind (s->pstatus, "ok", _("This network can keep you online. Give your account on it and Connect."));
+	}
+	else
+		set_status_kind (s->pstatus, "no", _("This network can't keep you online by itself; you'd need a bouncer for it. "
+														 "Go back and pick \"I have a bouncer\", or ask the network's "
+														 "people which bouncers they recommend."));
+	update_buttons (s);
+	bnc_probe_result_free (r);
+}
+
+/* the chosen network's first server, as an address */
+static gboolean
+persist_address (setup *s, address *a)
+{
+	guint i = gtk_drop_down_get_selected (GTK_DROP_DOWN (s->pnet));
+	ircnet *net;
+	ircserver *sv;
+	char *h;
+	gboolean ok;
+
+	if (i == GTK_INVALID_LIST_POSITION || !s->pnet_names[i])
+		return FALSE;
+	net = servlist_net_find (s->pnet_names[i], NULL, strcmp);
+	if (!net || !net->servlist)
+		return FALSE;
+	sv = net->servlist->data;
+	/* "host/+6697" in the list: the + or the entry's TLS setting decides */
+	h = g_strdup (sv->hostname);
+	if (strchr (h, '/'))
+	{
+		char *slash = strchr (h, '/');
+		*slash = ':';
+	}
+	ok = parse_address (h, a);
+	if (ok)
+	{
+		const char *port = strchr (sv->hostname, '/');
+		a->tls = (port && port[1] == '+') || (net->flags & FLAG_USE_SSL);
+		if (!port)
+			a->port = a->tls ? 6697 : 6667;
+	}
+	g_free (h);
+	return ok;
+}
+
+static void
+persist_net_changed (GObject *o, GParamSpec *ps, gpointer data)
+{
+	setup *s = data;
+	address a;
+	int *gen;
+
+	g_clear_pointer (&s->pkind, g_free);
+	if (!persist_address (s, &a))
+	{
+		set_status (s->pstatus, "");
+		update_buttons (s);
+		return;
+	}
+	gen = g_new (int, 1);
+	*gen = ++s->check_gen;
+	set_status_kind (s->pstatus, "wait", _("Checking whether this network can keep you online..."));
+	update_buttons (s);
+	bncsetup_probe (a.host, a.port, a.tls, "", "", persist_checked, gen);
+	g_free (a.host);
+}
+
+static void
+persist_entry_changed (GtkEditable *e, gpointer data)
+{
+	update_buttons (data);
+}
+
+/* ---- Connect ---- */
+
+/* bouncer networks to add once connected: "name host" lines, kept on the
+   network until done (bouncer.c sends them after login) */
+static void
+finish_bouncer (setup *s)
+{
+	address a;
+	ircnet *net = s->net;
+	char *srv;
+	GString *todo = g_string_new (NULL);
+	guint i;
+
+	if (!parse_address (nx_entry_get_text (s->addr), &a))
+		return;
+	if (!net || net->logintype != LOGIN_PASS)
+	{
+		/* a new entry; the one it came from stays as it is */
+		char *name = g_strdup_printf (_("My bouncer (%s)"), a.host);
+		net = servlist_net_find (name, NULL, strcmp);
+		if (!net)
+		{
+			net = servlist_net_add (name, "", TRUE);
+			net->encoding = g_strdup (IRC_DEFAULT_CHARSET);
+		}
 		g_free (name);
 	}
-	/* one server: the bouncer or the network, as given */
 	while (net->servlist)
 		servlist_server_remove (net, net->servlist->data);
 	net->selected = 0;
-	srv = g_strdup_printf ("%s/%s%d", host, tls ? "+" : "", port_of (portw, tls));
+	srv = g_strdup_printf ("%s/%s%d", a.host, a.tls ? "+" : "", a.port);
 	servlist_server_add (net, srv);
 	g_free (srv);
-
-	if (tls)
+	net->flags = (net->flags & ~(FLAG_USE_SSL | FLAG_ALLOW_INVALID | FLAG_USE_GLOBAL)) | FLAG_CYCLE;
+	if (a.tls)
 		net->flags |= FLAG_USE_SSL;
-	else
-		net->flags &= ~FLAG_USE_SSL;
-	if (tls && gtk_widget_get_visible (s->trust) && gtk_check_button_get_active (GTK_CHECK_BUTTON (s->trust)))
+	if (a.tls && s->cert_bad && gtk_check_button_get_active (GTK_CHECK_BUTTON (s->trust)))
 		net->flags |= FLAG_ALLOW_INVALID;
-	else
-		net->flags &= ~FLAG_ALLOW_INVALID;
-	net->flags |= FLAG_CYCLE;
+	if (!net->nick)
+		net->nick = g_strdup (prefs.hex_irc_nick1);
+	g_free (net->user);
+	net->user = g_strdup (nx_entry_get_text (s->user));
+	g_free (net->pass);
+	net->pass = g_strdup (nx_entry_get_text (s->pass));
+	net->logintype = LOGIN_PASS;
 
-	if (bnc)
+	/* the networks to put on it */
+	for (i = 0; i < s->net_checks->len; i++)
 	{
-		const char *user = nx_entry_get_text (s->user);
-		const char *up = nx_entry_get_text (s->upstream);
-
-		/* the user name goes with it: the bouncer's account, not ours */
-		net->flags &= ~FLAG_USE_GLOBAL;
-		if (!net->nick)
-			net->nick = g_strdup (prefs.hex_irc_nick1);
-		g_free (net->user);
-		/* ZNC picks a network with user/network; soju with the same */
-		net->user = *up ? g_strdup_printf ("%s/%s", user, up) : g_strdup (user);
-		g_free (net->pass);
-		net->pass = g_strdup (nx_entry_get_text (s->pass));
-		/* PASS works on both soju and ZNC; soju also takes it with SASL */
-		net->logintype = LOGIN_PASS;
+		GtkWidget *b = s->net_checks->pdata[i];
+		if (gtk_check_button_get_active (GTK_CHECK_BUTTON (b)))
+			g_string_append_printf (todo, "%s %s\n", (char *) g_object_get_data (G_OBJECT (b), "name"),
+											(char *) g_object_get_data (G_OBJECT (b), "host"));
 	}
-	else
 	{
-		const char *acct = nx_entry_get_text (s->naccount);
-		const char *pw = nx_entry_get_text (s->npass);
-
-		/* always-on needs an account: log in with SASL */
-		if (*acct && *pw)
+		const char *on = nx_entry_get_text (s->other_name), *oh = nx_entry_get_text (s->other_host);
+		address oa;
+		if (*oh && parse_address (oh, &oa))
 		{
-			net->flags &= ~FLAG_USE_GLOBAL;
-			if (!net->nick)
-				net->nick = g_strdup (acct);
-			g_free (net->user);
-			net->user = g_strdup (acct);
-			g_free (net->pass);
-			net->pass = g_strdup (pw);
-			net->logintype = LOGIN_SASL;
+			char *name = *on ? g_strdup (on) : g_strdup (oa.host);
+			g_strdelimit (name, " ", '-');
+			g_string_append_printf (todo, "%s %s:%s%d\n", name, oa.host, oa.tls ? "" : "-", oa.port);
+			g_free (name);
+			g_free (oa.host);
 		}
-		/* turned on after login (bouncer.c), once we know it's there */
-		net->flags |= FLAG_STAY_ONLINE;
 	}
+	bouncer_queue_networks (net, todo->str);
+	g_string_free (todo, TRUE);
 	servlist_save ();
 
 	if (s->done)
 		s->done (net);
-	nx_widget_destroy (s->win);
 	servlist_connect (NULL, net, TRUE);
+	g_free (a.host);
+}
+
+static void
+finish_persist (setup *s)
+{
+	guint i = gtk_drop_down_get_selected (GTK_DROP_DOWN (s->pnet));
+	ircnet *net;
+
+	if (i == GTK_INVALID_LIST_POSITION || !s->pnet_names[i])
+		return;
+	net = servlist_net_find (s->pnet_names[i], NULL, strcmp);
+	if (!net)
+		return;
+	net->flags &= ~FLAG_USE_GLOBAL;
+	g_free (net->nick);
+	net->nick = g_strdup (nx_entry_get_text (s->paccount));
+	g_free (net->user);
+	net->user = g_strdup (nx_entry_get_text (s->paccount));
+	g_free (net->pass);
+	net->pass = g_strdup (nx_entry_get_text (s->ppass));
+	/* always-on is tied to an account: log in with it */
+	net->logintype = LOGIN_SASL;
+	net->flags |= FLAG_STAY_ONLINE;
+	servlist_save ();
+	if (s->done)
+		s->done (net);
+	servlist_connect (NULL, net, TRUE);
+}
+
+static void
+next_cb (GtkWidget *b, gpointer data)
+{
+	setup *s = data;
+
+	if (!gtk_widget_get_sensitive (s->next))
+		return;
+	switch (s->at)
+	{
+	case STEP_BOUNCER:
+		networks_fill (s);
+		go (s, STEP_NETWORKS);
+		break;
+	case STEP_NETWORKS:
+		finish_bouncer (s);
+		nx_widget_destroy (s->win);
+		break;
+	case STEP_PERSIST:
+		finish_persist (s);
+		nx_widget_destroy (s->win);
+		break;
+	default:
+		break;
+	}
+}
+
+/* Enter in a field: on the bouncer page check now (no waiting for the
+   pause), and go on when that's already done */
+static void
+enter_cb (setup *s)
+{
+	if (s->at == STEP_BOUNCER && s->check_tag)
+	{
+		g_source_remove (s->check_tag);
+		bouncer_check_now (s);
+		return;
+	}
+	next_cb (NULL, s);
+}
+
+static void
+back_cb (GtkWidget *b, gpointer data)
+{
+	setup *s = data;
+	go (s, s->at == STEP_NETWORKS ? STEP_BOUNCER : STEP_CHOOSE);
+}
+
+static void
+choose_cb (GtkWidget *b, gpointer data)
+{
+	setup *s = data;
+	go (s, GPOINTER_TO_INT (g_object_get_data (G_OBJECT (b), "step")));
+	if (s->at == STEP_PERSIST)
+		persist_net_changed (NULL, NULL, s);
+}
+
+static gboolean
+choice_mnemonic (GtkWidget *b, gboolean cycling, gpointer data)
+{
+	g_signal_emit_by_name (b, "clicked");
+	return TRUE;
+}
+
+static GtkWidget *
+choice (setup *s, const char *title, const char *what, step to)
+{
+	GtkWidget *b = gtk_button_new ();
+	GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
+	GtkWidget *t = gtk_label_new_with_mnemonic (title);
+	char *m = g_markup_printf_escaped ("<b>%s</b>", gtk_label_get_text (GTK_LABEL (t)));
+
+	gtk_label_set_markup_with_mnemonic (GTK_LABEL (t), title);
+	gtk_label_set_xalign (GTK_LABEL (t), 0);
+	gtk_widget_add_css_class (t, "heading");
+	gtk_box_append (GTK_BOX (box), t);
+	gtk_box_append (GTK_BOX (box), label (what, TRUE));
+	gtk_button_set_child (GTK_BUTTON (b), box);
+	gtk_label_set_mnemonic_widget (GTK_LABEL (t), b);
+	/* the label's Alt+key picks it, like a plain button's would */
+	g_signal_connect (b, "mnemonic-activate", G_CALLBACK (choice_mnemonic), NULL);
+	g_object_set_data (G_OBJECT (b), "step", GINT_TO_POINTER (to));
+	g_signal_connect (b, "clicked", G_CALLBACK (choose_cb), s);
+	g_free (m);
+	return b;
 }
 
 static void
 setup_free (gpointer data)
 {
 	setup *s = data;
+
 	if (open_setup == s)
 		open_setup = NULL;
+	if (s->check_tag)
+		g_source_remove (s->check_tag);
 	g_free (s->kind);
+	g_free (s->pkind);
+	g_strfreev (s->pnet_names);
+	g_ptr_array_unref (s->net_checks);
 	g_free (s);
 }
 
@@ -494,221 +911,231 @@ char *
 bncsetup_describe (void)
 {
 	setup *s = open_setup;
-	const char *c;
+	static const char *const names[] = { "choose", "bouncer", "networks", "persist", "explain" };
+	GtkWidget *st;
+	char *text, *p, *out;
 
 	if (!s)
 		return NULL;
-	c = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have)) ? "bouncer" :
-		 gtk_check_button_get_active (GTK_CHECK_BUTTON (s->network)) ? "network" :
-		 gtk_check_button_get_active (GTK_CHECK_BUTTON (s->learn)) ? "explain" : "none";
-	{
-		char *st = g_strdup (gtk_label_get_text (GTK_LABEL (s->status))), *p, *out;
-		for (p = st; *p; p++)
-			if (*p == '\n')
-				*p = ' ';
-		out = g_strdup_printf ("%s | %s", c, st);
-		g_free (st);
-		return out;
-	}
+	st = s->at == STEP_PERSIST ? s->pstatus : s->status;
+	text = g_strdup (gtk_label_get_text (GTK_LABEL (st)));
+	for (p = text; *p; p++)
+		if (*p == '\n')
+			*p = ' ';
+	out = g_strdup_printf ("%s | %s | next=%s", names[s->at], text,
+								  gtk_widget_get_visible (s->next) && gtk_widget_get_sensitive (s->next) ? "yes" : "no");
+	g_free (text);
+	return out;
 }
 
-static GtkWidget *
-row (GtkWidget *grid, int r, const char *label, GtkWidget *w)
-{
-	GtkWidget *l = gtk_label_new_with_mnemonic (label);
-	gtk_label_set_xalign (GTK_LABEL (l), 0);
-	gtk_label_set_mnemonic_widget (GTK_LABEL (l), w);
-	gtk_grid_attach (GTK_GRID (grid), l, 0, r, 1, 1);
-	gtk_widget_set_hexpand (w, TRUE);
-	gtk_grid_attach (GTK_GRID (grid), w, 1, r, 1, 1);
-	return w;
-}
-
-static GtkWidget *
-entry (const char *text, const char *placeholder)
-{
-	GtkWidget *e = gtk_entry_new ();
-	if (text)
-		nx_entry_set_text (e, text);
-	if (placeholder)
-		gtk_entry_set_placeholder_text (GTK_ENTRY (e), placeholder);
-	gtk_entry_set_activates_default (GTK_ENTRY (e), TRUE);
-	return e;
-}
-
-static GtkWidget *
-hint (const char *text)
-{
-	GtkWidget *l = gtk_label_new (text);
-	gtk_label_set_xalign (GTK_LABEL (l), 0);
-	gtk_label_set_wrap (GTK_LABEL (l), TRUE);
-	gtk_label_set_max_width_chars (GTK_LABEL (l), 60);
-	gtk_widget_add_css_class (l, "dim-label");
-	return l;
-}
-
-/* what's there already: a server of this network, and its login */
+/* the start values from the network it was opened on */
 static void
 fill_from (setup *s, ircnet *net)
 {
-	ircserver *sv = net && net->servlist ? g_slist_nth_data (net->servlist, net->selected) : NULL;
-	char *host = NULL, *port = NULL;
-	gboolean tls = !net || (net->flags & FLAG_USE_SSL);
+	ircserver *sv;
+	guint i;
 
-	if (!sv && net && net->servlist)
-		sv = net->servlist->data;
-	if (sv)
+	if (!net || !net->servlist)
+		return;
+	/* already set up for a bouncer: its address and login */
+	if (net->logintype == LOGIN_PASS && net->user && net->pass)
 	{
-		char *slash = strchr (sv->hostname, '/');
-		host = slash ? g_strndup (sv->hostname, slash - sv->hostname) : g_strdup (sv->hostname);
-		if (slash)
-		{
-			if (slash[1] == '+')
-				tls = TRUE;
-			port = g_strdup (slash + 1 + (slash[1] == '+'));
-		}
-	}
-	nx_entry_set_text (s->nhost, host ? host : "");
-	nx_entry_set_text (s->nport, port ? port : "");
-	gtk_check_button_set_active (GTK_CHECK_BUTTON (s->ntls), tls);
-	if (net && net->logintype == LOGIN_SASL && net->user)
-	{
-		nx_entry_set_text (s->naccount, net->user);
-		nx_entry_set_text (s->npass, net->pass ? net->pass : "");
-	}
-	/* a network already set up for a bouncer opens on that */
-	if (net && net->logintype == LOGIN_PASS && net->user && net->pass)
-	{
-		char *slashu = strchr (net->user, '/');
-		nx_entry_set_text (s->host, host ? host : "");
-		nx_entry_set_text (s->port, port ? port : "");
-		gtk_check_button_set_active (GTK_CHECK_BUTTON (s->tls), tls);
-		if (slashu)
-		{
-			char *u = g_strndup (net->user, slashu - net->user);
-			nx_entry_set_text (s->user, u);
-			nx_entry_set_text (s->upstream, slashu + 1);
-			g_free (u);
-		}
-		else
-			nx_entry_set_text (s->user, net->user);
+		char *h;
+		sv = g_slist_nth_data (net->servlist, net->selected);
+		if (!sv)
+			sv = net->servlist->data;
+		h = g_strdup (sv->hostname);
+		if (strchr (h, '/'))
+			*strchr (h, '/') = ':';
+		nx_entry_set_text (s->addr, h);
+		g_free (h);
+		nx_entry_set_text (s->user, net->user);
 		nx_entry_set_text (s->pass, net->pass);
-		gtk_check_button_set_active (GTK_CHECK_BUTTON (s->have), TRUE);
 	}
-	else
-		gtk_check_button_set_active (GTK_CHECK_BUTTON (s->tls), TRUE);
-	g_free (host);
-	g_free (port);
+	/* the network page starts on this network */
+	for (i = 0; s->pnet_names[i]; i++)
+		if (!strcmp (s->pnet_names[i], net->name))
+			gtk_drop_down_set_selected (GTK_DROP_DOWN (s->pnet), i);
+	if (net->logintype == LOGIN_SASL && net->user)
+	{
+		nx_entry_set_text (s->paccount, net->user);
+		nx_entry_set_text (s->ppass, net->pass ? net->pass : "");
+	}
 }
 
 void
 bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 {
-	setup *s = g_new0 (setup, 1);
-	GtkWidget *vbox, *grid, *bb, *cancel, *title;
+	setup *s;
+	GtkWidget *vbox, *p, *grid, *bb, *cancel, *sw;
+	GSList *l;
+	GPtrArray *names;
 	char *t;
 
+	if (open_setup)
+	{
+		gtk_window_present (GTK_WINDOW (open_setup->win));
+		return;
+	}
+	s = g_new0 (setup, 1);
 	s->net = net;
 	s->done = done;
+	s->net_checks = g_ptr_array_new ();
 	s->win = nx_window_new ();
-	t = g_strdup_printf (_("Stay online - %s"), net ? net->name : _(DISPLAY_NAME));
+	t = g_strdup_printf (_("Stay online - %s"), _(DISPLAY_NAME));
 	gtk_window_set_title (GTK_WINDOW (s->win), t);
 	g_free (t);
-	gtk_window_set_transient_for (GTK_WINDOW (s->win), parent);
+	if (parent)
+		gtk_window_set_transient_for (GTK_WINDOW (s->win), parent);
 	gtk_window_set_modal (GTK_WINDOW (s->win), TRUE);
-	gtk_window_set_default_size (GTK_WINDOW (s->win), 520, -1);
+	gtk_window_set_default_size (GTK_WINDOW (s->win), 560, -1);
+	gtk_widget_set_size_request (s->win, 560, -1);
+	/* a small window that keeps its size between pages */
+	gtk_window_set_resizable (GTK_WINDOW (s->win), FALSE);
 	g_object_set_data_full (G_OBJECT (s->win), "setup", s, setup_free);
 
-	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
-	nx_set_border_width (vbox, 10);
+	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 10);
+	nx_set_border_width (vbox, 12);
 	gtk_window_set_child (GTK_WINDOW (s->win), vbox);
 
-	title = gtk_label_new (NULL);
-	gtk_label_set_markup (GTK_LABEL (title),
-		_("<b>Stay in your channels when nexchat is closed</b>\nand see everything you missed when you come back."));
-	gtk_label_set_xalign (GTK_LABEL (title), 0);
-	nx_box_pack_start (vbox, title, FALSE, FALSE, 4);
+	s->stack = gtk_stack_new ();
+	gtk_stack_set_vhomogeneous (GTK_STACK (s->stack), FALSE);
+	gtk_stack_set_hhomogeneous (GTK_STACK (s->stack), FALSE);
+	gtk_stack_set_transition_type (GTK_STACK (s->stack), GTK_STACK_TRANSITION_TYPE_NONE);
+	gtk_stack_set_interpolate_size (GTK_STACK (s->stack), FALSE);
+	gtk_widget_set_vexpand (s->stack, TRUE);
+	gtk_box_append (GTK_BOX (vbox), s->stack);
 
-	s->have = gtk_check_button_new_with_mnemonic (_("I have a _bouncer (soju, ZNC, ...)"));
-	s->network = gtk_check_button_new_with_mnemonic (_("This network can _keep me online by itself"));
-	s->learn = gtk_check_button_new_with_mnemonic (_("I don't know, _explain"));
-	gtk_check_button_set_group (GTK_CHECK_BUTTON (s->network), GTK_CHECK_BUTTON (s->have));
-	gtk_check_button_set_group (GTK_CHECK_BUTTON (s->learn), GTK_CHECK_BUTTON (s->have));
+	/* choose */
+	p = page (_("Stay in your channels when nexchat is closed"));
+	gtk_box_append (GTK_BOX (p), label (_("IRC only gives messages to people who are connected. To get "
+														"everything said while your computer is off, something has to "
+														"stay connected for you."), TRUE));
+	gtk_box_append (GTK_BOX (p), choice (s, _("I _have a bouncer"),
+		_("soju, ZNC, or one a friend or service runs for you. You'll need its address and your login."),
+		STEP_BOUNCER));
+	gtk_box_append (GTK_BOX (p), choice (s, _("_Keep me online on my network"),
+		_("Some networks can keep you connected themselves (ones running Ergo). Needs an account there."),
+		STEP_PERSIST));
+	gtk_box_append (GTK_BOX (p), choice (s, _("_What's a bouncer?"),
+		_("How it works, and how to get one."), STEP_EXPLAIN));
+	gtk_stack_add_named (GTK_STACK (s->stack), p, "choose");
 
-	/* bouncer fields */
-	nx_box_pack_start (vbox, s->have, FALSE, FALSE, 0);
-	s->bnc_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
-	gtk_widget_set_margin_start (s->bnc_box, 24);
+	/* bouncer */
+	p = page (_("Your bouncer"));
 	grid = gtk_grid_new ();
-	gtk_grid_set_row_spacing (GTK_GRID (grid), 4);
-	gtk_grid_set_column_spacing (GTK_GRID (grid), 8);
-	s->host = row (grid, 0, _("_Address:"), entry (NULL, "bnc.example.org"));
-	s->port = row (grid, 1, _("_Port:"), entry (NULL, "6697"));
-	s->tls = gtk_check_button_new_with_mnemonic (_("Use _TLS (encrypted)"));
-	gtk_grid_attach (GTK_GRID (grid), s->tls, 1, 2, 1, 1);
-	s->user = row (grid, 3, _("_User name:"), entry (NULL, NULL));
-	s->pass = row (grid, 4, _("Pass_word:"), entry (NULL, NULL));
-	gtk_entry_set_visibility (GTK_ENTRY (s->pass), FALSE);
-	s->upstream = row (grid, 5, _("Network on _it:"), entry (NULL, _("optional")));
-	nx_box_pack_start (s->bnc_box, grid, FALSE, FALSE, 0);
-	nx_box_pack_start (s->bnc_box, hint (_("The user name and password of your account on the bouncer. "
-														"\"Network on it\" picks one when it has several (ZNC, soju); "
-														"leave it empty to choose later with /bouncer.")), FALSE, FALSE, 0);
-	nx_box_pack_start (vbox, s->bnc_box, FALSE, FALSE, 0);
-
-	/* always-on network fields */
-	nx_box_pack_start (vbox, s->network, FALSE, FALSE, 0);
-	s->net_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
-	gtk_widget_set_margin_start (s->net_box, 24);
-	grid = gtk_grid_new ();
-	gtk_grid_set_row_spacing (GTK_GRID (grid), 4);
-	gtk_grid_set_column_spacing (GTK_GRID (grid), 8);
-	s->nhost = row (grid, 0, _("A_ddress:"), entry (NULL, "irc.example.org"));
-	s->nport = row (grid, 1, _("P_ort:"), entry (NULL, "6697"));
-	s->ntls = gtk_check_button_new_with_mnemonic (_("Use T_LS (encrypted)"));
-	gtk_grid_attach (GTK_GRID (grid), s->ntls, 1, 2, 1, 1);
-	s->naccount = row (grid, 3, _("Accou_nt:"), entry (NULL, NULL));
-	s->npass = row (grid, 4, _("Passwo_rd:"), entry (NULL, NULL));
-	gtk_entry_set_visibility (GTK_ENTRY (s->npass), FALSE);
-	nx_box_pack_start (s->net_box, grid, FALSE, FALSE, 0);
-	nx_box_pack_start (s->net_box, hint (_("Your registered account on that network: staying online "
-														"is tied to it. No account yet? Connect and use /msg NickServ "
-														"REGISTER first.")), FALSE, FALSE, 0);
-	nx_box_pack_start (vbox, s->net_box, FALSE, FALSE, 0);
-
-	nx_box_pack_start (vbox, s->learn, FALSE, FALSE, 0);
-
-	s->status = gtk_label_new (NULL);
-	gtk_label_set_xalign (GTK_LABEL (s->status), 0);
-	gtk_label_set_wrap (GTK_LABEL (s->status), TRUE);
-	gtk_label_set_max_width_chars (GTK_LABEL (s->status), 60);
+	gtk_grid_set_row_spacing (GTK_GRID (grid), 6);
+	gtk_grid_set_column_spacing (GTK_GRID (grid), 10);
+	s->addr = entry ("bnc.example.org:6697", FALSE);
+	s->user = entry (NULL, FALSE);
+	s->pass = entry (NULL, TRUE);
+	row (grid, 0, _("_Address:"), s->addr);
+	row (grid, 1, _("_User name:"), s->user);
+	row (grid, 2, _("_Password:"), s->pass);
+	gtk_box_append (GTK_BOX (p), grid);
+	gtk_box_append (GTK_BOX (p), label (_("The address is encrypted (TLS) unless you write irc:// in front or use port 6667. "
+														"It's checked as you type."), TRUE));
+	s->status = label ("", FALSE);
 	gtk_label_set_selectable (GTK_LABEL (s->status), TRUE);
-	nx_box_pack_start (vbox, s->status, FALSE, FALSE, 6);
-	s->trust = gtk_check_button_new_with_mnemonic (_("Connect an_yway: I trust this certificate"));
+	gtk_box_append (GTK_BOX (p), s->status);
+	s->trust = gtk_check_button_new_with_mnemonic (_("It's mine, _trust this certificate"));
 	gtk_widget_set_visible (s->trust, FALSE);
-	nx_box_pack_start (vbox, s->trust, FALSE, FALSE, 0);
+	gtk_box_append (GTK_BOX (p), s->trust);
+	gtk_stack_add_named (GTK_STACK (s->stack), p, "bouncer");
+	g_signal_connect (s->addr, "changed", G_CALLBACK (bouncer_changed), s);
+	g_signal_connect (s->user, "changed", G_CALLBACK (bouncer_changed), s);
+	g_signal_connect (s->pass, "changed", G_CALLBACK (bouncer_changed), s);
+	g_signal_connect_swapped (s->addr, "activate", G_CALLBACK (enter_cb), s);
+	g_signal_connect_swapped (s->user, "activate", G_CALLBACK (enter_cb), s);
+	g_signal_connect_swapped (s->pass, "activate", G_CALLBACK (enter_cb), s);
+	g_signal_connect (s->trust, "toggled", G_CALLBACK (trust_toggled), s);
 
+	/* networks */
+	p = page (_("Which networks should it stay on?"));
+	gtk_box_append (GTK_BOX (p), label (_("nexchat adds these on the bouncer when it connects. Ones it already "
+														"has stay as they are; you can change them later with /bouncer or "
+														"in the Network List."), TRUE));
+	s->netbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
+	sw = gtk_scrolled_window_new ();
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_scrolled_window_set_max_content_height (GTK_SCROLLED_WINDOW (sw), 220);
+	gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (sw), TRUE);
+	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), s->netbox);
+	gtk_box_append (GTK_BOX (p), sw);
+	grid = gtk_grid_new ();
+	gtk_grid_set_row_spacing (GTK_GRID (grid), 6);
+	gtk_grid_set_column_spacing (GTK_GRID (grid), 10);
+	s->other_name = entry (_("name, e.g. work"), FALSE);
+	s->other_host = entry ("irc.example.org", FALSE);
+	row (grid, 0, _("Another _one:"), s->other_host);
+	row (grid, 1, _("Its na_me:"), s->other_name);
+	gtk_box_append (GTK_BOX (p), grid);
+	gtk_stack_add_named (GTK_STACK (s->stack), p, "networks");
+
+	/* persist: the networks from the Network List */
+	p = page (_("Keep me online on my network"));
+	names = g_ptr_array_new ();
+	for (l = network_list; l; l = l->next)
+		g_ptr_array_add (names, g_strdup (((ircnet *) l->data)->name));
+	g_ptr_array_add (names, NULL);
+	s->pnet_names = (GStrv) g_ptr_array_free (names, FALSE);
+	s->pnet = gtk_drop_down_new_from_strings ((const char * const *) s->pnet_names);
+	gtk_drop_down_set_enable_search (GTK_DROP_DOWN (s->pnet), TRUE);
+	grid = gtk_grid_new ();
+	gtk_grid_set_row_spacing (GTK_GRID (grid), 6);
+	gtk_grid_set_column_spacing (GTK_GRID (grid), 10);
+	s->paccount = entry (NULL, FALSE);
+	s->ppass = entry (NULL, TRUE);
+	row (grid, 0, _("N_etwork:"), s->pnet);
+	row (grid, 1, _("_Your account:"), s->paccount);
+	row (grid, 2, _("Pa_ssword:"), s->ppass);
+	gtk_box_append (GTK_BOX (p), grid);
+	s->pstatus = label ("", FALSE);
+	gtk_box_append (GTK_BOX (p), s->pstatus);
+	gtk_box_append (GTK_BOX (p), label (_("No account yet? Connect to the network and type "
+														"/msg NickServ REGISTER password email"), TRUE));
+	gtk_stack_add_named (GTK_STACK (s->stack), p, "persist");
+	g_signal_connect (s->pnet, "notify::selected", G_CALLBACK (persist_net_changed), s);
+	g_signal_connect (s->paccount, "changed", G_CALLBACK (persist_entry_changed), s);
+	g_signal_connect (s->ppass, "changed", G_CALLBACK (persist_entry_changed), s);
+	g_signal_connect_swapped (s->paccount, "activate", G_CALLBACK (enter_cb), s);
+	g_signal_connect_swapped (s->ppass, "activate", G_CALLBACK (enter_cb), s);
+
+	/* explain */
+	p = page (_("What's a bouncer?"));
+	gtk_box_append (GTK_BOX (p), label (_(
+		"IRC only gives messages to people who are connected right then. When your computer "
+		"is off or asleep, you're not in your channels, and what's said there is gone for you.\n\n"
+		"A <b>bouncer</b> is a small program on a computer that's always on: a cheap server, a "
+		"Raspberry Pi, a home router. It stays in your channels for you and keeps what you "
+		"missed. nexchat connects to the bouncer instead of the network, and you get it all "
+		"when you come back, also on your phone.\n\n"
+		"<b>soju</b> is the easiest to run, <b>ZNC</b> the most used. Some communities and "
+		"services give out bouncer accounts. And some networks (ones running Ergo) can keep you "
+		"online themselves, with just an account."), FALSE));
+	gtk_box_append (GTK_BOX (p), label (_("<a href=\"https://soju.im\">soju.im</a>  ·  "
+														"<a href=\"https://wiki.znc.in\">wiki.znc.in</a>"), FALSE));
+	gtk_stack_add_named (GTK_STACK (s->stack), p, "explain");
+
+	/* buttons */
 	bb = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-	gtk_widget_set_halign (bb, GTK_ALIGN_END);
-	s->check = gtk_button_new_with_mnemonic (_("C_heck"));
-	gtk_widget_set_tooltip_text (s->check, _("Log in once to see what it is and whether the password works"));
+	s->back = gtk_button_new_with_mnemonic (_("_Back"));
 	cancel = gtk_button_new_with_mnemonic (_("_Cancel"));
-	s->save = gtk_button_new_with_mnemonic (_("_Save and connect"));
-	gtk_box_append (GTK_BOX (bb), s->check);
+	s->next = gtk_button_new_with_mnemonic (_("_Next"));
+	gtk_widget_set_hexpand (cancel, TRUE);
+	gtk_widget_set_halign (cancel, GTK_ALIGN_END);
+	gtk_box_append (GTK_BOX (bb), s->back);
 	gtk_box_append (GTK_BOX (bb), cancel);
-	gtk_box_append (GTK_BOX (bb), s->save);
-	nx_box_pack_start (vbox, bb, FALSE, FALSE, 0);
-	gtk_window_set_default_widget (GTK_WINDOW (s->win), s->save);
-
-	g_signal_connect (s->have, "toggled", G_CALLBACK (choice_cb), s);
-	g_signal_connect (s->network, "toggled", G_CALLBACK (choice_cb), s);
-	g_signal_connect (s->learn, "toggled", G_CALLBACK (choice_cb), s);
-	g_signal_connect (s->check, "clicked", G_CALLBACK (check_cb), s);
-	g_signal_connect (s->save, "clicked", G_CALLBACK (save_cb), s);
+	gtk_box_append (GTK_BOX (bb), s->next);
+	gtk_box_append (GTK_BOX (vbox), bb);
+	gtk_window_set_default_widget (GTK_WINDOW (s->win), s->next);
+	g_signal_connect (s->back, "clicked", G_CALLBACK (back_cb), s);
+	g_signal_connect (s->next, "clicked", G_CALLBACK (next_cb), s);
 	g_signal_connect_swapped (cancel, "clicked", G_CALLBACK (gtk_window_destroy), s->win);
 
-	fill_from (s, net);
-	update_sensitive (s);
 	open_setup = s;
+	fill_from (s, net);
+	/* already a bouncer: straight to its page */
+	go (s, net && net->logintype == LOGIN_PASS && net->user && net->pass ? STEP_BOUNCER : STEP_CHOOSE);
 	gtk_window_present (GTK_WINDOW (s->win));
 }

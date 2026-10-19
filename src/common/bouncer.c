@@ -52,6 +52,82 @@ static GHashTable *states;	/* server -> bnc_state */
 
 static void search_finish (bnc_state *s);
 
+/* ircnet -> "name host\n..." still to add on that bouncer */
+static GHashTable *queued;
+
+void
+bouncer_queue_networks (ircnet *net, const char *lines)
+{
+	if (!queued)
+		queued = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+	if (lines && *lines)
+		g_hash_table_insert (queued, net, g_strdup (lines));
+	else
+		g_hash_table_remove (queued, net);
+}
+
+static gboolean bnc_has_network (bnc_state *s, const char *name);
+static gboolean bouncer_add_network_q (server *serv, const char *name, const char *host, int port,
+													gboolean tls, char **err);
+
+/* the bouncer's list is in: add the next queued network it doesn't have.
+   One at a time, so each answer is matched to its request. */
+static void
+queue_next (server *serv, bnc_state *s)
+{
+	char *lines, **l;
+	int i;
+	GString *rest;
+	gboolean sent = FALSE;
+
+	if (!queued || !serv->network || s->pending || s->znc_quiet)
+		return;
+	lines = g_hash_table_lookup (queued, serv->network);
+	if (!lines)
+		return;
+	l = g_strsplit (lines, "\n", 0);
+	rest = g_string_new (NULL);
+	for (i = 0; l[i]; i++)
+	{
+		char *name = l[i], *host, *colon, *err = NULL;
+		int port = 0;
+		gboolean tls = TRUE;
+
+		if (!*name)
+			continue;
+		if (sent)
+		{
+			g_string_append_printf (rest, "%s\n", name);
+			continue;
+		}
+		host = strchr (name, ' ');
+		if (!host)
+			continue;
+		*host++ = 0;
+		if (bnc_has_network (s, name))
+			continue;
+		colon = strrchr (host, ':');
+		if (colon)
+		{
+			*colon = 0;
+			if (colon[1] == '-')
+				tls = FALSE, colon++;
+			port = atoi (colon + 1);
+		}
+		if (bouncer_add_network_q (serv, name, host, port, tls, &err))
+			sent = TRUE;
+		g_free (err);
+	}
+	if (rest->len)
+		g_hash_table_insert (queued, serv->network, g_string_free (rest, FALSE));
+	else
+	{
+		g_hash_table_remove (queued, serv->network);
+		g_string_free (rest, TRUE);
+	}
+	g_strfreev (l);
+}
+
 static void
 network_free (gpointer p)
 {
@@ -349,6 +425,18 @@ bouncer_isupport (server *serv, const char *token)
 	}
 }
 
+static gboolean
+queue_later (gpointer data)
+{
+	server *serv = data;
+	bnc_state *st;
+
+	if (!is_server (serv) || !states || !(st = g_hash_table_lookup (states, serv)))
+		return G_SOURCE_REMOVE;
+	queue_next (serv, st);
+	return G_SOURCE_REMOVE;
+}
+
 void
 bouncer_login_end (server *serv)
 {
@@ -363,6 +451,10 @@ bouncer_login_end (server *serv)
 		bouncer_refresh (serv);
 	if (s->persist_cap && s->persist_effective < 0)
 		tcp_sendf (serv, "PERSISTENCE GET\r\n");
+	/* soju's list has come by now (it's sent with the login): what
+	   \"Stay online\" asked for goes next */
+	if (s->kind == BNC_SOJU && queued && serv->network && g_hash_table_lookup (queued, serv->network))
+		g_timeout_add_seconds (1, queue_later, serv);
 	/* set up with "Stay online": turn it on once we're logged in */
 	if (s->persist_cap && serv->network && (((ircnet *) serv->network)->flags & FLAG_STAY_ONLINE))
 	{
@@ -495,6 +587,7 @@ bouncer_command (server *serv, const char *sub, const char *arg, const char *att
 		if (!s->soju_notify)
 			tcp_sendf (serv, "BOUNCER LISTNETWORKS\r\n");
 		changed (serv);
+		queue_next (serv, s);
 	}
 }
 
@@ -621,6 +714,7 @@ bouncer_znc_reply (server *serv, const char *from, const char *text)
 			if (prefs.hex_irc_bouncer_sync)
 				sync_networks (serv);
 			changed (serv);
+			queue_next (serv, s);
 		}
 		return TRUE;
 	}
@@ -631,6 +725,7 @@ bouncer_znc_reply (server *serv, const char *from, const char *text)
 		if (prefs.hex_irc_bouncer_sync)
 			sync_networks (serv);
 		changed (serv);
+		queue_next (serv, s);
 		return TRUE;
 	}
 	row = table_row (text);
@@ -757,6 +852,26 @@ bouncer_add_network (server *serv, const char *name, const char *host, int port,
 		g_free (u);
 	}
 	return TRUE;
+}
+
+static gboolean
+bnc_has_network (bnc_state *s, const char *name)
+{
+	guint i;
+	for (i = 0; i < s->networks->len; i++)
+	{
+		bnc_network *n = s->networks->pdata[i];
+		if (!g_ascii_strcasecmp (n->name ? n->name : n->id, name))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static gboolean
+bouncer_add_network_q (server *serv, const char *name, const char *host, int port,
+							  gboolean tls, char **err)
+{
+	return bouncer_add_network (serv, name, host, port, tls, NULL, err);
 }
 
 gboolean

@@ -71,10 +71,10 @@ are off until you turn them on.
 - **Log search**: `/lastlog -l word` searches every saved log, and with a
   soju bouncer `/lastlog -s word` searches its history, including what was
   said while nexchat was closed.
-- **Stay online** (Network List > Stay online...): stay in your channels while
-  nexchat is closed. Point it at your soju or ZNC, or at a network that can
-  keep you connected itself (Ergo), and it checks the login and sets the
-  network up for you. The bouncer's networks show up in your Network List,
+- **Stay online** (Server > Stay Online..., or the Network List): stay in your
+  channels while nexchat is closed. A few steps: point it at your soju or
+  ZNC (checked as you type), tick the networks it should stay on, Connect.
+  Or let a network that can do it (Ergo) keep you connected itself. The bouncer's networks show up in your Network List,
   `/bouncer` adds and removes them, and what you missed is shown between
   "While you were away" and "N messages you missed". The title says
   "(online 24/7)" when it's working.
