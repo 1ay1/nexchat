@@ -45,48 +45,19 @@ static int tab_right_is_moving = 0;
  *
  */
 
-/*
- * GtkViewports request at least as much space as their children do.
- * If we don't intervene here, the GtkViewport will be granted its
- * request, even at the expense of resizing the top-level window.
- */
+/* the scroll arrows show only when the tabs don't all fit; follows the
+   adjustment, which changes whenever the tabs or the room for them do */
+static void tab_show (GtkWidget *tab);
 static void
-cv_tabs_sizerequest (GtkWidget *viewport, GtkRequisition *requisition, chanview *cv)
+cv_tabs_arrows_update (GtkAdjustment *adj, chanview *cv)
 {
-	if (!cv->vertical)
-		requisition->width = 1;
-	else
-		requisition->height = 1;
-}
+	gboolean fits = gtk_adjustment_get_upper (adj) - gtk_adjustment_get_lower (adj)
+		<= gtk_adjustment_get_page_size (adj) + 0.5;
 
-static void
-cv_tabs_sizealloc (GtkWidget *widget, GtkAllocation *allocation, chanview *cv)
-{
-	GtkAdjustment *adj;
-	GtkWidget *inner;
-	gint viewport_size;
-
-	inner = ((tabview *)cv)->inner;
-
-	if (cv->vertical)
-	{
-		adj = gtk_scrollable_get_vadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
-		viewport_size = nx_widget_get_height (gtk_widget_get_parent (inner));
-	} else
-	{
-		adj = gtk_scrollable_get_hadjustment (GTK_SCROLLABLE (gtk_widget_get_parent (inner)));
-		viewport_size = nx_widget_get_width (gtk_widget_get_parent (inner));
-	}
-
-	if (gtk_adjustment_get_upper (adj) <= viewport_size)
-	{
-		nx_widget_hide (((tabview *)cv)->b1);
-		nx_widget_hide (((tabview *)cv)->b2);
-	} else
-	{
-		nx_widget_show (((tabview *)cv)->b1);
-		nx_widget_show (((tabview *)cv)->b2);
-	}
+	if (!((tabview *)cv)->b1)
+		return;
+	gtk_widget_set_visible (((tabview *)cv)->b1, !fits);
+	gtk_widget_set_visible (((tabview *)cv)->b2, !fits);
 }
 
 static gint
@@ -277,7 +248,7 @@ static void
 cv_tabs_init (chanview *cv)
 {
 	GtkWidget *box, *hbox = NULL;
-	GtkWidget *viewport;
+	GtkWidget *viewport, *scroller;
 	GtkWidget *outer;
 	GtkWidget *button;
 
@@ -286,18 +257,29 @@ cv_tabs_init (chanview *cv)
 	else
 		outer = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	((tabview *)cv)->outer = outer;
-	g_signal_connect (G_OBJECT (outer), "size_allocate",
-							G_CALLBACK (cv_tabs_sizealloc), cv);
-/*	nx_set_border_width (outer, 2);*/
 	nx_widget_show (outer);
 
-	viewport = gtk_viewport_new (0, 0);
-	nx_viewport_set_no_shadow (viewport);
-	g_signal_connect (G_OBJECT (viewport), "size_request",
-							G_CALLBACK (cv_tabs_sizerequest), cv);
+	/* the tabs scroll inside: a scrolled window asks for no room along
+	   the tabs (GTK3 did that by overriding the viewport's size request),
+	   so many tabs never make the window wider; its own scrollbars stay
+	   hidden, the arrow buttons scroll it */
+	scroller = gtk_scrolled_window_new ();
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroller),
+		cv->vertical ? GTK_POLICY_NEVER : GTK_POLICY_EXTERNAL,
+		cv->vertical ? GTK_POLICY_EXTERNAL : GTK_POLICY_NEVER);
+	gtk_scrolled_window_set_propagate_natural_width (GTK_SCROLLED_WINDOW (scroller), cv->vertical);
+	gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (scroller), !cv->vertical);
+	gtk_widget_set_hexpand (scroller, !cv->vertical);
+	gtk_widget_set_vexpand (scroller, cv->vertical);
+	nx_box_pack_start (outer, scroller, 1, 1, 0);
+
+	viewport = gtk_viewport_new (NULL, NULL);
+	gtk_viewport_set_scroll_to_focus (GTK_VIEWPORT (viewport), TRUE);
 	nx_on_scroll (viewport, tab_scroll_cb, cv);
-	nx_box_pack_start (outer, viewport, 1, 1, 0);
-	nx_widget_show (viewport);
+	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (scroller), viewport);
+	g_signal_connect (cv->vertical ? gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (scroller))
+											 : gtk_scrolled_window_get_hadjustment (GTK_SCROLLED_WINDOW (scroller)),
+						"changed", G_CALLBACK (cv_tabs_arrows_update), cv);
 
 	if (cv->vertical)
 		box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
@@ -335,6 +317,9 @@ cv_tabs_init (chanview *cv)
 		nx_box_pack_start (outer, ((tabview *)cv)->b2, 0, 0, 0);
 		nx_box_pack_start (outer, ((tabview *)cv)->b1, 0, 0, 0);
 	}
+	/* until the tabs don't fit */
+	gtk_widget_set_visible (((tabview *)cv)->b1, FALSE);
+	gtk_widget_set_visible (((tabview *)cv)->b2, FALSE);
 
 	button = gtkutil_button (outer, NX_STOCK_CLOSE, NULL, cv_tabs_xclick_cb,
 									 cv, 0);
@@ -518,6 +503,7 @@ tab_pressed_cb (GtkToggleButton *tab, chan *ch)
 	gtk_toggle_button_set_active (tab, TRUE);
 	ignore_toggle = FALSE;
 	cv->focused = ch;
+	tab_show (GTK_WIDGET (tab));
 
 	if (/*tab->active*/is_switching)
 		/* call the focus callback */
@@ -553,12 +539,9 @@ cv_tabs_add (chanview *cv, chan *ch, char *name, nx_row *parent)
 	g_object_set_data (G_OBJECT (but), "c", ch);
 	/* used to trap right-clicks */
 	nx_on_click (but, tab_click_cb, ch);
-	/* avoid prelights: GTK3 suppresses the button's hover by stopping
-	   enter/leave; GTK4 does hover in CSS, see #hexchat-tab:hover in
-	   fe_apply_css */
-	g_signal_connect (G_OBJECT (but), "pressed",
-							G_CALLBACK (tab_pressed_cb), ch);
-	/* for keyboard */
+	/* GTK4 buttons have no "pressed": a left click (and the keyboard) toggles
+	   it, and "toggled" switches tabs; the hover look is CSS, see
+	   #hexchat-tab:hover in fe_apply_css */
 	g_signal_connect (G_OBJECT (but), "toggled",
 						 	G_CALLBACK (tab_toggled_cb), ch);
 	g_object_set_data (G_OBJECT (but), "u", ch->userdata);
@@ -639,6 +622,45 @@ static int
 tab_group_get_cur_page (chanview *cv)
 {
 	return tab_group_for_each_tab (cv, tab_check_focus_cb, 0);
+}
+
+/* the tab in front is always where you can see it, when the tabs
+   don't all fit (switching with a key, a /command, a new channel) */
+static gboolean
+tab_show_now (gpointer data)
+{
+	GtkWidget *tab = data, *inner, *scroller;
+	GtkAdjustment *adj;
+	graphene_rect_t r;
+	chan *ch = g_object_get_data (G_OBJECT (tab), "c");
+	double from, to, page, v;
+
+	if (!ch || !gtk_widget_get_parent (tab))
+		goto out;
+	inner = ((tabview *)ch->cv)->inner;
+	scroller = gtk_widget_get_ancestor (inner, GTK_TYPE_SCROLLED_WINDOW);
+	if (!scroller || !gtk_widget_compute_bounds (tab, inner, &r))
+		goto out;
+	adj = ch->cv->vertical ? gtk_scrolled_window_get_vadjustment (GTK_SCROLLED_WINDOW (scroller))
+	                       : gtk_scrolled_window_get_hadjustment (GTK_SCROLLED_WINDOW (scroller));
+	from = ch->cv->vertical ? r.origin.y : r.origin.x;
+	to = from + (ch->cv->vertical ? r.size.height : r.size.width);
+	page = gtk_adjustment_get_page_size (adj);
+	v = gtk_adjustment_get_value (adj);
+	if (from < v)
+		gtk_adjustment_set_value (adj, from);
+	else if (to > v + page)
+		gtk_adjustment_set_value (adj, to - page);
+out:
+	g_object_unref (tab);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+tab_show (GtkWidget *tab)
+{
+	/* after layout, so a tab added just now has its place */
+	g_idle_add_full (G_PRIORITY_LOW, tab_show_now, g_object_ref (tab), NULL);
 }
 
 static void

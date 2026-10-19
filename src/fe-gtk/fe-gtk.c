@@ -117,6 +117,27 @@ create_msg_dialog (gchar *title, gchar *message)
 }
 #endif
 
+#if defined(__APPLE__)
+/* GTK's macOS backend warns "gdk_frame_timings_presented() called on
+   skipped frame" from inside its own frame clock (a GTK bug, nothing we
+   call); that one line is dropped, every other message passes through */
+static GLogWriterOutput
+quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpointer data)
+{
+	gsize i;
+	const char *domain = NULL, *msg = NULL;
+
+	for (i = 0; i < n; i++)
+		if (!strcmp (fields[i].key, "GLIB_DOMAIN"))
+			domain = fields[i].value;
+		else if (!strcmp (fields[i].key, "MESSAGE"))
+			msg = fields[i].value;
+	if (domain && msg && !strcmp (domain, "Gdk") && strstr (msg, "called on skipped frame"))
+		return G_LOG_WRITER_HANDLED;
+	return g_log_writer_default (level, fields, n, data);
+}
+#endif
+
 int
 fe_args (int argc, char *argv[])
 {
@@ -237,6 +258,10 @@ fe_args (int argc, char *argv[])
 		}
 		g_free (tmp);
 	}
+#endif
+
+#if defined(__APPLE__)
+	g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
 #endif
 
 #if defined(WIN32)
@@ -657,6 +682,31 @@ fe_tabs_dump (gpointer d)
 	GSList *l;
 
 	g_printerr ("tabs:\n");
+	/* tests: NEXCHAT_TAB_CLICK=FILE: when FILE names a tab, it's clicked */
+	{
+		const char *cf = g_getenv ("NEXCHAT_TAB_CLICK");
+		char *want = NULL;
+		if (cf && g_file_get_contents (cf, &want, NULL, NULL))
+		{
+			g_unlink (cf);
+			g_strstrip (want);
+			for (l = sess_list; l; l = l->next)
+			{
+				session *s = l->data;
+				char *name = s->res && s->res->tab ? chan_get_name (s->res->tab) : NULL;
+				gboolean hit = name && !strcmp (name, want);
+				g_free (name);
+				if (hit)
+				{
+					chan_click (s->res->tab);
+					break;
+				}
+			}
+			g_free (want);
+		}
+	}
+	if (current_sess)
+		g_printerr ("front: %s\n", current_sess->channel);
 	if (!g_strcmp0 (g_getenv ("NEXCHAT_TABS_DUMP"), "text") && current_sess && current_sess->res)
 		gtk_xtext_foreach (current_sess->res->buffer, fe_dump_line, NULL);
 	if (current_sess && current_sess->gui && current_sess->gui->xtext)

@@ -466,6 +466,16 @@ chan_get_name (chan *ch)
 	return name;
 }
 
+void
+chan_click (chan *ch)
+{
+	/* a tab's button: what a left click does; the tree: select it */
+	if (ch->impl && GTK_IS_BUTTON (ch->impl))
+		g_signal_emit_by_name (ch->impl, "clicked");
+	else
+		chan_focus (ch);
+}
+
 /* this thing is overly complicated */
 
 static int

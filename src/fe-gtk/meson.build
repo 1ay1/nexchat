@@ -190,6 +190,10 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/smoke-gui.sh'), hexchat_gtk],
     timeout: 60)
+  # the tab switcher: clicks switch, many tabs scroll, no criticals
+  test('tabs', find_program('sh'),
+    args: [files('../../tests/ux/tabs.sh'), hexchat_gtk],
+    env: ['TABPOS=6'], timeout: 60)
 endif
 
 # The tests that only need a display also run on Wayland, under a private

@@ -48,6 +48,8 @@ void chan_set_color (chan *ch, PangoAttrList *list);
 void chan_rename (chan *ch, char *new_name, int trunc_len);
 /* the text shown (g_free it) */
 char *chan_get_name (chan *ch);
+/* tests: what a left click on the tab does */
+void chan_click (chan *ch);
 gboolean chan_remove (chan *ch, gboolean force);
 gboolean chan_is_collapsed (chan *ch);
 chan * chan_get_parent (chan *ch);
