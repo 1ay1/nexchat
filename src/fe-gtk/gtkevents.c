@@ -143,6 +143,43 @@ nx_on_scroll (GtkWidget *w, nx_scroll_cb cb, gpointer userdata)
 	gtk_widget_add_controller (w, s);
 }
 
+/* a scroll as the device gave it: a trackpad's pixel deltas (and the
+   momentum after the fingers lift, as "decelerate"), or a wheel's steps.
+   unit tells which: GDK_SCROLL_UNIT_SURFACE (pixels) or _WHEEL (steps). */
+static gboolean
+smooth_scroll_cb (GtkEventControllerScroll *s, double dx, double dy, hook *h)
+{
+	GtkEventController *ec = GTK_EVENT_CONTROLLER (s);
+
+	return ((nx_smooth_scroll_cb) h->cb) (gtk_event_controller_get_widget (ec), dx, dy,
+													 gtk_event_controller_scroll_get_unit (s),
+													 gtk_event_controller_get_current_event_state (ec),
+													 h->userdata);
+}
+
+static void
+smooth_decelerate_cb (GtkEventControllerScroll *s, double vx, double vy, hook *h)
+{
+	/* the momentum: hand it over as a velocity (pixels/s), the widget
+	   glides with it */
+	if (h->userdata2)
+		((nx_decelerate_cb) h->userdata2) (gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (s)),
+													  vx, vy, h->userdata);
+}
+
+void
+nx_on_smooth_scroll (GtkWidget *w, nx_smooth_scroll_cb cb, nx_decelerate_cb decel, gpointer userdata)
+{
+	GtkEventController *s = gtk_event_controller_scroll_new (
+		GTK_EVENT_CONTROLLER_SCROLL_VERTICAL | GTK_EVENT_CONTROLLER_SCROLL_KINETIC);
+	hook *h = hook_new (cb, userdata);
+
+	h->userdata2 = decel;
+	g_signal_connect_data (s, "scroll", G_CALLBACK (smooth_scroll_cb), h, hook_free, 0);
+	g_signal_connect (s, "decelerate", G_CALLBACK (smooth_decelerate_cb), h);
+	gtk_widget_add_controller (w, s);
+}
+
 static void
 motion_enter (GtkEventControllerMotion *m, double x, double y, hook *h)
 {

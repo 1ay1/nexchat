@@ -45,7 +45,7 @@ gtk_dep = dependency('gtk4', version: '>= 4.14.0')
 if host_machine.system() == 'windows'
   hexchat_gtk_sources += ['tray-backend-win32.c', 'win32-menu.c']
 elif host_machine.system() == 'darwin'
-  hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m']
+  hexchat_gtk_sources += ['tray-backend-macos.m', 'platform-macos.m', 'macos-app.m']
   add_languages('objc', native: false)
 else
   hexchat_gtk_sources += 'tray-backend-sni.c'
@@ -56,7 +56,8 @@ hexchat_gtk_deps = [
   gtk_dep
 ]
 if host_machine.system() == 'darwin'
-  hexchat_gtk_deps += dependency('appleframeworks', modules: ['AppKit'])
+  hexchat_gtk_deps += dependency('appleframeworks',
+                                 modules: ['AppKit', 'UserNotifications', 'Network'])
 endif
 
 # GTK builds several backends, see 'targets'
@@ -72,7 +73,8 @@ hexchat_gtk_ldflags = []
 
 if host_machine.system() == 'windows'
   hexchat_gtk_sources += ['notifications/notification-windows.c',
-                          'notifications/notification-balloon.c']
+                          'notifications/notification-balloon.c',
+                          'notifications/notification-plain.c']
   # dark title bar
   hexchat_gtk_deps += cc.find_library('dwmapi')
 
@@ -82,8 +84,11 @@ if host_machine.system() == 'windows'
   #  sources: 'notifications/notification-winrt.cpp'
   #)
 
+elif host_machine.system() == 'darwin'
+  hexchat_gtk_sources += 'notifications/notification-osx.m'
 else
-  hexchat_gtk_sources += 'notifications/notification-freedesktop.c'
+  hexchat_gtk_sources += ['notifications/notification-freedesktop.c',
+                          'notifications/notification-plain.c']
 endif
 
 iso_codes = dependency('iso-codes', required: false)
@@ -202,6 +207,10 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('select', find_program('sh'),
     args: [files('../../tests/ux/select.sh'), hexchat_gtk],
     timeout: 120)
+  # trackpad pixel scroll, wheel steps, flick glide: all drawn whole
+  test('scroll', find_program('sh'),
+    args: [files('../../tests/ux/scroll.sh'), hexchat_gtk],
+    timeout: 90)
   # emoji, accents, CJK, broken UTF-8: drawn, selected, copied whole
   test('utf8', find_program('python3'),
     args: [files('../../tests/ux/utf8.py'), hexchat_gtk],

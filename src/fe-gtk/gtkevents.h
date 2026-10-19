@@ -47,6 +47,15 @@ typedef void (*nx_motion_cb) (GtkWidget *w, double x, double y,
 void nx_on_click (GtkWidget *w, nx_click_cb cb, gpointer userdata);
 void nx_on_key (GtkWidget *w, nx_key_cb cb, gpointer userdata);
 void nx_on_scroll (GtkWidget *w, nx_scroll_cb cb, gpointer userdata);
+
+/* smooth scrolling for content that follows the fingers: dx/dy are pixels
+   when unit is GDK_SCROLL_UNIT_SURFACE (trackpads, Magic Mouse), steps
+   when GDK_SCROLL_UNIT_WHEEL (wheels); decel gets the momentum's velocity
+   (pixels/s) after a flick */
+typedef gboolean (*nx_smooth_scroll_cb) (GtkWidget *w, double dx, double dy, GdkScrollUnit unit,
+													  GdkModifierType state, gpointer userdata);
+typedef void (*nx_decelerate_cb) (GtkWidget *w, double vx, double vy, gpointer userdata);
+void nx_on_smooth_scroll (GtkWidget *w, nx_smooth_scroll_cb cb, nx_decelerate_cb decel, gpointer userdata);
 void nx_on_crossing (GtkWidget *w, nx_crossing_cb cb, gpointer userdata);
 void nx_on_focus_in (GtkWidget *w, nx_focus_cb cb, gpointer userdata);
 /* button released (n_press is always 1); the return value only matters

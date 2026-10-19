@@ -24,4 +24,12 @@ void notification_backend_show (const char *title, const char *text);
 int notification_backend_init (const char **error);
 void notification_backend_deinit (void);
 
+/* backends that can: the notification is about a tab ("network/channel");
+   clicking it calls the click callback with that, and withdraw takes a
+   tab's notifications back once it's been read. Others ignore the tab. */
+typedef void (*notification_click_cb) (const char *tab);
+void notification_backend_show_for (const char *title, const char *text, const char *tab);
+void notification_backend_set_click (notification_click_cb cb);
+void notification_backend_withdraw (const char *tab);
+
 #endif

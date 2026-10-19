@@ -591,6 +591,8 @@ typedef struct server
 	unsigned int doing_dns:1;			/* /dns has been done */
 	unsigned int end_of_motd:1;		/* end of motd reached (logged in) */
 	unsigned int http_reply:1;		/* a web server answered: the rest is its page */
+	unsigned int probe_sent:1;		/* asked "still there?" after sleep/a network change */
+	unsigned int probe_answered:1;	/* and something came back since */
 	unsigned int sent_quit:1;			/* sent a QUIT already? */
 	unsigned int use_listargs:1;		/* undernet and dalnet need /list >0,<10000 */
 	unsigned int is_away:1;

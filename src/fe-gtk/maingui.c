@@ -58,6 +58,9 @@
 #include "cmdpopup.h"
 #include "gtkutil.h"
 #include "bncwin.h"
+#ifdef __APPLE__
+#include "platform-macos.h"
+#endif
 
 #ifdef G_OS_WIN32
 #include <windows.h>
@@ -240,9 +243,57 @@ fe_flash_window (session *sess)
 }
 
 /* set a tab plain, red, light-red, or blue */
+static void fe_set_tab_color_real (struct session *sess, tabcolor col);
+
+#ifdef __APPLE__
+/* the Dock icon's badge: highlights and private messages waiting, as
+   Messages and Mail count what's for you; plain channel chatter doesn't */
+static void
+mg_update_dock_badge (void)
+{
+	GSList *l;
+	int n = 0;
+
+	for (l = sess_list; l; l = l->next)
+	{
+		session *s = l->data;
+		if (s->unread_hilight)
+			n += s->unread_hilight;
+		else if (s->type == SESS_DIALOG && (s->tab_state & (TAB_STATE_NEW_MSG | TAB_STATE_NEW_HILIGHT)))
+			n += MAX (1, (int) s->unread);
+	}
+	macos_set_badge (n);
+}
+
+static gboolean
+mg_dock_badge_idle (gpointer d)
+{
+	*(guint *) d = 0;
+	mg_update_dock_badge ();
+	return G_SOURCE_REMOVE;
+}
+
+static void
+mg_queue_dock_badge (void)
+{
+	static guint tag;
+	if (!tag)
+		tag = g_idle_add (mg_dock_badge_idle, &tag);
+}
+#endif
 
 void
 fe_set_tab_color (struct session *sess, tabcolor col)
+{
+#ifdef __APPLE__
+	/* whatever this does to the tab, the count may change */
+	mg_queue_dock_badge ();
+#endif
+	fe_set_tab_color_real (sess, col);
+}
+
+static void
+fe_set_tab_color_real (struct session *sess, tabcolor col)
 {
 	struct session *server_sess = sess->server->server_session;
 	int col_noflags = (col & ~FE_COLOR_ALLFLAGS);
@@ -3499,8 +3550,16 @@ mg_tabwindow_de_cb (GtkWidget *widget, gpointer user_data)
 		list = list->next;
 	}
 
+#ifdef __APPLE__
+	/* a Mac app doesn't quit when its window is closed: it stays connected
+	   and in the Dock, clicking the Dock icon brings the window back, and
+	   Quit (Cmd+Q) is how it ends. */
+	gtk_widget_set_visible (GTK_WIDGET (win), FALSE);
+	return TRUE;
+#else
 	mg_open_quit_dialog (TRUE);
 	return TRUE;
+#endif
 }
 
 #ifdef G_OS_WIN32

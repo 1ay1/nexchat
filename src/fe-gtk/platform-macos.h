@@ -38,4 +38,18 @@ gboolean macos_window_get_position (void *nswindow, int *x, int *y);
 void macos_window_move (void *nswindow, int x, int y);
 void macos_window_place (void *nswindow, void *parent, int how);
 
+/* macos-app.m: how a Mac app behaves (see the file's comment) */
+typedef struct
+{
+	void (*reopen) (void);					/* Dock icon clicked / opened again */
+	void (*open_url) (const char *url);	/* irc:// from another app */
+	void (*activated) (void);				/* the app came to the front */
+	void (*woke) (void);					/* back from sleep */
+	void (*network_back) (void);			/* a network is reachable (again) */
+	void (*appearance) (void);				/* light/dark switched */
+} macos_app_hooks;
+void macos_app_install (const macos_app_hooks *h);
+/* the Dock icon's badge: a count, 0 for none */
+void macos_set_badge (int count);
+
 #endif

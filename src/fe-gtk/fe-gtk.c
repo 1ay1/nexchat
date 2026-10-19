@@ -44,6 +44,7 @@
 #include "../common/server.h"
 #include "../common/url.h"
 #include "../common/userlist.h"
+#include "../common/outbound.h"
 #include "gtkutil.h"
 #include "maingui.h"
 #include "bncsetup.h"
@@ -649,15 +650,128 @@ fe_scheme_changed (GObject *o, GParamSpec *p, gpointer d)
 	fe_apply_scheme ();
 }
 
-#if defined(G_OS_WIN32) || defined(__APPLE__)
-/* Windows and macOS don't tell GTK when light/dark changes: look again
-   every couple of seconds (cheap: nothing happens unless it flipped) */
+#if defined(G_OS_WIN32)
+/* Windows doesn't tell GTK when light/dark changes: look again every
+   couple of seconds (cheap: nothing happens unless it flipped) */
 static gboolean
 fe_scheme_poll (gpointer d)
 {
 	platform_style_sync_scheme ();
 	fe_apply_scheme ();
 	return G_SOURCE_CONTINUE;
+}
+#endif
+
+#ifdef __APPLE__
+/* ---- how a Mac app behaves (macos-app.m) ---- */
+
+/* the system switched light/dark: follow it now (it tells us; no polling) */
+static void
+fe_mac_appearance (void)
+{
+	platform_style_sync_scheme ();
+	fe_apply_scheme ();
+}
+
+/* Dock icon clicked, or the app opened again: the main window back */
+static void
+fe_mac_reopen (void)
+{
+	GtkWidget *win = current_sess && current_sess->gui ? current_sess->gui->window : NULL;
+
+	if (win)
+	{
+		gtk_widget_set_visible (win, TRUE);
+		gtk_window_unminimize (GTK_WINDOW (win));
+		gtk_window_present (GTK_WINDOW (win));
+	}
+}
+
+/* irc://server/channel from a browser or another app */
+static void
+fe_mac_open_url (const char *url)
+{
+	char *cmd;
+
+	fe_mac_reopen ();
+	if (!current_sess)
+		return;
+	cmd = g_strdup_printf ("URL %s", url);
+	handle_command (current_sess, cmd, FALSE);
+	g_free (cmd);
+}
+
+/* back from sleep, or on a network again: a connection made before is
+   very likely dead even though no error came yet. Ask each server: one
+   that doesn't answer within a few seconds is reconnected now, instead of
+   after the full ping timeout (minutes). */
+static gboolean
+fe_mac_probe_timeout (gpointer d)
+{
+	GSList *l;
+
+	for (l = serv_list; l; l = l->next)
+	{
+		server *s = l->data;
+		if (s->connected && s->probe_sent && !s->probe_answered)
+		{
+			PrintText (s->server_session, _("* No answer after the network came back: reconnecting\n"));
+			s->auto_reconnect (s, FALSE, -1);
+		}
+		s->probe_sent = FALSE;
+	}
+	*(guint *) d = 0;
+	return G_SOURCE_REMOVE;
+}
+
+static void
+fe_mac_network_check (void)
+{
+	GSList *l;
+	gboolean any = FALSE;
+	static guint tag;
+
+	for (l = serv_list; l; l = l->next)
+	{
+		server *s = l->data;
+		if (s->connected)
+		{
+			s->probe_sent = TRUE;
+			s->probe_answered = FALSE;
+			/* the lag meter's own ping: answered quietly */
+			tcp_sendf (s, "PING LAG%lu\r\n", make_ping_time ());
+			s->lag_sent = make_ping_time ();
+			any = TRUE;
+		}
+		else if (!s->connecting && s->recondelay_tag)
+		{
+			/* waiting to reconnect: do it now, the network is here */
+			fe_timeout_remove (s->recondelay_tag);
+			s->recondelay_tag = 0;
+			s->auto_reconnect (s, FALSE, -1);
+		}
+	}
+	if (any)
+	{
+		if (tag)
+			g_source_remove (tag);
+		tag = g_timeout_add_seconds (8, fe_mac_probe_timeout, &tag);
+	}
+}
+
+static void
+fe_mac_activated (void)
+{
+	/* attention asked for while away: answered by coming back */
+	macos_request_attention (FALSE);
+}
+
+/* Quit from the Dock, a logout or restart: nexchat's Quit (asks first if
+   connected and the preference says so) */
+static void
+fe_mac_quit (void)
+{
+	mg_open_quit_dialog (FALSE);
 }
 #endif
 
@@ -699,10 +813,18 @@ fe_init (void)
 		g_signal_connect (gs, "notify::gtk-application-prefer-dark-theme", G_CALLBACK (fe_scheme_changed), NULL);
 		g_signal_connect (gs, "notify::gtk-theme-name", G_CALLBACK (fe_scheme_changed), NULL);
 	}
-#if defined(G_OS_WIN32) || defined(__APPLE__)
+#if defined(G_OS_WIN32)
 	g_timeout_add_seconds (2, fe_scheme_poll, NULL);
 #endif
 #ifdef __APPLE__
+	{
+		static const macos_app_hooks h = {
+			fe_mac_reopen, fe_mac_open_url, fe_mac_activated,
+			fe_mac_network_check, fe_mac_network_check, fe_mac_appearance
+		};
+		macos_app_install (&h);
+		nx_menu_set_app_quit (fe_mac_quit);
+	}
 	if (g_getenv ("NEXCHAT_NSMENU_ACTIVATE"))
 		g_timeout_add (1500, fe_nsmenu_activate, NULL);
 #endif
@@ -961,6 +1083,9 @@ fe_xdrag_step (gpointer data)
 		{
 			gtk_xtext_test_event (xt, what, x, y);
 			/* "check": what a release left, now (several drags per run) */
+			if (!strcmp (what, "pos"))
+				g_printerr ("xdrag-pos: %d %.3f %d\n", (int) x, gtk_xtext_scroll_value (xt),
+							gtk_xtext_backing_diff (xt, NULL, NULL));
 			if (!strcmp (what, "cursor"))
 			{
 				GdkCursor *c = gtk_widget_get_cursor (GTK_WIDGET (xt));

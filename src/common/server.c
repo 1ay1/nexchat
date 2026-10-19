@@ -285,6 +285,9 @@ static void
 server_inline (server *serv, char *line, gssize len)
 {
 	gsize len_utf8;
+
+	/* still there (see fe_mac_network_check) */
+	serv->probe_answered = TRUE;
 	if (!strcmp (serv->encoding, "UTF-8"))
 		line = text_fixup_invalid_utf8 (line, len, &len_utf8);
 	else

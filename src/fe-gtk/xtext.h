@@ -237,6 +237,10 @@ struct _GtkXText
 	unsigned int force_render:1;
 	unsigned int color_paste:1; /* CTRL was pressed when selection finished */
 	unsigned int redraw_pending:1;	/* a frame was asked for and hasn't been drawn yet */
+	guint glide_tag;			/* momentum after a trackpad flick */
+	double glide_v;				/* its velocity, px/s */
+	gint64 glide_time;
+	double zoom_accum;			/* Ctrl/Cmd+scroll: pixels toward the next zoom step */
 	unsigned int backing_stale:1;	/* backing surface needs a full render_page */
 	unsigned int in_draw:1;			/* inside draw(): don't queue more redraws */
 
@@ -288,6 +292,8 @@ char *gtk_xtext_selection_text (GtkXText *xtext, int *len);
 int gtk_xtext_stray_marks (GtkXText *xtext);
 /* tests: a redraw was asked for and the frame hasn't come yet */
 gboolean gtk_xtext_redraw_pending (GtkXText *xtext);
+/* tests: the scroll position, in lines (fractional while between rows) */
+double gtk_xtext_scroll_value (GtkXText *xtext);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);
 int gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area);
 textentry *gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags flags, GError **err);

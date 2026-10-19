@@ -55,8 +55,9 @@ static gboolean gtk_xtext_button_release (GtkWidget *, guint, int, double, doubl
 														GdkModifierType, gpointer);
 static void gtk_xtext_motion_notify (GtkWidget *, double, double, GdkModifierType,
 												 gpointer);
-static gboolean gtk_xtext_scroll (GtkWidget *, GdkScrollDirection, GdkModifierType,
-											 gpointer);
+static gboolean gtk_xtext_smooth_scroll (GtkWidget *, double, double, GdkScrollUnit,
+													GdkModifierType, gpointer);
+static void gtk_xtext_decelerate (GtkWidget *, double, double, gpointer);
 static void gtk_xtext_crossing (GtkWidget *, gboolean, gpointer);
 
 #define charlen(str) g_utf8_skip[*(guchar *)(str)]
@@ -300,6 +301,21 @@ xtext_draw_bg (GtkXText *xtext, int x, int y, int w, int h)
 		xtext_damage (xtext);
 	} else
 		xtext_fill_rect (xtext, &xtext->bgc.fg, x, y, w, h);
+}
+
+/* (re)create the backing surface when the widget's size changes */
+static void
+xtext_backing_update (GtkXText *xtext);
+
+static void
+xtext_scale_changed (GObject *o, GParamSpec *ps, gpointer d)
+{
+	GtkXText *xtext = GTK_XTEXT (o);
+
+	/* the separator, marker and text widths are in points and stay; only
+	   the pixels behind them change */
+	gtk_widget_queue_draw (GTK_WIDGET (xtext));
+	xtext->redraw_pending = TRUE;
 }
 
 /* (re)create the backing surface when the widget's size changes */
@@ -697,8 +713,11 @@ gtk_xtext_init (GtkXText * xtext)
 	nx_on_click (GTK_WIDGET (xtext), gtk_xtext_button_press, NULL);
 	nx_on_release (GTK_WIDGET (xtext), gtk_xtext_button_release, NULL);
 	nx_on_motion (GTK_WIDGET (xtext), gtk_xtext_motion_notify, NULL);
-	nx_on_scroll (GTK_WIDGET (xtext), gtk_xtext_scroll, NULL);
+	nx_on_smooth_scroll (GTK_WIDGET (xtext), gtk_xtext_smooth_scroll, gtk_xtext_decelerate, NULL);
 	nx_on_crossing (GTK_WIDGET (xtext), gtk_xtext_crossing, NULL);
+	/* moved to a display with another scale (Retina <-> not): the backing is
+	   remade at the new scale on the next frame, so ask for one */
+	g_signal_connect (xtext, "notify::scale-factor", G_CALLBACK (xtext_scale_changed), NULL);
 	/* the I-beam is the widget's own cursor from the start: GTK shows it as
 	   soon as the pointer is over the text, before any motion handler runs */
 	xtext_set_cursor (xtext, "text");
@@ -803,23 +822,16 @@ gtk_xtext_adjustment_changed (GtkAdjustment * adj, GtkXText * xtext)
 			xtext->buffer->scrollbar_down = FALSE;
 		}
 
-		if (gtk_adjustment_get_value (xtext->adj) + 1 == xtext->buffer->old_value ||
-			 gtk_adjustment_get_value (xtext->adj) - 1 == xtext->buffer->old_value)	/* clicked an arrow? */
+		/* drawn on the next frame, whatever moved it (a drag of the bar, a
+		   trackpad, a wheel): GTK4 coalesces them to one per frame anyway.
+		   (GTK2 delayed all but single-line arrow steps behind a 30 ms timer
+		   to save expensive redraws; that made trackpad scrolling lag) */
+		if (xtext->io_tag)
 		{
-			if (xtext->io_tag)
-			{
-				g_source_remove (xtext->io_tag);
-				xtext->io_tag = 0;
-			}
-			gtk_xtext_render_page (xtext);
-		} else
-		{
-			if (!xtext->io_tag)
-				xtext->io_tag = g_timeout_add (REFRESH_TIMEOUT,
-															(GSourceFunc)
-															gtk_xtext_adjustment_timeout,
-															xtext);
+			g_source_remove (xtext->io_tag);
+			xtext->io_tag = 0;
 		}
+		gtk_xtext_render_page (xtext);
 	}
 	xtext->buffer->old_value = gtk_adjustment_get_value (adj);
 }
@@ -1487,6 +1499,19 @@ gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y)
 		gtk_xtext_crossing (w, FALSE, NULL);
 	else if (!strcmp (what, "enter"))
 		gtk_xtext_crossing (w, TRUE, NULL);
+	/* "pixscroll 0 DY": a trackpad's pixels; "wheel 0 STEPS"; "flick 0 VY" */
+	else if (!strcmp (what, "pixscroll"))
+		gtk_xtext_smooth_scroll (w, x, y, GDK_SCROLL_UNIT_SURFACE, 0, NULL);
+	else if (!strcmp (what, "wheel"))
+		gtk_xtext_smooth_scroll (w, x, y, GDK_SCROLL_UNIT_WHEEL, 0, NULL);
+	else if (!strcmp (what, "flick"))
+		gtk_xtext_decelerate (w, x, y, NULL);
+}
+
+double
+gtk_xtext_scroll_value (GtkXText *xtext)
+{
+	return gtk_adjustment_get_value (xtext->adj);
 }
 
 char *
@@ -2617,37 +2642,94 @@ gtk_xtext_selection_get_text (GtkXText *xtext, int *len_ret)
 }
 
 
+/* scroll by a number of lines (fractions too: the page is drawn with a
+   pixel offset), kept inside the buffer */
+static void
+xtext_scroll_lines (GtkXText *xtext, double lines)
+{
+	GtkAdjustment *a = xtext->adj;
+	double v = gtk_adjustment_get_value (a) + lines;
+	double top = gtk_adjustment_get_upper (a) - gtk_adjustment_get_page_size (a);
+
+	gtk_adjustment_set_value (a, CLAMP (v, gtk_adjustment_get_lower (a), MAX (top, 0)));
+}
+
+/* a flick's momentum: glides on the frame clock, slowing like AppKit's */
 static gboolean
-gtk_xtext_scroll (GtkWidget *widget, GdkScrollDirection dir,
-						GdkModifierType state, gpointer unused)
+xtext_glide_tick (GtkWidget *w, GdkFrameClock *clock, gpointer d)
+{
+	GtkXText *xtext = GTK_XTEXT (w);
+	gint64 now = gdk_frame_clock_get_frame_time (clock);
+	double dt = (now - xtext->glide_time) / 1e6;
+	double before = gtk_adjustment_get_value (xtext->adj);
+
+	xtext->glide_time = now;
+	xtext->glide_v *= pow (0.05, dt);	/* to 5% per second */
+	if (fabs (xtext->glide_v) < 20 || !xtext->fontsize)
+	{
+		xtext->glide_tag = 0;
+		return G_SOURCE_REMOVE;
+	}
+	xtext_scroll_lines (xtext, xtext->glide_v * dt / xtext->fontsize);
+	/* hit the top or the bottom: stop */
+	if (gtk_adjustment_get_value (xtext->adj) == before)
+	{
+		xtext->glide_tag = 0;
+		return G_SOURCE_REMOVE;
+	}
+	return G_SOURCE_CONTINUE;
+}
+
+static void
+xtext_glide_stop (GtkXText *xtext)
+{
+	if (xtext->glide_tag)
+	{
+		gtk_widget_remove_tick_callback (GTK_WIDGET (xtext), xtext->glide_tag);
+		xtext->glide_tag = 0;
+	}
+}
+
+static void
+gtk_xtext_decelerate (GtkWidget *widget, double vx, double vy, gpointer unused)
 {
 	GtkXText *xtext = GTK_XTEXT (widget);
-	gfloat new_value;
 
-	if ((state & STATE_CTRL) && xtext->zoom_cb &&
-		 (dir == GDK_SCROLL_UP || dir == GDK_SCROLL_DOWN))
+	xtext_glide_stop (xtext);
+	xtext->glide_v = vy;
+	xtext->glide_time = g_get_monotonic_time ();
+	xtext->glide_tag = gtk_widget_add_tick_callback (widget, xtext_glide_tick, NULL, NULL);
+}
+
+/* a trackpad moves the text with the fingers, pixel for pixel; a wheel
+   step moves a few lines (as before); Ctrl/Cmd+wheel zooms */
+static gboolean
+gtk_xtext_smooth_scroll (GtkWidget *widget, double dx, double dy, GdkScrollUnit unit,
+								 GdkModifierType state, gpointer unused)
+{
+	GtkXText *xtext = GTK_XTEXT (widget);
+
+	xtext_glide_stop (xtext);
+	if ((state & (STATE_CTRL | GDK_META_MASK)) && xtext->zoom_cb && dy != 0)
 	{
-		xtext->zoom_cb (widget, dir == GDK_SCROLL_UP ? 1 : -1);
+		/* pixel deltas: zoom once per bigger move, not per event */
+		xtext->zoom_accum += unit == GDK_SCROLL_UNIT_WHEEL ? dy * 20 : dy;
+		if (fabs (xtext->zoom_accum) >= 20)
+		{
+			xtext->zoom_cb (widget, xtext->zoom_accum < 0 ? 1 : -1);
+			xtext->zoom_accum = 0;
+		}
 		return TRUE;
 	}
-
-	if (dir == GDK_SCROLL_UP)		/* mouse wheel pageUp */
-	{
-		new_value = gtk_adjustment_get_value (xtext->adj) - (gtk_adjustment_get_page_increment (xtext->adj) / 10);
-		if (new_value < gtk_adjustment_get_lower (xtext->adj))
-			new_value = gtk_adjustment_get_lower (xtext->adj);
-		gtk_adjustment_set_value (xtext->adj, new_value);
-	}
-	else if (dir == GDK_SCROLL_DOWN)	/* mouse wheel pageDn */
-	{
-		new_value = gtk_adjustment_get_value (xtext->adj) + (gtk_adjustment_get_page_increment (xtext->adj) / 10);
-		if (new_value > (gtk_adjustment_get_upper (xtext->adj) - gtk_adjustment_get_page_size (xtext->adj)))
-			new_value = gtk_adjustment_get_upper (xtext->adj) - gtk_adjustment_get_page_size (xtext->adj);
-		gtk_adjustment_set_value (xtext->adj, new_value);
-	}
-
-	return FALSE;
+	if (dy == 0 || !xtext->fontsize)
+		return FALSE;
+	if (unit == GDK_SCROLL_UNIT_WHEEL)
+		xtext_scroll_lines (xtext, dy * gtk_adjustment_get_page_increment (xtext->adj) / 10);
+	else
+		xtext_scroll_lines (xtext, dy / xtext->fontsize);
+	return TRUE;
 }
+
 
 static void
 gtk_xtext_class_init (GtkXTextClass * class)

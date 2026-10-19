@@ -1028,6 +1028,27 @@ void macos_merge_app_menu (GtkApplication *app, GMenuModel *bar);
    menu), would be a second menu of the same name, so its items are moved
    into the application menu, as HexChat's Mac build (gtk-mac-integration)
    did. */
+
+/* Quit from the Dock icon's menu, a logout, a restart: GTK's app delegate
+   activates app.quit instead of letting AppKit kill us; it's the same as
+   nexchat > Quit (with its "really quit?" if connected and asked for) */
+static void (*app_quit_hook) (void);
+
+void
+nx_menu_set_app_quit (void (*cb) (void))
+{
+	app_quit_hook = cb;
+}
+
+static void
+nx_menu_app_quit (GSimpleAction *a, GVariant *p, gpointer d)
+{
+	if (app_quit_hook)
+		app_quit_hook ();
+	else if (macos_global_app)
+		g_application_quit (G_APPLICATION (macos_global_app));
+}
+
 void
 nx_menu_bar_export_macos (nx_menu *m)
 {
@@ -1046,6 +1067,13 @@ nx_menu_bar_export_macos (nx_menu *m)
 			g_action_map_add_action (G_ACTION_MAP (app), a);
 	}
 	g_strfreev (names);
+	if (!g_action_map_lookup_action (G_ACTION_MAP (app), "quit"))
+	{
+		GSimpleAction *q = g_simple_action_new ("quit", NULL);
+		g_signal_connect (q, "activate", G_CALLBACK (nx_menu_app_quit), NULL);
+		g_action_map_add_action (G_ACTION_MAP (app), G_ACTION (q));
+		g_object_unref (q);
+	}
 	model = macos_copy_range (G_MENU_MODEL (m->model), 0, -1);
 	gtk_application_set_menubar (app, model);
 	macos_merge_app_menu (app, model);

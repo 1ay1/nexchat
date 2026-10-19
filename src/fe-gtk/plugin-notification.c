@@ -79,15 +79,60 @@ static void
 show_notification (const char *title, const char *text)
 {
 	char *stripped_title, *stripped_text;
+	const char *net, *chan;
+	char *tab;
 
 	/* Strip all colors */
 	stripped_title = hexchat_strip (ph, title, -1, 7);
 	stripped_text = hexchat_strip (ph, text, -1, 7);
-	
-	notification_backend_show (stripped_title, stripped_text);
+
+	/* the tab it's about (where the event was printed): clicking the
+	   notification goes there */
+	net = hexchat_get_info (ph, "network");
+	if (!net)
+		net = hexchat_get_info (ph, "server");
+	chan = hexchat_get_info (ph, "channel");
+	tab = g_strdup_printf ("%s\t%s", net ? net : "", chan ? chan : "");
+	notification_backend_show_for (stripped_title, stripped_text, tab);
+	g_free (tab);
 
 	hexchat_free (ph, stripped_title);
 	hexchat_free (ph, stripped_text);
+}
+
+static int
+tab_focused_cb (char *word[], gpointer userdata)
+{
+	const char *net = hexchat_get_info (ph, "network");
+	const char *chan = hexchat_get_info (ph, "channel");
+	char *tab;
+
+	if (!net)
+		net = hexchat_get_info (ph, "server");
+	tab = g_strdup_printf ("%s\t%s", net ? net : "", chan ? chan : "");
+	notification_backend_withdraw (tab);
+	g_free (tab);
+	return HEXCHAT_EAT_NONE;
+}
+
+/* a notification was clicked: bring nexchat up on its tab */
+static void
+notification_clicked (const char *tab)
+{
+	char **f;
+	hexchat_context *ctx = NULL;
+
+	if (tab && (f = g_strsplit (tab, "\t", 2)) && f[0] && f[1])
+	{
+		ctx = hexchat_find_context (ph, *f[0] ? f[0] : NULL, *f[1] ? f[1] : NULL);
+		g_strfreev (f);
+	}
+	if (ctx)
+		hexchat_set_context (ph, ctx);
+	/* GUI FOCUS raises the window too */
+	hexchat_command (ph, "GUI SHOW");
+	if (ctx)
+		hexchat_command (ph, "GUI FOCUS");
 }
 
 static void
@@ -221,6 +266,9 @@ notification_plugin_init (hexchat_plugin *plugin_handle, char **plugin_name, cha
 			g_debug("Failed loading notification plugin: %s\n", error);
 		return 0;
 	}
+	notification_backend_set_click (notification_clicked);
+	/* a tab looked at: its notifications are read, out of Notification Center */
+	hexchat_hook_print (ph, "Focus Tab", HEXCHAT_PRI_LOWEST, tab_focused_cb, NULL);
 
 	hexchat_hook_print (ph, "Channel Msg Hilight", HEXCHAT_PRI_LOWEST, incoming_hilight_cb, NULL);
 	hexchat_hook_print (ph, "Channel Action Hilight", HEXCHAT_PRI_LOWEST, incoming_hilight_cb, NULL);

@@ -148,6 +148,9 @@ void nx_menu_free (nx_menu *menu);
 #ifdef __APPLE__
 /* macOS: menu bars made after this go in the global menu bar of app */
 void nx_menu_use_global_menubar (GtkApplication *app);
+/* Quit from outside the menus (the Dock icon's menu, a logout): what it
+   does in the app (the quit dialog) */
+void nx_menu_set_app_quit (void (*cb) (void));
 #endif
 
 #endif
