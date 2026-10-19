@@ -1210,12 +1210,44 @@ ok_or (char *e, char **err)
 	return TRUE;
 }
 
+/* soju can't tell us these back: what we last set, in nets.ini */
+static void
+net_remember (ircnet *net, const char *key, const char *value)
+{
+	char *f = file ("nets.ini"), *name = safe_name (net->name);
+	GKeyFile *k = g_key_file_new ();
+
+	g_key_file_load_from_file (k, f, G_KEY_FILE_NONE, NULL);
+	g_key_file_set_string (k, name, key, value ? value : "");
+	g_key_file_save_to_file (k, f, NULL);
+	g_chmod (f, 0600);
+	g_key_file_free (k);
+	g_free (name);
+	g_free (f);
+}
+
+char *
+mybouncer_net_get (ircnet *net, const char *key)
+{
+	char *f = file ("nets.ini"), *name = safe_name (net->name), *v = NULL;
+	GKeyFile *k = g_key_file_new ();
+
+	if (g_key_file_load_from_file (k, f, G_KEY_FILE_NONE, NULL))
+		v = g_key_file_get_string (k, name, key, NULL);
+	g_key_file_free (k);
+	g_free (name);
+	g_free (f);
+	return v;
+}
+
 gboolean
 mybouncer_net_set (ircnet *net, const char *key, const char *value, char **err)
 {
 	char *name = safe_name (net->name), *flag = g_strdup_printf ("-%s", key);
 	const char *w[] = { "network", "update", name, flag, value, NULL };
 	gboolean ok = ok_or (admin (w), err);
+	if (ok)
+		net_remember (net, key, value);
 	g_free (flag);
 	g_free (name);
 	return ok;
@@ -1259,6 +1291,8 @@ mybouncer_net_set_commands (ircnet *net, const char *lines, char **err)
 	}
 	g_ptr_array_add (w, NULL);
 	ok = ok_or (admin ((const char *const *) w->pdata), err);
+	if (ok)
+		net_remember (net, "commands", lines);
 	g_ptr_array_free (w, TRUE);
 	g_strfreev (l);
 	g_free (name);
@@ -1381,6 +1415,27 @@ char *
 mybouncer_password (void)
 {
 	return read_file ("password");
+}
+
+const char *
+mybouncer_user (void)
+{
+	return USER;
+}
+
+char *
+mybouncer_remote_certfp (void)
+{
+	char *cert = file ("cert.pem"), *out = NULL, *fp = NULL, *p;
+	const char *argv[] = { "openssl", "x509", "-noout", "-fingerprint", "-sha256", "-in", cert, NULL };
+
+	if (g_file_test (cert, G_FILE_TEST_EXISTS) &&
+		 g_spawn_sync (NULL, (char **) argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL,
+						 NULL, NULL, &out, NULL, NULL, NULL) && out && (p = strchr (out, '=')))
+		fp = g_strdup (g_strstrip (p + 1));
+	g_free (out);
+	g_free (cert);
+	return fp;
 }
 
 int

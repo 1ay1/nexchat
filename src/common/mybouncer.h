@@ -85,6 +85,8 @@ char *mybouncer_run (const char *const *words, GString *out);
 /* network settings: key is one of soju's -flags ("realname", "username",
    "pass", "auto-away", "enabled", "addr"); value as text */
 gboolean mybouncer_net_set (ircnet *net, const char *key, const char *value, char **err);
+/* what nexchat last set for key ("commands" too), or NULL (g_free) */
+char *mybouncer_net_get (ircnet *net, const char *key);
 /* commands sent when it connects, \n-separated (replaces them all) */
 gboolean mybouncer_net_set_commands (ircnet *net, const char *lines, char **err);
 /* client certificate for net: makes one; its SHA-256 fingerprint (g_free) */
@@ -99,6 +101,7 @@ gboolean mybouncer_channel_set (ircnet *net, const char *chan, const char *key, 
 
 /* the bouncer itself */
 char *mybouncer_password (void);		/* the account password (g_free) */
+const char *mybouncer_user (void);	/* the account name on it */
 gboolean mybouncer_set_password (const char *pw, char **err);
 int mybouncer_port (void);
 /* reachable from other devices too (TLS, a certificate made for it), or
@@ -106,6 +109,8 @@ int mybouncer_port (void);
 gboolean mybouncer_remote (void);
 gboolean mybouncer_set_remote (gboolean on, char **err);
 int mybouncer_remote_port (void);
+/* SHA-256 fingerprint of its TLS certificate, or NULL (g_free) */
+char *mybouncer_remote_certfp (void);
 /* history in soju's database (search, missed lines) or as text files too */
 gboolean mybouncer_logs_as_files (void);
 gboolean mybouncer_set_logs_as_files (gboolean on, char **err);

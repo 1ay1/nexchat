@@ -82,7 +82,7 @@ print(t.decode())
 EOF
 python3 "$tmp/who.py" "$ERGO_PORT" | grep -q 'deenew' && ok "a new nick in the settings is used on the network" || bad "old nick kept"
 kill $app; wait $app 2>/dev/null || true
-DISPLAY=$disp NEXCHAT_TABS_DUMP=1 NEXCHAT_BNC_WIN=Lab NEXCHAT_BNCWIN_FLIP="$tmp/flip" NEXCHAT_BNCWIN_EDIT="$tmp/edit" "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
+DISPLAY=$disp NEXCHAT_TABS_DUMP=1 NEXCHAT_BNC_WIN=Lab NEXCHAT_BNCWIN_FLIP="$tmp/flip" NEXCHAT_BNCWIN_EDIT="$tmp/edit" NEXCHAT_BNCWIN_TAB="$tmp/tab" NEXCHAT_SHOT_WIN=1 NEXCHAT_SHOT_ON="$tmp/shot" "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
 until_state bncwin '*Lab \[on\]*as deenew*' && ok "the window shows the new nick" || { bad "window nick"; state bncwin; }
 
@@ -123,6 +123,23 @@ grep -A10 '^N=Lab$' "$tmp/cfg/servlist.conf" | grep -q "^S=127.0.0.1/$ERGO_PORT$
 # and on again
 echo Lab > "$tmp/flip"
 until_state bncwin '*Lab \[on\] *in 1 channels*' && ok "on again" || { bad "on again"; state bncwin; }
+
+# the other tabs
+shot() { [ -n "${SHOTS:-}" ] || return 0; sleep 1; echo "$SHOTS/$1.png" > "$tmp/shot"
+	n=0; while [ -e "$tmp/shot" ] && [ $n -lt 20 ]; do sleep 0.3; n=$((n+1)); done; }
+shot networks
+echo 1 > "$tmp/tab"
+until_state bncwin '*channels: #den joined*' && ok "Channels: the channel it's in" || { bad "channels"; state bncwin; }
+shot channels
+echo 2 > "$tmp/tab"
+until_state bncwin '*access: On this computer: 127.0.0.1 port *User name: me/network*remote off*' &&
+	ok "Access: where and who to log in as" || { bad "access"; state bncwin; }
+shot access
+echo 3 > "$tmp/tab"
+until_state bncwin '*storage: db, title ""*' && ok "Storage: history in the database" || { bad "storage"; state bncwin; }
+shot storage
+echo 0 > "$tmp/tab"
+until_state bncwin '*Lab \[on\]*' && ok "back to Networks" || bad "networks tab"
 
 # stop and start
 press_until alt+t bncwin 'bncwin: Your bouncer is stopped*' && ok "stop" || bad "stop"

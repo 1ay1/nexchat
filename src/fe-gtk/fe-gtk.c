@@ -678,6 +678,8 @@ fe_tabs_dump (gpointer d)
 			g_printerr ("%s\n", st);
 			g_free (st);
 			st = bncwin_describe ();
+			if (st)
+				g_strdelimit (st, "\n", ' ');
 			g_printerr ("bncwin: %s\n", st ? st : "");
 			g_free (st);
 		}
@@ -799,6 +801,22 @@ fe_self_shot (gpointer data)
 	return G_SOURCE_REMOVE;
 }
 
+/* tests: NEXCHAT_SHOT_ON=FILE: when FILE appears it names a PNG; the window
+   is shot there (with NEXCHAT_SHOT_WIN, the newest dialog), FILE removed */
+static gboolean
+fe_shot_on (gpointer f)
+{
+	char *path = NULL;
+
+	if (g_file_get_contents (f, &path, NULL, NULL))
+	{
+		g_unlink (f);
+		fe_self_shot (g_strdup (g_strstrip (path)));
+		g_free (path);
+	}
+	return G_SOURCE_CONTINUE;
+}
+
 /* NEXCHAT_TIMING: the first frame GTK drew for a window (what the user
    sees), and the first time the main loop had nothing else to do */
 static gboolean
@@ -909,6 +927,8 @@ fe_main (void)
 		}
 		g_timeout_add_seconds (secs, fe_self_shot, path);
 	}
+	if (g_getenv ("NEXCHAT_SHOT_ON"))
+		g_timeout_add (300, fe_shot_on, (gpointer) g_getenv ("NEXCHAT_SHOT_ON"));
 	if (g_getenv ("NEXCHAT_TABS_DUMP"))
 		g_timeout_add_seconds (1, fe_tabs_dump, NULL);
 	/* tests: NEXCHAT_BNC_PROBE=host:port:tls:user:pass runs the Stay online
