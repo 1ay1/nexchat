@@ -293,13 +293,53 @@ open_networks (server *serv, ircnet *base)
 	s->open_tag = g_timeout_add (700, open_networks_now, serv);
 }
 
+/* an entry of a network on the bouncer: same address, TLS, password and
+   login as the bouncer's own. TRUE if anything changed */
+static gboolean
+sync_from_base (ircnet *e, ircnet *base)
+{
+	const guint32 keep = FLAG_USE_SSL | FLAG_ALLOW_INVALID | FLAG_USE_PROXY | FLAG_CYCLE;
+	gboolean dirty = FALSE, same = TRUE;
+	GSList *a, *b;
+
+	for (a = e->servlist, b = base->servlist; a && b; a = a->next, b = b->next)
+		if (g_ascii_strcasecmp (((ircserver *) a->data)->hostname, ((ircserver *) b->data)->hostname))
+			same = FALSE;
+	if (!same || a || b)
+	{
+		while (e->servlist)
+			servlist_server_remove (e, e->servlist->data);
+		for (b = base->servlist; b; b = b->next)
+			servlist_server_add (e, ((ircserver *) b->data)->hostname);
+		e->selected = base->selected;
+		dirty = TRUE;
+	}
+	if ((e->flags & keep) != (base->flags & keep))
+	{
+		e->flags = (e->flags & ~keep) | (base->flags & keep);
+		dirty = TRUE;
+	}
+	if (g_strcmp0 (e->pass, base->pass))
+	{
+		g_free (e->pass);
+		e->pass = g_strdup (base->pass);
+		dirty = TRUE;
+	}
+	if (e->logintype != base->logintype)
+	{
+		e->logintype = base->logintype;
+		dirty = TRUE;
+	}
+	return dirty;
+}
+
 static void
 sync_networks (server *serv)
 {
 	bnc_state *s = g_hash_table_lookup (states, serv);
 	ircnet *base = sync_base (serv);
 	char *prefix;
-	GSList *l, *next;
+	GSList *l, *next, *moved = NULL;
 	guint i;
 	gboolean dirty = FALSE;
 
@@ -328,6 +368,20 @@ sync_networks (server *serv)
 			e->real = g_strdup (base->real);
 			e->pass = g_strdup (base->pass);
 			e->logintype = base->logintype;
+			dirty = TRUE;
+		}
+		/* how to reach the bouncer is the bouncer entry's, always: an edited
+		   address, port or password there must reach every network on it */
+		if (sync_from_base (e, base))
+		{
+			dirty = TRUE;
+			moved = g_slist_prepend (moved, e);
+		}
+		/* the nick soju has for that network is the one it'll be */
+		if (n->nick && *n->nick && g_strcmp0 (e->nick, n->nick))
+		{
+			g_free (e->nick);
+			e->nick = g_strdup (n->nick);
 			dirty = TRUE;
 		}
 		/* soju picks by name or address, ZNC by name: the name it has */
@@ -368,7 +422,42 @@ sync_networks (server *serv)
 	g_free (prefix);
 	if (dirty)
 		servlist_save ();
+	/* tabs still trying the old address: try the right one now */
+	for (l = moved; l; l = l->next)
+	{
+		GSList *sl;
+		for (sl = serv_list; sl; sl = sl->next)
+		{
+			server *sv = sl->data;
+			if (sv->network == l->data && !sv->end_of_motd)
+			{
+				sv->disconnect (sv->server_session, FALSE, -1);
+				servlist_connect (sv->server_session, l->data, TRUE);
+			}
+		}
+	}
+	g_slist_free (moved);
 	open_networks (serv, base);
+}
+
+gboolean
+bouncer_sync_entry (ircnet *e)
+{
+	char *slash, *bname;
+	ircnet *base;
+	gboolean dirty;
+
+	if (!e || !e->name || !(slash = strrchr (e->name, '/')))
+		return FALSE;
+	bname = g_strndup (e->name, slash - e->name);
+	base = servlist_net_find (bname, NULL, strcmp);
+	g_free (bname);
+	if (!base || base == e || !base->servlist || !(base->flags & FLAG_BOUNCER) ||
+		 !e->user || !strchr (e->user, '/'))
+		return FALSE;
+	if ((dirty = sync_from_base (e, base)))
+		servlist_save ();
+	return dirty;
 }
 
 void

@@ -35,6 +35,7 @@
 #include "hexchatc.h"
 
 #include "servlist.h"
+#include "bouncer.h"
 
 
 struct defaultserver
@@ -360,6 +361,10 @@ servlist_connect (session *sess, ircnet *net, gboolean join)
 		sess = new_ircwindow (NULL, NULL, SESS_SERVER, TRUE);
 
 	serv = sess->server;
+
+	/* a network on a bouncer: reached the way its bouncer is, even when the
+	   bouncer's address was changed after this entry was made */
+	bouncer_sync_entry (net);
 
 	/* connect to the currently selected Server-row */
 	list = g_slist_nth (net->servlist, net->selected);

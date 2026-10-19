@@ -113,5 +113,8 @@ const char *bouncer_last_error (ircnet *net);
 void bouncer_note_error (server *serv, const char *why);
 /* forget a bouncer entry and the entries of its networks */
 void bouncer_forget (ircnet *net);
+/* a network's entry on a bouncer ("Bouncer/Libera.Chat"): take the
+   address, TLS and password from the bouncer's entry. TRUE if it changed */
+gboolean bouncer_sync_entry (ircnet *e);
 
 #endif

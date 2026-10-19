@@ -973,6 +973,7 @@ server_cleanup (server * serv)
 			close_socket (serv->proxy_sok);
 		serv->connected = FALSE;
 		serv->end_of_motd = FALSE;
+		serv->http_reply = FALSE;
 		return 2;
 	}
 
@@ -1803,6 +1804,7 @@ server_set_defaults (server *serv)
 
 	serv->nickcount = 1;
 	serv->end_of_motd = FALSE;
+	serv->http_reply = FALSE;
 	serv->sent_capend = FALSE;
 	serv->use_listargs = FALSE;
 	serv->is_away = FALSE;

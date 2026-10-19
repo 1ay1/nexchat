@@ -799,7 +799,11 @@ rn_open (GtkWidget *b, gpointer data)
 		server *sv = l->data;
 		if (sv->network == e)
 		{
-			fe_ctrl_gui (sv->front_session ? sv->front_session : sv->server_session, FE_GUI_FOCUS, 0);
+			session *s = sv->front_session ? sv->front_session : sv->server_session;
+			fe_ctrl_gui (s, FE_GUI_FOCUS, 0);
+			/* there but not in (an old address, a dropped line): again */
+			if (!sv->connected && !sv->connecting)
+				servlist_connect (sv->server_session, e, TRUE);
 			return;
 		}
 	}
@@ -1064,7 +1068,8 @@ fill_one_remote (bncwin *w, ircnet *net)
 	if (!live)
 	{
 		const char *hint = sv ? _("Logging in. Its networks show here once it's in.")
-			: err ? _("Check the user name and password with Edit, then Connect again.")
+			: err && strstr (err, _("password")) ? _("Check the user name and password with Edit, then Connect again.")
+			: err ? _("Fix it with Edit, then Connect again.")
 			: _("Connect to see the networks it keeps you on, and to add more.");
 		GtkWidget *h = label (hint, TRUE);
 		gtk_widget_set_margin_start (h, 14);

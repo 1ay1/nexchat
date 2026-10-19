@@ -1502,6 +1502,20 @@ process_named_servermsg (session *sess, char *buf, char *rawname, char *word[], 
 		tcp_sendf (sess->server, "PONG %s\r\n", buf + 5);
 		return;
 	}
+	/* a web server on that port (nginx in front of the bouncer): one line
+	   saying so, not its HTML page */
+	if (!sess->server->end_of_motd && !strncmp (buf, "HTTP/", 5))
+	{
+		char *why = _("That port answers as a web server, not IRC. Check the port in the "
+						  "network's address (bouncers often use 6697).");
+		bouncer_note_error (sess->server, why);
+		EMIT_SIGNAL_TIMESTAMP (XP_TE_SERVERERROR, sess, why, NULL, NULL, NULL,
+									  0, tags_data->timestamp);
+		sess->server->http_reply = TRUE;
+		return;
+	}
+	if (sess->server->http_reply)
+		return;
 	if (!strncmp (buf, "ERROR", 5))
 	{
 		if (!sess->server->end_of_motd)
