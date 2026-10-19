@@ -35,6 +35,8 @@ typedef struct
 	int port;
 	gboolean tls;
 	char *nick;
+	char *username;
+	char *realname;
 	char *state;	/* "connected", "connecting", "disconnected" */
 	char *error;	/* why it's disconnected, if the bouncer says */
 } bnc_network;
@@ -72,6 +74,14 @@ char *bouncer_describe (server *serv);
 gboolean bouncer_add_network (server *serv, const char *name, const char *host, int port,
 										gboolean tls, const char *nick, char **err);
 gboolean bouncer_del_network (server *serv, const char *id, char **err);
+/* soju: change a network. NULL leaves a field as it is, "" clears it */
+gboolean bouncer_change_network (server *serv, const char *id, const char *nick, const char *username,
+											const char *realname, const char *pass, char **err);
+/* soju: log in to the network with this SASL account (NULL account: no login) */
+gboolean bouncer_set_sasl (server *serv, const char *netname, const char *account,
+									const char *password, char **err);
+/* the soju servers we're connected to (server*), g_slist_free */
+GSList *bouncer_soju_servers (void);
 gboolean bouncer_set_persist (server *serv, gboolean on, char **err);
 /* list again (ZNC has no notifications) */
 void bouncer_refresh (server *serv);

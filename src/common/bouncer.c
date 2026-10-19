@@ -138,6 +138,8 @@ network_free (gpointer p)
 	g_free (n->name);
 	g_free (n->host);
 	g_free (n->nick);
+	g_free (n->username);
+	g_free (n->realname);
 	g_free (n->state);
 	g_free (n->error);
 	g_free (n);
@@ -572,6 +574,8 @@ apply_attrs (bnc_network *n, const char *attrs)
 		if (!strcmp (k, "name")) SET (name);
 		else if (!strcmp (k, "host")) SET (host);
 		else if (!strcmp (k, "nickname")) SET (nick);
+		else if (!strcmp (k, "username")) SET (username);
+		else if (!strcmp (k, "realname")) SET (realname);
 		else if (!strcmp (k, "state")) SET (state);
 		else if (!strcmp (k, "error")) SET (error);
 		else if (!strcmp (k, "port")) n->port = atoi (val->str);
@@ -929,6 +933,109 @@ bouncer_add_network_q (server *serv, const char *name, const char *host, int por
 							  gboolean tls, char **err)
 {
 	return bouncer_add_network (serv, name, host, port, tls, NULL, err);
+}
+
+/* a word for BouncerServ: quoted, with \ and " escaped */
+static void
+service_word (GString *s, const char *w)
+{
+	g_string_append (s, " \"");
+	for (; *w; w++)
+	{
+		if (*w == '\\' || *w == '"')
+			g_string_append_c (s, '\\');
+		g_string_append_c (s, *w);
+	}
+	g_string_append_c (s, '"');
+}
+
+gboolean
+bouncer_change_network (server *serv, const char *id, const char *nick, const char *username,
+								const char *realname, const char *pass, char **err)
+{
+	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
+	GString *a;
+
+	*err = NULL;
+	if (!s || !serv->connected || s->kind != BNC_SOJU)
+	{
+		*err = g_strdup (_("Not connected to a soju bouncer."));
+		return FALSE;
+	}
+	if (nick && (!*nick || strpbrk (nick, " ,*?!@")))
+	{
+		*err = g_strdup (_("A nick can't be empty or have spaces in it."));
+		return FALSE;
+	}
+	a = g_string_new (NULL);
+	attr (a, "nickname", nick);
+	/* attr skips empty values; an empty one clears it on soju */
+	if (username)
+		*username ? attr (a, "username", username) : g_string_append_printf (a, "%susername=", a->len ? ";" : "");
+	if (realname)
+		*realname ? attr (a, "realname", realname) : g_string_append_printf (a, "%srealname=", a->len ? ";" : "");
+	if (pass)
+		*pass ? attr (a, "pass", pass) : g_string_append_printf (a, "%spass=", a->len ? ";" : "");
+	if (a->len)
+	{
+		g_free (s->pending);
+		s->pending = g_strdup (_("\00303*\tSaved on the bouncer.\n"));
+		tcp_sendf (serv, "BOUNCER CHANGENETWORK %s %s\r\n", id, a->str);
+	}
+	g_string_free (a, TRUE);
+	return TRUE;
+}
+
+gboolean
+bouncer_set_sasl (server *serv, const char *netname, const char *account, const char *password, char **err)
+{
+	bnc_state *s = states ? g_hash_table_lookup (states, serv) : NULL;
+	GString *c;
+	int i;
+
+	*err = NULL;
+	if (!s || !serv->connected || s->kind != BNC_SOJU)
+	{
+		*err = g_strdup (_("Not connected to a soju bouncer."));
+		return FALSE;
+	}
+	c = g_string_new ("PRIVMSG BouncerServ :sasl ");
+	g_string_append (c, account && *account ? "set-plain -network" : "reset -network");
+	service_word (c, netname);
+	if (account && *account)
+	{
+		service_word (c, account);
+		service_word (c, password ? password : "");
+	}
+	g_string_append (c, "\r\n");
+	tcp_send_len (serv, c->str, c->len);
+	g_string_free (c, TRUE);
+	/* soju only stores it: reconnect so it logs in with it now */
+	for (i = 0; i < 2; i++)
+	{
+		c = g_string_new ("PRIVMSG BouncerServ :network update");
+		service_word (c, netname);
+		g_string_append_printf (c, " -enabled %s\r\n", i ? "true" : "false");
+		tcp_send_len (serv, c->str, c->len);
+		g_string_free (c, TRUE);
+	}
+	return TRUE;
+}
+
+GSList *
+bouncer_soju_servers (void)
+{
+	GSList *out = NULL, *l;
+
+	for (l = serv_list; l; l = l->next)
+	{
+		server *sv = l->data;
+		bnc_state *s = states ? g_hash_table_lookup (states, sv) : NULL;
+		/* the control connection, not one bound to a network */
+		if (s && sv->connected && s->kind == BNC_SOJU && !s->bound)
+			out = g_slist_append (out, sv);
+	}
+	return out;
 }
 
 gboolean

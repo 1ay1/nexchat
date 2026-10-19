@@ -411,6 +411,38 @@ unit_text (void)
 	return t;
 }
 
+/* sojudb ACTION me, the password on stdin. FALSE with its error line */
+static gboolean
+sojudb_user (const char *cfg, const char *action, const char *pass, char **errout)
+{
+	char *argv[] = { (char *) find ("sojudb"), "-config", (char *) cfg, (char *) action, USER, NULL, NULL };
+	GSubprocess *sp;
+	char *in = g_strdup_printf ("%s\n", pass);
+	GBytes *ib = g_bytes_new_take (in, strlen (in)), *eb = NULL;
+	gboolean ok;
+
+	if (!strcmp (action, "create-user"))
+		argv[5] = "-admin";
+	sp = g_subprocess_newv ((const char *const *) argv, G_SUBPROCESS_FLAGS_STDIN_PIPE |
+									G_SUBPROCESS_FLAGS_STDOUT_SILENCE | G_SUBPROCESS_FLAGS_STDERR_PIPE, NULL);
+	ok = sp && g_subprocess_communicate (sp, ib, NULL, NULL, &eb, NULL) && g_subprocess_get_successful (sp);
+	if (!ok && errout)
+	{
+		/* its last line; the first is a "Reading password from stdin" warning */
+		char *all = eb ? g_strndup (g_bytes_get_data (eb, NULL), g_bytes_get_size (eb)) : g_strdup ("");
+		char *last = strrchr (g_strstrip (all), '\n');
+		g_free (*errout);
+		*errout = g_strdup (last ? last + 1 : all);
+		g_free (all);
+	}
+	g_bytes_unref (ib);
+	if (eb)
+		g_bytes_unref (eb);
+	if (sp)
+		g_object_unref (sp);
+	return ok;
+}
+
 gboolean
 mybouncer_setup (char **err)
 {
@@ -442,28 +474,12 @@ mybouncer_setup (char **err)
 	}
 	write_config ();
 
-	/* our account on it */
+	/* our account on it; there already when it was set up before */
 	pass = random_password ();
 	cfg = file ("config");
-	{
-		char *argv[] = { (char *) find ("sojudb"), "-config", cfg, "create-user", USER, "-admin", NULL };
-		GSubprocess *sp = g_subprocess_newv ((const char * const *) argv,
-														 G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_SILENCE |
-														 G_SUBPROCESS_FLAGS_STDERR_PIPE, NULL);
-		char *in = g_strdup_printf ("%s\n", pass);
-		GBytes *ib = g_bytes_new_take (in, strlen (in)), *eb = NULL;
-
-		if (!sp || !g_subprocess_communicate (sp, ib, NULL, NULL, &eb, NULL) || !g_subprocess_get_successful (sp))
-		{
-			errout = eb ? g_strndup (g_bytes_get_data (eb, NULL), g_bytes_get_size (eb)) : NULL;
-			*err = g_strdup_printf (_("Couldn't make an account on soju: %s"), errout ? g_strstrip (errout) : "?");
-		}
-		g_bytes_unref (ib);
-		if (eb)
-			g_bytes_unref (eb);
-		if (sp)
-			g_object_unref (sp);
-	}
+	if (!sojudb_user (cfg, "create-user", pass, &errout) &&
+		 !(errout && strstr (errout, "UNIQUE") && sojudb_user (cfg, "change-password", pass, &errout)))
+		*err = g_strdup_printf (_("Couldn't make an account on soju: %s"), errout ? errout : "?");
 	g_free (cfg);
 	if (*err)
 		goto fail;

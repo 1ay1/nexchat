@@ -303,6 +303,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-bncwin', find_program('sh'),
     args: [files('../../tests/ux/bncwin.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:77'], timeout: 300)
+  test('gui-bncremote', find_program('sh'),
+    args: [files('../../tests/ux/bncremote.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:78'], timeout: 180)
   test('gui-detect', find_program('sh'),
     args: [files('../../tests/ux/detect.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:78'], timeout: 240)

@@ -108,6 +108,11 @@ grep -A12 "^N=Lab$" "$tmp/cfg/servlist.conf" | grep -q "^P=pw12345$" && grep -A1
 
 pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && bad "soju still running after remove" || ok "soju stopped by remove"
 
+# set up again: soju's database still has the account
+run "/bouncer setup" "/echo waited" "/bouncer remove"
+has 'Lab: done' "set up again after remove"
+grep -q "Couldn't make an account" "$tmp/out" && bad "account already there" || ok "the old account is reused"
+
 [ $fail -eq 0 ] || { cat "$tmp/out"; exit 1; }
 echo "mybouncer: ok"
 exit 0
