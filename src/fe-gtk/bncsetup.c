@@ -20,6 +20,8 @@
 #include "gtkcompat.h"
 #include "bncsetup.h"
 #include "../common/bouncer.h"
+#include "../common/mybouncer.h"
+#include "bncdetect.h"
 
 /* ---- the login probe: one connection, CAP LS, PASS/NICK/USER, wait ---- */
 
@@ -44,6 +46,7 @@ bnc_probe_result_free (bnc_probe_result *r)
 		return;
 	g_free (r->kind);
 	g_free (r->error);
+	g_free (r->seen);
 	g_free (r->networks);
 	g_free (r->cert_why);
 	g_free (r);
@@ -63,6 +66,7 @@ probe_finish (probe *p, const char *kind, const char *error)
 	r = g_new0 (bnc_probe_result, 1);
 	r->kind = g_strdup (kind);
 	r->error = g_strdup (error);
+	r->seen = g_strdup (p->soju ? "soju" : p->znc ? "znc" : p->persist ? "persist" : NULL);
 	r->cert_untrusted = p->cert_errors != 0;
 	if (p->cert_errors)
 		r->cert_why = g_strdup ((p->cert_errors & G_TLS_CERTIFICATE_UNKNOWN_CA) ?
@@ -172,7 +176,15 @@ probe_connected (GObject *src, GAsyncResult *res, gpointer data)
 	if (!p->conn)
 	{
 		if (!p->done)
-			probe_finish (p, NULL, err->message);
+		{
+			/* encrypted to a plain-text port (or the other way round) */
+			if (g_error_matches (err, G_TLS_ERROR, G_TLS_ERROR_NOT_TLS) ||
+				 (err->domain == G_TLS_ERROR && strstr (err->message, "TLS packet")))
+				probe_finish (p, NULL, _("It doesn't speak TLS on that port. Write irc:// in front of the address "
+												 "for a plain-text connection."));
+			else
+				probe_finish (p, NULL, err->message);
+		}
 		g_error_free (err);
 		probe_free (p);
 		return;
@@ -275,6 +287,12 @@ typedef struct
 	GtkWidget *pnet, *paccount, *ppass, *pstatus;
 	GStrv pnet_names;
 	char *pkind;			/* what the network's check found */
+	/* what this computer has (bncdetect), shown on the first page */
+	GtkWidget *found_box;
+	GtkWidget *net_intro, *other_grid;
+	bnc_found *found;
+	gboolean mine;			/* the networks page is for our own soju */
+	GtkWidget *mine_status;
 	/* where it came from */
 	ircnet *net;
 	void (*done) (ircnet *net);
@@ -578,6 +596,38 @@ trust_toggled (GtkCheckButton *b, gpointer data)
 
 /* ---- the networks page ---- */
 
+/* our own soju: your own networks, the ones you use ticked (favourites,
+   auto-connect, with channels, the one it was opened from) */
+static void
+networks_fill_mine (setup *s)
+{
+	GSList *l;
+
+	for (l = network_list; l; l = l->next)
+	{
+		ircnet *n = l->data;
+		ircserver *sv = n->servlist ? n->servlist->data : NULL;
+		GtkWidget *b, *lb;
+		char *t;
+
+		/* already on it, or a bouncer's own entries: not offered */
+		if (!sv || mybouncer_owns (n) || n->logintype == LOGIN_PASS || strchr (n->name, '/'))
+			continue;
+		t = g_markup_printf_escaped ("%s  <span alpha=\"60%%\">%s%s</span>", n->name, sv->hostname,
+											  n->favchanlist ? _(", with its channels") : "");
+		b = gtk_check_button_new ();
+		lb = gtk_label_new (NULL);
+		gtk_label_set_markup (GTK_LABEL (lb), t);
+		gtk_check_button_set_child (GTK_CHECK_BUTTON (b), lb);
+		g_object_set_data (G_OBJECT (b), "net", n);
+		if (n == s->net || (n->flags & (FLAG_FAVORITE | FLAG_AUTO_CONNECT)) || n->favchanlist)
+			gtk_check_button_set_active (GTK_CHECK_BUTTON (b), TRUE);
+		gtk_box_append (GTK_BOX (s->netbox), b);
+		g_ptr_array_add (s->net_checks, b);
+		g_free (t);
+	}
+}
+
 static void
 networks_fill (setup *s)
 {
@@ -588,6 +638,21 @@ networks_fill (setup *s)
 	while ((c = gtk_widget_get_first_child (s->netbox)))
 		gtk_box_remove (GTK_BOX (s->netbox), c);
 	g_ptr_array_set_size (s->net_checks, 0);
+
+	if (s->mine)
+	{
+		gtk_label_set_text (GTK_LABEL (s->net_intro),
+			_("These are from your Network List. The ticked ones move to your bouncer: their "
+			  "address, nick, login and channels go with them, and from now on they connect "
+			  "through it. /bouncer remove puts them back."));
+		gtk_widget_set_visible (s->other_grid, FALSE);
+		networks_fill_mine (s);
+		return;
+	}
+	gtk_label_set_text (GTK_LABEL (s->net_intro),
+		_("nexchat adds these on the bouncer when it connects. Ones it already has stay as "
+		  "they are; you can change them later with /bouncer or in the Network List."));
+	gtk_widget_set_visible (s->other_grid, TRUE);
 
 	for (i = 0; i < G_N_ELEMENTS (popular); i++)
 	{
@@ -702,6 +767,149 @@ persist_entry_changed (GtkEditable *e, gpointer data)
 	update_buttons (data);
 }
 
+static GtkWidget *
+choice (setup *s, const char *title, const char *what, step to);
+static void networks_fill (setup *s);
+
+/* ---- what's on this computer ---- */
+
+/* "Use soju on this computer": set ours up (nexchat's own soju, in its
+   folder), then the networks page, ticked with what's in your list */
+static void
+use_local_soju (GtkWidget *b, gpointer data)
+{
+	setup *s = data;
+	char *err = NULL;
+
+	gtk_widget_set_sensitive (b, FALSE);
+	if (!mybouncer_setup (&err))
+	{
+		GtkWidget *l = label ("", FALSE);
+		set_status_kind (l, "no", err);
+		gtk_box_append (GTK_BOX (s->found_box), l);
+		g_free (err);
+		gtk_widget_set_sensitive (b, TRUE);
+		return;
+	}
+	s->mine = TRUE;
+	networks_fill (s);
+	go (s, STEP_NETWORKS);
+}
+
+/* a bouncer answering on this computer: its address filled in, then
+   the login page with the password field ready */
+static void
+use_listening (GtkWidget *b, gpointer data)
+{
+	setup *s = data;
+	int port = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (b), "port"));
+	gboolean tls = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (b), "tls"));
+	char *a = g_strdup_printf ("%s127.0.0.1:%d", tls ? "" : "irc://", port);
+
+	nx_entry_set_text (s->addr, a);
+	g_free (a);
+	go (s, STEP_BOUNCER);
+	gtk_widget_grab_focus (s->user);
+}
+
+static GtkWidget *
+action (setup *s, const char *mnemonic, const char *what, GCallback cb)
+{
+	GtkWidget *b = choice (s, mnemonic, what, STEP_CHOOSE);
+	/* not a step: does its own thing */
+	g_signal_handlers_disconnect_matched (b, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, s);
+	g_signal_connect (b, "clicked", cb, s);
+	return b;
+}
+
+static void
+detected (bnc_found *f, gpointer data)
+{
+	setup *s = open_setup;
+	GtkWidget *c;
+	bnc_installed *soju = NULL, *znc = NULL;
+	guint i;
+	gboolean any = FALSE;
+
+	/* the window was closed meanwhile */
+	if (!s || s != data)
+	{
+		bnc_found_free (f);
+		return;
+	}
+	s->found = f;
+	while ((c = gtk_widget_get_first_child (s->found_box)))
+		gtk_box_remove (GTK_BOX (s->found_box), c);
+
+	for (i = 0; i < f->installed->len; i++)
+	{
+		bnc_installed *b = f->installed->pdata[i];
+		if (b->path && !strcmp (b->kind, "soju"))
+			soju = b;
+		else if (b->path && !strcmp (b->kind, "znc"))
+			znc = b;
+	}
+
+	/* ours, already running: nothing to set up */
+	if (soju && soju->ours)
+	{
+		char *t = g_strdup_printf (_("nexchat already runs a soju for you%s. Pick networks to put on it:"),
+											mybouncer_running () ? "" : _(" (stopped right now: it starts again)"));
+		gtk_box_append (GTK_BOX (s->found_box), action (s, _("_Use my bouncer"), t, G_CALLBACK (use_local_soju)));
+		g_free (t);
+		any = TRUE;
+	}
+	else if (soju)
+	{
+		GString *t = g_string_new (NULL);
+
+		g_string_append_printf (t, _("soju%s%s is installed on this computer. nexchat sets up its own copy "
+											 "(in its own folder, only reachable from here), keeps it running and "
+											 "moves your networks onto it, logins and channels included. Nothing "
+											 "to type."), soju->version ? " " : "", soju->version ? soju->version : "");
+		/* the system's own soju, if it's there and broken: say so, plainly */
+		if (soju->service && !strcmp (soju->service, "failed"))
+			g_string_append_printf (t, _("\n\nThe system's soju service is set to start but fails (%s). "
+												 "That one needs root to fix; nexchat's own copy doesn't need it."),
+											soju->service_why ? soju->service_why : _("see journalctl -u soju"));
+		gtk_box_append (GTK_BOX (s->found_box), action (s, _("_Use soju on this computer"), t->str,
+																			 G_CALLBACK (use_local_soju)));
+		g_string_free (t, TRUE);
+		any = TRUE;
+	}
+
+	/* anything answering here that isn't ours: offer it, address filled in */
+	for (i = 0; i < f->listening->len; i++)
+	{
+		bnc_listening *l = f->listening->pdata[i];
+		GtkWidget *b;
+		char *title, *what;
+
+		if (l->ours || !strcmp (l->kind, "persist"))
+			continue;
+		title = g_strdup_printf (_("A %s running here, on port %d"), !strcmp (l->kind, "znc") ? "ZNC" : "soju", l->port);
+		what = g_strdup (_("Use it with your account on it: the address is filled in for you."));
+		b = action (s, title, what, G_CALLBACK (use_listening));
+		g_object_set_data (G_OBJECT (b), "port", GINT_TO_POINTER (l->port));
+		g_object_set_data (G_OBJECT (b), "tls", GINT_TO_POINTER (l->tls));
+		gtk_box_append (GTK_BOX (s->found_box), b);
+		g_free (title);
+		g_free (what);
+		any = TRUE;
+	}
+
+	/* ZNC installed, not running: say it's there; setting it up for you is
+	   soju's job here (ZNC's own setup asks a lot of questions) */
+	if (znc && !any)
+		gtk_box_append (GTK_BOX (s->found_box), label (_("ZNC is installed on this computer but isn't running. "
+																			 "Start it (znc), then come back here; or install soju and "
+																			 "nexchat sets it all up for you."), TRUE));
+	else if (!any)
+		gtk_box_append (GTK_BOX (s->found_box), label (_("No bouncer on this computer. The easiest: install soju "
+																			 "from your system's packages, open this again, and nexchat "
+																			 "does the rest."), TRUE));
+}
+
 /* ---- Connect ---- */
 
 /* bouncer networks to add once connected: "name host" lines, kept on the
@@ -805,6 +1013,59 @@ finish_persist (setup *s)
 	servlist_connect (NULL, net, TRUE);
 }
 
+/* our own soju: the ticked networks are moved (one by one, with what
+   happened shown), then each connects through it */
+static void
+mine_progress (const char *text, gboolean done, gboolean ok, gpointer data)
+{
+	setup *s = open_setup;
+	GSList *nets = data, *l;
+
+	if (s && s == g_object_get_data (G_OBJECT (s->win), "setup"))
+	{
+		set_status_kind (s->mine_status, done ? (ok ? "ok" : "no") : "wait", text);
+		if (!done)
+			return;
+	}
+	else if (!done)
+		return;
+	/* moved: connect them, through soju now */
+	for (l = nets; l; l = l->next)
+	{
+		ircnet *n = l->data;
+		if (mybouncer_owns (n))
+			servlist_connect (NULL, n, TRUE);
+	}
+	if (s && s->done)
+		s->done (nets ? nets->data : NULL);
+	g_slist_free (nets);
+	if (s)
+		nx_widget_destroy (s->win);
+}
+
+static void
+finish_mine (setup *s)
+{
+	GSList *nets = NULL;
+	guint i;
+
+	for (i = 0; i < s->net_checks->len; i++)
+	{
+		GtkWidget *b = s->net_checks->pdata[i];
+		if (gtk_check_button_get_active (GTK_CHECK_BUTTON (b)))
+			nets = g_slist_append (nets, g_object_get_data (G_OBJECT (b), "net"));
+	}
+	if (!nets)
+	{
+		set_status_kind (s->mine_status, "no", _("Tick at least one network."));
+		return;
+	}
+	gtk_widget_set_sensitive (s->next, FALSE);
+	gtk_widget_set_sensitive (s->back, FALSE);
+	mybouncer_adopt (nets, mine_progress, g_slist_copy (nets));
+	g_slist_free (nets);
+}
+
 static void
 next_cb (GtkWidget *b, gpointer data)
 {
@@ -819,6 +1080,11 @@ next_cb (GtkWidget *b, gpointer data)
 		go (s, STEP_NETWORKS);
 		break;
 	case STEP_NETWORKS:
+		if (s->mine)
+		{
+			finish_mine (s);
+			break;
+		}
 		finish_bouncer (s);
 		nx_widget_destroy (s->win);
 		break;
@@ -849,7 +1115,9 @@ static void
 back_cb (GtkWidget *b, gpointer data)
 {
 	setup *s = data;
-	go (s, s->at == STEP_NETWORKS ? STEP_BOUNCER : STEP_CHOOSE);
+	go (s, s->at == STEP_NETWORKS && !s->mine ? STEP_BOUNCER : STEP_CHOOSE);
+	if (s->at == STEP_CHOOSE)
+		s->mine = FALSE;
 }
 
 static void
@@ -904,7 +1172,51 @@ setup_free (gpointer data)
 	g_free (s->pkind);
 	g_strfreev (s->pnet_names);
 	g_ptr_array_unref (s->net_checks);
+	bnc_found_free (s->found);
 	g_free (s);
+}
+
+/* tests: the found list and the networks page's ticks, one line each */
+char *
+bncsetup_describe_more (void)
+{
+	setup *s = open_setup;
+	GString *f = g_string_new ("bncfound:"), *n = g_string_new ("bncnets:");
+	GtkWidget *c;
+	guint i;
+
+	if (!s)
+	{
+		g_string_free (n, TRUE);
+		g_string_append (f, "\nbncnets:");
+		return g_string_free (f, FALSE);
+	}
+	for (c = gtk_widget_get_first_child (s->found_box); c; c = gtk_widget_get_next_sibling (c))
+	{
+		GtkWidget *w = c;
+		if (GTK_IS_BUTTON (c))
+			w = gtk_widget_get_first_child (gtk_button_get_child (GTK_BUTTON (c)));
+		while (w)
+		{
+			if (GTK_IS_LABEL (w))
+				g_string_append_printf (f, " | %s", gtk_label_get_text (GTK_LABEL (w)));
+			w = GTK_IS_BUTTON (c) ? gtk_widget_get_next_sibling (w) : NULL;
+		}
+	}
+	for (i = 0; i < s->net_checks->len; i++)
+	{
+		GtkWidget *b = s->net_checks->pdata[i];
+		GtkWidget *l = gtk_check_button_get_child (GTK_CHECK_BUTTON (b));
+		g_string_append_printf (n, " [%s] %s", gtk_check_button_get_active (GTK_CHECK_BUTTON (b)) ? "x" : " ",
+										l && GTK_IS_LABEL (l) ? gtk_label_get_text (GTK_LABEL (l)) : "?");
+	}
+	for (i = 0; i < f->len; i++)
+		if (f->str[i] == '\n')
+			f->str[i] = ' ';
+	g_string_append_c (f, '\n');
+	g_string_append (f, n->str);
+	g_string_free (n, TRUE);
+	return g_string_free (f, FALSE);
 }
 
 char *
@@ -940,13 +1252,21 @@ fill_from (setup *s, ircnet *net)
 	/* already set up for a bouncer: its address and login */
 	if (net->logintype == LOGIN_PASS && net->user && net->pass)
 	{
-		char *h;
+		char *h, *slash;
+		gboolean tls;
+
 		sv = g_slist_nth_data (net->servlist, net->selected);
 		if (!sv)
 			sv = net->servlist->data;
-		h = g_strdup (sv->hostname);
-		if (strchr (h, '/'))
-			*strchr (h, '/') = ':';
+		/* "host/port" or "host/+port": written the way the address field reads
+		   it, so a plain-text bouncer isn't taken for TLS */
+		slash = strchr (sv->hostname, '/');
+		tls = (net->flags & FLAG_USE_SSL) || (slash && slash[1] == '+');
+		if (slash)
+			h = g_strdup_printf ("%s%.*s:%s", tls ? "" : "irc://", (int) (slash - sv->hostname), sv->hostname,
+									 slash + 1 + (slash[1] == '+'));
+		else
+			h = g_strdup_printf ("%s%s", tls ? "" : "irc://", sv->hostname);
 		nx_entry_set_text (s->addr, h);
 		g_free (h);
 		nx_entry_set_text (s->user, net->user);
@@ -1011,8 +1331,11 @@ bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 	gtk_box_append (GTK_BOX (p), label (_("IRC only gives messages to people who are connected. To get "
 														"everything said while your computer is off, something has to "
 														"stay connected for you."), TRUE));
+	s->found_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
+	gtk_box_append (GTK_BOX (s->found_box), label (_("Looking for bouncers on this computer..."), TRUE));
+	gtk_box_append (GTK_BOX (p), s->found_box);
 	gtk_box_append (GTK_BOX (p), choice (s, _("I _have a bouncer"),
-		_("soju, ZNC, or one a friend or service runs for you. You'll need its address and your login."),
+		_("On another computer, or one a friend or service runs for you. You'll need its address and your login."),
 		STEP_BOUNCER));
 	gtk_box_append (GTK_BOX (p), choice (s, _("_Keep me online on my network"),
 		_("Some networks can keep you connected themselves (ones running Ergo). Needs an account there."),
@@ -1052,9 +1375,8 @@ bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 
 	/* networks */
 	p = page (_("Which networks should it stay on?"));
-	gtk_box_append (GTK_BOX (p), label (_("nexchat adds these on the bouncer when it connects. Ones it already "
-														"has stay as they are; you can change them later with /bouncer or "
-														"in the Network List."), TRUE));
+	s->net_intro = label ("", TRUE);
+	gtk_box_append (GTK_BOX (p), s->net_intro);
 	s->netbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 2);
 	sw = gtk_scrolled_window_new ();
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
@@ -1070,6 +1392,9 @@ bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 	row (grid, 0, _("Another _one:"), s->other_host);
 	row (grid, 1, _("Its na_me:"), s->other_name);
 	gtk_box_append (GTK_BOX (p), grid);
+	s->other_grid = grid;
+	s->mine_status = label ("", FALSE);
+	gtk_box_append (GTK_BOX (p), s->mine_status);
 	gtk_stack_add_named (GTK_STACK (s->stack), p, "networks");
 
 	/* persist: the networks from the Network List */
@@ -1135,7 +1460,10 @@ bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 
 	open_setup = s;
 	fill_from (s, net);
-	/* already a bouncer: straight to its page */
-	go (s, net && net->logintype == LOGIN_PASS && net->user && net->pass ? STEP_BOUNCER : STEP_CHOOSE);
+	bncdetect_run (detected, s);
+	/* already on a bouncer elsewhere: straight to its page. On ours: the
+	   first page, which says nexchat runs it and offers more networks */
+	go (s, net && net->logintype == LOGIN_PASS && net->user && net->pass && !mybouncer_owns (net) ?
+		 STEP_BOUNCER : STEP_CHOOSE);
 	gtk_window_present (GTK_WINDOW (s->win));
 }

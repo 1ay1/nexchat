@@ -29,6 +29,7 @@ hexchat_gtk_sources = [
   'rawlog.c',
   'servlistgui.c',
   'bncsetup.c',
+  'bncdetect.c',
   'setup.c',
   'sexy-spell-entry.c',
   'textgui.c',
@@ -298,6 +299,9 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     args: [files('../../tests/ux/multiline.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:99'], timeout: 120)
   # against real soju, ZNC and Ergo (tests/bnc/fetch.sh; skipped without)
+  test('gui-detect', find_program('sh'),
+    args: [files('../../tests/ux/detect.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:78'], timeout: 240)
   test('gui-stayonline', find_program('sh'),
     args: [files('../../tests/ux/stayonline.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:80'], timeout: 480)

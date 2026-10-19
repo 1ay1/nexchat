@@ -28,6 +28,7 @@ void bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net));
 typedef struct
 {
 	char *kind;		/* "soju", "znc", "persist", "plain"; NULL on error */
+	char *seen;		/* what it looked like even when the login failed */
 	char *error;	/* why not, in plain words */
 	char *networks;	/* ZNC: its network names, comma separated */
 	gboolean cert_untrusted;	/* TLS, but the certificate wouldn't be trusted */
@@ -41,5 +42,7 @@ void bnc_probe_result_free (bnc_probe_result *r);
 
 /* tests: the open window's choice and status line, or NULL */
 char *bncsetup_describe (void);
+/* tests: "bncfound: ..." and "bncnets: ..." lines */
+char *bncsetup_describe_more (void);
 
 #endif

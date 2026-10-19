@@ -46,6 +46,8 @@
 #include "gtkutil.h"
 #include "maingui.h"
 #include "bncsetup.h"
+#include "bncdetect.h"
+#include "../common/servlist.h"
 #include "chanview.h"
 #include "cmdpopup.h"
 #include "pixmaps.h"
@@ -671,6 +673,9 @@ fe_tabs_dump (gpointer d)
 			char *st = bncsetup_describe ();
 			g_printerr ("bncsetup: %s\n", st ? st : "");
 			g_free (st);
+			st = bncsetup_describe_more ();
+			g_printerr ("%s\n", st);
+			g_free (st);
 		}
 		g_printerr ("typing: %s\n", current_sess->gui->typing_label && gtk_widget_get_visible (current_sess->gui->typing_label)
 			? gtk_label_get_text (GTK_LABEL (current_sess->gui->typing_label)) : "");
@@ -846,8 +851,20 @@ fe_zoom_start (gpointer data)
 static gboolean
 fe_bnc_setup_open (gpointer d)
 {
-	bncsetup_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL, NULL, NULL);
+	const char *from = g_getenv ("NEXCHAT_BNC_SETUP");
+	ircnet *net = from && strcmp (from, "1") ? servlist_net_find ((char *) from, NULL, strcmp) : NULL;
+
+	bncsetup_open (current_sess && current_sess->gui ? GTK_WINDOW (current_sess->gui->window) : NULL, net, NULL);
 	return G_SOURCE_REMOVE;
+}
+
+static void
+fe_detect_print (bnc_found *f, gpointer d)
+{
+	char *s = bnc_found_describe (f);
+	g_printerr ("detect:\n%sdetect-end\n", s);
+	g_free (s);
+	bnc_found_free (f);
 }
 
 static void
@@ -892,6 +909,9 @@ fe_main (void)
 	/* tests: NEXCHAT_BNC_SETUP=1 opens "Stay online" over the main window */
 	if (g_getenv ("NEXCHAT_BNC_SETUP"))
 		g_timeout_add_seconds (1, fe_bnc_setup_open, NULL);
+	/* tests: NEXCHAT_BNC_DETECT=1 prints which bouncers this computer has */
+	if (g_getenv ("NEXCHAT_BNC_DETECT"))
+		bncdetect_run (fe_detect_print, NULL);
 
 #ifdef __APPLE__
 	/* Started from a terminal (not through Launch Services) the app and every
