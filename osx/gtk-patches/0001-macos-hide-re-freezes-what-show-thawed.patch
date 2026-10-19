@@ -1,0 +1,71 @@
+From 1af3f167283159b596726c6b2d3ef414d48c25c9 Mon Sep 17 00:00:00 2001
+From: nexchat <ayush@nexchat>
+Date: Mon, 19 Oct 2026 23:10:31 +0200
+Subject: [PATCH] macos: hide re-freezes what show thawed
+
+_gdk_macos_surface_show() thaws the surface when it maps it, undoing
+the freeze_updates() from ::constructed. Nothing put that freeze back
+on hide, so every later show of the same surface (a popover, tooltip
+or window shown again) thawed a count already at 0:
+
+  gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed
+
+Track the show's thaw and redo the freeze on hide. Reproduced with a
+popover popped up/down and a transient window shown/hidden in a loop:
+19 criticals in 40 steps before, none after.
+---
+ gdk/macos/gdkmacossurface-private.h |  2 ++
+ gdk/macos/gdkmacossurface.c         | 17 ++++++++++++++++-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/gdk/macos/gdkmacossurface-private.h b/gdk/macos/gdkmacossurface-private.h
+index 4a9bca4a71..f8b73c8a94 100644
+--- a/gdk/macos/gdkmacossurface-private.h
++++ b/gdk/macos/gdkmacossurface-private.h
+@@ -74,6 +74,8 @@ struct _GdkMacosSurface
+   guint geometry_dirty : 1;
+   guint next_frame_set : 1;
+   guint show_on_next_swap : 1;
++  /* show undid the ::constructed freeze; hide redoes it */
++  guint thawed_by_show : 1;
+   guint in_change_monitor : 1;
+   guint popup_grab : 1;
+ };
+diff --git a/gdk/macos/gdkmacossurface.c b/gdk/macos/gdkmacossurface.c
+index 082e938da9..c575d00db4 100644
+--- a/gdk/macos/gdkmacossurface.c
++++ b/gdk/macos/gdkmacossurface.c
+@@ -136,6 +136,17 @@ gdk_macos_surface_hide (GdkSurface *surface)
+ 
+   self->show_on_next_swap = FALSE;
+ 
++  /* _gdk_macos_surface_show() thaws when it maps the surface, undoing
++   * the freeze from ::constructed. Put that freeze back when it's hidden,
++   * or the next show thaws a count already at 0: "gdk_surface_thaw_updates:
++   * assertion 'surface->update_freeze_count > 0' failed" each time a
++   * popover, tooltip or window is shown again. */
++  if (self->thawed_by_show)
++    {
++      self->thawed_by_show = FALSE;
++      gdk_surface_freeze_updates (surface);
++    }
++
+   was_key = [self->window isKeyWindow];
+ 
+   if (self->popup_grab)
+@@ -661,7 +672,11 @@ _gdk_macos_surface_show (GdkMacosSurface *self)
+       gdk_surface_set_is_mapped (GDK_SURFACE (self), TRUE);
+       gdk_surface_request_layout (GDK_SURFACE (self));
+       gdk_surface_invalidate_rect (GDK_SURFACE (self), NULL);
+-      gdk_surface_thaw_updates (GDK_SURFACE (self));
++      if (!self->thawed_by_show)
++        {
++          self->thawed_by_show = TRUE;
++          gdk_surface_thaw_updates (GDK_SURFACE (self));
++        }
+     }
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+
