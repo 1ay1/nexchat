@@ -901,6 +901,115 @@ fe_timing_idle (gpointer d)
 
 /* tests: NEXCHAT_ZOOM="+ + - 0" runs those zoom steps (Ctrl+= / Ctrl+-
    / Ctrl+0), one every 300 ms, starting 2 s after startup */
+/* tests: NEXCHAT_XDRAG="press 200 30;move 260 60;...;release 300 90"
+   plays those events on the text box one per frame (as a hand would),
+   then prints "xdrag-diff: N" (pixels that differ from a full redraw;
+   0 = nothing left half-drawn). NEXCHAT_XDRAG_PNG=prefix saves both. */
+static gboolean
+fe_xdrag_step (gpointer data)
+{
+	char **steps = data;
+	static int i;
+	GtkXText *xt;
+
+	if (!current_sess || !current_sess->gui || !current_sess->gui->xtext)
+		return G_SOURCE_CONTINUE;
+	xt = GTK_XTEXT (current_sess->gui->xtext);
+	if (steps[i])
+	{
+		char what[16];
+		double x, y;
+		static int waited;
+		/* "wait N": N frames (of 30 ms) before the next step */
+		if (sscanf (steps[i], "wait %lf", &x) == 1)
+		{
+			if (++waited < (int) x)
+				return G_SOURCE_CONTINUE;
+			waited = 0;
+		}
+		else if (sscanf (steps[i], "%15s %lf %lf", what, &x, &y) == 3)
+		{
+			gtk_xtext_test_event (xt, what, x, y);
+			/* "check": what a release left, now (several drags per run) */
+			if (!strcmp (what, "check"))
+			{
+				int n = 0;
+				char *sel = gtk_xtext_selection_text (xt, &n);
+				g_printerr ("xdrag-step: %d %d %d ", (int) x, (int) y, gtk_xtext_backing_diff (xt, NULL, NULL));
+				if (sel)
+					fwrite (sel, 1, n > 0 ? n : strlen (sel), stderr);
+				g_printerr ("\n");
+				g_free (sel);
+			}
+		}
+		i++;
+		return G_SOURCE_CONTINUE;
+	}
+	{
+		const char *p = g_getenv ("NEXCHAT_XDRAG_PNG");
+		char *a = p ? g_strdup_printf ("%s-now.png", p) : NULL;
+		char *b = p ? g_strdup_printf ("%s-full.png", p) : NULL;
+		g_printerr ("xdrag-diff: %d\n", gtk_xtext_backing_diff (xt, a, b));
+		{
+			int n = 0;
+			char *sel = gtk_xtext_selection_text (xt, &n);
+			g_printerr ("xdrag-sel: %s\n", sel ? sel : "");
+			g_free (sel);
+		}
+		g_free (a);
+		g_free (b);
+	}
+	g_strfreev (steps);
+	if (g_getenv ("NEXCHAT_XDRAG_QUIT"))
+		hexchat_exit ();
+	return G_SOURCE_REMOVE;
+}
+
+/* tests: NEXCHAT_XCHECK=FILE: whenever FILE appears (after real mouse
+   input), print "xcheck: DIFF TEXT" (leftover pixels vs a full redraw,
+   the selected text) and remove it */
+static gboolean
+fe_xcheck_poll (gpointer data)
+{
+	const char *f = data;
+	GtkXText *xt;
+	char *sel;
+	int n = 0;
+
+	if (!current_sess || !current_sess->gui)
+		return G_SOURCE_CONTINUE;
+	/* once: where the text box is on screen, for a test to aim the mouse */
+	{
+		static gboolean told;
+		int wx, wy;
+		graphene_point_t p = GRAPHENE_POINT_INIT (0, 0), q;
+		GtkWidget *win = current_sess->gui->window;
+		if (!told && gtk_widget_get_mapped (current_sess->gui->xtext) &&
+			 gtkutil_window_get_position (GTK_WINDOW (win), &wx, &wy) &&
+			 gtk_widget_compute_point (current_sess->gui->xtext, win, &p, &q))
+		{
+			double sx = 0, sy = 0;
+			GtkNative *nat = gtk_widget_get_native (win);
+			if (nat)
+				gtk_native_get_surface_transform (nat, &sx, &sy);
+			g_printerr ("xtext-at: %d %d %d %d\n", wx + (int) (q.x + sx), wy + (int) (q.y + sy),
+							gtk_widget_get_width (current_sess->gui->xtext), gtk_widget_get_height (current_sess->gui->xtext));
+			told = TRUE;
+		}
+	}
+	if (!g_file_test (f, G_FILE_TEST_EXISTS))
+		return G_SOURCE_CONTINUE;
+	g_unlink (f);
+	xt = GTK_XTEXT (current_sess->gui->xtext);
+	sel = gtk_xtext_selection_text (xt, &n);
+	g_printerr ("xcheck: %d ", gtk_xtext_backing_diff (xt, NULL, NULL));
+	if (sel)
+		fwrite (sel, 1, n > 0 ? n : strlen (sel), stderr);
+	g_printerr ("\n");
+	g_free (sel);
+	return G_SOURCE_CONTINUE;
+}
+
 static gboolean
 fe_zoom_step (gpointer data)
 {
@@ -1056,6 +1165,10 @@ fe_main (void)
 
 	if (g_getenv ("NEXCHAT_ZOOM"))
 		g_timeout_add (2000, fe_zoom_start, g_strsplit (g_getenv ("NEXCHAT_ZOOM"), " ", -1));
+	if (g_getenv ("NEXCHAT_XDRAG"))
+		g_timeout_add (30, fe_xdrag_step, g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1));
+	if (g_getenv ("NEXCHAT_XCHECK"))
+		g_timeout_add (100, fe_xcheck_poll, (gpointer) g_getenv ("NEXCHAT_XCHECK"));
 
 	nx_main ();
 

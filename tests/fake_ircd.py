@@ -153,7 +153,11 @@ buf = b""
 
 
 def send(line):
-    conn.sendall((line + "\r\n").encode())
+    # bytes go out as they are (tests send broken UTF-8 on purpose)
+    if isinstance(line, bytes):
+        conn.sendall(line + b"\r\n")
+    else:
+        conn.sendall((line + "\r\n").encode())
 
 
 try:
@@ -223,9 +227,10 @@ try:
                         send(f":fake 353 {nick} = {chan} :@{nick} bob")
                     send(f":fake 366 {nick} {chan} :End of NAMES")
                     if a.script and (not a.script_after or a.script_after == chan):
-                        with open(a.script) as f:
+                        with open(a.script, "rb") as f:
                             for l in f.read().splitlines():
-                                send(l.format(nick=nick))
+                                # {nick} filled in; everything else byte for byte
+                                send(l.replace(b"{nick}", nick.encode()))
                         a.script = None
                     if a.demo:
                         for l in demo_chatter(nick, chan):

@@ -1646,11 +1646,100 @@ setup_scheme_pick (gpointer d)
 	return G_SOURCE_REMOVE;
 }
 
+/* Up/Down (and Left/Right, Home/End, Page Up/Down) on the closed picker
+   step through the schemes, each applied as it's reached: try them
+   one after another without opening the list. Space/Enter still open it. */
+static gboolean
+setup_scheme_key (GtkEventControllerKey *k, guint key, guint code, GdkModifierType mods, gpointer d)
+{
+	GtkDropDown *dd = GTK_DROP_DOWN (scheme_dd);
+	guint n = g_list_model_get_n_items (gtk_drop_down_get_model (dd));
+	guint cur = gtk_drop_down_get_selected (dd);
+	int to;
+
+	if (!n || (mods & (GDK_CONTROL_MASK | GDK_ALT_MASK | GDK_META_MASK | GDK_SUPER_MASK)))
+		return FALSE;
+	if (cur == GTK_INVALID_LIST_POSITION)
+		cur = 0;
+	switch (key)
+	{
+	case GDK_KEY_Up: case GDK_KEY_KP_Up: case GDK_KEY_Left: case GDK_KEY_KP_Left:
+		to = (int) cur - 1; break;
+	case GDK_KEY_Down: case GDK_KEY_KP_Down: case GDK_KEY_Right: case GDK_KEY_KP_Right:
+		to = (int) cur + 1; break;
+	case GDK_KEY_Page_Up: case GDK_KEY_KP_Page_Up:
+		to = (int) cur - 10; break;
+	case GDK_KEY_Page_Down: case GDK_KEY_KP_Page_Down:
+		to = (int) cur + 10; break;
+	case GDK_KEY_Home: case GDK_KEY_KP_Home:
+		to = 0; break;
+	case GDK_KEY_End: case GDK_KEY_KP_End:
+		to = (int) n - 1; break;
+	default:
+		return FALSE;
+	}
+	to = CLAMP (to, 0, (int) n - 1);
+	if ((guint) to != cur)
+		gtk_drop_down_set_selected (dd, to);	/* "notify::selected" applies it */
+	return TRUE;
+}
+
+/* the scheme list, typing filters it */
+static gboolean
+setup_scheme_keys (gpointer data)
+{
+	char **keys = data;
+	static int i;
+
+	if (!scheme_dd)
+	{
+		g_strfreev (keys);
+		return G_SOURCE_REMOVE;
+	}
+	gtk_widget_grab_focus (scheme_dd);
+	if (!keys[i])
+	{
+		GListModel *m = gtk_drop_down_get_model (GTK_DROP_DOWN (scheme_dd));
+		GtkStringObject *s = g_list_model_get_item (m, gtk_drop_down_get_selected (GTK_DROP_DOWN (scheme_dd)));
+		g_printerr ("prefs-scheme: %s | %s\n", s ? gtk_string_object_get_string (s) : "", palette_scheme ());
+		g_clear_object (&s);
+		g_strfreev (keys);
+		i = 0;
+		return G_SOURCE_REMOVE;
+	}
+	{
+		guint kv = gdk_keyval_from_name (keys[i]);
+		GList *l, *ctrls = NULL;
+		GListModel *cm = gtk_widget_observe_controllers (scheme_dd);
+		guint j;
+		for (j = 0; j < g_list_model_get_n_items (cm); j++)
+		{
+			GObject *c = g_list_model_get_item (cm, j);
+			if (GTK_IS_EVENT_CONTROLLER_KEY (c))
+				ctrls = g_list_prepend (ctrls, c);
+			else
+				g_object_unref (c);
+		}
+		g_object_unref (cm);
+		for (l = ctrls; l; l = l->next)
+		{
+			gboolean handled = FALSE;
+			g_signal_emit_by_name (l->data, "key-pressed", kv, 0, 0, &handled);
+			if (handled)
+				break;
+		}
+		g_list_free_full (ctrls, g_object_unref);
+	}
+	i++;
+	return G_SOURCE_CONTINUE;
+}
+
 /* the scheme list, typing filters it */
 static GtkWidget *
 setup_create_scheme_row (void)
 {
 	GtkWidget *box, *label;
+	GtkEventController *keys;
 
 	box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
 	nx_set_border_width (box, 6);
@@ -1662,9 +1751,16 @@ setup_create_scheme_row (void)
 	gtk_drop_down_set_enable_search (GTK_DROP_DOWN (scheme_dd), TRUE);
 	gtk_drop_down_set_search_match_mode (GTK_DROP_DOWN (scheme_dd), GTK_STRING_FILTER_MATCH_MODE_SUBSTRING);
 	gtk_widget_set_valign (scheme_dd, GTK_ALIGN_CENTER);
-	gtk_widget_set_tooltip_text (scheme_dd, _("Colors the whole window and the text; you can still change any color below."));
+	gtk_widget_set_tooltip_text (scheme_dd, _("Colors the whole window and the text; you can still change any color below. "
+													"Up/Down tries the next one."));
 	gtk_label_set_mnemonic_widget (GTK_LABEL (label), scheme_dd);
 	nx_box_pack_start (box, scheme_dd, FALSE, FALSE, 0);
+	/* capture: before GtkDropDown's own Up/Down opens the popover */
+	keys = gtk_event_controller_key_new ();
+	gtk_event_controller_set_propagation_phase (keys, GTK_PHASE_CAPTURE);
+	g_signal_connect (keys, "key-pressed", G_CALLBACK (setup_scheme_key), NULL);
+	gtk_widget_add_controller (scheme_dd, keys);
+	gtk_widget_set_focusable (scheme_dd, TRUE);
 
 	scheme_all = gtk_check_button_new_with_mnemonic (_("_All schemes"));
 	gtk_widget_set_tooltip_text (scheme_all, _("Every one of the 800+ terminal schemes, not just the ones that follow light/dark"));
@@ -1677,6 +1773,10 @@ setup_create_scheme_row (void)
 	/* tests: NEXCHAT_PREFS_PICK=Label picks that row, as a click would */
 	if (g_getenv ("NEXCHAT_PREFS_PICK"))
 		g_timeout_add (1200, setup_scheme_pick, NULL);
+	/* tests: NEXCHAT_PREFS_KEYS="Down Down Up End" presses those keys on
+	   the focused picker (through its key controller) */
+	if (g_getenv ("NEXCHAT_PREFS_KEYS"))
+		g_timeout_add (1500, setup_scheme_keys, g_strsplit (g_getenv ("NEXCHAT_PREFS_KEYS"), " ", -1));
 	return box;
 }
 

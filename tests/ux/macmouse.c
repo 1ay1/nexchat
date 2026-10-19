@@ -28,6 +28,22 @@ main (int argc, char **argv)
 		usleep (50000);
 		post (kCGEventLeftMouseUp, x, y);
 	}
+	else if (argc >= 6 && !strcmp (argv[1], "drag"))
+	{
+		/* press at X1 Y1, move to X2 Y2 in steps (as a hand would), release */
+		double x1 = atof (argv[2]), y1 = atof (argv[3]), x2 = atof (argv[4]), y2 = atof (argv[5]);
+		int i, n = 24;
+		post (kCGEventMouseMoved, x1, y1);
+		usleep (80000);
+		post (kCGEventLeftMouseDown, x1, y1);
+		for (i = 1; i <= n; i++)
+		{
+			usleep (16000);
+			post (kCGEventLeftMouseDragged, x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n);
+		}
+		usleep (50000);
+		post (kCGEventLeftMouseUp, x2, y2);
+	}
 	else if (argc >= 7 && !strcmp (argv[1], "wiggle"))
 	{
 		/* sweep across an area slowly, resting so tooltips open and close */

@@ -9,7 +9,7 @@ bin=$1
 here=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
 srv=; app=
-trap 'kill $app $srv 2>/dev/null; rm -rf "$tmp"' EXIT
+trap 'st=$?; [ -n "$app$srv" ] && kill $app $srv 2>/dev/null; rm -rf "$tmp"; exit $st' EXIT
 export GTK_A11Y=none
 
 python3 "$here/tests/fake_ircd.py" --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" &

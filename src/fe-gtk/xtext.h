@@ -290,6 +290,13 @@ void gtk_xtext_set_palette (GtkXText * xtext, GdkRGBA palette[]);
 void gtk_xtext_clear (xtext_buffer *buf, int lines);
 void gtk_xtext_save (GtkXText * xtext, int fh);
 void gtk_xtext_refresh (GtkXText * xtext);
+/* tests: pixels that differ between the backing as drawn so far and a
+   full redraw (0: nothing left half-drawn); PNGs of both if named */
+int gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_full);
+/* tests: a mouse event as GTK would deliver it (press/dpress/move/hover/release) */
+void gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y);
+/* the selected text, as it would be copied (g_free it) */
+char *gtk_xtext_selection_text (GtkXText *xtext, int *len);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);
 int gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area);
 textentry *gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags flags, GError **err);

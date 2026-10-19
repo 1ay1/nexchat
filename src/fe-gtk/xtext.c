@@ -61,6 +61,89 @@ static void gtk_xtext_crossing (GtkWidget *, gboolean, gpointer);
 
 #define charlen(str) g_utf8_skip[*(guchar *)(str)]
 
+/* the length in bytes of the one character a reader sees at str: a whole
+   grapheme cluster, not one code point. "👍🏽" (thumb + skin tone),
+   "👨‍👩‍👧" (joined with ZWJ), "🇩🇪" (two regional indicators), "é" written
+   e + combining acute, "1️⃣" all come out as one. Clicking, selecting,
+   wrapping and measuring step by this, so they agree with how Pango
+   draws the run. Stops at end, at a control byte (mIRC colours), and
+   never cuts a broken UTF-8 sequence short of one byte. */
+static int
+xtext_cluster_len (const unsigned char *str, const unsigned char *end)
+{
+	const unsigned char *p = str;
+	gunichar c, prev;
+	int ri = 0;	/* regional indicators so far */
+
+	if (p >= end)
+		return 0;
+	if (*p < 0x80)
+	{
+		/* ASCII: alone, unless a combining mark or variation selector follows */
+		p++;
+		if (p >= end || *p < 0x80)
+			return 1;
+		prev = str[0];
+	}
+	else
+	{
+		int n = charlen (p);
+		if (n < 1 || p + n > end || g_utf8_get_char_validated ((const char *) p, end - p) >= (gunichar) -2)
+			return 1;	/* invalid: one byte, so it can't swallow good text */
+		prev = g_utf8_get_char ((const char *) p);
+		if (prev >= 0x1F1E6 && prev <= 0x1F1FF)
+			ri = 1;
+		p += n;
+	}
+
+	while (p < end && *p >= 0x80)
+	{
+		int n = charlen (p);
+		GUnicodeType t;
+
+		if (p + n > end)
+			break;
+		c = g_utf8_get_char_validated ((const char *) p, end - p);
+		if (c >= (gunichar) -2)
+			break;
+		t = g_unichar_type (c);
+		if (t == G_UNICODE_NON_SPACING_MARK || t == G_UNICODE_SPACING_MARK ||
+			 t == G_UNICODE_ENCLOSING_MARK ||
+			 (c >= 0xFE00 && c <= 0xFE0F) ||		/* variation selectors */
+			 (c >= 0xE0100 && c <= 0xE01EF) ||
+			 (c >= 0x1F3FB && c <= 0x1F3FF) ||		/* skin tones */
+			 (c >= 0xE0020 && c <= 0xE007F) ||		/* tag sequences (flags of regions) */
+			 c == 0x200D)							/* ZWJ: glue what follows too */
+		{
+			p += n;
+			prev = c;
+			continue;
+		}
+		if (prev == 0x200D)	/* the one after a ZWJ */
+		{
+			p += n;
+			prev = c;
+			continue;
+		}
+		if (ri == 1 && c >= 0x1F1E6 && c <= 0x1F1FF)	/* second half of a flag */
+		{
+			p += n;
+			ri = 2;
+			prev = c;
+			continue;
+		}
+		/* Hangul syllables built from jamo */
+		if ((c >= 0x1160 && c <= 0x11FF) && ((prev >= 0x1100 && prev <= 0x11FF) || (prev >= 0xAC00 && prev <= 0xD7A3)))
+		{
+			p += n;
+			prev = c;
+			continue;
+		}
+		break;
+	}
+	return p - str;
+}
+
 #ifdef WIN32
 #include <windows.h>
 #include <io.h>
@@ -267,6 +350,31 @@ xtext_backing_free (GtkXText *xtext)
 #define EMPH_HIDDEN 4
 static PangoAttrList *attr_lists[4];
 static int fontwidths[4][128];
+/* widths of non-ASCII clusters, per emphasis: "bytes" -> width; measuring
+   one through Pango each time a line is wrapped or clicked is slow */
+static GHashTable *cluster_widths[4];
+
+static int
+xtext_cluster_width (GtkXText *xtext, const unsigned char *str, int len, int emphasis)
+{
+	char *key;
+	gpointer v;
+	int w;
+
+	if (!cluster_widths[emphasis])
+		cluster_widths[emphasis] = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+	key = g_strndup ((const char *) str, len);
+	if (g_hash_table_lookup_extended (cluster_widths[emphasis], key, NULL, &v))
+	{
+		g_free (key);
+		return GPOINTER_TO_INT (v);
+	}
+	pango_layout_set_attributes (xtext->layout, attr_lists[emphasis]);
+	pango_layout_set_text (xtext->layout, (const char *) str, len);
+	pango_layout_get_pixel_size (xtext->layout, &w, NULL);
+	g_hash_table_insert (cluster_widths[emphasis], key, GINT_TO_POINTER (w));
+	return w;
+}
 
 static PangoAttribute *
 xtext_pango_attr (PangoAttribute *attr)
@@ -313,6 +421,8 @@ xtext_pango_init (GtkXText *xtext)
 		}
 
 		/* Now initialize fontwidths[i] */
+		if (cluster_widths[i])
+			g_hash_table_remove_all (cluster_widths[i]);	/* a new font */
 		pango_layout_set_attributes (xtext->layout, attr_lists[i]);
 		for (j = 0; j < 128; j++)
 		{
@@ -455,13 +565,20 @@ backend_get_text_width_emph (GtkXText *xtext, guchar *str, int len, int emphasis
 	pango_layout_set_attributes (xtext->layout, attr_lists[emphasis]);
 	while (len > 0)
 	{
-		mbl = charlen(str);
-		if (*str < 128)
+		if (*str < 128 && (len == 1 || str[1] < 128))
+		{
 			deltaw = fontwidths[emphasis][*str];
+			mbl = 1;
+		}
 		else
 		{
-			pango_layout_set_text (xtext->layout, str, mbl);
-			pango_layout_get_pixel_size (xtext->layout, &deltaw, NULL);
+			/* a whole cluster at once (emoji with skin tone, flags, accents
+			   as combining marks): its parts measured alone come out far
+			   wider than the one glyph Pango draws */
+			mbl = xtext_cluster_len (str, str + len);
+			if (mbl < 1)
+				mbl = 1;
+			deltaw = xtext_cluster_width (xtext, str, mbl, emphasis);
 		}
 		width += deltaw;
 		str += mbl;
@@ -507,10 +624,19 @@ backend_draw_text_emph (GtkXText *xtext, int dofill, xtext_gc *gc, int x, int y,
 
 	line = pango_layout_get_lines (xtext->layout)->data;
 
+	/* inside this row only: a glyph taller than the row (emoji, accents,
+	   a fallback font) would otherwise paint into the rows above and below,
+	   and when one row is redrawn alone (selecting, a link under the
+	   mouse) the neighbours' leftovers stay on it */
+	cairo_save (xtext->cr);
+	cairo_rectangle (xtext->cr, 0, y - xtext->font->ascent,
+	                 nx_widget_get_width (GTK_WIDGET (xtext)), xtext->fontsize);
+	cairo_clip (xtext->cr);
 	/* y is the baseline, same as gdk_draw_glyphs() took */
 	xtext_source_color (xtext->cr, &gc->fg);
 	cairo_move_to (xtext->cr, x, y);
 	pango_cairo_show_layout_line (xtext->cr, line);
+	cairo_restore (xtext->cr);
 	xtext_damage (xtext);
 }
 
@@ -932,7 +1058,8 @@ find_x (GtkXText *xtext, textentry *ent, int x, int subline, int indent)
 	{
 		if (off >= suboff)
 			break;
-		mbl = charlen (ent->str + off);
+		mbl = xtext_cluster_len (ent->str + off, ent->str + meta->off + meta->len);
+		if (mbl < 1) mbl = 1;
 		len -= mbl;
 		off += mbl;
 	}
@@ -944,7 +1071,10 @@ find_x (GtkXText *xtext, textentry *ent, int x, int subline, int indent)
 	len = meta->len - (off - meta->off);
 	while (wid > 0)
 	{
-		mbl = charlen (ent->str + off);
+		/* a whole cluster: a click inside an emoji with a skin tone lands
+		   before or after it, never between its parts */
+		mbl = xtext_cluster_len (ent->str + off, ent->str + off + MAX (len, 1));
+		if (mbl < 1) mbl = 1;
 		mbw = backend_get_text_width_emph (xtext, ent->str + off, mbl, meta->emph);
 		wid -= mbw;
 		xx += mbw;
@@ -1345,6 +1475,86 @@ xtext_draw_toast (GtkXText *xtext, cairo_t *cr)
 	g_object_unref (layout);
 }
 
+/* tests: what's in the backing now (drawn bit by bit as things changed)
+   against the same page rendered from scratch; the number of pixels that
+   differ. Anything but 0 is a row left half-drawn. */
+int
+gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_full)
+{
+	cairo_surface_t *now;
+	unsigned char *a, *b;
+	int w, h, stride, x, y, diff = 0;
+	GdkRectangle all;
+
+	if (!xtext->backing)
+		return -1;
+	cairo_surface_flush (xtext->backing);
+	w = cairo_image_surface_get_width (xtext->backing);
+	h = cairo_image_surface_get_height (xtext->backing);
+	now = cairo_image_surface_create (CAIRO_FORMAT_RGB24, w, h);
+	{
+		cairo_t *c = cairo_create (now);
+		cairo_surface_set_device_scale (xtext->backing, 1, 1);
+		cairo_set_source_surface (c, xtext->backing, 0, 0);
+		cairo_paint (c);
+		cairo_destroy (c);
+		cairo_surface_set_device_scale (xtext->backing, xtext->backing_scale, xtext->backing_scale);
+	}
+	if (png_now)
+		cairo_surface_write_to_png (now, png_now);
+
+	all.x = all.y = 0;
+	all.width = nx_widget_get_allocated_width (GTK_WIDGET (xtext));
+	all.height = nx_widget_get_allocated_height (GTK_WIDGET (xtext));
+	/* the reference: the whole page from scratch, onto a cleared backing */
+	{
+		cairo_t *c = cairo_create (xtext->backing);
+		cairo_set_source_rgb (c, 1, 0, 1);
+		cairo_paint (c);
+		cairo_destroy (c);
+	}
+	gtk_xtext_render_page (xtext);
+	(void) all;
+	cairo_surface_flush (xtext->backing);
+	if (png_full)
+		cairo_surface_write_to_png (xtext->backing, png_full);
+
+	a = cairo_image_surface_get_data (now);
+	b = cairo_image_surface_get_data (xtext->backing);
+	stride = cairo_image_surface_get_stride (now);
+	for (y = 0; y < h; y++)
+		for (x = 0; x < w; x++)
+			if ((((guint32 *) (a + y * stride))[x] & 0xffffff) != (((guint32 *) (b + y * stride))[x] & 0xffffff))
+				diff++;
+	cairo_surface_destroy (now);
+	return diff;
+}
+
+/* tests: "press X Y", "move X Y", "release X Y", "dpress X Y" (double),
+   "hover X Y" in order, one per call, as GTK delivers them */
+void
+gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y)
+{
+	GtkWidget *w = GTK_WIDGET (xtext);
+
+	if (!strcmp (what, "press"))
+		gtk_xtext_button_press (w, 1, 1, x, y, 0, NULL);
+	else if (!strcmp (what, "dpress"))
+		gtk_xtext_button_press (w, 1, 2, x, y, 0, NULL);
+	else if (!strcmp (what, "move"))
+		gtk_xtext_motion_notify (w, x, y, GDK_BUTTON1_MASK, NULL);
+	else if (!strcmp (what, "hover"))
+		gtk_xtext_motion_notify (w, x, y, 0, NULL);
+	else if (!strcmp (what, "release"))
+		gtk_xtext_button_release (w, 1, 1, x, y, 0, NULL);
+}
+
+char *
+gtk_xtext_selection_text (GtkXText *xtext, int *len)
+{
+	return gtk_xtext_selection_get_text (xtext, len);
+}
+
 /* Everything was already rendered into ->backing by the code that changed
    it (append, scroll, select...), exactly when GTK2 used to draw to the
    window. Here we just put it on screen. Only a resize leaves the backing
@@ -1393,190 +1603,71 @@ gtk_xtext_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 
 /* render a selection that has extended or contracted upward */
 
+/* the entries from a to b (either order) on screen, every row of each
+   redrawn whole: background, stamp and text */
 static void
-gtk_xtext_selection_up (GtkXText *xtext, textentry *start, textentry *end,
-								int start_offset)
+xtext_render_span (GtkXText *xtext, textentry *a, textentry *b)
 {
-	/* render all the complete lines */
-	if (start->next == end)
-		gtk_xtext_render_ents (xtext, end, NULL);
-	else
-		gtk_xtext_render_ents (xtext, start->next, end);
+	textentry *e;
 
-	/* now the incomplete upper line */
-	if (start == xtext->buffer->last_ent_start)
-		xtext->jump_in_offset = xtext->buffer->last_offset_start;
+	if (!a)
+		a = b;
+	if (!b)
+		b = a;
+	if (!a)
+		return;
+	/* is b after a? */
+	for (e = a; e && e != b; e = e->next)
+		;
+	if (!e)
+	{
+		e = a;
+		a = b;
+		b = e;
+	}
+	if (a == b)
+		gtk_xtext_render_ents (xtext, a, NULL);
 	else
-		xtext->jump_in_offset = start_offset;
-	gtk_xtext_render_ents (xtext, start, NULL);
-	xtext->jump_in_offset = 0;
+		gtk_xtext_render_ents (xtext, a, b);
 }
 
-/* render a selection that has extended or contracted downward */
-
-static void
-gtk_xtext_selection_down (GtkXText *xtext, textentry *start, textentry *end,
-								  int end_offset)
+/* earlier of two entries */
+static textentry *
+xtext_first_of (textentry *a, textentry *b)
 {
-	/* render all the complete lines */
-	if (end->prev == start)
-		gtk_xtext_render_ents (xtext, start, NULL);
-	else
-		gtk_xtext_render_ents (xtext, start, end->prev);
+	textentry *e;
 
-	/* now the incomplete bottom line */
-	if (end == xtext->buffer->last_ent_end)
-		xtext->jump_out_offset = xtext->buffer->last_offset_end;
-	else
-		xtext->jump_out_offset = end_offset;
-	gtk_xtext_render_ents (xtext, end, NULL);
-	xtext->jump_out_offset = 0;
+	if (!a || !b)
+		return a ? a : b;
+	for (e = a; e; e = e->next)
+		if (e == b)
+			return a;
+	return b;
 }
 
+/* the selection changed from last_ent_start..last_ent_end to start..end:
+   repaint every entry in either. GTK2 redrew only the characters that
+   changed (jump_in/jump_out offsets, no background fills) straight onto
+   the window; with proportional fonts, colour runs and HiDPI that leaves
+   slivers of the old glyphs, a row half drawn twice. Whole rows of a few
+   entries into our own backing cost nothing. */
 static void
 gtk_xtext_selection_render (GtkXText *xtext, textentry *start_ent, textentry *end_ent)
 {
-	textentry *ent;
-	int start_offset = start_ent->mark_start;
-	int end_offset = end_ent->mark_end;
-	int start, end;
+	xtext_buffer *buf = xtext->buffer;
+	textentry *from, *to;
 
-	xtext->skip_border_fills = TRUE;
-	xtext->skip_stamp = TRUE;
+	from = xtext_first_of (start_ent, buf->last_ent_start);
+	/* the later of the two ends */
+	to = xtext_first_of (end_ent, buf->last_ent_end) == end_ent ? buf->last_ent_end : end_ent;
+	if (!to)
+		to = end_ent;
+	xtext_render_span (xtext, from, to);
 
-	/* force an optimized render if there was no previous selection */
-	if (xtext->buffer->last_ent_start == NULL && start_ent == end_ent)
-	{
-		xtext->buffer->last_offset_start = start_offset;
-		xtext->buffer->last_offset_end = end_offset;
-		goto lamejump;
-	}
-
-	/* mark changed within 1 ent only? */
-	if (xtext->buffer->last_ent_start == start_ent &&
-		 xtext->buffer->last_ent_end == end_ent)
-	{
-		/* when only 1 end of the selection is changed, we can really
-			save on rendering */
-		if (xtext->buffer->last_offset_start == start_offset ||
-			 xtext->buffer->last_offset_end == end_offset)
-		{
-lamejump:
-			ent = end_ent;
-			/* figure out where to start and end the rendering */
-			if (end_offset > xtext->buffer->last_offset_end)
-			{
-				end = end_offset;
-				start = xtext->buffer->last_offset_end;
-			} else if (end_offset < xtext->buffer->last_offset_end)
-			{
-				end = xtext->buffer->last_offset_end;
-				start = end_offset;
-			} else if (start_offset < xtext->buffer->last_offset_start)
-			{
-				end = xtext->buffer->last_offset_start;
-				start = start_offset;
-				ent = start_ent;
-			} else if (start_offset > xtext->buffer->last_offset_start)
-			{
-				end = start_offset;
-				start = xtext->buffer->last_offset_start;
-				ent = start_ent;
-			} else
-			{	/* WORD selects end up here */
-				end = end_offset;
-				start = start_offset;
-			}
-		} else
-		{
-			/* LINE selects end up here */
-			/* so which ent actually changed? */
-			ent = start_ent;
-			if (xtext->buffer->last_offset_start == start_offset)
-				ent = end_ent;
-
-			end = MAX (xtext->buffer->last_offset_end, end_offset);
-			start = MIN (xtext->buffer->last_offset_start, start_offset);
-		}
-
-		xtext->jump_out_offset = end;
-		xtext->jump_in_offset = start;
-		gtk_xtext_render_ents (xtext, ent, NULL);
-		xtext->jump_out_offset = 0;
-		xtext->jump_in_offset = 0;
-	}
-	/* marking downward? */
-	else if (xtext->buffer->last_ent_start == start_ent &&
-				xtext->buffer->last_offset_start == start_offset)
-	{
-		/* find the range that covers both old and new selection */
-		ent = start_ent;
-		while (ent)
-		{
-			if (ent == xtext->buffer->last_ent_end)
-			{
-				gtk_xtext_selection_down (xtext, ent, end_ent, end_offset);
-				/*gtk_xtext_render_ents (xtext, ent, end_ent);*/
-				break;
-			}
-			if (ent == end_ent)
-			{
-				gtk_xtext_selection_down (xtext, ent, xtext->buffer->last_ent_end, end_offset);
-				/*gtk_xtext_render_ents (xtext, ent, xtext->buffer->last_ent_end);*/
-				break;
-			}
-			ent = ent->next;
-		}
-	}
-	/* marking upward? */
-	else if (xtext->buffer->last_ent_start != NULL &&
-				xtext->buffer->last_ent_end == end_ent &&
-				xtext->buffer->last_offset_end == end_offset)
-	{
-		ent = end_ent;
-		while (ent)
-		{
-			if (ent == start_ent && xtext->buffer->last_ent_start)
-			{
-				gtk_xtext_selection_up (xtext, xtext->buffer->last_ent_start, ent, start_offset);
-				/*gtk_xtext_render_ents (xtext, xtext->buffer->last_ent_start, ent);*/
-				break;
-			}
-			if (ent == xtext->buffer->last_ent_start)
-			{
-				gtk_xtext_selection_up (xtext, start_ent, ent, start_offset);
-				/*gtk_xtext_render_ents (xtext, start_ent, ent);*/
-				break;
-			}
-			ent = ent->prev;
-		}
-	}
-	else	/* cross-over mark (stretched or shrunk at both ends) */
-	{
-		/* unrender the old mark */
-		gtk_xtext_render_ents (xtext, xtext->buffer->last_ent_start, xtext->buffer->last_ent_end);
-		/* now render the new mark, but skip overlaps */
-		if (start_ent == xtext->buffer->last_ent_start)
-		{
-			/* if the new mark is a sub-set of the old, do nothing */
-			if (start_ent != end_ent)
-				gtk_xtext_render_ents (xtext, start_ent->next, end_ent);
-		} else if (end_ent == xtext->buffer->last_ent_end)
-		{
-			/* if the new mark is a sub-set of the old, do nothing */
-			if (start_ent != end_ent)
-				gtk_xtext_render_ents (xtext, start_ent, end_ent->prev);
-		} else
-			gtk_xtext_render_ents (xtext, start_ent, end_ent);
-	}
-
-	xtext->buffer->last_ent_start = start_ent;
-	xtext->buffer->last_ent_end = end_ent;
-	xtext->buffer->last_offset_start = start_offset;
-	xtext->buffer->last_offset_end = end_offset;
-
-	xtext->skip_border_fills = FALSE;
-	xtext->skip_stamp = FALSE;
+	buf->last_ent_start = start_ent;
+	buf->last_ent_end = end_ent;
+	buf->last_offset_start = start_ent->mark_start;
+	buf->last_offset_end = end_ent->mark_end;
 }
 
 static void
@@ -1891,17 +1982,13 @@ gtk_xtext_get_word (GtkXText * xtext, int x, int y, textentry ** ret_ent,
 static void
 gtk_xtext_unrender_hilight (GtkXText *xtext)
 {
-	xtext->render_hilights_only = TRUE;
-	xtext->skip_border_fills = TRUE;
-	xtext->skip_stamp = TRUE;
-	xtext->un_hilight = TRUE;
+	/* the link's entry again, whole rows, without the underline (drawing
+	   only the link's text over itself left the old underline behind) */
+	textentry *ent = xtext->hilight_ent;
 
-	gtk_xtext_render_ents (xtext, xtext->hilight_ent, NULL);
-
-	xtext->render_hilights_only = FALSE;
-	xtext->skip_border_fills = FALSE;
-	xtext->skip_stamp = FALSE;
-	xtext->un_hilight = FALSE;
+	xtext->hilight_ent = NULL;
+	gtk_xtext_render_ents (xtext, ent, NULL);
+	xtext->hilight_ent = ent;
 }
 
 /* pointer shape, set only when it changes */
@@ -2179,15 +2266,7 @@ gtk_xtext_motion_notify (GtkWidget * widget, double ex, double ey,
 			xtext->hilight_start = offset;
 			xtext->hilight_end = offset + len;
 
-			xtext->skip_border_fills = TRUE;
-			xtext->render_hilights_only = TRUE;
-			xtext->skip_stamp = TRUE;
-
 			gtk_xtext_render_ents (xtext, word_ent, NULL);
-
-			xtext->skip_border_fills = FALSE;
-			xtext->render_hilights_only = FALSE;
-			xtext->skip_stamp = FALSE;
 		}
 		return;
 	}
@@ -2304,27 +2383,11 @@ static void
 gtk_xtext_unselect (GtkXText *xtext)
 {
 	xtext_buffer *buf = xtext->buffer;
-
-	xtext->skip_border_fills = TRUE;
-	xtext->skip_stamp = TRUE;
-
-	xtext->jump_in_offset = buf->last_ent_start->mark_start;
-	/* just a single ent was marked? */
-	if (buf->last_ent_start == buf->last_ent_end)
-	{
-		xtext->jump_out_offset = buf->last_ent_start->mark_end;
-		buf->last_ent_end = NULL;
-	}
+	textentry *a = buf->last_ent_start, *b = buf->last_ent_end;
 
 	gtk_xtext_selection_clear (xtext->buffer);
-
-	/* FIXME: use jump_out on multi-line selects too! */
-	xtext->jump_in_offset = 0;
-	xtext->jump_out_offset = 0;
-	gtk_xtext_render_ents (xtext, buf->last_ent_start, buf->last_ent_end);
-
-	xtext->skip_border_fills = FALSE;
-	xtext->skip_stamp = FALSE;
+	/* whole rows, see gtk_xtext_selection_render */
+	xtext_render_span (xtext, a, b);
 
 	xtext->buffer->last_ent_start = NULL;
 	xtext->buffer->last_ent_end = NULL;
@@ -3560,7 +3623,10 @@ find_next_wrap (GtkXText * xtext, textentry * ent, unsigned char *str,
 				break;
 			default:
 			def:
-				mbl = charlen (str);
+				/* wrap between clusters: never split an emoji sequence, a
+				   flag or a letter and its accent across two rows */
+				mbl = xtext_cluster_len (str, ent->str + ent->str_len);
+				if (mbl < 1) mbl = 1;
 				char_width = backend_get_text_width_emph (xtext, str, mbl, emphasis);
 				if (!hidden) str_width += char_width;
 				if (str_width > win_width)

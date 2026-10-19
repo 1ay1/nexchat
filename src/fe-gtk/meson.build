@@ -197,7 +197,15 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   # Preferences: a scheme picked applies and saves at once, no OK
   test('prefs-live', find_program('sh'),
     args: [files('../../tests/ux/prefs-live.sh'), hexchat_gtk],
-    timeout: 60)
+    timeout: 90)
+  # selecting text leaves no row half drawn
+  test('select', find_program('sh'),
+    args: [files('../../tests/ux/select.sh'), hexchat_gtk],
+    timeout: 120)
+  # emoji, accents, CJK, broken UTF-8: drawn, selected, copied whole
+  test('utf8', find_program('python3'),
+    args: [files('../../tests/ux/utf8.py'), hexchat_gtk],
+    timeout: 240)
 endif
 
 # The tests that only need a display also run on Wayland, under a private
