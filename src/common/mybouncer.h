@@ -73,6 +73,50 @@ void mybouncer_identity (ircnet *net, char **nick, char **nick_from, char **logi
 gboolean mybouncer_set_login (ircnet *net, const char *account, const char *password, char **err);
 /* the network's own password kept for net (g_free), or NULL */
 char *mybouncer_own_password (ircnet *net);
+
+/* ---- everything else soju can change ---- */
+
+/* soju's name for net (spaces and / made safe) */
+char *mybouncer_soju_name (ircnet *net);
+/* run a soju command as our user: words, NULL-terminated. Its error (in
+   soju's words) or NULL; what it printed goes to out when given */
+char *mybouncer_run (const char *const *words, GString *out);
+
+/* network settings: key is one of soju's -flags ("realname", "username",
+   "pass", "auto-away", "enabled", "addr"); value as text */
+gboolean mybouncer_net_set (ircnet *net, const char *key, const char *value, char **err);
+/* commands sent when it connects, \n-separated (replaces them all) */
+gboolean mybouncer_net_set_commands (ircnet *net, const char *lines, char **err);
+/* client certificate for net: makes one; its SHA-256 fingerprint (g_free) */
+char *mybouncer_net_certfp (ircnet *net, gboolean make, char **err);
+
+/* its channels: "name\tstatus" lines (status: joined, parted, detached...) */
+char *mybouncer_channels (ircnet *net);
+gboolean mybouncer_channel_add (ircnet *net, const char *chan, char **err);
+gboolean mybouncer_channel_del (ircnet *net, const char *chan, char **err);
+/* -detached, -reattach-on, -detach-after, -detach-on, -relay-detached */
+gboolean mybouncer_channel_set (ircnet *net, const char *chan, const char *key, const char *value, char **err);
+
+/* the bouncer itself */
+char *mybouncer_password (void);		/* the account password (g_free) */
+gboolean mybouncer_set_password (const char *pw, char **err);
+int mybouncer_port (void);
+/* reachable from other devices too (TLS, a certificate made for it), or
+   only from this computer */
+gboolean mybouncer_remote (void);
+gboolean mybouncer_set_remote (gboolean on, char **err);
+int mybouncer_remote_port (void);
+/* history in soju's database (search, missed lines) or as text files too */
+gboolean mybouncer_logs_as_files (void);
+gboolean mybouncer_set_logs_as_files (gboolean on, char **err);
+/* its title and message of the day */
+char *mybouncer_title (void);
+gboolean mybouncer_set_title (const char *title, char **err);
+/* the last lines of its log */
+char *mybouncer_log_tail (int lines);
+/* systemd keeps it (starts with the computer) or nexchat does */
+gboolean mybouncer_set_kept_by_systemd (gboolean on, char **err);
+gboolean mybouncer_can_systemd (void);
 /* entries we moved: this one goes through our soju */
 gboolean mybouncer_owns (ircnet *net);
 

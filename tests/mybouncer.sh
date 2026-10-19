@@ -87,6 +87,19 @@ EOF
 grep -q ' 330 checker me1 me1' "$tmp/whois" && ok "soju logged in to the network as the account (SASL)" || { bad "not logged in"; grep " 3[0-9][0-9] " "$tmp/whois"; }
 grep ' 353 ' "$tmp/whois" | grep -q 'me1' && ok "still in #home with nexchat closed" || { bad "not in #home after quitting"; cat "$tmp/whois"; }
 
+# change its settings: each lands in soju
+run "/bouncer set net Lab realname Real Name Here" "/bouncer set channel Lab #other add" \
+	"/bouncer set channel Lab #other detached on" "/bouncer set commands Lab PRIVMSG me1 :hi|PRIVMSG me1 :there" \
+	"/bouncer set title My Bouncer" "/echo waited" "/bouncer set logs files" "/echo waited" "/bouncer set"
+[ "$(grep -c 'Done\.' "$tmp/out")" = 6 ] && ok "every setting was taken" || { bad "a setting failed"; grep -i '\*' "$tmp/out"; }
+grep -q '^title "My Bouncer"' "$tmp/cfg/bouncer/config" && ok "title in soju's config" || bad "title"
+grep -q '^message-store fs ' "$tmp/cfg/bouncer/config" && ok "logs kept as files" || bad "logs as files"
+has 'logs files, title "My Bouncer"' "/bouncer set shows them"
+pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && ok "soju running again after the restart" || bad "soju didn't come back"
+"$BNC_HOME/usr/bin/sojuctl" -config "$tmp/cfg/bouncer/config" user run me network status > "$tmp/ns" 2>&1 || true
+"$BNC_HOME/usr/bin/sojuctl" -config "$tmp/cfg/bouncer/config" user run me channel status -network Lab > "$tmp/cs" 2>&1 || true
+grep -q '#other' "$tmp/cs" && grep '#other' "$tmp/cs" | grep -q detached && ok "#other added, detached" || { bad "channel"; cat "$tmp/cs"; }
+
 # put it back
 run "/bouncer remove"
 has "connect directly again" "remove says what happened"

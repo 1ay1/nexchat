@@ -301,6 +301,26 @@ free_port (void)
 	return p;
 }
 
+static int
+free_port_any (void)
+{
+	GSocket *s = g_socket_new (G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP, NULL);
+	GInetAddress *any = g_inet_address_new_any (G_SOCKET_FAMILY_IPV4);
+	GSocketAddress *a = g_inet_socket_address_new (any, 0), *got;
+	int p = 0;
+
+	if (s && g_socket_bind (s, a, FALSE, NULL) && (got = g_socket_get_local_address (s, NULL)))
+	{
+		p = g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (got));
+		g_object_unref (got);
+	}
+	g_object_unref (a);
+	g_object_unref (any);
+	if (s)
+		g_object_unref (s);
+	return p;
+}
+
 static char *
 random_password (void)
 {
@@ -311,6 +331,66 @@ random_password (void)
 		p[i] = abc[g_random_int_range (0, sizeof abc - 1)];
 	p[24] = 0;
 	return g_strdup (p);
+}
+
+/* settings in small files next to it; the config is made from them */
+static gboolean
+setting_on (const char *name)
+{
+	char *v = read_file (name);
+	gboolean on = v && !strcmp (v, "1");
+	g_free (v);
+	return on;
+}
+
+static int
+setting_int (const char *name)
+{
+	char *v = read_file (name);
+	int n = v ? atoi (v) : 0;
+	g_free (v);
+	return n;
+}
+
+/* soju's config, from the settings: loopback always; with \"remote\" a TLS
+   listener on every address too, with a certificate made for it */
+static void
+write_config (void)
+{
+	GString *t = g_string_new ("# made by nexchat (Server > Bouncer): changed there, not here\n");
+	char *sock = file ("admin.sock"), *db = file ("soju.db"), *title = read_file ("title");
+
+	g_string_append_printf (t, "listen irc+insecure://127.0.0.1:%d\n", port ());
+	g_string_append_printf (t, "listen unix+admin://%s\n", sock);
+	if (setting_on ("remote") && setting_int ("remote-port"))
+	{
+		char *cert = file ("cert.pem"), *key = file ("key.pem");
+		g_string_append_printf (t, "listen ircs://:%d\n", setting_int ("remote-port"));
+		g_string_append_printf (t, "tls %s %s\n", cert, key);
+		g_free (cert);
+		g_free (key);
+	}
+	g_string_append (t, "hostname localhost\n");
+	if (title && *title)
+	{
+		char *q = g_strescape (title, NULL);
+		g_string_append_printf (t, "title \"%s\"\n", q);
+		g_free (q);
+	}
+	g_string_append_printf (t, "db sqlite3 %s\n", db);
+	if (setting_on ("logs-as-files"))
+	{
+		char *logs = file ("logs");
+		g_string_append_printf (t, "message-store fs %s\n", logs);
+		g_free (logs);
+	}
+	else
+		g_string_append (t, "message-store db\n");
+	write_file ("config", t->str, 0600);
+	g_string_free (t, TRUE);
+	g_free (sock);
+	g_free (db);
+	g_free (title);
 }
 
 static char *
@@ -334,7 +414,7 @@ unit_text (void)
 gboolean
 mybouncer_setup (char **err)
 {
-	char *d = dir (), *cfg, *db, *sock, *pass, *text;
+	char *d = dir (), *cfg, *db, *sock, *pass;
 	int p, status = 0;
 	char *errout = NULL;
 
@@ -355,14 +435,12 @@ mybouncer_setup (char **err)
 	p = free_port ();
 	db = file ("soju.db");
 	sock = file ("admin.sock");
-	text = g_strdup_printf ("# made by nexchat: your own soju, only reachable from this computer\n"
-									"listen irc+insecure://127.0.0.1:%d\n"
-									"listen unix+admin://%s\n"
-									"hostname localhost\n"
-									"db sqlite3 %s\n"
-									"message-store db\n", p, sock, db);
-	write_file ("config", text, 0600);
-	g_free (text);
+	{
+		char *ps = g_strdup_printf ("%d", p);
+		write_file ("port", ps, 0600);
+		g_free (ps);
+	}
+	write_config ();
 
 	/* our account on it */
 	pass = random_password ();
@@ -412,11 +490,6 @@ mybouncer_setup (char **err)
 	}
 	else
 		write_file ("kept-by", "nexchat", 0600);
-	{
-		char *ps = g_strdup_printf ("%d", p);
-		write_file ("port", ps, 0600);
-		g_free (ps);
-	}
 	if (!start (err))
 		goto fail;
 	g_free (pass);
@@ -1109,6 +1182,435 @@ char *
 mybouncer_own_password (ircnet *net)
 {
 	return own_pass (net);
+}
+
+/* ---- everything else ---- */
+
+char *
+mybouncer_soju_name (ircnet *net)
+{
+	return safe_name (net->name);
+}
+
+char *
+mybouncer_run (const char *const *words, GString *out)
+{
+	return admin_out (words, out);
+}
+
+static gboolean
+ok_or (char *e, char **err)
+{
+	if (e)
+	{
+		*err = e;
+		return FALSE;
+	}
+	*err = NULL;
+	return TRUE;
+}
+
+gboolean
+mybouncer_net_set (ircnet *net, const char *key, const char *value, char **err)
+{
+	char *name = safe_name (net->name), *flag = g_strdup_printf ("-%s", key);
+	const char *w[] = { "network", "update", name, flag, value, NULL };
+	gboolean ok = ok_or (admin (w), err);
+	g_free (flag);
+	g_free (name);
+	return ok;
+}
+
+gboolean
+mybouncer_net_set_commands (ircnet *net, const char *lines, char **err)
+{
+	char *name = safe_name (net->name), **l = g_strsplit (lines ? lines : "", "\n", 0);
+	GPtrArray *w = g_ptr_array_new ();
+	gboolean ok;
+	int i;
+
+	g_ptr_array_add (w, "network");
+	g_ptr_array_add (w, "update");
+	g_ptr_array_add (w, name);
+	for (i = 0; l[i]; i++)
+	{
+		char *c = g_strstrip (l[i]);
+		if (!*c)
+			continue;
+		/* "/msg NickServ ..." as people write it: a raw line for soju */
+		if (!g_ascii_strncasecmp (c, "/msg ", 5) && strchr (c + 5, ' '))
+		{
+			char *sp = strchr (c + 5, ' ');
+			char *raw = g_strdup_printf ("PRIVMSG %.*s :%s", (int) (sp - c - 5), c + 5, sp + 1);
+			g_free (l[i]);
+			l[i] = raw;
+			c = raw;
+		}
+		else if (c[0] == '/')
+			memmove (c, c + 1, strlen (c));
+		g_ptr_array_add (w, "-connect-command");
+		g_ptr_array_add (w, c);
+	}
+	/* none: soju takes an empty one as \"clear them\" */
+	if (w->len == 3)
+	{
+		g_ptr_array_add (w, "-connect-command");
+		g_ptr_array_add (w, "");
+	}
+	g_ptr_array_add (w, NULL);
+	ok = ok_or (admin ((const char *const *) w->pdata), err);
+	g_ptr_array_free (w, TRUE);
+	g_strfreev (l);
+	g_free (name);
+	return ok;
+}
+
+char *
+mybouncer_net_certfp (ircnet *net, gboolean make, char **err)
+{
+	char *name = safe_name (net->name), *fp = NULL, *e;
+	GString *out = g_string_new (NULL);
+
+	*err = NULL;
+	if (make)
+	{
+		const char *w[] = { "certfp", "generate", "-network", name, NULL };
+		e = admin_out (w, out);
+	}
+	else
+	{
+		const char *w[] = { "certfp", "fingerprint", "-network", name, NULL };
+		e = admin_out (w, out);
+	}
+	if (e)
+		*err = e;
+	else
+	{
+		char *p = strstr (out->str, "SHA-256 fingerprint: ");
+		if (p)
+			fp = g_strndup (p + 21, strcspn (p + 21, "\n"));
+	}
+	g_string_free (out, TRUE);
+	g_free (name);
+	return fp;
+}
+
+char *
+mybouncer_channels (ircnet *net)
+{
+	char *name = safe_name (net->name), *e, **lines;
+	const char *w[] = { "channel", "status", "-network", name, NULL };
+	GString *out = g_string_new (NULL), *res = g_string_new (NULL);
+	int i;
+
+	e = admin_out (w, out);
+	g_free (e);
+	lines = g_strsplit (out->str, "\n", 0);
+	for (i = 0; lines[i]; i++)
+	{
+		/* "#chan [joined, detached]" */
+		char *br = strchr (lines[i], '[');
+		if (!br)
+			continue;
+		g_string_append_printf (res, "%.*s\t%.*s\n", (int) (br - lines[i] - 1), lines[i],
+										(int) strcspn (br + 1, "]"), br + 1);
+	}
+	g_strfreev (lines);
+	g_string_free (out, TRUE);
+	g_free (name);
+	return g_string_free (res, FALSE);
+}
+
+static char *
+chan_ref (ircnet *net, const char *chan)
+{
+	char *name = safe_name (net->name), *r = g_strdup_printf ("%s/%s", chan, name);
+	g_free (name);
+	return r;
+}
+
+gboolean
+mybouncer_channel_add (ircnet *net, const char *chan, char **err)
+{
+	char *r = chan_ref (net, chan);
+	const char *w[] = { "channel", "create", r, NULL };
+	char *e = admin (w);
+	gboolean ok;
+	/* already there: fine */
+	if (e && strstr (e, "already exists"))
+		g_clear_pointer (&e, g_free);
+	ok = ok_or (e, err);
+	g_free (r);
+	/* the entry's favourites follow, so it's there when it goes back */
+	if (ok && !servlist_favchan_find (net, (char *) chan, NULL))
+	{
+		servlist_favchan_add (net, (char *) chan);
+		servlist_save ();
+	}
+	return ok;
+}
+
+gboolean
+mybouncer_channel_del (ircnet *net, const char *chan, char **err)
+{
+	char *r = chan_ref (net, chan);
+	const char *w[] = { "channel", "delete", r, NULL };
+	gboolean ok = ok_or (admin (w), err);
+	favchannel *f = servlist_favchan_find (net, (char *) chan, NULL);
+	g_free (r);
+	if (ok && f)
+	{
+		servlist_favchan_remove (net, f);
+		servlist_save ();
+	}
+	return ok;
+}
+
+gboolean
+mybouncer_channel_set (ircnet *net, const char *chan, const char *key, const char *value, char **err)
+{
+	char *r = chan_ref (net, chan), *flag = g_strdup_printf ("-%s", key);
+	const char *w[] = { "channel", "update", r, flag, value, NULL };
+	gboolean ok = ok_or (admin (w), err);
+	g_free (flag);
+	g_free (r);
+	return ok;
+}
+
+char *
+mybouncer_password (void)
+{
+	return read_file ("password");
+}
+
+int
+mybouncer_port (void)
+{
+	return port ();
+}
+
+gboolean
+mybouncer_set_password (const char *pw, char **err)
+{
+	const char *w[] = { "user", "update", "-password", pw, NULL };
+	char *old = read_file ("password");
+	GSList *l;
+	gboolean ok;
+
+	if (!pw || strlen (pw) < 8)
+	{
+		*err = g_strdup (_("At least 8 characters, please."));
+		g_free (old);
+		return FALSE;
+	}
+	ok = ok_or (admin (w), err);
+	if (ok)
+	{
+		write_file ("password", pw, 0600);
+		/* the entries that log in to it with the old one */
+		for (l = network_list; l; l = l->next)
+		{
+			ircnet *n = l->data;
+			if (old && n->pass && !strcmp (n->pass, old))
+			{
+				g_free (n->pass);
+				n->pass = g_strdup (pw);
+			}
+		}
+		servlist_save ();
+	}
+	g_free (old);
+	return ok;
+}
+
+static gboolean
+restart (char **err)
+{
+	int i;
+
+	/* stopped: the new config is used when it's started */
+	if (!mybouncer_running ())
+		return TRUE;
+	mybouncer_stop ();
+	for (i = 0; i < 50 && mybouncer_running (); i++)
+		g_usleep (100000);
+	return start (err);
+}
+
+gboolean
+mybouncer_remote (void)
+{
+	return setting_on ("remote");
+}
+
+int
+mybouncer_remote_port (void)
+{
+	return setting_int ("remote-port");
+}
+
+/* a self-signed certificate for its TLS port, made once */
+static gboolean
+make_cert (char **err)
+{
+	char *cert = file ("cert.pem"), *key = file ("key.pem"), *errout = NULL;
+	gboolean ok = TRUE;
+	int st = 0;
+
+	if (!g_file_test (cert, G_FILE_TEST_EXISTS))
+	{
+		const char *ossl = find ("openssl");
+		char *argv[] = { (char *) ossl, "req", "-x509", "-newkey", "rsa:3072", "-nodes", "-days", "3650",
+							  "-subj", "/CN=nexchat bouncer", "-keyout", key, "-out", cert, NULL };
+		if (!ossl)
+		{
+			*err = g_strdup (_("Making a certificate needs openssl, which isn't installed."));
+			ok = FALSE;
+		}
+		else if (!g_spawn_sync (NULL, argv, NULL, G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL, &errout, &st, NULL) ||
+					!g_spawn_check_wait_status (st, NULL))
+		{
+			*err = g_strdup_printf (_("Couldn't make a certificate: %s"), errout ? g_strstrip (errout) : "?");
+			ok = FALSE;
+		}
+		if (ok)
+			g_chmod (key, 0600);
+	}
+	g_free (errout);
+	g_free (cert);
+	g_free (key);
+	return ok;
+}
+
+gboolean
+mybouncer_set_remote (gboolean on, char **err)
+{
+	*err = NULL;
+	if (on)
+	{
+		if (!make_cert (err))
+			return FALSE;
+		if (!setting_int ("remote-port"))
+			write_file ("remote-port", "6697", 0600);
+	}
+	write_file ("remote", on ? "1" : "0", 0600);
+	write_config ();
+	if (!restart (err) && on)
+	{
+		/* 6697 taken: another port */
+		char *p = g_strdup_printf ("%d", free_port_any ());
+		write_file ("remote-port", p, 0600);
+		g_free (p);
+		g_clear_pointer (err, g_free);
+		write_config ();
+		return restart (err);
+	}
+	return *err == NULL;
+}
+
+gboolean
+mybouncer_logs_as_files (void)
+{
+	return setting_on ("logs-as-files");
+}
+
+gboolean
+mybouncer_set_logs_as_files (gboolean on, char **err)
+{
+	*err = NULL;
+	write_file ("logs-as-files", on ? "1" : "0", 0600);
+	write_config ();
+	return restart (err);
+}
+
+char *
+mybouncer_title (void)
+{
+	return read_file ("title");
+}
+
+gboolean
+mybouncer_set_title (const char *title, char **err)
+{
+	*err = NULL;
+	write_file ("title", title ? title : "", 0600);
+	write_config ();
+	return restart (err);
+}
+
+char *
+mybouncer_log_tail (int n)
+{
+	char *f = file ("soju.log"), *all = NULL, **lines, *res;
+	int len, from;
+
+	if (!strcmp (mybouncer_kept_by (), "systemd"))
+	{
+		const char *j = find ("journalctl");
+		char *ns = g_strdup_printf ("%d", n), *out = NULL;
+		if (j)
+			g_spawn_sync (NULL, (char *[]) { (char *) j, "--user", "-u", UNIT, "-n", ns, "--no-pager", "-o", "cat", NULL },
+							  NULL, G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &out, NULL, NULL, NULL);
+		g_free (ns);
+		g_free (f);
+		return out ? out : g_strdup ("");
+	}
+	if (!g_file_get_contents (f, &all, NULL, NULL))
+	{
+		g_free (f);
+		return g_strdup ("");
+	}
+	g_free (f);
+	lines = g_strsplit (all, "\n", 0);
+	len = g_strv_length (lines);
+	from = len > n ? len - n : 0;
+	res = g_strjoinv ("\n", lines + from);
+	g_strfreev (lines);
+	g_free (all);
+	return res;
+}
+
+gboolean
+mybouncer_can_systemd (void)
+{
+	return have_systemd_user ();
+}
+
+gboolean
+mybouncer_set_kept_by_systemd (gboolean on, char **err)
+{
+	char *unitdir = g_build_filename (g_get_user_config_dir (), "systemd", "user", NULL);
+	char *unit = g_build_filename (unitdir, UNIT, NULL);
+
+	*err = NULL;
+	mybouncer_stop ();
+	if (on)
+	{
+		char *u = unit_text ();
+		g_mkdir_with_parents (unitdir, 0755);
+		g_file_set_contents (unit, u, -1, NULL);
+		g_free (u);
+		systemctl ("daemon-reload", NULL, NULL);
+		if (!systemctl ("enable", UNIT, err))
+			on = FALSE;
+	}
+	else if (g_file_test (unit, G_FILE_TEST_EXISTS))
+	{
+		systemctl ("disable", UNIT, NULL);
+		g_unlink (unit);
+		systemctl ("daemon-reload", NULL, NULL);
+	}
+	write_file ("kept-by", on ? "systemd" : "nexchat", 0600);
+	g_free (unit);
+	g_free (unitdir);
+	if (*err)
+	{
+		char *e2 = NULL;
+		start (&e2);
+		g_free (e2);
+		return FALSE;
+	}
+	return start (err);
 }
 
 #endif

@@ -1245,6 +1245,86 @@ cmd_setup (session *sess, char *word[])
 	g_slist_free (nets);
 }
 
+static gboolean
+word_on (const char *w)
+{
+	return !g_ascii_strcasecmp (w, "on") || !g_ascii_strcasecmp (w, "yes") || !strcmp (w, "1");
+}
+
+/* /bouncer set ...: our own soju's settings */
+static void
+cmd_set (session *sess, char *word[], char *word_eol[])
+{
+	const char *k = word[3];
+	char *err = NULL;
+	gboolean ok = TRUE;
+
+	if (mybouncer_state () != MYBNC_SET_UP)
+	{
+		PrintText (sess, _("nexchat isn't running a bouncer for you: /bouncer setup first.\n"));
+		return;
+	}
+	if (!*k)
+	{
+		char *t = mybouncer_title ();
+		PrintTextf (sess, _("remote %s (port %d), logs %s, title \"%s\", kept by %s\n"),
+						mybouncer_remote () ? "on" : "off", mybouncer_remote_port (),
+						mybouncer_logs_as_files () ? "files" : "db", t ? t : "", mybouncer_kept_by ());
+		PrintText (sess, _("/bouncer set remote on|off, logs files|db, title TEXT, password PW, systemd on|off,\n"
+								 "  net NETWORK KEY VALUE (realname, username, pass, auto-away, enabled),\n"
+								 "  commands NETWORK LINE|LINE, channel NETWORK #CHAN add|del|detached on|off\n"));
+		g_free (t);
+		return;
+	}
+	if (!g_ascii_strcasecmp (k, "remote"))
+		ok = mybouncer_set_remote (word_on (word[4]), &err);
+	else if (!g_ascii_strcasecmp (k, "logs"))
+		ok = mybouncer_set_logs_as_files (!g_ascii_strcasecmp (word[4], "files"), &err);
+	else if (!g_ascii_strcasecmp (k, "title"))
+		ok = mybouncer_set_title (word_eol[4], &err);
+	else if (!g_ascii_strcasecmp (k, "password"))
+		ok = mybouncer_set_password (word[4], &err);
+	else if (!g_ascii_strcasecmp (k, "systemd"))
+		ok = mybouncer_set_kept_by_systemd (word_on (word[4]), &err);
+	else if (!g_ascii_strcasecmp (k, "net") || !g_ascii_strcasecmp (k, "commands") ||
+				!g_ascii_strcasecmp (k, "channel"))
+	{
+		ircnet *n = servlist_net_find (word[4], NULL, g_ascii_strcasecmp);
+		if (!n || !mybouncer_owns (n))
+		{
+			PrintTextf (sess, _("%s isn't on your bouncer.\n"), word[4]);
+			return;
+		}
+		if (!g_ascii_strcasecmp (k, "commands"))
+		{
+			char *lines = g_strdup (word_eol[5]), *p;
+			for (p = lines; *p; p++)
+				if (*p == '|')
+					*p = '\n';
+			ok = mybouncer_net_set_commands (n, lines, &err);
+			g_free (lines);
+		}
+		else if (!g_ascii_strcasecmp (k, "net"))
+			ok = mybouncer_net_set (n, word[5], word_eol[6], &err);
+		else if (!g_ascii_strcasecmp (word[6], "add"))
+			ok = mybouncer_channel_add (n, word[5], &err);
+		else if (!g_ascii_strcasecmp (word[6], "del"))
+			ok = mybouncer_channel_del (n, word[5], &err);
+		else
+			ok = mybouncer_channel_set (n, word[5], word[6], word_on (word[7]) ? "true" : "false", &err);
+	}
+	else
+	{
+		PrintTextf (sess, _("No setting called %s: /bouncer set lists them.\n"), k);
+		return;
+	}
+	if (ok)
+		PrintText (sess, _("\00303*\tDone.\n"));
+	else
+		PrintTextf (sess, "\00304*\t%s\n", err ? err : "?");
+	g_free (err);
+}
+
 int
 bouncer_cmd (session *sess, char *word[], char *word_eol[])
 {
@@ -1255,6 +1335,18 @@ bouncer_cmd (session *sess, char *word[], char *word_eol[])
 	if (!g_ascii_strcasecmp (word[2], "SETUP"))
 	{
 		cmd_setup (sess, word);
+		return TRUE;
+	}
+	if (!g_ascii_strcasecmp (word[2], "SET"))
+	{
+		cmd_set (sess, word, word_eol);
+		return TRUE;
+	}
+	if (!g_ascii_strcasecmp (word[2], "LOG"))
+	{
+		char *t = mybouncer_log_tail (20);
+		PrintTextf (sess, "%s\n", t);
+		g_free (t);
 		return TRUE;
 	}
 	if (!g_ascii_strcasecmp (word[2], "REMOVE") && !*word[3])
