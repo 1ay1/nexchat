@@ -612,6 +612,7 @@ typedef struct server
 	unsigned int have_readmarker:1;	/* cap draft/read-marker */
 	unsigned int have_message_tags:1;	/* cap message-tags: we may send client tags */
 	unsigned int have_multiline:1;	/* cap draft/multiline */
+	unsigned int have_redact:1;	/* cap draft/message-redaction */
 	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */

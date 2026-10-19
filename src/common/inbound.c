@@ -1774,6 +1774,8 @@ inbound_toggle_caps (server *serv, const char *extensions_str, gboolean enable)
 			serv->have_readmarker = enable;
 		else if (!strcmp (extension, "draft/multiline"))
 			serv->have_multiline = enable;
+		else if (!strcmp (extension, "draft/message-redaction"))
+			serv->have_redact = enable;
 		else if (!strcmp (extension, "message-tags"))
 			serv->have_message_tags = enable;
 		else if (!strcmp (extension, "sasl"))
@@ -1842,6 +1844,7 @@ static const char * const supported_caps[] = {
 	"draft/chathistory",
 	"chathistory",
 	"draft/read-marker",
+	"draft/message-redaction",
 	"message-tags",
 
 	/* ZNC */

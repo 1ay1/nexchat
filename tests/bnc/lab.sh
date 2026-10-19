@@ -45,6 +45,8 @@ s = s.replace('path: ircd.db', 'path: %s/ircd.db' % sys.argv[4])
 s = re.sub(r'(    sts:\n(?:.*\n)*?\s*)enabled: true', r'\1enabled: false', s, count=1)
 # registering an account needs no email in tests
 s = s.replace('enabled: true # verification', 'enabled: false # verification')
+# deleting your own messages (and ops theirs), for REDACT
+s = s.replace('allow-individual-delete: false', 'allow-individual-delete: true')
 open(sys.argv[2], 'w').write(s)
 EOF
 	cp -r "$BNC_HOME/ergo-2.19.1-linux-x86_64/languages" "$BNC_DIR/ergo/"

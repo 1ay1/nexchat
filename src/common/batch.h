@@ -67,5 +67,8 @@ void reply_show (session *sess, const char *msgid, time_t stamp);
 const char *reply_last_from (session *sess, const char *nick);
 /* forget everything for sess (closed) */
 void reply_free (session *sess);
+/* REDACT: msgid in target was deleted by nick, with reason or NULL */
+void redact_from_server (server *serv, const char *nick, const char *target,
+								 const char *msgid, const char *reason, time_t when);
 
 #endif

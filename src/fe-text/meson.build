@@ -81,3 +81,7 @@ test('bouncers-search', find_program('sh'),
   args: [files('../../tests/bouncers-search.sh'), hexchat_text],
   timeout: 300,
 )
+test('redact', find_program('sh'),
+  args: [files('../../tests/redact.sh'), hexchat_text],
+  timeout: 120,
+)

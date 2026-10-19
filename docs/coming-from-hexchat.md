@@ -81,6 +81,8 @@ are off until you turn them on.
 - **Bouncer features** (soju, Ergo, ZNC): chat history on join and in
   private chats, read markers shared between your devices, netsplits shown
   as one line.
+- **Deleted messages**: on servers that allow it, `/delete` takes back your
+  last message, and when someone deletes one you see what it was.
 - **Off until you turn them on**: who's typing, letting others see you type,
   showing what replies answer (`/reply`), and messages of several lines
   (Shift+Enter).

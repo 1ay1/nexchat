@@ -1822,6 +1822,7 @@ server_set_defaults (server *serv)
 	serv->have_readmarker = FALSE;
 	serv->have_message_tags = FALSE;
 	serv->have_multiline = FALSE;
+	serv->have_redact = FALSE;
 	batch_reset (serv);
 	bouncer_reset (serv);
 	serv->have_sasl = FALSE;

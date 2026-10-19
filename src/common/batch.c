@@ -648,6 +648,73 @@ reply_show (session *sess, const char *msgid, time_t stamp)
 	g_free (plain);
 }
 
+/* ---- draft/message-redaction ----
+   A line can't be taken out of the text view, so a deletion is said where
+   it happened, quoting what was deleted (as the spec asks: deletions stay
+   visible, for accountability). */
+void
+redact_from_server (server *serv, const char *nick, const char *target,
+						  const char *msgid, const char *reason, time_t when)
+{
+	session *sess = find_channel (serv, (char *) target);
+	reply_store *s;
+	const char *line;
+	char *quote = NULL;
+
+	if (!sess)
+		sess = find_dialog (serv, (char *) target);
+	/* a private message: the target is us, the window is the sender's */
+	if (!sess)
+		sess = find_dialog (serv, (char *) nick);
+	if (!sess)
+		return;
+	s = reply_get (sess, FALSE);
+	line = s ? g_hash_table_lookup (s->byid, msgid) : NULL;
+	if (line)
+	{
+		const char *tab = strchr (line, '\t');
+		char *plain = strip_color (tab + 1, -1, STRIP_ALL);
+		char *who = g_strndup (line, tab - line);
+		char *key = g_utf8_casefold (who, -1);
+		const char *last = g_hash_table_lookup (s->lastby, key);
+		gpointer idkey = NULL;
+		GList *l;
+
+		quote = !serv->p_cmp (who, nick) ? g_strdup_printf ("\"%s\"", plain)
+						: g_strdup_printf (_("%s's \"%s\""), who, plain);
+		g_free (plain);
+		/* it can't be replied to any more (line is freed here) */
+		if (g_hash_table_lookup_extended (s->byid, msgid, &idkey, NULL))
+		{
+			g_queue_remove (&s->order, idkey);
+			g_hash_table_remove (s->byid, msgid);
+		}
+		line = NULL;
+		/* if it was their last line, the one before it is now */
+		if (last && !strcmp (last, msgid))
+		{
+			g_hash_table_remove (s->lastby, key);
+			for (l = s->order.tail; l; l = l->prev)
+			{
+				const char *ln = g_hash_table_lookup (s->byid, l->data);
+				if (ln && strlen (who) == strcspn (ln, "\t") && !strncmp (ln, who, strlen (who)))
+				{
+					g_hash_table_insert (s->lastby, g_strdup (key), g_strdup (l->data));
+					break;
+				}
+			}
+		}
+		g_free (key);
+		g_free (who);
+	}
+	if (reason && *reason)
+		PrintTextTimeStampf (sess, when, _("\00314*\t%s deleted %s (%s)\n"), nick,
+									quote ? quote : _("a message"), reason);
+	else
+		PrintTextTimeStampf (sess, when, _("\00314*\t%s deleted %s\n"), nick, quote ? quote : _("a message"));
+	g_free (quote);
+}
+
 void
 reply_free (session *sess)
 {

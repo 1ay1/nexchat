@@ -3062,6 +3062,44 @@ cmd_bouncer (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 }
 
 static int
+cmd_delete (struct session *sess, char *tbuf, char *word[], char *word_eol[])
+{
+	server *serv = sess->server;
+	const char *who = *word[2] ? word[2] : serv->nick;
+	const char *msgid;
+	char *reason = *word[2] ? word_eol[3] : NULL;
+
+	if (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG)
+	{
+		notj_msg (sess);
+		return TRUE;
+	}
+	if (!serv->connected)
+	{
+		notc_msg (sess);
+		return TRUE;
+	}
+	if (!serv->have_redact)
+	{
+		PrintText (sess, _("This server can't delete messages.\n"));
+		return TRUE;
+	}
+	msgid = reply_last_from (sess, who);
+	if (!msgid || strpbrk (msgid, " \r\n"))
+	{
+		PrintTextf (sess, !serv->p_cmp (who, serv->nick) ?
+						_("You haven't said anything here that can be deleted.\n") :
+						_("%s hasn't said anything here that can be deleted.\n"), who);
+		return TRUE;
+	}
+	if (reason && *reason)
+		tcp_sendf (serv, "REDACT %s %s :%s\r\n", sess->channel, msgid, reason);
+	else
+		tcp_sendf (serv, "REDACT %s %s\r\n", sess->channel, msgid);
+	return TRUE;
+}
+
+static int
 cmd_reply (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
 	char *nick = word[2], *msg = word_eol[3];
@@ -4288,6 +4326,8 @@ const struct commands xc_cmds[] = {
 	 N_("DEHOP <nick>, removes chanhalf-op status from the nick on the current channel (needs chanop)")},
 	{"DELBUTTON", cmd_delbutton, 0, 0, 1,
 	 N_("DELBUTTON <name>, deletes a button from under the user-list")},
+	{"DELETE", cmd_delete, 1, 1, 1,
+	 N_("DELETE [<nick> [<reason>]], deletes your last message here, or (as an operator) nick's last one, on servers that allow it")},
 	{"DEOP", cmd_deop, 1, 1, 1,
 	 N_("DEOP <nick>, removes chanop status from the nick on the current channel (needs chanop)")},
 	{"DEVOICE", cmd_devoice, 1, 1, 1,

@@ -1151,6 +1151,15 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			/* our own BOUNCER / PERSISTENCE requests: told in plain words */
 			if (bouncer_fail (serv, word, text))
 				return;
+			/* /delete refused: in the window it was for */
+			if (!g_ascii_strcasecmp (word[3], "REDACT"))
+			{
+				session *t = find_channel (serv, word[5]);
+				if (!t)
+					t = find_dialog (serv, word[5]);
+				PrintTextf (t ? t : sess, _("\00304*\tCouldn't delete it: %s\n"), text);
+				return;
+			}
 			if (g_strcmp0(word[3], "*") == 0)
 			{
 				EMIT_SIGNAL_TIMESTAMP (XP_TE_FAIL, sess, word[4], text, NULL, NULL, NULL, tags_data->timestamp);
@@ -1212,6 +1221,16 @@ process_named_msg (session *sess, char *type, char *word[], char *word_eol[],
 			{
 				bouncer_command (serv, word[3], word[4][0] == ':' ? word[4] + 1 : word[4],
 									  STRIP_COLON (word, word_eol, 5));
+				return;
+			}
+			break;
+
+		case WORDL('R','E','D','A'):
+			if (!strcmp (type, "REDACT") && serv->have_redact)
+			{
+				/* REDACT <target> <msgid> [:reason] */
+				char *reason = word[5][0] ? STRIP_COLON (word, word_eol, 5) : NULL;
+				redact_from_server (serv, nick, word[3], word[4], reason, tags_data->timestamp);
 				return;
 			}
 			break;
