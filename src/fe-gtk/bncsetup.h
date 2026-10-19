@@ -30,6 +30,8 @@ typedef struct
 	char *kind;		/* "soju", "znc", "persist", "plain"; NULL on error */
 	char *error;	/* why not, in plain words */
 	char *networks;	/* ZNC: its network names, comma separated */
+	gboolean cert_untrusted;	/* TLS, but the certificate wouldn't be trusted */
+	char *cert_why;	/* why, in plain words */
 } bnc_probe_result;
 
 typedef void (*bnc_probe_cb) (bnc_probe_result *r, gpointer data);

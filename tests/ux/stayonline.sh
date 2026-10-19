@@ -82,6 +82,30 @@ grep -q "starting bouncer\|registration complete for user \"ayush\"" "$tmp/lab/s
 	ok "soju: connected through it" || bad "soju: no login on soju"
 until_state title "*online 24/7*" && ok "soju: the title says online 24/7" || { bad "soju: title"; state title; }
 
+# ---- soju over TLS with a self-signed certificate: said, and only
+# trusted when you tick the box
+start
+k alt+b; k alt+a; t "127.0.0.1"; k alt+p; t "$SOJU_TLS_PORT"
+k alt+u; t "ayush"; k alt+w; t "secret123"
+k alt+h
+until_state bncsetup "*That works*soju*Careful*self-signed*" && ok "tls: a self-signed certificate is pointed out" ||
+	{ bad "tls: no certificate warning"; state bncsetup; }
+k alt+y; k alt+s
+sleep 3
+flags=$(awk -v s="S=127.0.0.1/+$SOJU_TLS_PORT" '/^N=/{f=""} /^F=/{f=$0} $0==s{print f}' "$tmp/cfg/servlist.conf" | cut -d= -f2)
+[ -n "$flags" ] && [ $(( flags & 32 )) -ne 0 ] && [ $(( flags & 4 )) -ne 0 ] &&
+	ok "tls: ticked, saved with TLS and that certificate allowed" || { bad "tls: flags $flags"; cat "$tmp/cfg/servlist.conf"; }
+# the same without ticking: TLS, but certificates still checked
+start
+k alt+b; k alt+a; t "127.0.0.1"; k alt+p; t "$SOJU_TLS_PORT"
+k alt+u; t "ayush"; k alt+w; t "secret123"
+k alt+h
+until_state bncsetup "*Careful*" || true
+k alt+s
+sleep 3
+flags=$(awk -v s="S=127.0.0.1/+$SOJU_TLS_PORT" '/^N=/{f=""} /^F=/{f=$0} $0==s{print f}' "$tmp/cfg/servlist.conf" | cut -d= -f2)
+[ -n "$flags" ] && [ $(( flags & 32 )) -eq 0 ] && ok "tls: not ticked, certificates still checked" || bad "tls: allowed without asking ($flags)"
+
 # ---- soju: a wrong password is caught by Check
 start
 k alt+b; k alt+a; t "127.0.0.1"; k alt+p; t "$SOJU_PORT"; k alt+t
@@ -118,7 +142,7 @@ grep -q "^S=127.0.0.1/$ERGO_PORT$" "$tmp/cfg/servlist.conf" && ok "ergo: saved" 
 # ---- "explain"
 start
 k alt+e
-until_state bncsetup "*IRC only delivers messages to people who are connected*" && ok "explain: says what a bouncer is" || bad "explain"
+until_state bncsetup "*bouncer is a small program*" && ok "explain: says what a bouncer is" || bad "explain"
 
 [ $fail -eq 0 ] || exit 1
 echo "stayonline: ok"

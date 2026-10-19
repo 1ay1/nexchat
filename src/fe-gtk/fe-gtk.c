@@ -854,7 +854,8 @@ static void
 fe_probe_print (bnc_probe_result *r, gpointer d)
 {
 	if (r->kind)
-		g_printerr ("probe: %s\n", r->kind);
+		g_printerr ("probe: %s%s%s\n", r->kind, r->cert_untrusted ? " cert-untrusted: " : "",
+					  r->cert_untrusted ? r->cert_why : "");
 	else
 		g_printerr ("probe-error: %s\n", r->error);
 	bnc_probe_result_free (r);

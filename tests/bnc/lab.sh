@@ -2,7 +2,7 @@
 # Start real bouncers for tests: Ergo (the IRC network, with always-on),
 # soju and ZNC in front of it, all on loopback, in a private dir.
 # usage: . tests/bnc/lab.sh; bnc_start DIR; ...; bnc_stop
-# Sets ERGO_PORT, SOJU_PORT, ZNC_PORT. The user is "ayush", password
+# Sets ERGO_PORT, SOJU_PORT, SOJU_TLS_PORT (self-signed), ZNC_PORT. The user is "ayush", password
 # "secret123", on soju and ZNC (ZNC's network to Ergo is "ergo").
 # The binaries come from tests/bnc/fetch.sh (into ~/.cache/nexchat-ref/bnc).
 
@@ -54,9 +54,14 @@ EOF
 	(cd "$BNC_DIR/ergo" && exec "$ERGO" run --conf ircd.yaml >ergo.log 2>&1) &
 	BNC_PIDS=$!
 
-	# soju
+	# soju (also on TLS, with a self-signed certificate)
+	SOJU_TLS_PORT=$(bnc_port)
+	openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=localhost" \
+		-keyout "$BNC_DIR/soju/key.pem" -out "$BNC_DIR/soju/cert.pem" >/dev/null 2>&1
 	cat > "$BNC_DIR/soju/config" <<EOF
 listen irc+insecure://127.0.0.1:$SOJU_PORT
+listen ircs://127.0.0.1:$SOJU_TLS_PORT
+tls $BNC_DIR/soju/cert.pem $BNC_DIR/soju/key.pem
 hostname localhost
 db sqlite3 $BNC_DIR/soju/soju.db
 message-store db

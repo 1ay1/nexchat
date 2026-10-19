@@ -29,6 +29,7 @@ typedef struct
 	GCancellable *cancel;
 	char *user, *pass;
 	gboolean znc, soju, persist;
+	GTlsCertificateFlags cert_errors;	/* what's wrong with its certificate */
 	bnc_probe_cb cb;
 	gpointer data;
 	guint timeout;
@@ -43,6 +44,7 @@ bnc_probe_result_free (bnc_probe_result *r)
 	g_free (r->kind);
 	g_free (r->error);
 	g_free (r->networks);
+	g_free (r->cert_why);
 	g_free (r);
 }
 
@@ -60,6 +62,14 @@ probe_finish (probe *p, const char *kind, const char *error)
 	r = g_new0 (bnc_probe_result, 1);
 	r->kind = g_strdup (kind);
 	r->error = g_strdup (error);
+	r->cert_untrusted = p->cert_errors != 0;
+	if (p->cert_errors)
+		r->cert_why = g_strdup ((p->cert_errors & G_TLS_CERTIFICATE_UNKNOWN_CA) ?
+			_("its certificate is self-signed or from an authority your system doesn't know") :
+			(p->cert_errors & G_TLS_CERTIFICATE_BAD_IDENTITY) ?
+			_("its certificate is for a different name than this address") :
+			(p->cert_errors & G_TLS_CERTIFICATE_EXPIRED) ?
+			_("its certificate has expired") : _("its certificate isn't valid"));
 	p->cb (r, p->data);
 	/* the read in flight finishes cancelled and frees the rest */
 }
@@ -197,7 +207,9 @@ probe_timeout (gpointer data)
 static gboolean
 accept_any (GTlsConnection *c, GTlsCertificate *cert, GTlsCertificateFlags errors, gpointer d)
 {
-	/* only for checking: the real connection checks certificates as set */
+	probe *p = d;
+	/* go on to see what it is, but remember it isn't trusted */
+	p->cert_errors = errors;
 	return TRUE;
 }
 
@@ -206,7 +218,7 @@ probe_tls_event (GSocketClient *client, GSocketClientEvent event, GSocketConnect
 					  GIOStream *stream, gpointer data)
 {
 	if (event == G_SOCKET_CLIENT_TLS_HANDSHAKING)
-		g_signal_connect (stream, "accept-certificate", G_CALLBACK (accept_any), NULL);
+		g_signal_connect (stream, "accept-certificate", G_CALLBACK (accept_any), data);
 }
 
 void
@@ -223,7 +235,7 @@ bncsetup_probe (const char *host, int port, gboolean tls, const char *user,
 	p->data = data;
 	g_socket_client_set_tls (client, tls);
 	if (tls)
-		g_signal_connect (client, "event", G_CALLBACK (probe_tls_event), NULL);
+		g_signal_connect (client, "event", G_CALLBACK (probe_tls_event), p);
 	g_socket_client_set_timeout (client, 15);
 	p->timeout = g_timeout_add_seconds (15, probe_timeout, p);
 	g_socket_client_connect_to_host_async (client, host, port, p->cancel, probe_connected, p);
@@ -239,6 +251,7 @@ typedef struct
 	GtkWidget *host, *port, *tls, *user, *pass, *upstream;
 	GtkWidget *nhost, *nport, *ntls, *naccount, *npass;
 	GtkWidget *status, *check, *save;
+	GtkWidget *trust;	/* "connect even though the certificate isn't trusted" */
 	char *kind;	/* what Check found */
 	ircnet *net;
 	void (*done) (ircnet *net);
@@ -272,6 +285,7 @@ choice_cb (GtkCheckButton *b, gpointer data)
 {
 	setup *s = data;
 	g_clear_pointer (&s->kind, g_free);
+	gtk_widget_set_visible (s->trust, FALSE);
 	update_sensitive (s);
 	if (gtk_check_button_get_active (GTK_CHECK_BUTTON (s->learn)))
 		set_status (s, _("IRC only delivers messages to people who are connected. When your computer "
@@ -334,7 +348,20 @@ probe_done (bnc_probe_result *r, gpointer data)
 		else
 			m = g_strdup (_("<span foreground=\"#cc0000\">This network can't keep you online by itself. "
 								 "You'll need a bouncer for it.</span>"));
-		set_status (s, m);
+		if (r->cert_untrusted)
+		{
+			char *w = g_markup_printf_escaped (_("\n\n<span foreground=\"#cc0000\"><b>Careful:</b> %s.</span> "
+															 "If it's your own bouncer with a self-made certificate, tick "
+															 "the box below; otherwise someone could be in the middle."),
+														  r->cert_why);
+			char *both = g_strconcat (m, w, NULL);
+			set_status (s, both);
+			g_free (both);
+			g_free (w);
+		}
+		else
+			set_status (s, m);
+		gtk_widget_set_visible (s->trust, r->cert_untrusted);
 		g_free (m);
 	}
 	bnc_probe_result_free (r);
@@ -402,6 +429,10 @@ save_cb (GtkWidget *b, gpointer data)
 		net->flags |= FLAG_USE_SSL;
 	else
 		net->flags &= ~FLAG_USE_SSL;
+	if (tls && gtk_widget_get_visible (s->trust) && gtk_check_button_get_active (GTK_CHECK_BUTTON (s->trust)))
+		net->flags |= FLAG_ALLOW_INVALID;
+	else
+		net->flags &= ~FLAG_ALLOW_INVALID;
 	net->flags |= FLAG_CYCLE;
 
 	if (bnc)
@@ -470,7 +501,15 @@ bncsetup_describe (void)
 	c = gtk_check_button_get_active (GTK_CHECK_BUTTON (s->have)) ? "bouncer" :
 		 gtk_check_button_get_active (GTK_CHECK_BUTTON (s->network)) ? "network" :
 		 gtk_check_button_get_active (GTK_CHECK_BUTTON (s->learn)) ? "explain" : "none";
-	return g_strdup_printf ("%s | %s", c, gtk_label_get_text (GTK_LABEL (s->status)));
+	{
+		char *st = g_strdup (gtk_label_get_text (GTK_LABEL (s->status))), *p, *out;
+		for (p = st; *p; p++)
+			if (*p == '\n')
+				*p = ' ';
+		out = g_strdup_printf ("%s | %s", c, st);
+		g_free (st);
+		return out;
+	}
 }
 
 static GtkWidget *
@@ -645,6 +684,9 @@ bncsetup_open (GtkWindow *parent, ircnet *net, void (*done) (ircnet *net))
 	gtk_label_set_max_width_chars (GTK_LABEL (s->status), 60);
 	gtk_label_set_selectable (GTK_LABEL (s->status), TRUE);
 	nx_box_pack_start (vbox, s->status, FALSE, FALSE, 6);
+	s->trust = gtk_check_button_new_with_mnemonic (_("Connect an_yway: I trust this certificate"));
+	gtk_widget_set_visible (s->trust, FALSE);
+	nx_box_pack_start (vbox, s->trust, FALSE, FALSE, 0);
 
 	bb = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
 	gtk_widget_set_halign (bb, GTK_ALIGN_END);
