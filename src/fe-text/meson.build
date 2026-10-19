@@ -85,3 +85,7 @@ test('redact', find_program('sh'),
   args: [files('../../tests/redact.sh'), hexchat_text],
   timeout: 120,
 )
+test('mybouncer', find_program('sh'),
+  args: [files('../../tests/mybouncer.sh'), hexchat_text],
+  timeout: 240,
+)

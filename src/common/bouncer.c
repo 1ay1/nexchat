@@ -14,6 +14,7 @@
 
 #include "hexchat.h"
 #include "bouncer.h"
+#include "mybouncer.h"
 #include "fe.h"
 #include "server.h"
 #include "text.h"
@@ -30,6 +31,7 @@ typedef struct
 	int persist_client;		/* -1 unknown, 0/1 what we asked for */
 	int persist_effective;	/* -1 unknown, 0/1 what the network does */
 	char *bound;			/* soju netid this connection is on (BOUNCER_NETID) */
+	guint open_tag;		/* opening its networks, once the list has settled */
 	GPtrArray *networks;	/* bnc_network* */
 	/* ZNC: parsing a *status ListNetworks table */
 	gboolean znc_listing;
@@ -146,6 +148,8 @@ state_free (gpointer p)
 {
 	bnc_state *s = p;
 	g_free (s->bound);
+	if (s->open_tag)
+		g_source_remove (s->open_tag);
 	if (s->networks)
 		g_ptr_array_unref (s->networks);
 	if (s->znc_new)
@@ -232,6 +236,58 @@ sync_base (server *serv)
 	return NULL;
 }
 
+/* the bouncer's own connection (soju, no network picked) can't join
+   anything: each of its networks opens in a tab of its own, like soju's
+   own clients do. Ones already open aren't opened again; ones added
+   later open when they come. */
+static gboolean
+open_networks_now (gpointer data)
+{
+	server *serv = data;
+	bnc_state *s;
+	ircnet *base;
+	guint i;
+	int opened = 0;
+
+	if (!is_server (serv) || !states || !(s = g_hash_table_lookup (states, serv)))
+		return G_SOURCE_REMOVE;
+	s->open_tag = 0;
+	base = serv->network;
+	if (!base || s->kind != BNC_SOJU || s->bound)
+		return G_SOURCE_REMOVE;
+	for (i = 0; i < s->networks->len; i++)
+	{
+		bnc_network *n = s->networks->pdata[i];
+		char *name = sync_name (base, n->name ? n->name : n->id);
+		ircnet *e = servlist_net_find (name, NULL, strcmp);
+
+		if (e && !is_in_use (e))
+		{
+			servlist_connect (NULL, e, TRUE);
+			opened++;
+		}
+		g_free (name);
+	}
+	if (opened)
+		PrintTextf (serv->server_session, g_dngettext (GETTEXT_PACKAGE,
+						"\00303*\tThis tab is soju itself; its network opened in a tab of its own.\n",
+						"\00303*\tThis tab is soju itself; its %d networks opened in tabs of their own.\n",
+						opened), opened);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+open_networks (server *serv, ircnet *base)
+{
+	bnc_state *s = g_hash_table_lookup (states, serv);
+
+	if (!s || s->kind != BNC_SOJU || s->bound || serv->network != base || !s->networks->len)
+		return;
+	if (s->open_tag)
+		g_source_remove (s->open_tag);
+	s->open_tag = g_timeout_add (700, open_networks_now, serv);
+}
+
 static void
 sync_networks (server *serv)
 {
@@ -307,6 +363,7 @@ sync_networks (server *serv)
 	g_free (prefix);
 	if (dirty)
 		servlist_save ();
+	open_networks (serv, base);
 }
 
 void
@@ -1103,9 +1160,11 @@ print_list (session *sess, server *serv)
 	}
 	if (s->kind == BNC_NONE)
 	{
-		PrintText (sess, _("This is a plain IRC server: when nexchat is closed, you're not in your channels and miss what's said.\n"
-								 "To stay online all the time, use a bouncer (soju or ZNC) and connect to it instead. "
-								 "Network List > Edit > \"Stay online\" sets it up.\n"));
+		PrintText (sess, _("This is a plain IRC server: when nexchat is closed, you're not in your channels and miss what's said.\n"));
+		if (mybouncer_state () == MYBNC_AVAILABLE)
+			PrintText (sess, _("soju is installed on this computer: /bouncer setup and nexchat sets it up and moves your networks onto it.\n"));
+		else
+			PrintText (sess, _("Server > Stay Online... sets you up with a bouncer.\n"));
 		return;
 	}
 	PrintTextf (sess, _("Connected through %s. Its networks:\n"), bouncer_kind_name (s->kind));
@@ -1125,12 +1184,91 @@ print_list (session *sess, server *serv)
 	}
 }
 
+static void
+setup_progress (const char *text, gboolean done, gboolean ok, gpointer data)
+{
+	session *sess = data;
+	if (!is_session (sess))
+		sess = current_sess;
+	if (sess)
+		PrintTextf (sess, "%s%s\n", done ? (ok ? "\00303*\t" : "\00304*\t") : "  ", text);
+	if (done && ok && sess)
+		PrintText (sess, _("Connect to your networks as before: they now go through your bouncer and stay in your channels when nexchat is closed.\n"));
+}
+
+/* /bouncer setup: our own soju, with every network in the list moved
+   onto it; /bouncer setup NAME... just those */
+static void
+cmd_setup (session *sess, char *word[])
+{
+	char *err = NULL;
+	GSList *nets = NULL, *l;
+	int i;
+
+	if (mybouncer_state () == MYBNC_NONE)
+	{
+		PrintText (sess, _("soju isn't installed on this computer. Install it from your system's packages "
+								 "(it's called soju), then /bouncer setup again: nexchat does the rest.\n"));
+		return;
+	}
+	if (!mybouncer_setup (&err))
+	{
+		PrintTextf (sess, "\00304*\t%s\n", err);
+		g_free (err);
+		return;
+	}
+	PrintTextf (sess, !strcmp (mybouncer_kept_by (), "systemd") ?
+					_("\00303*\tYour bouncer is running, and stays running when nexchat is closed (a systemd user service).\n") :
+					_("\00303*\tYour bouncer is running while nexchat is.\n"));
+	for (i = 3; *word[i]; i++)
+	{
+		ircnet *n = servlist_net_find (word[i], NULL, g_ascii_strcasecmp);
+		if (n)
+			nets = g_slist_append (nets, n);
+		else
+			PrintTextf (sess, _("No network called %s in the Network List.\n"), word[i]);
+	}
+	if (i == 3)
+		for (l = network_list; l; l = l->next)
+		{
+			ircnet *n = l->data;
+			/* only the ones you use: favourites, auto-connect, or with channels */
+			if ((n->flags & (FLAG_FAVORITE | FLAG_AUTO_CONNECT)) || n->favchanlist)
+				nets = g_slist_append (nets, n);
+		}
+	if (!nets)
+	{
+		PrintText (sess, _("Nothing to move yet: /bouncer setup <network> moves one, e.g. /bouncer setup Libera.Chat\n"));
+		return;
+	}
+	mybouncer_adopt (nets, setup_progress, sess);
+	g_slist_free (nets);
+}
+
 int
 bouncer_cmd (session *sess, char *word[], char *word_eol[])
 {
 	server *serv = sess->server;
 	char *err = NULL;
 	gboolean ok = TRUE;
+
+	if (!g_ascii_strcasecmp (word[2], "SETUP"))
+	{
+		cmd_setup (sess, word);
+		return TRUE;
+	}
+	if (!g_ascii_strcasecmp (word[2], "REMOVE") && !*word[3])
+	{
+		if (mybouncer_state () != MYBNC_SET_UP)
+			PrintText (sess, _("nexchat isn't running a bouncer for you.\n"));
+		else if (mybouncer_remove (&err))
+			PrintText (sess, _("\00303*\tYour bouncer is stopped; your networks connect directly again. "
+									 "Their passwords went to the bouncer, so set them again in the Network List.\n"));
+		else
+			PrintTextf (sess, "%s\n", err);
+		g_free (err);
+		return TRUE;
+	}
 
 	if (!serv || !serv->connected)
 	{

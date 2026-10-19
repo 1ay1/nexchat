@@ -70,6 +70,15 @@ sleep 1
 grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && bad "soju: entry stays after removing" ||
 	ok "soju: removed on the bouncer, gone from the list"
 
+# --- connecting to soju itself opens each of its networks in a tab
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
+	"/bouncer add tabnet 127.0.0.1:$ERGO_PORT -notls"
+{
+	sleep 6; echo "/quit"; sleep 0.5
+} | timeout 20 "$bin" -n -d "$tmp/cfg" "irc://soju" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+has 'opened in tab' "soju: its networks open by themselves"
+grep -q 'BOUNCER_NETID=' "$tmp/out" && ok "soju: and connect straight onto them" || bad "soju: no network tab"
+
 # --- the network behind soju goes down while we're on it: said plainly
 # (soju sends the state change because we asked for -notify)
 keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \

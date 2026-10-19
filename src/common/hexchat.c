@@ -53,6 +53,7 @@
 #include "url.h"
 #include "hexchatc.h"
 #include "batch.h"
+#include "mybouncer.h"
 
 #if ! GLIB_CHECK_VERSION (2, 36, 0)
 #include <glib-object.h>			/* for g_type_init() */
@@ -963,6 +964,7 @@ xchat_init (void)
 	nx_mark ("  menus/buttons/commands lists");
 
 	servlist_init ();							/* load server list */
+	mybouncer_init ();	/* our own soju, if nexchat runs it */
 	nx_mark ("  server list loaded");
 
 	/* if we got a URL, don't open the server list GUI */
