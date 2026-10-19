@@ -277,6 +277,7 @@ IRCv3 (`supported_caps[]` in `inbound.c` is the whole list today):
   - History from any of them (soju/Ergo chathistory, ZNC's `znc.in/playback`) is shown between "While you were away" and "N messages you missed, up to here", not alerted, counted or logged again.
   - `/lastlog -s word` searches the bouncer's history (`soju.im/search`), so it finds what was said while nexchat was closed too: this channel, or every channel and private chat on that server with `-a`. Results go in the (lastlog) tab under each channel's name, with dates. `tests/bouncers-search.sh`.
   - The title says "(online 24/7)" when it's working; when soju loses the network the tab is on, nexchat says so with soju's reason, and again when it's back.
+  - Login to the bouncer stays a server password (PASS), not SASL: soju and ZNC both take it, and a wrong password comes back as plainly either way (checked against soju: 464 for PASS, 904 for SASL). One way for both is simpler.
   - Tested against the real ones: `tests/bnc/fetch.sh` downloads soju 0.11.1, ZNC 1.10.3 (Arch packages) and Ergo 2.19.1 without root, `tests/bnc/lab.sh` runs them on loopback, and `tests/bouncers.sh`, `tests/bouncers-soju.sh` and `tests/ux/stayonline.sh` go through every flow above.
 - [x] Big channels: checked, already handled. The WHO on join uses WHOX (`%chtsunfra,152`, only the fields needed) when the server has it, and WHO and MODE queries go out at the lowest priority of the send queue (`tcp_send_len`), so joining many channels spreads them behind normal traffic instead of flooding.
 
