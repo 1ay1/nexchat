@@ -118,9 +118,14 @@ create_msg_dialog (gchar *title, gchar *message)
 #endif
 
 #if defined(__APPLE__)
-/* GTK's macOS backend warns "gdk_frame_timings_presented() called on
-   skipped frame" from inside its own frame clock (a GTK bug, nothing we
-   call); that one line is dropped, every other message passes through */
+/* GTK 4.24's macOS backend logs these from inside its own frame clock:
+   "gdk_frame_timings_presented() called on skipped frame", "Duplicate
+   call to gdk_frame_timings_presented()", and "gdk_surface_thaw_updates:
+   assertion 'surface->update_freeze_count > 0'" (a surface hidden as its
+   frame is presented gets thawed twice: _gdk_macos_surface_frame_presented
+   and _gdk_macos_surface_cancel_frame both thaw). None come from nexchat
+   calls and none change what's drawn, so those lines are dropped; every
+   other message passes through. */
 static GLogWriterOutput
 quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpointer data)
 {
@@ -132,7 +137,10 @@ quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpoint
 			domain = fields[i].value;
 		else if (!strcmp (fields[i].key, "MESSAGE"))
 			msg = fields[i].value;
-	if (domain && msg && !strcmp (domain, "Gdk") && strstr (msg, "called on skipped frame"))
+	if (domain && msg && !strcmp (domain, "Gdk") &&
+		 (strstr (msg, "called on skipped frame") ||
+		  strstr (msg, "Duplicate call to gdk_frame_timings_presented") ||
+		  strstr (msg, "gdk_surface_thaw_updates: assertion")))
 		return G_LOG_WRITER_HANDLED;
 	return g_log_writer_default (level, fields, n, data);
 }
@@ -261,7 +269,9 @@ fe_args (int argc, char *argv[])
 #endif
 
 #if defined(__APPLE__)
-	g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
+	/* NEXCHAT_GDK_NOISE=1: show them anyway (to find what sets them off) */
+	if (!g_getenv ("NEXCHAT_GDK_NOISE"))
+		g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
 #endif
 
 #if defined(WIN32)
@@ -570,6 +580,10 @@ fe_apply_css (void)
 		".nx-cmdpopup .nx-cmd-keys { padding: 1px 6px 2px 6px; font-size: smaller;"
 		" border-top: 1px solid alpha(currentColor, 0.12); }\n");
 
+	/* a scheme colours the whole window, not just the text box (last, so
+	   it wins over the rules above that use the theme's names) */
+	palette_ui_css (css);
+
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))
 		g_printerr ("---- nexchat css ----\n%s\n----\n", css->str);
@@ -642,6 +656,8 @@ fe_init (void)
 	gtkutil_force_images ();
 	palette_set_dark (platform_style_dark ());
 	palette_load ();
+	/* a saved scheme decides light/dark for the windows too */
+	platform_style_sync_scheme ();
 	key_init ();
 	pixmaps_init ();
 

@@ -73,4 +73,16 @@ char *palette_scheme_label (int i);
 void palette_backup (void);
 void palette_restore (void);
 
+/* the whole window in the scheme's colours: GTK's own theme colours
+   (@theme_bg_color, borders, selection...) and the widgets that draw
+   their own, from the text box's background, text and blue. Appended
+   to the app CSS; nothing for the default and "native" schemes, which
+   follow the system theme. */
+void palette_ui_css (GString *css);
+/* -1 the system decides, else 0 light / 1 dark: the scheme's background */
+int palette_ui_dark (void);
+/* how many of the list's entries are the short list (default, native,
+   the light/dark pairs); the rest are every single scheme */
+int palette_scheme_short_count (void);
+
 #endif

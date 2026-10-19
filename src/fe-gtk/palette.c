@@ -29,6 +29,7 @@
 #endif
 
 #include <string.h>
+#include <math.h>
 
 #include "fe-gtk.h"
 #include "palette.h"
@@ -250,6 +251,185 @@ scheme_compute (GdkRGBA *out)
 		scheme_fill (out, nx_schemes[i].c);
 	else
 		memcpy (out, palette_is_dark ? defaults_dark : defaults_light, sizeof scheme_cols);
+}
+
+/* a single scheme or a pair (not HexChat's own, not "native") */
+static gboolean
+scheme_colours_ui (void)
+{
+	return scheme[0] && strcmp (scheme, "native");
+}
+
+int
+palette_ui_dark (void)
+{
+	if (!scheme_colours_ui ())
+		return -1;
+	return luma (&colors[COL_BG]) < 0.5;
+}
+
+int
+palette_scheme_short_count (void)
+{
+	return 2 + G_N_ELEMENTS (nx_scheme_pairs);
+}
+
+/* a towards b by t */
+static GdkRGBA
+mix (const GdkRGBA *a, const GdkRGBA *b, double t)
+{
+	GdkRGBA r = { a->red + (b->red - a->red) * t, a->green + (b->green - a->green) * t,
+	              a->blue + (b->blue - a->blue) * t, 1.0 };
+	return r;
+}
+
+static void
+css_rgb (GString *css, const char *fmt, const GdkRGBA *c)
+{
+	char v[32];
+	g_snprintf (v, sizeof v, "rgb(%d,%d,%d)", (int) (c->red * 255 + .5),
+	            (int) (c->green * 255 + .5), (int) (c->blue * 255 + .5));
+	g_string_append_printf (css, fmt, v);
+}
+
+void
+palette_ui_css (GString *css)
+{
+	GdkRGBA base, text, bg, fg, sel, selfg, bord, dim, hover, active, view;
+	gboolean dark;
+
+	if (!scheme_colours_ui ())
+		return;
+	/* from the text box: its background is the window's, a step off it
+	   for the chrome around, its text, its selection as the accent */
+	base = colors[COL_BG];
+	text = colors[COL_FG];
+	sel = colors[COL_MARK_BG];
+	selfg = colors[COL_MARK_FG];
+	dark = luma (&base) < 0.5;
+	{
+		GdkRGBA w = { 1, 1, 1, 1 }, k = { 0, 0, 0, 1 };
+		/* chrome: a little lighter in dark schemes, a little darker in light */
+		bg = mix (&base, dark ? &w : &k, dark ? 0.06 : 0.04);
+		view = base;
+		hover = mix (&bg, dark ? &w : &k, dark ? 0.08 : 0.06);
+		active = mix (&bg, dark ? &w : &k, dark ? 0.14 : 0.11);
+	}
+	fg = text;
+	bord = mix (&bg, &text, dark ? 0.22 : 0.20);
+	dim = mix (&bg, &text, 0.5);
+	/* the selection colour is for selected text; controls (checks, the
+	   default button, focus) take the scheme's blue, which is its accent in
+	   nearly every scheme, unless that's too close to the background */
+	{
+		GdkRGBA blue = colors[12], green = colors[3];
+		const GdkRGBA *pick = fabs (luma (&blue) - luma (&base)) >= 0.18 ? &blue
+			: fabs (luma (&green) - luma (&base)) >= 0.18 ? &green : &sel;
+		sel = *pick;
+		selfg = luma (&sel) < 0.55 ? (GdkRGBA) { 1, 1, 1, 1 } : (GdkRGBA) { 0.08, 0.08, 0.08, 1 };
+	}
+
+	/* the theme's named colours: everything written with @theme_* follows */
+	css_rgb (css, "@define-color theme_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color theme_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color theme_base_color %s;\n", &view);
+	css_rgb (css, "@define-color theme_text_color %s;\n", &text);
+	css_rgb (css, "@define-color theme_selected_bg_color %s;\n", &sel);
+	css_rgb (css, "@define-color theme_selected_fg_color %s;\n", &selfg);
+	css_rgb (css, "@define-color theme_unfocused_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color theme_unfocused_fg_color %s;\n", &dim);
+	css_rgb (css, "@define-color theme_unfocused_base_color %s;\n", &view);
+	css_rgb (css, "@define-color theme_unfocused_text_color %s;\n", &text);
+	css_rgb (css, "@define-color theme_unfocused_selected_bg_color %s;\n", &sel);
+	css_rgb (css, "@define-color theme_unfocused_selected_fg_color %s;\n", &selfg);
+	css_rgb (css, "@define-color borders %s;\n", &bord);
+	css_rgb (css, "@define-color unfocused_borders %s;\n", &bord);
+	css_rgb (css, "@define-color insensitive_fg_color %s;\n", &dim);
+	css_rgb (css, "@define-color insensitive_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color insensitive_base_color %s;\n", &view);
+	css_rgb (css, "@define-color content_view_bg %s;\n", &view);
+	css_rgb (css, "@define-color text_view_bg %s;\n", &view);
+
+	/* GTK's Default theme writes most widgets with fixed greys, not the
+	   names above: give each kind of surface its colour */
+	g_string_append (css,
+		"window, window.background, dialog, popover > contents, popover > arrow,"
+		" headerbar, .titlebar, actionbar, notebook > header"
+		" { background-color: @theme_bg_color; background-image: none; box-shadow: none; }\n"
+		"headerbar, .titlebar { border-color: @borders; }\n"
+		"popover > contents { border: 1px solid @borders; }\n"
+		/* text and list areas */
+		"textview, textview > text, .view, columnview, listview, treeview, list,"
+		" columnview > listview, iconview, entry, spinbutton, searchbar > revealer > box"
+		" { background-color: @theme_base_color; color: @theme_text_color; }\n"
+		"entry, spinbutton, dropdown > button, combobox > box > button"
+		" { background-image: none; border-color: @borders; box-shadow: none; }\n"
+		"entry:focus-within, spinbutton:focus-within"
+		" { border-color: @theme_selected_bg_color; outline-color: alpha(@theme_selected_bg_color, 0.5); }\n"
+		"entry placeholder, entry > text > placeholder { color: @insensitive_fg_color; }\n"
+		/* buttons */
+		"button, dropdown > button, menubutton > button, spinbutton > button, switch,"
+		" scale > trough, progressbar > trough, scrollbar > range > trough"
+		" { background-image: none; box-shadow: none; text-shadow: none; -gtk-icon-shadow: none;"
+		" border-color: @borders; color: @theme_fg_color; }\n"
+		"button, dropdown > button, menubutton > button, combobox > box > button"
+		" { background-color: @theme_bg_color; }\n"
+		"spinbutton > button { background-color: transparent; border-color: @borders; }\n"
+		"button.flat, button.image-button.flat, .toolbar button, headerbar button:not(.suggested-action):not(.destructive-action)"
+		" { background-color: transparent; border-color: transparent; }\n");
+	css_rgb (css, "button:hover, dropdown > button:hover, menubutton > button:hover, spinbutton > button:hover,"
+		" button.flat:hover, notebook > header tab:hover { background-color: %s; }\n", &hover);
+	css_rgb (css, "button:active, button:checked, dropdown > button:active, menubutton > button:checked,"
+		" button.flat:active, button.flat:checked { background-color: %s; }\n", &active);
+	g_string_append (css,
+		"button:disabled, entry:disabled, spinbutton:disabled, label:disabled"
+		" { color: @insensitive_fg_color; background-color: transparent; }\n"
+		"button.suggested-action, button.default, switch:checked, scale > trough > highlight,"
+		" progressbar > trough > progress, levelbar block.filled"
+		" { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color;"
+		" border-color: @theme_selected_bg_color; background-image: none; }\n"
+		"button.destructive-action { background-image: none; }\n"
+		/* check boxes and radios */
+		"check, radio { background-color: @theme_base_color; background-image: none;"
+		" border-color: @borders; box-shadow: none; color: @theme_selected_fg_color; }\n"
+		"check:checked, radio:checked, check:indeterminate, radio:indeterminate"
+		" { background-color: @theme_selected_bg_color; border-color: @theme_selected_bg_color; }\n"
+		"switch { background-color: @borders; }\n"
+		"switch > slider { background-color: @theme_fg_color; background-image: none;"
+		" border-color: transparent; box-shadow: none; }\n"
+		/* lists and selection */
+		"row:selected, .view:selected, columnview > listview > row:selected,"
+		" listview > row:selected, treeview:selected, text selection, label > selection,"
+		" entry > text > selection, flowboxchild:selected"
+		" { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; }\n");
+	css_rgb (css, "row:hover:not(:selected), listview > row:hover:not(:selected)"
+		" { background-color: %s; }\n", &hover);
+	g_string_append (css,
+		"columnview > header > button, treeview > header > button"
+		" { background-color: @theme_bg_color; color: @theme_fg_color; border-color: @borders;"
+		" background-image: none; }\n"
+		/* separators, frames, tabs, scrollbars */
+		"separator, paned > separator { background-color: @borders; }\n"
+		"frame > border, .frame { border-color: @borders; }\n"
+		"notebook > header { border-color: @borders; }\n"
+		"notebook > header > tabs > tab { color: @insensitive_fg_color; }\n"
+		"notebook > header > tabs > tab:checked { color: @theme_fg_color; box-shadow: inset 0 -3px @theme_selected_bg_color; }\n"
+		"scrollbar { background-color: transparent; border-color: transparent; }\n"
+		"scrollbar > range > trough { background-color: transparent; border: none; }\n"
+		"scrollbar > range > trough > slider { background-color: alpha(@theme_fg_color, 0.35); border: none; }\n"
+		"scrollbar > range > trough > slider:hover { background-color: alpha(@theme_fg_color, 0.55); }\n"
+		"scale > trough { background-color: @borders; }\n"
+		"scale > trough > slider { background-color: @theme_fg_color; background-image: none; border-color: @borders; box-shadow: none; }\n"
+		/* menus, tooltips */
+		"popover.menu > contents, popover.menu modelbutton"
+		" { background-color: @theme_bg_color; color: @theme_fg_color; }\n"
+		"popover.menu modelbutton:hover, popover.menu modelbutton:focus"
+		" { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; }\n"
+		"tooltip, tooltip.background { background-color: alpha(@theme_bg_color, 0.97);"
+		" color: @theme_fg_color; border: 1px solid @borders; box-shadow: none; }\n"
+		"tooltip > box, tooltip label { background: none; color: @theme_fg_color; }\n"
+		"dim-label, .dim-label, label.dim-label { color: @insensitive_fg_color; opacity: 1; }\n"
+		"link, label link { color: @theme_selected_bg_color; }\n");
 }
 
 static const GdkRGBA *

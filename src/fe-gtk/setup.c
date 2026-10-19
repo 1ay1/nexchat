@@ -35,6 +35,7 @@
 #include "nxlist.h"
 #include "maingui.h"
 #include "palette.h"
+#include "platform-style.h"
 #include "pixmaps.h"
 #include "menu.h"
 #include "plugin-tray.h"
@@ -45,11 +46,12 @@
 #endif
 #include "sexy-spell-entry.h"
 
+static void setup_live (void);
+
 
 #define LABEL_INDENT 12
 
 static GtkWidget *setup_window = NULL;
-static gboolean setup_saved;
 static GtkWidget *swatch[MAX_COL + 1];
 static int last_selected_page = 0;
 static int last_selected_row = 0; /* sound row */
@@ -704,6 +706,7 @@ static void
 setup_3oggle_cb (GtkWidget *but, unsigned int *setting)
 {
 	*setting = nx_toggle_get_active (but);
+	setup_live ();
 }
 
 static void
@@ -786,6 +789,7 @@ setup_toggle_cb (GtkWidget *but, const setting *set)
 	GtkWidget *label, *disable_wid;
 
 	setup_set_int (&setup_prefs, set, nx_toggle_get_active (but));
+	setup_live ();
 
 	/* does this toggle also enable/disable another widget? */
 	disable_wid = g_object_get_data (G_OBJECT (but), "nxt");
@@ -855,6 +859,7 @@ static void
 setup_spin_cb (GtkSpinButton *spin, const setting *set)
 {
 	setup_set_int (&setup_prefs, set, gtk_spin_button_get_value_as_int (spin));
+	setup_live ();
 }
 
 static GtkWidget *
@@ -915,6 +920,7 @@ setup_hscale_cb (GtkScale *wid, const setting *set)
 	static int tag = 0;
 
 	setup_set_int (&setup_prefs, set, (int) gtk_range_get_value (GTK_RANGE (wid)));
+	setup_live ();
 
 	if (tag == 0)
 	{
@@ -960,6 +966,7 @@ setup_menu_cb (GtkWidget *cbox, gpointer data)
 
 	/* set the prefs.<field> */
 	setup_set_int (&setup_prefs, set, n + set->extra);
+	setup_live ();
 
 	if (set->list == proxytypes)
 	{
@@ -977,6 +984,7 @@ setup_radio_cb (GtkWidget *item, const setting *set)
 		int n = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (item), "n"));
 		/* set the prefs.<field> */
 		setup_set_int (&setup_prefs, set, n);
+		setup_live ();
 	}
 }
 
@@ -1036,6 +1044,7 @@ setup_id_menu_cb (GtkWidget *item, char *dest)
 	int n = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (item), "n"));
 
 	strcpy (dest, id_strings[n]);
+	setup_live ();
 }
 
 static void
@@ -1233,6 +1242,7 @@ setup_entry_cb (GtkEntry *entry, setting *set)
 	else
 	{
 		setup_set_str (&setup_prefs, set, nx_entry_get_text (entry));
+		setup_live ();
 	}
 }
 
@@ -1488,6 +1498,7 @@ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 G_GNUC_END_IGNORE_DEPRECATIONS
 		col->alpha = 1.0;	/* the palette has no transparency */
 		setup_color_button_paint (button, col);
+		setup_live ();
 	}
 	nx_widget_destroy (GTK_WIDGET (dialog));
 }
@@ -1538,57 +1549,134 @@ setup_create_color_button (GtkWidget *table, int num, int row, int col)
 	swatch[num] = but;
 }
 
+/* the scheme list: the short one (HexChat, native, the light/dark pairs)
+   unless "All schemes" is ticked or the current one is only in the long
+   one. Rows know their index in palette_scheme_id(). */
+static GtkWidget *scheme_dd, *scheme_all;
+static gboolean scheme_filling;
+
 static void
 setup_scheme_cb (GtkWidget *dd, gpointer userdata)
 {
 	guint i = gtk_drop_down_get_selected (GTK_DROP_DOWN (dd));
+	GListModel *m = gtk_drop_down_get_model (GTK_DROP_DOWN (dd));
+	GObject *item;
 	char *id;
 	int n;
 
-	if (i == GTK_INVALID_LIST_POSITION)
+	if (scheme_filling || i == GTK_INVALID_LIST_POSITION || !(item = g_list_model_get_item (m, i)))
 		return;
-	id = palette_scheme_id (i);
-	palette_set_scheme (id);
+	id = palette_scheme_id (GPOINTER_TO_INT (g_object_get_data (item, "i")));
+	g_object_unref (item);
+	if (strcmp (id, palette_scheme ()))
+	{
+		palette_set_scheme (id);
+		color_change = TRUE;
+		for (n = 0; n <= MAX_COL; n++)
+			if (swatch[n])
+				setup_color_button_paint (swatch[n], &colors[n]);
+		setup_live ();
+	}
 	g_free (id);
-	color_change = TRUE;
-	for (n = 0; n <= MAX_COL; n++)
-		if (swatch[n])
-			setup_color_button_paint (swatch[n], &colors[n]);
+}
+
+static void
+setup_scheme_fill (gboolean all)
+{
+	GtkStringList *names = gtk_string_list_new (NULL);
+	const char *cur = palette_scheme ();
+	int i, row = 0, sel = -1, n = all ? palette_scheme_count () : palette_scheme_short_count ();
+
+	for (i = 0; i < n; i++)
+	{
+		char *id = palette_scheme_id (i), *label_text = palette_scheme_label (i);
+		GObject *item;
+
+		gtk_string_list_append (names, label_text);
+		item = g_list_model_get_item (G_LIST_MODEL (names), row);
+		g_object_set_data (item, "i", GINT_TO_POINTER (i));
+		g_object_unref (item);
+		if (!strcmp (id, cur))
+			sel = row;
+		row++;
+		g_free (id);
+		g_free (label_text);
+	}
+	/* a single scheme picked before: it's in the long list only */
+	if (sel < 0 && !all)
+	{
+		g_object_unref (names);
+		gtk_check_button_set_active (GTK_CHECK_BUTTON (scheme_all), TRUE);
+		return;
+	}
+	scheme_filling = TRUE;
+	gtk_drop_down_set_model (GTK_DROP_DOWN (scheme_dd), G_LIST_MODEL (names));
+	gtk_drop_down_set_selected (GTK_DROP_DOWN (scheme_dd), sel < 0 ? 0 : sel);
+	scheme_filling = FALSE;
+	g_object_unref (names);
+}
+
+static void
+setup_scheme_all_cb (GtkCheckButton *b, gpointer d)
+{
+	setup_scheme_fill (gtk_check_button_get_active (b));
+}
+
+static gboolean
+setup_scheme_pick (gpointer d)
+{
+	const char *want = g_getenv ("NEXCHAT_PREFS_PICK");
+	GListModel *m;
+	guint i;
+
+	if (!scheme_dd)
+		return G_SOURCE_REMOVE;
+	m = gtk_drop_down_get_model (GTK_DROP_DOWN (scheme_dd));
+	for (i = 0; i < g_list_model_get_n_items (m); i++)
+	{
+		GtkStringObject *s = g_list_model_get_item (m, i);
+		gboolean hit = g_str_has_prefix (gtk_string_object_get_string (s), want);
+		g_object_unref (s);
+		if (hit)
+		{
+			gtk_drop_down_set_selected (GTK_DROP_DOWN (scheme_dd), i);
+			break;
+		}
+	}
+	return G_SOURCE_REMOVE;
 }
 
 /* the scheme list, typing filters it */
 static GtkWidget *
 setup_create_scheme_row (void)
 {
-	GtkWidget *box, *label, *dd;
-	GtkStringList *names = gtk_string_list_new (NULL);
-	const char *cur = palette_scheme ();
-	int i, sel = 0;
-
-	for (i = 0; i < palette_scheme_count (); i++)
-	{
-		char *id = palette_scheme_id (i), *label_text = palette_scheme_label (i);
-		gtk_string_list_append (names, label_text);
-		if (!strcmp (id, cur))
-			sel = i;
-		g_free (id);
-		g_free (label_text);
-	}
+	GtkWidget *box, *label;
 
 	box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
 	nx_set_border_width (box, 6);
 	label = gtk_label_new_with_mnemonic (_("Color _scheme:"));
 	nx_box_pack_start (box, label, FALSE, FALSE, 0);
 
-	dd = gtk_drop_down_new (G_LIST_MODEL (names),
+	scheme_dd = gtk_drop_down_new (NULL,
 			gtk_property_expression_new (GTK_TYPE_STRING_OBJECT, NULL, "string"));
-	gtk_drop_down_set_enable_search (GTK_DROP_DOWN (dd), TRUE);
-	gtk_drop_down_set_search_match_mode (GTK_DROP_DOWN (dd), GTK_STRING_FILTER_MATCH_MODE_SUBSTRING);
-	gtk_drop_down_set_selected (GTK_DROP_DOWN (dd), sel);
-	gtk_widget_set_tooltip_text (dd, _("Sets every color below; you can still change any of them after."));
-	gtk_label_set_mnemonic_widget (GTK_LABEL (label), dd);
-	nx_combo_on_changed (dd, setup_scheme_cb, NULL);
-	nx_box_pack_start (box, dd, FALSE, FALSE, 0);
+	gtk_drop_down_set_enable_search (GTK_DROP_DOWN (scheme_dd), TRUE);
+	gtk_drop_down_set_search_match_mode (GTK_DROP_DOWN (scheme_dd), GTK_STRING_FILTER_MATCH_MODE_SUBSTRING);
+	gtk_widget_set_valign (scheme_dd, GTK_ALIGN_CENTER);
+	gtk_widget_set_tooltip_text (scheme_dd, _("Colors the whole window and the text; you can still change any color below."));
+	gtk_label_set_mnemonic_widget (GTK_LABEL (label), scheme_dd);
+	nx_box_pack_start (box, scheme_dd, FALSE, FALSE, 0);
+
+	scheme_all = gtk_check_button_new_with_mnemonic (_("_All schemes"));
+	gtk_widget_set_tooltip_text (scheme_all, _("Every one of the 800+ terminal schemes, not just the ones that follow light/dark"));
+	gtk_widget_set_valign (scheme_all, GTK_ALIGN_CENTER);
+	nx_box_pack_start (box, scheme_all, FALSE, FALSE, 0);
+	g_signal_connect (scheme_all, "toggled", G_CALLBACK (setup_scheme_all_cb), NULL);
+
+	setup_scheme_fill (FALSE);
+	nx_combo_on_changed (scheme_dd, setup_scheme_cb, NULL);
+	/* tests: NEXCHAT_PREFS_PICK=Label picks that row, as a click would */
+	if (g_getenv ("NEXCHAT_PREFS_PICK"))
+		g_timeout_add (1200, setup_scheme_pick, NULL);
 	return box;
 }
 
@@ -1806,7 +1894,8 @@ setup_snd_changed_cb (GtkEntry *ent, GtkWidget *view)
 	/* update the TreeView list */
 	nx_row_set (row, 1, sound_files[n], -1);
 
-	gtk_widget_set_sensitive (cancel_button, FALSE);
+	/* sound.conf: saved with the rest */
+	setup_live ();
 }
 
 static GtkWidget *
@@ -2123,10 +2212,15 @@ setup_apply_real (int new_pix, int do_ulist, int do_layout, int do_identd)
 	{
 		if (channelwin_pix)
 			g_object_unref (channelwin_pix);
-		channelwin_pix = pixmap_load_from_file (prefs.hex_text_background);
+		/* live: a half-typed path just loads nothing, no popup */
+		channelwin_pix = prefs.hex_text_background[0] && g_file_test (prefs.hex_text_background, G_FILE_TEST_IS_REGULAR)
+			? pixmap_load_from_file (prefs.hex_text_background) : NULL;
 	}
 
-	fe_check_font ();
+	if (!setup_window)
+		fe_check_font ();
+	/* the scheme decides light or dark for GTK's own drawing too */
+	platform_style_sync_scheme ();
 	fe_apply_css ();
 
 	list = sess_list;
@@ -2166,6 +2260,9 @@ setup_apply_real (int new_pix, int do_ulist, int do_layout, int do_identd)
 		handle_command (current_sess, "IDENTD reload", FALSE);
 }
 
+static GtkWidget *setup_note;	/* the line next to Close: restart needed, etc. */
+static gboolean setup_needs_restart;
+
 static void
 setup_apply (struct hexchatprefs *pr)
 {
@@ -2179,6 +2276,7 @@ setup_apply (struct hexchatprefs *pr)
 	int do_ulist = FALSE;
 	int do_layout = FALSE;
 	int do_identd = FALSE;
+	const char *note = NULL;
 
 	if (strcmp (pr->hex_text_background, prefs.hex_text_background) != 0)
 		new_pix = TRUE;
@@ -2235,16 +2333,19 @@ setup_apply (struct hexchatprefs *pr)
 
 	if ((pr->hex_gui_tab_pos == 5 || pr->hex_gui_tab_pos == 6) &&
 		 pr->hex_gui_tab_layout == 2 && pr->hex_gui_tab_pos != prefs.hex_gui_tab_pos)
-		fe_message (_("You cannot place the tree on the top or bottom!\n"
-						"Please change to the <b>Tabs</b> layout in the <b>View</b>"
-						" menu first."),
-						FE_MSG_WARN | FE_MSG_MARKUP);
+		note = _("The tree can't go on the top or bottom: switch to Tabs first.");
 
 	/* format cannot be blank, there is already a setting for this */
 	if (pr->hex_stamp_text_format[0] == 0)
 	{
 		pr->hex_stamp_text = 0;
 		strcpy (pr->hex_stamp_text_format, prefs.hex_stamp_text_format);
+	}
+	/* while it's being typed: kept as it was until it has something */
+	if (pr->hex_irc_real_name[0] == 0)
+	{
+		strcpy (pr->hex_irc_real_name, prefs.hex_irc_real_name[0] ? prefs.hex_irc_real_name : "realname");
+		note = _("The real name can't be empty; the old one is kept.");
 	}
 
 	memcpy (&prefs, pr, sizeof (prefs));
@@ -2272,23 +2373,47 @@ setup_apply (struct hexchatprefs *pr)
 	}
 	
 	setup_apply_real (new_pix, do_ulist, do_layout, do_identd);
+	color_change = FALSE;
 
 	if (noapply)
-		fe_message (_("Some settings were changed that require a"
-						" restart to take full effect."), FE_MSG_WARN);
-
+		setup_needs_restart = TRUE;
+	if (!note && setup_needs_restart)
+		note = _("Some of these take full effect after a restart.");
 #ifndef WIN32
-	if (prefs.hex_dcc_auto_recv == 2) /* Auto */
-	{
-		if (!strcmp ((char *)g_get_home_dir (), prefs.hex_dcc_dir))
-		{
-			fe_message (_("*WARNING*\n"
-							 "Auto accepting DCC to your home directory\n"
-							 "can be dangerous and is exploitable. Eg:\n"
-							 "Someone could send you a .bash_profile"), FE_MSG_WARN);
-		}
-	}
+	if (!note && prefs.hex_dcc_auto_recv == 2 && !strcmp ((char *) g_get_home_dir (), prefs.hex_dcc_dir))
+		note = _("Careful: files are accepted into your home folder (someone could send a .bash_profile).");
 #endif
+	if (setup_note)
+		gtk_label_set_text (GTK_LABEL (setup_note), note ? note : "");
+}
+
+/* ---- live: every change is applied and saved a moment after it's made ---- */
+
+static guint live_tag;
+
+static gboolean
+setup_live_now (gpointer d)
+{
+	live_tag = 0;
+	if (!setup_window)
+		return G_SOURCE_REMOVE;
+	setup_apply (&setup_prefs);
+	/* what was fixed up (an empty real name...) shows in the fields' copy */
+	memcpy (&setup_prefs, &prefs, sizeof prefs);
+	save_config ();
+	palette_save ();
+	sound_save ();
+	return G_SOURCE_REMOVE;
+}
+
+/* soon, not at once: typing in a field, dragging a slider, scrolling
+   through schemes all settle first */
+static void
+setup_live (void)
+{
+	if (live_tag)
+		g_source_remove (live_tag);
+	live_tag = g_timeout_add (250, setup_live_now, NULL);
 }
 
 static gboolean
@@ -2296,16 +2421,6 @@ setup_press_ok (gpointer b)
 {
 	g_signal_emit_by_name (b, "clicked");
 	return G_SOURCE_REMOVE;
-}
-
-static void
-setup_ok_cb (GtkWidget *but, GtkWidget *win)
-{
-	setup_saved = TRUE;
-	nx_widget_destroy (win);
-	setup_apply (&setup_prefs);
-	save_config ();
-	palette_save ();
 }
 
 static GtkWidget *
@@ -2326,21 +2441,24 @@ setup_window_open (void)
 
 	setup_create_tree (hbox, setup_create_pages (hbox));
 
-	/* prepare the button box */
-	hbbox = nx_button_box_new (GTK_ORIENTATION_HORIZONTAL, NX_BUTTONBOX_END);
-		gtk_box_set_spacing (GTK_BOX (hbbox), 4);
+	/* changes apply as they're made: a note on the left, Close on the right */
+	hbbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
 	nx_box_pack_end (vbox, hbbox, FALSE, FALSE, 0);
 
-	cancel_button = wid = gtkutil_button_new_from_stock (NX_STOCK_CANCEL);
-	g_signal_connect (G_OBJECT (wid), "clicked",
-							G_CALLBACK (gtkutil_destroy), win);
-	nx_box_pack_start (hbbox, wid, FALSE, FALSE, 0);
+	setup_note = gtk_label_new ("");
+	gtk_label_set_xalign (GTK_LABEL (setup_note), 0.0);
+	gtk_label_set_wrap (GTK_LABEL (setup_note), TRUE);
+	gtk_widget_add_css_class (setup_note, "dim-label");
+	gtk_widget_set_hexpand (setup_note, TRUE);
+	gtk_box_append (GTK_BOX (hbbox), setup_note);
 
-	wid = gtkutil_button_new_from_stock (NX_STOCK_OK);
-	g_signal_connect (G_OBJECT (wid), "clicked",
-							G_CALLBACK (setup_ok_cb), win);
-	nx_box_pack_start (hbbox, wid, FALSE, FALSE, 0);
-	/* tests: NEXCHAT_PREFS_OK=1 presses OK once the window is up */
+	cancel_button = wid = gtk_button_new_with_mnemonic (_("_Close"));
+	gtk_widget_set_tooltip_text (wid, _("Changes are applied and saved as you make them"));
+	g_signal_connect_swapped (G_OBJECT (wid), "clicked",
+							 G_CALLBACK (gtk_window_destroy), win);
+	gtk_box_append (GTK_BOX (hbbox), wid);
+	gtk_window_set_default_widget (GTK_WINDOW (win), wid);
+	/* tests: NEXCHAT_PREFS_OK=1 closes it once it's up */
 	if (g_getenv ("NEXCHAT_PREFS_OK"))
 		g_timeout_add (1500, setup_press_ok, wid);
 
@@ -2354,9 +2472,19 @@ setup_close_cb (GtkWidget *win, GtkWidget **swin)
 {
 	*swin = NULL;
 	memset (swatch, 0, sizeof swatch);
-	/* Cancel: colours were changed in place, put them back */
-	if (!setup_saved)
-		palette_restore ();
+	setup_note = NULL;
+	scheme_dd = scheme_all = NULL;
+	/* the last change, if it hadn't gone through yet */
+	if (live_tag)
+	{
+		g_source_remove (live_tag);
+		live_tag = 0;
+		setup_apply (&setup_prefs);
+		save_config ();
+		palette_save ();
+	}
+	if (setup_needs_restart)
+		fe_message (_("Some settings you changed take full effect after a restart."), FE_MSG_INFO);
 
 	if (font_dialog)
 	{
@@ -2377,8 +2505,7 @@ setup_open (void)
 	memcpy (&setup_prefs, &prefs, sizeof (prefs));
 
 	color_change = FALSE;
-	setup_saved = FALSE;
-	palette_backup ();
+	setup_needs_restart = FALSE;
 	setup_window = setup_window_open ();
 
 	g_signal_connect (G_OBJECT (setup_window), "destroy",

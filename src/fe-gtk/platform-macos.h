@@ -28,6 +28,8 @@ void macos_dump_focus (void);
 void macos_request_attention (gboolean urgent);
 /* the system is in dark mode */
 gboolean macos_is_dark (void);
+/* the app's windows light (0), dark (1), or as the system says (-1) */
+void macos_set_dark (int dark);
 /* NSColor's text background, text, selection, selected text */
 void macos_text_colors (GdkRGBA out[4]);
 /* the NSWindow (gdk_macos_surface_get_native_window) moved/placed; y

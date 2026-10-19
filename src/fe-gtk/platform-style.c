@@ -15,6 +15,7 @@
 
 #include "fe-gtk.h"
 #include "platform-style.h"
+#include "palette.h"
 #include "gtkcompat.h"
 #include "nxmenu.h"
 #if defined(__APPLE__)
@@ -171,23 +172,28 @@ map_hook (GSignalInvocationHint *ih, guint n, const GValue *v, gpointer d)
 #endif
 
 /* GTK's own widgets (fields, labels, lists) must be light or dark exactly
-   when colors[] is: tell GTK what platform_style_dark() says. On Windows
-   and macOS GTK doesn't follow the system at all; on Linux it does, but
-   NEXCHAT_SCHEME can pin the answer the other way. */
+   when colors[] is: tell GTK what platform_style_dark() says, or, with a
+   colour scheme, whether its background is dark. On Windows and macOS GTK
+   doesn't follow the system at all; on Linux it does, but NEXCHAT_SCHEME
+   or a scheme can pin the answer the other way. */
 void
 platform_style_sync_scheme (void)
 {
 	static int last = -1;
 	GtkSettings *gs = gtk_settings_get_default ();
-	gboolean dark = platform_style_dark ();
+	int ui = palette_ui_dark ();
+	gboolean dark = ui >= 0 ? ui : platform_style_dark ();
 
+#if defined(__APPLE__)
+	macos_set_dark (ui);
+#endif
 	if (!gs || dark == last)
 		return;
 	last = dark;
 #if !defined(G_OS_WIN32) && !defined(__APPLE__)
 	/* Linux: GTK already follows the desktop; writing the setting would
 	   stop it following later changes, so only when it's pinned */
-	if (!g_getenv ("NEXCHAT_SCHEME"))
+	if (!g_getenv ("NEXCHAT_SCHEME") && ui < 0)
 		return;
 #endif
 #if GTK_CHECK_VERSION(4, 20, 0)

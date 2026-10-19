@@ -402,11 +402,36 @@ macos_is_dark (void)
 {
 	if (@available (macOS 10.14, *))
 	{
-		NSAppearanceName n = [[NSApp effectiveAppearance]
-			bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
-		return [n isEqualToString:NSAppearanceNameDarkAqua];
+		/* the system's choice, not ours: NSApp.appearance may be pinned by
+		   macos_set_dark() for a scheme */
+		NSString *style = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
+		if (NSApp.appearance == nil)
+		{
+			NSAppearanceName n = [[NSApp effectiveAppearance]
+				bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+			return [n isEqualToString:NSAppearanceNameDarkAqua];
+		}
+		return [style caseInsensitiveCompare:@"Dark"] == NSOrderedSame;
 	}
 	return FALSE;
+}
+
+void
+macos_set_dark (int dark)
+{
+	static int last = -2;
+
+	/* setting NSApp.appearance redraws every window (and GTK's macOS
+	   backend restarts their frames): only when it really changes */
+	if (dark == last)
+		return;
+	last = dark;
+	if (@available (macOS 10.14, *))
+	{
+		/* -1: follow the system (window title bars, menus, sheets) */
+		NSApp.appearance = dark < 0 ? nil
+			: [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+	}
 }
 
 static GdkRGBA
