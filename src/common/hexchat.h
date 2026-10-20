@@ -98,6 +98,7 @@ struct hexchatprefs
 	/* BOOLEANS */
 	unsigned int hex_away_auto_unmark;
 	unsigned int hex_away_omit_alerts;
+	unsigned int hex_away_on_lock;		/* away while the screen is locked / asleep */
 	unsigned int hex_away_show_once;
 	unsigned int hex_away_track;
 	unsigned int hex_completion_auto;
@@ -595,6 +596,7 @@ typedef struct server
 	unsigned int http_reply:1;		/* a web server answered: the rest is its page */
 	unsigned int probe_sent:1;		/* asked "still there?" after sleep/a network change */
 	unsigned int probe_answered:1;	/* and something came back since */
+	unsigned int away_by_lock:1;		/* marked away because the screen locked */
 	unsigned int sent_quit:1;			/* sent a QUIT already? */
 	unsigned int use_listargs:1;		/* undernet and dalnet need /list >0,<10000 */
 	unsigned int is_away:1;

@@ -47,6 +47,7 @@ typedef struct
 	void (*woke) (void);					/* back from sleep */
 	void (*network_back) (void);			/* a network is reachable (again) */
 	void (*appearance) (void);				/* light/dark switched */
+	void (*locked) (gboolean locked);		/* screen locked / sleeping, or back */
 } macos_app_hooks;
 void macos_app_install (const macos_app_hooks *h);
 /* the Dock icon's badge: a count, 0 for none */

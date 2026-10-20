@@ -363,6 +363,7 @@ cmd_away (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
 	char *reason = word_eol[2];
 
+	sess->server->away_by_lock = FALSE;
 	if (!(*reason))
 	{
 		if (sess->server->is_away)
@@ -399,6 +400,7 @@ cmd_away (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 static int
 cmd_back (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
+	sess->server->away_by_lock = FALSE;
 	if (sess->server->is_away)
 	{
 		sess->server->p_set_back (sess->server);

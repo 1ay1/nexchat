@@ -78,6 +78,21 @@ add_method (Class c, SEL sel, IMP imp, const char *types)
 	if (hooks.woke)
 		hooks.woke ();
 }
+- (void)willSleep:(NSNotification *)n
+{
+	if (hooks.locked)
+		hooks.locked (TRUE);
+}
+- (void)screenLocked:(NSNotification *)n
+{
+	if (hooks.locked)
+		hooks.locked (TRUE);
+}
+- (void)screenUnlocked:(NSNotification *)n
+{
+	if (hooks.locked)
+		hooks.locked (FALSE);
+}
 - (void)themeChanged:(NSNotification *)n
 {
 	/* the distributed notification arrives before NSApp's appearance has
@@ -261,6 +276,16 @@ macos_app_install (const macos_app_hooks *h)
 	[[[NSWorkspace sharedWorkspace] notificationCenter]
 		addObserver:observer selector:@selector(didWake:)
 				 name:NSWorkspaceDidWakeNotification object:nil];
+	[[[NSWorkspace sharedWorkspace] notificationCenter]
+		addObserver:observer selector:@selector(willSleep:)
+				 name:NSWorkspaceWillSleepNotification object:nil];
+	/* not public API constants, but what every lock-aware Mac app listens to */
+	[[NSDistributedNotificationCenter defaultCenter]
+		addObserver:observer selector:@selector(screenLocked:)
+				 name:@"com.apple.screenIsLocked" object:nil];
+	[[NSDistributedNotificationCenter defaultCenter]
+		addObserver:observer selector:@selector(screenUnlocked:)
+				 name:@"com.apple.screenIsUnlocked" object:nil];
 	[[NSDistributedNotificationCenter defaultCenter]
 		addObserver:observer selector:@selector(themeChanged:)
 				 name:@"AppleInterfaceThemeChangedNotification" object:nil];

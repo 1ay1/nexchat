@@ -559,6 +559,9 @@ static const setting general_settings[] =
 	{ST_HEADER,	N_("Away"),0,0,0},
 	{ST_TOGGLE,	N_("Show away once"), P_OFFINTNL(hex_away_show_once), N_("Show identical away messages only once."), 0, 0},
 	{ST_TOGGLE,	N_("Automatically unmark away"), P_OFFINTNL(hex_away_auto_unmark), N_("Unmark yourself as away before sending messages."), 0, 0},
+#ifdef __APPLE__
+	{ST_TOGGLE,	N_("Away while the screen is locked"), P_OFFINTNL(hex_away_on_lock), N_("Mark yourself away when the screen locks or the Mac sleeps, and back when you unlock it."), 0, 0},
+#endif
 
 	{ST_HEADER,	N_("Miscellaneous"),0,0,0},
 	{ST_TOGGLE,	N_("Display MODEs in raw form"), P_OFFINTNL(hex_irc_raw_modes), 0, 0, 0},

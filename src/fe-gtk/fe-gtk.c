@@ -701,6 +701,38 @@ fe_mac_open_url (const char *url)
 	g_free (cmd);
 }
 
+/* screen locked or the Mac going to sleep: away on every network where
+   you weren't already, and back on just those once you're back (an away
+   you set yourself is left alone either way) */
+static void
+fe_mac_locked (gboolean locked)
+{
+	GSList *l;
+
+	if (!prefs.hex_away_on_lock)
+		return;
+	for (l = serv_list; l; l = l->next)
+	{
+		server *s = l->data;
+		if (!s->connected || !s->server_session)
+			continue;
+		if (locked && !s->is_away)
+		{
+			handle_command (s->server_session, "AWAY", FALSE);
+			s->away_by_lock = TRUE;
+		}
+		else if (!locked && s->away_by_lock)
+		{
+			/* is_away follows the server's 306/305: send BACK even if the
+			   confirmation never came, it was our AWAY */
+			s->away_by_lock = FALSE;
+			s->p_set_back (s);
+			g_free (s->last_away_reason);
+			s->last_away_reason = NULL;
+		}
+	}
+}
+
 /* back from sleep, or on a network again: a connection made before is
    very likely dead even though no error came yet. Ask each server: one
    that doesn't answer within a few seconds is reconnected now, instead of
@@ -820,7 +852,8 @@ fe_init (void)
 	{
 		static const macos_app_hooks h = {
 			fe_mac_reopen, fe_mac_open_url, fe_mac_activated,
-			fe_mac_network_check, fe_mac_network_check, fe_mac_appearance
+			fe_mac_network_check, fe_mac_network_check, fe_mac_appearance,
+			fe_mac_locked
 		};
 		macos_app_install (&h);
 		nx_menu_set_app_quit (fe_mac_quit);

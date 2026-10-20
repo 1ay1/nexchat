@@ -438,6 +438,7 @@ const struct prefs vars[] =
 {
 	{"away_auto_unmark", P_OFFINT (hex_away_auto_unmark), TYPE_BOOL},
 	{"away_omit_alerts", P_OFFINT (hex_away_omit_alerts), TYPE_BOOL},
+	{"away_on_lock", P_OFFINT (hex_away_on_lock), TYPE_BOOL},
 	{"away_reason", P_OFFSET (hex_away_reason), TYPE_STR},
 	{"away_show_once", P_OFFINT (hex_away_show_once), TYPE_BOOL},
 	{"away_size_max", P_OFFINT (hex_away_size_max), TYPE_INT},
@@ -841,6 +842,7 @@ load_default_config(void)
 	/* BOOLEANS */
 	prefs.hex_away_show_once = 1;
 	prefs.hex_away_track = 1;
+	prefs.hex_away_on_lock = 1;
 	prefs.hex_dcc_auto_resume = 1;
 #ifndef WIN32
 	prefs.hex_dcc_fast_send = 1;

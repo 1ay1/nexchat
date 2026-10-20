@@ -203,6 +203,11 @@ try:
                         send(tagged(when, l.format(nick=nick)))
             elif cmd == "PING":
                 send(f":fake PONG fake {parts[1] if len(parts) > 1 else ''}")
+            elif cmd == "AWAY":
+                if len(parts) > 1 and parts[1].lstrip(":"):
+                    send(f":fake 306 {nick} :You have been marked as being away")
+                else:
+                    send(f":fake 305 {nick} :You are no longer marked as being away")
             elif cmd == "JOIN":
                 for chan in parts[1].split(","):
                     if a.showcase:
