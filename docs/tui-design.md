@@ -172,6 +172,18 @@ changes don't ripple into drawing code.
 
 ## 4. Mouse — everything the GUI does with a pointer
 
+Hover (mode 1003, on by default; `hover=0` in tui.conf turns it off for a
+terminal that handles it badly): what a click would act on is underlined
+while the pointer is over it, and only then — a link, nick or channel in
+the chat, a tab in the tree or the tab strip, a nick in the user list, a
+menu-bar title, the status bar's network / "↓ N more below" / key hints
+(all clickable), a panel's list rows, buttons and form labels, the
+Bouncer window's controls, dialog buttons. The ✕ turns red, a pane
+divider lights up under the pointer and while dragged, and the pointer
+shape follows (OSC 22: a hand, ↔ on a divider, an I-beam on text; reset
+on exit). Motion: a spinner while connecting and walking dots when
+someone types, at ~8 frames/s only while they're on screen.
+
 Mouse reporting is SGR 1006. Motion is reported only while a button is
 held (1002), except over menus (hover highlight), where 1003 is switched
 on while a menu is open. Every hit is decided against the last frame's

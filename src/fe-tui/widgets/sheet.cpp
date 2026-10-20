@@ -143,8 +143,10 @@ std::vector<Rich> Sheet::rows(int w, int h, bool active) const {
         for (const Hot& hh : flat_hots_[i]) {
             hots_.push_back({r, hh.x0, hh.x1, hh.id});
             const bool foc = active && hh.id == fid;
-            if (!foc && editing_ != hh.id) continue;
-            // repaint the control: focused (selection), or the live editor
+            const bool hov = hh.id == hover_ && !foc && editing_ != hh.id;
+            if (!foc && !hov && editing_ != hh.id) continue;
+            // repaint the control: focused (selection), hovered (underlined),
+            // or the live editor
             Rich before = row.take(hh.x0);
             Rich mid;
             if (editing_ == hh.id) {
@@ -153,7 +155,8 @@ std::vector<Rich> Sheet::rows(int w, int h, bool active) const {
                 mid.append("]", role::border());
             } else {
                 mid = row.slice(before.text.size(), row.take(hh.x1).text.size());
-                mid.replace_colors(role::selected());
+                if (foc) mid.replace_colors(role::selected());
+                else mid.overlay(Style{}.with_underline());
             }
             Rich after = row.slice(row.take(hh.x1).text.size());
             Rich rebuilt = before;

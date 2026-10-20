@@ -124,6 +124,23 @@ Panel::Outcome Panel::mouse(const maya::MouseEvent& m) {
     const int wd = m.button == maya::MouseButton::ScrollUp ? -1 : 1;
     auto in = [&](int ax, int ay, int aw, int ah) { return x >= ax && x < ax + aw && y >= ay && y < ay + ah; };
 
+    if (m.kind == maya::MouseEventKind::Move && m.button == maya::MouseButton::None) {
+        // hover: what's under the pointer is underlined (list rows, buttons, ✕)
+        hover_list_ = -1; hover_button_ = -1; hover_close_ = false;
+        if (in(x_, y_, w_, h_)) {
+            if (y == y_ && x >= close_x_ && x < close_x_ + 3) hover_close_ = true;
+            if (has_list_ && in(list_x_, list_y_, list_w_, list_h_)) {
+                const int i = list_top_ + (y - list_y_) - (list_heading_.empty() ? 0 : 1);
+                if (i >= 0 && i < static_cast<int>(list_.size())) hover_list_ = i;
+            }
+            if (y == buttons_y_)
+                for (std::size_t i = 0; i < button_x_.size(); ++i)
+                    if (x >= button_x_[i].first && x < button_x_[i].second && buttons_[i].enabled) hover_button_ = static_cast<int>(i);
+        }
+        if (body_hover) body_hover(x - body_x_, y - body_y_, in(body_x_, body_y_, body_w_, body_h_));
+        if (body_is_form) form.hover(in(body_x_, body_y_, body_w_, body_h_) ? y - body_y_ : -1);
+        return Outcome::None;
+    }
     if (!in(x_, y_, w_, h_)) return Outcome::None;   // outside: a modal swallows it
     if (press && m.button == maya::MouseButton::Left && y == y_ && x >= close_x_ && x < close_x_ + 3) {
         open_ = false;
@@ -212,7 +229,9 @@ maya::Element Panel::element(int sw, int sh) const {
             const bool cur = i == list_sel_;
             Rich row;
             row.append(cur ? "▌" : " ", role::title());
-            row.append(list_[static_cast<std::size_t>(i)], cur ? role::text().with_bold() : role::text());
+            row.append(list_[static_cast<std::size_t>(i)],
+                       cur ? role::text().with_bold()
+                           : (i == hover_list_ ? role::text().with_underline() : role::text()));
             row = row.fit(lw);
             if (cur && part_ == Part::List) row.replace_colors(role::selected());
             lrows.push_back(std::move(row));
@@ -239,7 +258,7 @@ maya::Element Panel::element(int sw, int sh) const {
         if (on && i == 0 && buttons_.size() > 1) st = role::title();
         Rich b;
         b.append("[ ", on ? role::border() : role::muted());
-        b.append(buttons_[i].label, st);
+        b.append(buttons_[i].label, static_cast<int>(i) == hover_button_ ? st.with_underline() : st);
         b.append(" ]", on ? role::border() : role::muted());
         if (foc) b.replace_colors(role::selected());
         total += b.width() + (i ? 2 : 0);
@@ -267,7 +286,7 @@ maya::Element Panel::element(int sw, int sh) const {
         for (int i = top.width(); i < w - 5; ++i) fill += "─";
         top.append(fill, role::border());
         close_x_ = x_ + w - 5;
-        top.append(" ✕ ", role::muted());
+        top.append(" ✕ ", hover_close_ ? role::bad().with_bold() : role::muted());
         top.append("─╮", role::border());
         card.push_back(std::move(top));
     }

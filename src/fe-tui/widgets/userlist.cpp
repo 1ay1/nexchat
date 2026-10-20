@@ -97,6 +97,7 @@ std::vector<Rich> UserList::rows(int w, int h, bool focused) const {
         row.append(u.prefix ? std::string(1, u.prefix) : std::string(" "), role::rank(u.prefix));
         Style ns = u.away ? role::away() : Style{};
         if (u.me) ns = ns.merge(Style{}.with_bold());
+        if (hover_ && *hover_ == u.nick) ns = ns.merge(Style{}.with_underline());
         row.append(u.nick, ns);
         row = row.fit(w);
         if (has_sel_ && i == sel_) {

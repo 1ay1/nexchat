@@ -158,6 +158,12 @@ public:
     struct Word { std::string text; std::size_t begin, end; };
     [[nodiscard]] static std::optional<Word> word_at(const ChatBuffer& buf, const Hit& h);
 
+    /// The word under the pointer (a link, nick, channel): underlined, as
+    /// xtext does. Returns true when it changed (the owner redraws).
+    bool set_hover(const ChatBuffer& buf, std::optional<Hit> h, bool linkish);
+    void clear_hover() { hover_.reset(); }
+    [[nodiscard]] bool hovering() const noexcept { return hover_.has_value(); }
+
     /// Mouse selection over lines (xtext's): from where the drag began to
     /// where it is now, drawn in the Selection role.
     void select_begin(const Hit& h) { sel_a_ = sel_b_ = h; }
@@ -194,6 +200,8 @@ private:
     mutable std::vector<RowSrc> drawn_;
     mutable Thumb thumb_;
     std::optional<Hit> sel_a_, sel_b_;
+    struct HoverSpan { LineId line; bool in_left; std::size_t begin, end; };
+    std::optional<HoverSpan> hover_;
     [[nodiscard]] std::vector<Rich> rows_at(const ChatBuffer& buf, const ChatStyle& st, int w, int h) const;
     std::string find_;
     FindOpts find_opts_;

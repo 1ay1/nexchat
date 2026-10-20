@@ -241,7 +241,8 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
         }
         // the focused field: ▌ in the gutter, its label bright
         Rich label{foc ? "▌" : " ", role::title()};
-        label.append(Rich{f.label, foc ? role::text().with_bold() : (f.enabled ? ink : role::muted())}.fit(lw - 1));
+        const bool hov = static_cast<int>(i) == hover_ && !foc && f.enabled;
+        label.append(Rich{f.label, foc ? role::text().with_bold() : (f.enabled ? (hov ? ink.with_underline() : ink) : role::muted())}.fit(lw - 1));
         label.append(" ");
         Rich value;
         switch (f.kind) {

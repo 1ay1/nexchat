@@ -1201,6 +1201,10 @@ public:
             sheet_.wheel(m.button == maya::MouseButton::ScrollUp ? -3 : 3);
             return;
         }
+        if (m.kind == maya::MouseEventKind::Move && m.button == maya::MouseButton::None) {
+            sheet_.hover(x - body_x_, y - body_y_);
+            return;
+        }
         if (!press_) return;
         if (y == y_ && x >= x_ + w_ - 5 && x < x_ + w_ - 2) { open_ = false; return; }
         for (std::size_t i = 0; i < tab_x_.size(); ++i)

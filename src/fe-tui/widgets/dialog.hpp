@@ -57,6 +57,7 @@ private:
     // where the buttons were drawn, for clicks
     mutable int x_ = 0, y_ = 0, w_ = 0, h_ = 0;
     mutable int ok_x0_ = 0, ok_x1_ = 0, cancel_x0_ = 0, cancel_x1_ = 0, buttons_y_ = 0;
+    int hover_ = 0;   // 1 OK, 2 Cancel under the pointer
 };
 
 }  // namespace nx::tui

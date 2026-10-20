@@ -13,11 +13,15 @@ namespace {
 // A column of `h` rows `w` wide made of one Rich per row.
 maya::Element column(std::vector<Rich> rows) { return stack_rows(rows); }
 
-maya::Element vbar(int h, int thumb_y = 0, int thumb_h = 0) {
-    // the pane divider; a scrolled chat's thumb is drawn on it, heavier
+maya::Element vbar(int h, int thumb_y = 0, int thumb_h = 0, bool hot = false) {
+    // the pane divider; a scrolled chat's thumb is drawn on it, heavier;
+    // under the pointer (it drags) the whole line lights up
     std::vector<Rich> rows;
-    for (int r = 0; r < std::max(h, 0); ++r)
-        rows.push_back(r >= thumb_y && r < thumb_y + thumb_h ? Rich{"┃", role::muted()} : Rich{"│", role::border()});
+    for (int r = 0; r < std::max(h, 0); ++r) {
+        const bool thumb = r >= thumb_y && r < thumb_y + thumb_h;
+        rows.push_back(thumb ? Rich{"┃", hot ? role::title() : role::muted()}
+                             : Rich{"│", hot ? role::title() : role::border()});
+    }
     return stack_rows(rows);
 }
 
@@ -59,7 +63,7 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         std::vector<maya::Element> body;
         if (tree && !right) {
             body.push_back(column(p.tree->rows(tw, body_h, p.focus == Pane::Tree)));
-            body.push_back(vbar(body_h));
+            body.push_back(vbar(body_h, 0, 0, p.hover_div == MainParts::Div::Tree));
         }
         ChatStyle cs = p.chat_style ? *p.chat_style : ChatStyle{};
         // a divider follows the chat: its scrollbar goes there (┃ on │)
@@ -80,11 +84,11 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         }
         body.push_back(std::move(chat_el));
         if (users) {
-            body.push_back(vbar(body_h, th.y, th.h));
+            body.push_back(vbar(body_h, th.y, th.h, p.hover_div == MainParts::Div::Users));
             body.push_back(column(p.users->rows(uw, body_h, p.focus == Pane::Users)));
         }
         if (tree && right) {
-            body.push_back(vbar(body_h, users ? 0 : th.y, users ? 0 : th.h));
+            body.push_back(vbar(body_h, users ? 0 : th.y, users ? 0 : th.h, p.hover_div == MainParts::Div::Tree));
             body.push_back(column(p.tree->rows(tw, body_h, p.focus == Pane::Tree)));
         }
         rows.push_back((h(std::move(body)) | height(body_h)).build());

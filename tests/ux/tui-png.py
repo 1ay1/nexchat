@@ -6,7 +6,7 @@ its real colours in Menlo. For looking at the TUI the way a person does.
     tui-png.py BIN OUT.png [--size 120x34] [--theme NAME] [--prefs "k = v\\n..."] -- STEP...
 
 STEP: keys (<esc> <enter> <tab> <up> <down> <f2> <f10> <c-x> <a-x>),
-click:X,Y[,button], sleep:S. Needs Pillow (a venv: ~/.cache/nexchat-shotenv).
+click:X,Y[,button], move:X,Y (hover), sleep:S. Needs Pillow (a venv: ~/.cache/nexchat-shotenv).
 """
 import os
 import subprocess
@@ -118,6 +118,9 @@ def main():
         for s in steps:
             if s.startswith("sleep:"):
                 t.pump(float(s[6:]))
+            elif s.startswith("move:"):
+                v = [int(n) for n in s[5:].split(",")]
+                t.send(f"\x1b[<35;{v[0] + 1};{v[1] + 1}M", 0.3)
             elif s.startswith("click:"):
                 v = [int(n) for n in s[6:].split(",")]
                 t.click(v[0], v[1], button=v[2] if len(v) > 2 else 0)

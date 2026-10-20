@@ -56,6 +56,11 @@ public:
     Outcome key(const maya::KeyEvent& k);
     Outcome click(int x, int y);
     void wheel(int d) { scroll_ = std::max(0, scroll_ + d); }
+    /// The pointer at (x, y): the control under it is underlined.
+    void hover(int x, int y) {
+        hover_ = 0;
+        for (const Hot& h : hots_) if (h.row == y && x >= h.x0 && x < h.x1) hover_ = h.id;
+    }
     void paste(std::string_view s);
     /// The control pressed / edited (after the Outcome).
     [[nodiscard]] int pressed() const { return pressed_; }
@@ -86,6 +91,7 @@ private:
     mutable std::vector<Hot> hots_;           // where they were drawn (screen rows)
     mutable std::vector<Rich> flat_;          // the page, wrapped, before scrolling
     mutable std::vector<std::vector<Hot>> flat_hots_;
+    int hover_ = 0;
 };
 
 }  // namespace nx::tui

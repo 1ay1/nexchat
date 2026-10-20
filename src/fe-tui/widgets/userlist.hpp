@@ -38,6 +38,12 @@ public:
     void select_nick(std::string_view nick);
     [[nodiscard]] const UserEntry* selected() const;
     [[nodiscard]] std::optional<std::string> nick_at_row(int y) const;
+    /// The nick under the pointer: underlined. True when it changed.
+    bool set_hover(std::optional<std::string> nick) {
+        if (nick == hover_) return false;
+        hover_ = std::move(nick);
+        return true;
+    }
 
     /// Type-to-find: select the first nick starting with `prefix`.
     bool find(std::string_view prefix);
@@ -51,6 +57,7 @@ private:
     std::size_t            sel_ = 0;
     bool                   has_sel_ = false;
     mutable int            top_ = 0;
+    std::optional<std::string> hover_;
 };
 
 }  // namespace nx::tui

@@ -40,8 +40,11 @@ maya::Element TopicBar::element() const {
 }
 
 Rich StatusBar::row(int w) const {
+    static constexpr const char* kSpin[10] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
     const Style dim = role::muted();
     const Rich sep{"  │  ", role::border()};
+    spans_.clear();
+    auto u = [&](Hot h, Style s) { return hot == h ? s.with_underline() : s; };
     Rich left;
     left.append(" ");
     // the connection: a dot (green, amber when slow or connecting, red when
@@ -58,25 +61,43 @@ Rich StatusBar::row(int w) const {
         if (lag > 5) dot = role::bad();
         else if (lag > 1) dot = role::warn();
     }
-    left.append("● ", dot);
-    left.append(network.empty() ? "not connected" : network, network.empty() ? dim : role::text().with_bold());
+    left.append(connecting ? std::string(kSpin[frame % 10]) + " " : std::string("● "), dot);
+    {
+        const int x0 = left.width();
+        left.append(network.empty() ? "not connected" : network,
+                    u(Hot::Network, network.empty() ? dim : role::text().with_bold()));
+        spans_.push_back({{x0, left.width()}, Hot::Network});
+    }
     if (!usermodes.empty()) left.append(" +" + (usermodes[0] == '+' ? usermodes.substr(1) : usermodes), dim);
     if (!lag_text.empty()) { left.append("  "); left.append(lag_text, connecting ? role::warn() : dim); }
     if (!nick.empty() && away) { left.append(sep); left.append("away", role::warn()); }
     if (lines_below > 0) {
         left.append(sep);
-        left.append("↓ " + std::to_string(lines_below) + " more below", role::new_data().with_bold());
+        const int x0 = left.width();
+        left.append("↓ " + std::to_string(lines_below) + " more below", u(Hot::Below, role::new_data().with_bold()));
+        spans_.push_back({{x0, left.width()}, Hot::Below});
     }
     if (!typing.empty()) { left.append(sep); left.append(typing, dim.with_italic()); }
+    if (!typing_live.empty()) {
+        left.append(sep);
+        left.append(typing_live, dim.with_italic());
+        // three dots, one lit at a time, walking
+        left.append(" ");
+        for (int i = 0; i < 3; ++i) left.append("•", i == frame % 3 ? role::text() : dim);
+    }
 
-    // "F10 menu": the key bold, what it does dim
+    // "F10 menu": the key bold, what it does dim; each one clickable
     Rich right;
+    std::vector<std::pair<int, int>> hint_x;
     for (std::size_t i = 0; i < hints.size(); ++i) {
         if (i) right.append("   ");
+        const Hot h = static_cast<Hot>(static_cast<int>(Hot::Hint0) + static_cast<int>(std::min<std::size_t>(i, 2)));
+        const int x0 = right.width();
         const std::string& hnt = hints[i];
         const std::size_t sp = hnt.find(' ');
-        right.append(hnt.substr(0, sp), role::text().with_bold());
-        if (sp != std::string::npos) right.append(hnt.substr(sp), dim);
+        right.append(hnt.substr(0, sp), u(h, role::text().with_bold()));
+        if (sp != std::string::npos) right.append(hnt.substr(sp), u(h, dim));
+        hint_x.push_back({x0, right.width()});
     }
     right.append(" ");
 
@@ -84,11 +105,20 @@ Rich StatusBar::row(int w) const {
     Rich out;
     if (left.width() + rw + 1 <= w) {
         out = left.pad_right(w - rw);
+        for (std::size_t i = 0; i < hint_x.size(); ++i)
+            spans_.push_back({{w - rw + hint_x[i].first, w - rw + hint_x[i].second},
+                              static_cast<Hot>(static_cast<int>(Hot::Hint0) + static_cast<int>(std::min<std::size_t>(i, 2)))});
         out.append(right);
     } else {
         out = left.fit(w);              // hints go first when it's tight
     }
     return out;
+}
+
+StatusBar::Hot StatusBar::at(int x) const {
+    for (const auto& [span, h] : spans_)
+        if (x >= span.first && x < span.second) return h;
+    return Hot::None;
 }
 
 maya::Element StatusBar::element() const {

@@ -62,8 +62,16 @@ Dialog::Outcome Dialog::key(const maya::KeyEvent& k) {
 }
 
 Dialog::Outcome Dialog::mouse(const maya::MouseEvent& m) {
-    if (m.kind != maya::MouseEventKind::Release || m.button != maya::MouseButton::Left) return Outcome::Open;
     const int mx = m.x.value, my = m.y.value;
+    if (m.kind == maya::MouseEventKind::Move && m.button == maya::MouseButton::None) {
+        hover_ = 0;
+        if (my == buttons_y_) {
+            if (mx >= ok_x0_ && mx < ok_x1_) hover_ = 1;
+            else if (kind_ != Kind::Message && mx >= cancel_x0_ && mx < cancel_x1_) hover_ = 2;
+        }
+        return Outcome::Open;
+    }
+    if (m.kind != maya::MouseEventKind::Release || m.button != maya::MouseButton::Left) return Outcome::Open;
     if (my == buttons_y_) {
         if (mx >= ok_x0_ && mx < ok_x1_) return finish(true);
         if (kind_ != Kind::Message && mx >= cancel_x0_ && mx < cancel_x1_) return finish(false);
@@ -99,16 +107,17 @@ maya::Element Dialog::element(int sw, int sh) const {
     const int ok_focus = kind_ == Kind::Prompt ? 1 : 0;   // prompt: field is 0
     const int cancel_focus = stops - 1;
     // the default (OK/Yes) is the title colour, bold; focus puts it on the band
-    auto button = [&](std::string_view label, bool focused, bool primary) {
+    auto button = [&](std::string_view label, bool focused, bool primary, bool hov) {
         Rich b;
         b.append("[ ", role::border());
-        b.append(label, primary ? role::title() : role::text());
+        Style ls = primary ? role::title() : role::text();
+        b.append(label, hov ? ls.with_underline() : ls);
         b.append(" ]", role::border());
         if (focused) b.replace_colors(role::selected());
         return b;
     };
-    Rich ok = button(kind_ == Kind::Confirm ? "Yes" : "OK", focus_ == ok_focus || (kind_ == Kind::Prompt && focus_ == 0), true);
-    Rich cancel = button(kind_ == Kind::Confirm ? "No" : "Cancel", two && focus_ == cancel_focus, false);
+    Rich ok = button(kind_ == Kind::Confirm ? "Yes" : "OK", focus_ == ok_focus || (kind_ == Kind::Prompt && focus_ == 0), true, hover_ == 1);
+    Rich cancel = button(kind_ == Kind::Confirm ? "No" : "Cancel", two && focus_ == cancel_focus, false, hover_ == 2);
     Rich brow;
     const int bw = ok.width() + (two ? cancel.width() + 2 : 0);
     brow = Rich{}.pad_right(std::max(0, inner - bw));

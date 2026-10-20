@@ -291,6 +291,11 @@ std::optional<Menu::Outcome> MenuBar::mouse(const maya::MouseEvent& m) {
         if (t >= 0 && t != open_) open(t);                  // slide along the bar
         return Menu::Outcome::Open;
     }
+    if (m.kind == maya::MouseEventKind::Move && !is_open()) {
+        // closed: hovering a title underlines it (it's clickable)
+        hover_ = on_bar ? title_at(m.x.value) : -1;
+        return std::nullopt;
+    }
     if (!is_open()) return std::nullopt;
     const Menu::Outcome o = menu_.mouse(m);
     if (o != Menu::Outcome::Open) open_ = -1;
@@ -300,7 +305,9 @@ std::optional<Menu::Outcome> MenuBar::mouse(const maya::MouseEvent& m) {
 Rich MenuBar::row(int w, const std::string& right) const {
     Rich out{" "};
     for (std::size_t i = 0; i < entries_.size(); ++i) {
-        Rich t{" " + entries_[i].title + " ", role::text()};
+        Rich t{" ", role::text()};
+        t.append(entries_[i].title, static_cast<int>(i) == hover_ && open_ < 0 ? role::text().with_underline() : role::text());
+        t.append(" ", role::text());
         if (static_cast<int>(i) == open_) t.replace_colors(role::selected());
         out.append(t);
     }

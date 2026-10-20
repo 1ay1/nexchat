@@ -47,6 +47,10 @@ int  nx_ui_dirty (void);
 /* Once a second: windows that refresh themselves (the Bouncer window);
    nonzero when a frame is due. */
 int  nx_ui_tick (void);
+/* Something on screen is animating: call nx_ui_anim every ~120 ms
+   (it steps the frame and says whether to keep going). */
+int  nx_ui_animating (void);
+int  nx_ui_anim (void);
 
 void nx_ui_buffer_new (nx_key buf, nx_key net, int kind, const char *name, int focus);
 void nx_ui_buffer_free (nx_key buf);

@@ -58,6 +58,12 @@ public:
     /// A click at (x, y) relative to the form's top-left.
     Outcome click(int x, int y, bool dbl = false);
     void wheel(int d) { scroll_ = std::max(0, scroll_ + d); }
+    /// The pointer is over row y (-1: off the form): that field's label is
+    /// underlined, as a link would be.
+    void hover(int y) {
+        hover_ = -1;
+        if (y >= 0 && static_cast<std::size_t>(y) < map_.size()) hover_ = map_[static_cast<std::size_t>(y)].field;
+    }
 
     /// w×h rows, the focused field highlighted when `active`.
     [[nodiscard]] std::vector<Rich> rows(int w, int h, bool active = true) const;
@@ -77,6 +83,7 @@ private:
     // which field each drawn row is, and where list entries start
     struct RowMap { int field = -1; int item = -1; };
     mutable std::vector<RowMap> map_;
+    int hover_ = -1;
 };
 
 }  // namespace nx::tui

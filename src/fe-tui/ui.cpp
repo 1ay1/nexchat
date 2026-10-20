@@ -1209,6 +1209,68 @@ public:
         return Area::None;
     }
 
+    // ── hover ────────────────────────────────────────────────────────────────
+    // The pointer moved: what's under it, if a click would do something with
+    // it, is underlined (a link, nick or channel in the chat, a tab, a
+    // nick in the list), and a divider brightens. Only redraws on change.
+    Area hover_area = Area::None;
+    void hover(int x, int y) {
+        Buffer* b = current();
+        const Area a = area_at(x, y);
+        bool changed = a != hover_area;
+        hover_area = a;
+        // the chat: a link, nick or channel word
+        if (b) {
+            std::optional<ChatView::Hit> h;
+            bool linkish = false;
+            if (a == Area::Chat) {
+                h = b->view.hit(x - r_chat.x, y - r_chat.y);
+                if (h) {
+                    auto w = ChatView::word_at(b->chat, *h);
+                    const int type = w ? nx_core_word_type(cur, w->text.c_str()) : 0;
+                    linkish = w && (h->in_left || (type >= 1 && type <= 6));
+                }
+            }
+            changed |= b->view.set_hover(b->chat, h, linkish);
+        }
+        std::optional<std::uintptr_t> tk;
+        if (a == Area::Tree) tk = tree.key_at_row(y - r_tree.y);
+        else if (a == Area::Strip) tk = tree.key_at_col(x);
+        changed |= tree.set_hover(tk);
+        changed |= users.set_hover(a == Area::Users ? users.nick_at_row(y - r_users.y) : std::nullopt);
+        const auto sh = a == Area::Status ? status_at(x) : StatusBar::Hot::None;
+        changed |= sh != status_hot;
+        status_hot = sh;
+        // the pointer's shape (OSC 22, kitty/foot/WezTerm/Ghostty; ignored
+        // elsewhere): a hand on what clicks, ↔ on a divider, I-beam on text
+        const char* shape = "default";
+        if (a == Area::TreeDivider || a == Area::UsersDivider) shape = "ew-resize";
+        else if (tk || (a == Area::Users && users.nick_at_row(y - r_users.y)) || sh != StatusBar::Hot::None
+                 || a == Area::MenuBar) shape = "pointer";
+        else if (a == Area::Chat) shape = b && b->view.hovering() ? "pointer" : "text";
+        else if (a == Area::Input) shape = "text";
+        set_pointer(shape);
+        if (changed) dirty = true;
+    }
+    std::string pointer_now = "default";
+    // animation (spinner, typing dots): a frame every ~120 ms while something
+    // moves, nothing otherwise
+    int anim_frame = 0;
+    bool animating = false;
+    void set_pointer(const char* shape) {
+        if (!screen || pointer_now == shape) return;
+        pointer_now = shape;
+        screen->emit_host_sequence(std::string("\x1b]22;") + shape + "\x1b\\");
+    }
+    StatusBar::Hot status_hot = StatusBar::Hot::None;
+    // the status row drawn last (its spans): a copy, as view() makes a new one
+    std::vector<std::pair<std::pair<int, int>, StatusBar::Hot>> status_spans;
+    StatusBar::Hot status_at(int x) const {
+        for (const auto& [span, h] : status_spans)
+            if (x >= span.first && x < span.second) return h;
+        return StatusBar::Hot::None;
+    }
+
     void mouse(const maya::MouseEvent& m) {
         const int x = m.x.value, y = m.y.value;
         Buffer* b = current();
@@ -1249,6 +1311,12 @@ public:
                 switcher.close();
                 if (picking_theme) set_theme(theme_before, false);   // as Esc: back
             }
+            return;
+        }
+
+        // hover (no button down, no drag): underline what a click would act on
+        if (drag == Drag::None && m.kind == MouseEventKind::Move && m.button == MouseButton::None) {
+            hover(x, y);
             return;
         }
 
@@ -1388,10 +1456,20 @@ public:
             drag = Drag::Select;
             break;
         }
-        case Area::Status:
-            if (left && b && b->view.lines_below(b->chat) > 0) b->view.to_bottom();
-            else if (left && x < W / 2) { if (Network* n = cur_net()) command(n->away ? "back" : "away"); }
+        case Area::Status: {
+            if (!left) break;
+            switch (status_at(x)) {
+            case StatusBar::Hot::Below: if (b) b->view.to_bottom(); break;
+            case StatusBar::Hot::Network: netlist.open(); break;
+            case StatusBar::Hot::Hint0: build_menubar(); menubar.open(0); break;
+            case StatusBar::Hot::Hint1: open_switcher(); break;
+            case StatusBar::Hot::Hint2: show_keys(); break;
+            default:
+                if (x < W / 2) { if (Network* n = cur_net()) command(n->away ? "back" : "away"); }
+                break;
+            }
             break;
+        }
         case Area::Input:
             if (middle) { if (!clipboard.empty()) input.paste(clipboard); }
             else if (right) open_input_menu(x, y - 3);
@@ -1448,11 +1526,19 @@ public:
             status.connecting = n->connecting;
         }
         if (b) {
-            status.typing = b->typing;
+            // "alice is typing…": the dots are drawn, animated
+            std::string ty = b->typing;
+            for (const char* tail : {"…", "..."})
+                if (ty.size() >= std::strlen(tail) && ty.compare(ty.size() - std::strlen(tail), std::string::npos, tail) == 0)
+                    ty.erase(ty.size() - std::strlen(tail));
+            status.typing_live = ty;
             status.lines_below = static_cast<int>(b->view.lines_below(b->chat));
         }
         if (!toast.empty() && std::chrono::steady_clock::now() < toast_until) status.typing = toast;
+        status.frame = anim_frame;
+        animating = status.animating();
         status.hints = {"F10 menu", "^G go to", "F1 keys"};
+        status.hot = hover_area == Area::Status ? status_hot : StatusBar::Hot::None;
 
         TopicBar topic;
         if (b) { topic.channel = b->name; topic.modes = b->modes; topic.topic = b->topic; }
@@ -1466,6 +1552,8 @@ public:
         parts.chat_style = &chat_style;
         parts.users = b && b->kind == ChanKind::Channel ? &users : nullptr;
         parts.status = &status;
+        (void)status.row(w);                 // lays out the clickable spans
+        status_spans = status.spans_;
         Rich find_r;
         if (find_open) {
             find_r = find_bar(w);
@@ -1473,6 +1561,9 @@ public:
         }
         parts.input = &input;
         parts.switcher = &switcher;
+        parts.hover_div = hover_area == Area::TreeDivider || drag == Drag::TreeDiv ? MainParts::Div::Tree
+                        : hover_area == Area::UsersDivider || drag == Drag::UsersDiv ? MainParts::Div::Users
+                        : MainParts::Div::None;
         // nothing in the window is focused while a popup has the keys
         parts.focus = (dialog.is_open() || ctx.is_open() || menubar.is_open() || switcher.is_open())
                           ? Pane::Input : focus;
@@ -1570,7 +1661,11 @@ extern "C" {
 
 int nx_ui_open(void) {
     Ui& u = ui();
-    auto s = maya::Screen::open({.title = "nexchat", .mouse = true});
+    // hover underlines need bare-motion reports (mode 1003); a terminal
+    // that handles them badly: hover=0 in tui.conf
+    const char* hv = nx_core_tui_get("hover");
+    const bool hover = !(hv && *hv && (hv[0] == '0' || hv[0] == 'f' || hv[0] == 'n'));
+    auto s = maya::Screen::open({.title = "nexchat", .mouse = true, .hover_motion = hover});
     if (!s) return 1;
     u.screen.emplace(std::move(*s));
     u.dirty = true;
@@ -1578,6 +1673,7 @@ int nx_ui_open(void) {
 }
 
 void nx_ui_close(void) {
+    if (g_ui && g_ui->screen) g_ui->set_pointer("default");
     if (g_ui) g_ui->screen.reset();
 }
 
@@ -1603,6 +1699,7 @@ void nx_ui_on_input(void) {
                 std::fprintf(stderr, "mouse b=%d k=%d x=%d y=%d\n", static_cast<int>(z.button),
                              static_cast<int>(z.kind), z.x.value, z.y.value);
             u.mouse(z);
+            u.dirty = true;   // hover states change on bare motion too
         }
         else if (auto* p = std::get_if<maya::PasteEvent>(&ev)) u.paste(p->content);
         else if (std::holds_alternative<maya::ResizeEvent>(ev)) u.screen->on_resize();
@@ -1840,6 +1937,15 @@ void nx_ui_open_bouncer(int from) {
 }
 
 /* the 1 s tick from the loop: windows that refresh by themselves */
+int nx_ui_animating(void) { return ui().animating ? 1 : 0; }
+int nx_ui_anim(void) {
+    Ui& u = ui();
+    if (!u.animating) return 0;
+    ++u.anim_frame;
+    u.dirty = true;
+    return 1;
+}
+
 int nx_ui_tick(void) {
     Ui& u = ui();
     if (u.bouncer.tick()) u.dirty = true;

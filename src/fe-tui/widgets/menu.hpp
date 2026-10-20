@@ -107,6 +107,7 @@ private:
     std::vector<Entry> entries_;
     Menu               menu_;
     int                open_ = -1;
+    int                hover_ = -1;   // the title under the pointer (bar closed)
 };
 
 }  // namespace nx::tui

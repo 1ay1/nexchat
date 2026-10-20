@@ -430,17 +430,19 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
             const ChatLine& L = buf[c.li];
             find_in(L.plain_right, L.id, on_line);
         }
-        if ((s0 || !on_line.empty()) && !src.marker) {
+        const bool hovering = hover_ && hover_->line == src.line && !src.marker;
+        if ((s0 || !on_line.empty() || hovering) && !src.marker) {
             Rich painted;
             std::size_t cell = 0;
             for (std::size_t i = 0; i < row.text.size();) {
                 const std::size_t n = utf8_len(static_cast<unsigned char>(row.text[i]));
                 const int gw = std::max(glyph_width(row.text, i), 0);
-                bool sel = false;
+                bool sel = false, hov = false;
                 int found = 0;   // 1 a match, 2 the current one
                 if (cell < src.cells.size() && src.cells[cell].src != RowCell::None) {
                     const bool left = src.cells[cell].src == RowCell::Left;
                     const auto byte = static_cast<std::size_t>(src.cells[cell].byte);
+                    hov = hovering && hover_->in_left == left && byte >= hover_->begin && byte < hover_->end;
                     if (s0) {
                         const auto k = std::tuple{c.li, left ? 0 : 1, byte};
                         sel = k >= *s0 && k < *s1;
@@ -456,6 +458,7 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
                 if (sel) g.replace_colors(role::selected());
                 else if (found == 2) { g.replace_colors(role::found_current()); g.overlay(Style{}.with_bold().with_underline()); }
                 else if (found == 1) g.replace_colors(role::found());
+                if (hov) g.overlay(Style{}.with_underline());
                 painted.append(g);
                 cell += static_cast<std::size_t>(gw);
                 i += n;
@@ -520,6 +523,17 @@ std::optional<ChatView::Word> ChatView::word_at(const ChatBuffer& buf, const Hit
     if (h.in_left) while (a < b && std::string_view("~&@%+").find(t[a]) != std::string_view::npos) ++a;
     if (a >= b) return std::nullopt;
     return Word{t.substr(a, b - a), a, b};
+}
+
+bool ChatView::set_hover(const ChatBuffer& buf, std::optional<Hit> h, bool linkish) {
+    std::optional<HoverSpan> want;
+    if (h && linkish)
+        if (auto w = word_at(buf, *h)) want = HoverSpan{h->line, h->in_left, w->begin, w->end};
+    const bool same = (!want && !hover_)
+                   || (want && hover_ && want->line == hover_->line && want->in_left == hover_->in_left
+                       && want->begin == hover_->begin && want->end == hover_->end);
+    hover_ = want;
+    return !same;
 }
 
 void ChatView::select_word(const ChatBuffer& buf, const Hit& h) {

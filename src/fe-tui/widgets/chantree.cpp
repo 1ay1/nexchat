@@ -131,6 +131,7 @@ std::vector<Rich> ChanTree::rows(int w, int h, bool focused) const {
         if (!e.connected) name = dim;
         const bool cur = i == sel_;
         if (cur) name = name.merge(Style{}.with_bold());
+        if (hover_ && *hover_ == e.key && !cur) name = name.merge(Style{}.with_underline());
 
         // the current row: a bar in the first column (▌), the name bold
         Rich left;
@@ -184,8 +185,10 @@ Rich ChanTree::strip(int w, int trunc) const {
         Style st = activity_style(e.activity);
         if (!e.connected) st = dim;
         if (e.kind == ChanKind::Server) st = st.merge(Style{}.with_bold());
+        if (hover_ && *hover_ == e.key && i != sel_) st = st.merge(Style{}.with_underline());
         Rich label;
-        label.append(" " + name, st);
+        label.append(" ");
+        label.append(name, st);
         if (e.activity == Activity::Hilight) label.append(e.unread ? " " + std::to_string(e.unread) + "●" : " ●", activity_style(e.activity));
         else if (e.unread) label.append(" " + std::to_string(e.unread), e.activity == Activity::None ? dim : activity_style(e.activity));
         label.append(" ");

@@ -66,6 +66,14 @@ public:
     /// The tab under column x of the last strip drawn.
     [[nodiscard]] std::optional<std::uintptr_t> key_at_col(int x) const;
 
+    /// The entry under the pointer: its name underlined (tree and tabs).
+    /// Returns true when it changed.
+    bool set_hover(std::optional<std::uintptr_t> key) {
+        if (key == hover_) return false;
+        hover_ = key;
+        return true;
+    }
+
     [[nodiscard]] maya::Element element(int width, bool focused = false) const;
     /// The rows for a w×h box (exactly h).
     [[nodiscard]] std::vector<Rich> rows(int w, int h, bool focused = false) const;
@@ -79,6 +87,7 @@ private:
     mutable std::vector<std::pair<int, std::uintptr_t>> tab_x_;   // strip: [x0, key) per tab
     mutable std::vector<int> tab_end_;
     mutable std::size_t first_tab_ = 0;     // strip: the first tab shown
+    std::optional<std::uintptr_t> hover_;
 };
 
 }  // namespace nx::tui

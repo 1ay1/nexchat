@@ -55,6 +55,8 @@ public:
     std::function<std::vector<Rich>(int w, int h, bool focused)> draw;
     std::function<bool(const maya::KeyEvent&)> body_key;          // custom body's keys
     std::function<bool(int x, int y, bool dbl, bool right)> body_click;
+    /// the pointer moved over the body (x, y in it; inside false when it left)
+    std::function<void(int x, int y, bool inside)> body_hover;
 
     void set_buttons(std::vector<Button> b) { buttons_ = std::move(b); }
     [[nodiscard]] int button() const { return button_; }
@@ -88,6 +90,8 @@ private:
     mutable std::vector<std::pair<int, int>> button_x_;   // [x0, x1) per button
     std::chrono::steady_clock::time_point last_click_{};
     int last_y_ = -1;
+    int hover_list_ = -1, hover_button_ = -1;
+    bool hover_close_ = false;
 };
 
 }  // namespace nx::tui

@@ -82,6 +82,9 @@ pending_cb (gpointer data)
 	return G_SOURCE_REMOVE;
 }
 
+static gboolean anim_cb (gpointer data);
+static guint anim_tag;
+
 static gboolean
 redraw_cb (gpointer data)
 {
@@ -93,7 +96,22 @@ redraw_cb (gpointer data)
 	/* the tty took only part of the frame: push the rest when it can */
 	if (nx_ui_wants_output () && !out_tag)
 		out_tag = g_unix_fd_add (nx_ui_output_fd (), G_IO_OUT, out_cb, NULL);
+	/* a spinner or typing dots on screen: frames keep coming, ~8/s */
+	if (nx_ui_animating () && !anim_tag)
+		anim_tag = g_timeout_add (120, anim_cb, NULL);
 	return G_SOURCE_REMOVE;
+}
+
+static gboolean
+anim_cb (gpointer data)
+{
+	if (!nx_ui_anim ())
+	{
+		anim_tag = 0;
+		return G_SOURCE_REMOVE;
+	}
+	ui_dirty ();
+	return G_SOURCE_CONTINUE;
 }
 
 static gboolean

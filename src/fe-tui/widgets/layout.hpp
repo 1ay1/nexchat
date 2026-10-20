@@ -40,6 +40,8 @@ struct MainParts {
     const Switcher*   switcher = nullptr;  // drawn when open
     Pane              focus = Pane::Input;
     const Rich*       find = nullptr;      // the find bar: drawn over the status row
+    /// the divider under the pointer (draggable): drawn in the accent
+    enum class Div { None, Tree, Users } hover_div = Div::None;
 };
 
 struct MainLayout {
