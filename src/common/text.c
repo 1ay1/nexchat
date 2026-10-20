@@ -350,7 +350,7 @@ scrollback_load (session *sess)
 		/* where the restored history ends: one quiet line, the date said
 		   the way people say it (no empty, timestamped line before it) */
 		GDateTime *dt = g_date_time_new_from_unix_local (stamp);
-		char *when = dt ? g_date_time_format (dt, _("%A %e %B, %H:%M")) : NULL;
+		char *when = dt ? g_date_time_format (dt, _("%A %-d %B, %H:%M")) : NULL;
 
 		if (when)
 			g_strstrip (when);

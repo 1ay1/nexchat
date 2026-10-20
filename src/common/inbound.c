@@ -882,16 +882,13 @@ void
 inbound_topictime (server *serv, char *chan, char *nick, time_t stamp,
 						 const message_tags_data *tags_data)
 {
-	char *tim = ctime (&stamp);
+	const char *tim = friendly_time (stamp);
 	session *sess = find_channel (serv, chan);
 
 	if (!sess)
 		sess = serv->server_session;
 
-	if (tim != NULL)
-		tim[24] = 0;	/* get rid of the \n */
-
-	EMIT_SIGNAL_TIMESTAMP (XP_TE_TOPICDATE, sess, chan, nick, tim, NULL, 0,
+	EMIT_SIGNAL_TIMESTAMP (XP_TE_TOPICDATE, sess, chan, nick, (char *) tim, NULL, 0,
 								  tags_data->timestamp);
 }
 
@@ -1577,19 +1574,8 @@ int
 inbound_banlist (session *sess, time_t stamp, char *chan, char *mask, 
 					  char *banner, int rplcode, const message_tags_data *tags_data)
 {
-	char *time_str = ctime (&stamp);
+	char *time_str = (char *) friendly_time (stamp);
 	server *serv = sess->server;
-	char *nl;
-
-	if (stamp <= 0 || time_str == NULL)
-	{
-		time_str = "";
-	}
-	else
-	{
-		if ((nl = strchr (time_str, '\n')))
-			*nl = 0;
-	}
 
 	sess = find_channel (serv, chan);
 	if (!sess)

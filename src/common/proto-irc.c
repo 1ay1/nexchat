@@ -455,10 +455,8 @@ channel_date (session *sess, char *chan, char *timestr,
 				  const message_tags_data *tags_data)
 {
 	time_t timestamp = (time_t) atol (timestr);
-	char *tim = ctime (&timestamp);
-	if (tim != NULL)
-		tim[24] = 0;	/* get rid of the \n */
-	EMIT_SIGNAL_TIMESTAMP (XP_TE_CHANDATE, sess, chan, tim, NULL, NULL, 0,
+	const char *tim = friendly_time (timestamp);
+	EMIT_SIGNAL_TIMESTAMP (XP_TE_CHANDATE, sess, chan, (char *) tim, NULL, NULL, 0,
 								  tags_data->timestamp);
 }
 

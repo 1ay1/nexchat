@@ -58,6 +58,10 @@ void util_exec (const char *cmd);
 #define STRIP_ESCMARKUP 8
 #define STRIP_ALL 7
 gchar *strip_color (const char *text, int len, int flags);
+/* a moment as people say it: "today 14:05", "yesterday 09:12", "Tuesday
+   14 October 14:05", "3 March 2024" (older than a year: no time). Static
+   buffer, like ctime(); "" for 0. */
+const char *friendly_time (time_t t);
 int strip_color2 (const char *src, int len, char *dst, int flags);
 int strip_hidden_attribute (char *src, char *dst);
 char *errorstring (int err);

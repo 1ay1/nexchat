@@ -131,7 +131,7 @@ day_separator (xtext_buffer *buf, time_t stamp)
 							   g_date_time_get_day_of_month (now) != day)
 	{
 		date = g_date_time_format (dt, g_date_time_get_year (dt) == g_date_time_get_year (now)
-											? _("%A, %e %B") : _("%A, %e %B %Y"));
+											? _("%A, %-d %B") : _("%A, %-d %B %Y"));
 		g_strstrip (date);
 		/* grey, centred feel in the text column: dashes either side */
 		line = g_strdup_printf ("\00314\342\224\200\342\224\200\342\224\200 %s \342\224\200\342\224\200\342\224\200", date);

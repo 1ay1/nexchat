@@ -270,6 +270,47 @@ expand_homedir (char *file)
 	return g_strdup (file);
 }
 
+const char *
+friendly_time (time_t t)
+{
+	static char buf[96];
+	GDateTime *dt, *now;
+	char *s;
+	int days;
+
+	buf[0] = 0;
+	if (t <= 0 || !(dt = g_date_time_new_from_unix_local (t)))
+		return buf;
+	now = g_date_time_new_now_local ();
+	{
+		GDateTime *a = g_date_time_new_local (g_date_time_get_year (dt), g_date_time_get_month (dt),
+														  g_date_time_get_day_of_month (dt), 0, 0, 0);
+		GDateTime *b = g_date_time_new_local (g_date_time_get_year (now), g_date_time_get_month (now),
+														  g_date_time_get_day_of_month (now), 0, 0, 0);
+		days = (int) (g_date_time_difference (b, a) / G_TIME_SPAN_DAY);
+		g_date_time_unref (a);
+		g_date_time_unref (b);
+	}
+	if (days == 0)
+		s = g_date_time_format (dt, _("today %H:%M"));
+	else if (days == 1)
+		s = g_date_time_format (dt, _("yesterday %H:%M"));
+	else if (days > 0 && days < 7)
+		s = g_date_time_format (dt, _("%A %H:%M"));
+	else if (days > 0 && days < 330)
+		s = g_date_time_format (dt, _("%A %-d %B %H:%M"));
+	else
+		s = g_date_time_format (dt, _("%-d %B %Y"));
+	if (s)
+	{
+		g_strlcpy (buf, s, sizeof buf);
+		g_free (s);
+	}
+	g_date_time_unref (now);
+	g_date_time_unref (dt);
+	return buf;
+}
+
 gchar *
 strip_color (const char *text, int len, int flags)
 {
