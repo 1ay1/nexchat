@@ -204,7 +204,11 @@ for top, _, files in os.walk(os.path.join(build, "po")):
 # GTK runtime data: the gdk-pixbuf loaders GTK uses for PNG/SVG images
 # (GTK4 has PNG/JPEG/TIFF built in; SVG icons need librsvg's loader)
 prefix = install_prefix(os.path.join(build, "src", "fe-gtk", "nexchat"))
-pixbuf = os.path.join(prefix, "lib", "gdk-pixbuf-2.0", "2.10.0", "loaders")
+# GTK in a prefix of its own (osx/build-gtk.sh): gdk-pixbuf, librsvg and
+# GLib's schemas and tools are still where Homebrew put them
+dprefix = prefix if os.path.isdir(os.path.join(prefix, "lib", "gdk-pixbuf-2.0")) else \
+    os.path.dirname(os.path.dirname(shutil.which("glib-compile-schemas") or "/opt/homebrew/bin/x"))
+pixbuf = os.path.join(dprefix, "lib", "gdk-pixbuf-2.0", "2.10.0", "loaders")
 ldir = os.path.join(res, "lib", "gdk-pixbuf-2.0", "2.10.0", "loaders")
 os.makedirs(ldir)
 if os.path.isdir(pixbuf):
@@ -218,7 +222,7 @@ if os.path.isdir(pixbuf):
         fix(dst, "../../../../../Frameworks")
 # loaders.cache: gdk-pixbuf resolves a relative module path against the
 # loaders directory, so the cache stays valid wherever the bundle goes
-query = os.path.join(prefix, "bin", "gdk-pixbuf-query-loaders")
+query = os.path.join(dprefix, "bin", "gdk-pixbuf-query-loaders")
 if os.access(query, os.X_OK):
     text = run(query, *[os.path.join(ldir, f) for f in sorted(os.listdir(ldir))])
     text = text.replace(ldir + "/", "")
@@ -234,7 +238,7 @@ os.makedirs(sdst)
 for f in os.listdir(schemas):
     if f.startswith("org.gtk.") and f.endswith(".xml"):
         shutil.copy2(os.path.join(schemas, f), sdst)
-run(os.path.join(prefix, "bin", "glib-compile-schemas"), sdst)
+run(shutil.which("glib-compile-schemas") or os.path.join(prefix, "bin", "glib-compile-schemas"), sdst)
 
 # icons
 shutil.copy2(os.path.join(HERE, "nexchat.icns"), os.path.join(res, "nexchat.icns"))

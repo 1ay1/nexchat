@@ -2790,15 +2790,20 @@ mg_create_center (session *sess, session_gui *gui, GtkWidget *box)
 	/* sep between xtext and right side */
 	gui->hpane_right = gtk_paned_new (GTK_ORIENTATION_HORIZONTAL);
 
+	/* the side panes may be squeezed to nothing, the chat column may not:
+	   a shrinkable chat side made the window's minimum width ~37px, and GTK
+	   then sized everything for that width ("Trying to measure GtkNotebook
+	   for width of 36, but it needs at least 212" on every relayout,
+	   whenever the user list was hidden) */
 	if (prefs.hex_gui_win_swap)
 	{
 		nx_paned_pack (gui->hpane_left, gui->vpane_left, TRUE, FALSE, TRUE);
-		nx_paned_pack (gui->hpane_left, gui->hpane_right, FALSE, TRUE, TRUE);
+		nx_paned_pack (gui->hpane_left, gui->hpane_right, FALSE, TRUE, FALSE);
 	}
 	else
 	{
 		nx_paned_pack (gui->hpane_left, gui->vpane_left, FALSE, FALSE, TRUE);
-		nx_paned_pack (gui->hpane_left, gui->hpane_right, TRUE, TRUE, TRUE);
+		nx_paned_pack (gui->hpane_left, gui->hpane_right, TRUE, TRUE, FALSE);
 	}
 	nx_paned_pack (gui->hpane_right, gui->vpane_right, TRUE, FALSE, TRUE);
 
@@ -2807,7 +2812,7 @@ mg_create_center (session *sess, session_gui *gui, GtkWidget *box)
 	gui->note_book = book = gtk_notebook_new ();
 	gtk_notebook_set_show_tabs (GTK_NOTEBOOK (book), FALSE);
 	gtk_notebook_set_show_border (GTK_NOTEBOOK (book), FALSE);
-	nx_paned_pack (gui->hpane_right, book, FALSE, TRUE, TRUE);
+	nx_paned_pack (gui->hpane_right, book, FALSE, TRUE, FALSE);
 
 	hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	nx_paned_pack (gui->vpane_right, hbox, FALSE, FALSE, TRUE);
