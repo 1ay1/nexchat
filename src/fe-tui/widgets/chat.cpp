@@ -109,6 +109,7 @@ namespace {
 std::uint64_t style_key(const ChatStyle& st) {
     std::uint64_t k = std::hash<std::string>{}(st.stamp_format);
     k = k * 31 + static_cast<std::uint64_t>(st.nick_width);
+    k = k * 31 + static_cast<std::uint64_t>(st.measure);
     k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
@@ -197,7 +198,17 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
 
     Rich stamp;
     int stamp_w = 0;
-    if (st.show_stamp) {
+    // the responsive tiers, from wide to narrow:
+    //  1. stamp │ nick │ text, the text kept to a readable measure
+    //  2. the stamp goes first (time matters least) when the text would
+    //     drop under 40 columns
+    //  3. then the nick column gives way, down to 8 (a long nick …)
+    //  4. under 24 columns of text: stacked, the nick (and time) on a
+    //     line of its own, the message under it, indented
+    const int sep_w = st.separator ? 3 : 1;           // " │ " or " "
+    const int full_stamp = st.show_stamp ? stamp_width(st.stamp_format) + 1 : 0;
+    const bool stamp_fits = w - full_stamp - sep_w - st.nick_width >= 40 || w - full_stamp - sep_w - 8 >= 40;
+    if (st.show_stamp && stamp_fits) {
         stamp_w = stamp_width(st.stamp_format);
         stamp = Rich{stamp_text(line.stamp, st.stamp_format), dim}.pad_right(stamp_w).take(stamp_w);
         stamp.append(" ");
@@ -206,15 +217,41 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
 
     std::vector<Rich> rows;
     std::vector<std::vector<RowCell>> cells;
-    // the nick column gives way on a narrow chat (text under 40 columns):
-    // down to 8, a long nick then cut with …; a small configured width stays
-    const int sep_w = st.separator ? 3 : 1;           // " │ " or " "
     int nick_w = st.nick_width;
     if (w - stamp_w - sep_w - nick_w < 40 && nick_w > 8)
         nick_w = std::clamp(w - stamp_w - sep_w - 40, 8, nick_w);
-    const int text_w = w - stamp_w - nick_w - sep_w;
+    // a long line on a wide screen reads badly: the text keeps a measure
+    // (st.measure columns), the rest of the row stays empty
+    const int room_w = w - stamp_w - nick_w - sep_w;
+    const int text_w = std::min(room_w, st.measure > 0 ? st.measure : w);
 
-    if (text_w < 12) {
+    if (room_w < 28 && !left.empty() && left.text != "•") {
+        // Stacked: "nick · 14:04" on its own row, the message under it,
+        // indented two columns. A narrow phone-sized terminal still reads.
+        Rich head;
+        const std::size_t left_at = 0;
+        head.append(left.width() > w - 2 ? left.take(w - 3) : left);
+        const std::string when = st.show_stamp ? stamp_text(line.stamp, st.stamp_format) : std::string();
+        if (!when.empty() && head.width() + 3 + display_width(when) <= w) {
+            head.append(" · ", dim);
+            head.append(when, dim);
+        }
+        rows.push_back(head);
+        {
+            std::vector<RowCell> c;
+            tag_cells(c, left.text, left_at, std::min(left.text.size(), head.text.size()), RowCell::Left);
+            cells.push_back(std::move(c));
+        }
+        for (auto [a, b] : wrap_spans(right, std::max(w - 2, 1))) {
+            Rich row{"  "};
+            row.append(right.slice(a, b));
+            rows.push_back(std::move(row));
+            std::vector<RowCell> c;
+            pad_cells(c, 2);
+            tag_cells(c, right.text, a, b, RowCell::Right);
+            cells.push_back(std::move(c));
+        }
+    } else if (text_w < 12) {
         // Too narrow for columns: "stamp nick text", wrapped flush left.
         Rich all = stamp;
         const std::size_t left_at = all.text.size();
@@ -447,7 +484,9 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         if (r == 0 && st.show_stamp && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
             && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
             const std::string here = stamp_text(buf[c.li].stamp, st.stamp_format);
-            if (!here.empty() && here == stamp_text(buf[c.li - 1].stamp, st.stamp_format)) {
+            // (a narrow view drops the stamp column: then there's nothing to blank)
+            if (!here.empty() && row.text.rfind(here, 0) == 0
+                && here == stamp_text(buf[c.li - 1].stamp, st.stamp_format)) {
                 const int sw = stamp_width(st.stamp_format);
                 Rich blanked = Rich{}.pad_right(sw);
                 blanked.append(row.slice(row.take(sw).text.size()));

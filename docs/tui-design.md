@@ -159,8 +159,21 @@ changes don't ripple into drawing code.
 * `‖` marks the pane dividers. They're draggable: drag to resize the tree
   or the user list, double-click to collapse. Sizes persist in
   `hex_gui_pane_left_size` / `_right_size`, the GUI's own prefs.
-* Responsive as the widgets are: under 100 columns the user list hides
-  (toggled with Ctrl-L / View → User List), under 60 the tree hides too.
+* Responsive as the widgets are, from a phone-sized corner to a wall:
+  - the side panes: the chat keeps ~60 columns, so the user list goes
+    first, then the tree (MainLayout::panes, the one answer for drawing
+    and the mouse); on a screen of 160+ they grow a little
+  - the chat line: stamp │ nick │ text with the text kept to a readable
+    measure (110); when it tightens the time goes first, then the nick
+    column gives way (to 8, …); under 28 columns of text it stacks, the
+    nick and time on a row of their own and the message under them
+  - under 16 rows the topic bar goes
+  - panels fill a small screen; a list and its page show one at a time
+    when they don't fit side by side (Esc goes back to the list); forms
+    stack their labels over the values under 44 columns; buttons lose
+    their gaps, then their padding, then the last ones (Esc closes)
+  - dialogs, the switcher and the palette cut what doesn't fit
+  (Ctrl-L / View → User List still toggles it.)
   The switcher, Alt-←/→ and Alt-1…9 still reach every buffer.
 * Tabs vs tree: the GUI's gui_tab_layout and gui_tab_pos are honoured
   (Preferences → Channel switcher has both). Tabs is one row of tabs

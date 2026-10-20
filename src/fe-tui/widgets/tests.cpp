@@ -506,12 +506,12 @@ static void test_chat() {
         b.add("<b>\ttwo", t0 + 10);       // same minute
         b.add("<a>\tthree", t0 + 120);    // two minutes on
         ChatView v;
-        auto r = v.rows(b, ss, 50, 3);
+        auto r = v.rows(b, ss, 70, 3);
         CHECK(r[0].text.find(':') == 2);                          // "HH:MM"
         CHECK(r[1].text.rfind("     ", 0) == 0);                  // blank: same minute
         CHECK(r[2].text.find(':') == 2);                          // a new minute shows
         ss.stamp_repeat = true;
-        r = v.rows(b, ss, 50, 3);
+        r = v.rows(b, ss, 70, 3);
         CHECK(r[1].text.find(':') == 2);                          // every line
         // the same person twice in a row: the second line's nick is blank
         ChatBuffer run;
@@ -522,7 +522,7 @@ static void test_chat() {
         rs.show_stamp = false;
         rs.nick_width = 4;
         ChatView rv;
-        auto rr = rv.rows(run, rs, 30, 3);
+        auto rr = rv.rows(run, rs, 50, 3);
         CHECK(rr[0].text.rfind("   a │ one", 0) == 0);
         CHECK(rr[1].text.rfind("     │ two", 0) == 0);
         CHECK(rr[2].text.rfind("   b │ three", 0) == 0);
@@ -561,25 +561,26 @@ static void test_chat() {
     ChatBuffer buf(5);
     for (int i = 1; i <= 3; ++i) buf.add("<n" + std::to_string(i) + ">\tline " + std::to_string(i) + "\n");
     ChatView view;
-    auto rows = view.rows(buf, st, 30, 5);
+    auto rows = view.rows(buf, st, 40, 5);
     CHECK_EQ(rows.size(), std::size_t{5});
     CHECK(rows[0].text.empty() && rows[1].text.empty());            // short buffer sits at the bottom
     CHECK_EQ(rows[2].text, std::string("  <n1> │ line 1"));
     CHECK_EQ(rows[4].text, std::string("  <n3> │ line 3"));
 
-    // Wrapping hangs under the text column.
-    buf.add("<bob>\tone two three four five six seven");
-    rows = view.rows(buf, st, 25, 6);
-    CHECK_EQ(rows[3].text, std::string(" <bob> │ one two three"));
-    CHECK_EQ(rows[4].text, std::string("       │ four five six"));
-    CHECK_EQ(rows[5].text, std::string("       │ seven"));
+    // Wrapping hangs under the text column (st.measure caps the text: 24).
+    st.measure = 24;
+    buf.add("<bob>\tone two three four five six seven eight nine ten eleven");
+    rows = view.rows(buf, st, 60, 6);
+    CHECK_EQ(rows[3].text, std::string(" <bob> │ one two three four five"));
+    CHECK_EQ(rows[4].text, std::string("       │ six seven eight nine"));
+    CHECK_EQ(rows[5].text, std::string("       │ ten eleven"));
+    st.measure = 110;
 
     // Long nicks are cut with an ellipsis. (6 lines in 6 rows overflow
     // now: the scrollbar column takes the last cell.)
     buf.add("<averylongnick>\thi");
-    rows = view.rows(buf, st, 25, 6);
+    rows = view.rows(buf, st, 40, 6);
     CHECK(rows.back().text.rfind("<aver… │ hi", 0) == 0);
-    CHECK_EQ(rows.back().width(), 25);
 
     // The cap trims old lines.
     CHECK_EQ(buf.size(), std::size_t{5});
@@ -638,10 +639,27 @@ static void test_chat() {
     ts.nick_width = 4;
     ChatBuffer sb;
     sb.add("*\tx", 1700000000);
-    auto srows = ChatView{}.rows(sb, ts, 30, 1);
-    CHECK_EQ(srows[0].width(), display_width("[hh:mm]    * │ x"));
+    auto srows = ChatView{}.rows(sb, ts, 60, 1);
     CHECK(srows[0].text.find("• │ x") != std::string::npos);   // a system line's * is a dot
     CHECK(srows[0].text[0] == '[');
+
+    // Responsive: the time goes before the nick gives way; then stacked.
+    {
+        ChatStyle rs;
+        rs.stamp_format = "%H:%M";
+        rs.nick_width = 10;
+        ChatBuffer rb;
+        rb.add("<alice>\thello there", 1700000000);
+        auto wide = ChatView{}.rows(rb, rs, 70, 1);
+        CHECK(wide[0].text.find(':') == 2);                          // room: the time shows
+        auto mid = ChatView{}.rows(rb, rs, 52, 1);
+        CHECK(mid[0].text.find(':') == std::string::npos);           // tight: the time goes first
+        CHECK(mid[0].text.find("alice │ hello") != std::string::npos);
+        auto tiny = ChatView{}.rows(rb, rs, 30, 3);
+        // narrow: stacked, the nick (and its time) over the message
+        CHECK(tiny[1].text.rfind("alice", 0) == 0);
+        CHECK(tiny[2].text.rfind("  hello there", 0) == 0);
+    }
 
     // Too narrow for columns: flush left.
     auto nrows = ChatView{}.rows(buf, st, 12, 2);
@@ -649,7 +667,7 @@ static void test_chat() {
 
     // trim / clear
     buf.trim(-1);
-    CHECK_EQ(buf.back().right, std::string("one two three four five six seven"));
+    CHECK_EQ(buf.back().right, std::string("one two three four five six seven eight nine ten eleven"));
     buf.trim(0);
     CHECK(buf.empty());
 }

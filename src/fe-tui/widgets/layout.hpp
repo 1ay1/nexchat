@@ -64,6 +64,23 @@ struct MainLayout {
     int tab_trunc = 20;
     [[nodiscard]] bool tabs() const { return switcher == Switcher::TabsTop || switcher == Switcher::TabsBottom; }
 
+    /// Which side panes show at width w, and how wide: the one answer for
+    /// drawing and for the mouse. has_users: the buffer has a user list.
+    struct Panes { bool tree = false, users = false; int tw = 0, uw = 0, chat_w = 0; };
+    [[nodiscard]] Panes panes(int w, bool has_users) const {
+        Panes p;
+        p.tree = !tabs() && show_tree && w >= narrow;
+        p.users = show_users && has_users && w >= wide;
+        auto grow = [w](int set) { return w >= 160 ? std::max(set, std::min(w / 9, 26)) : set; };
+        p.tw = p.tree ? grow(tree_width) : 0;
+        p.uw = p.users ? grow(users_width) : 0;
+        // the chat keeps ~60 columns: the user list goes first, then the tree
+        if (p.users && w - p.tw - p.uw - 2 < 60) { p.users = false; p.uw = 0; }
+        if (p.tree && w - p.tw - p.uw - 1 < 40) { p.tree = false; p.tw = 0; }
+        p.chat_w = std::max(1, w - p.tw - p.uw - (p.tree ? 1 : 0) - (p.users ? 1 : 0));
+        return p;
+    }
+
     /// The window at an explicit size. Everything in `p` is read now; the
     /// element holds no reference to it.
     [[nodiscard]] maya::Element element(const MainParts& p, int w, int h) const;

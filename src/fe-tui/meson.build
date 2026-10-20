@@ -184,6 +184,10 @@ if host_machine.system() != 'windows'
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-cmdpop.py'],
     timeout: 90,
   )
+  test('tui-sizes', find_program('sh'),
+    args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-sizes.py'],
+    timeout: 180,
+  )
   test('tui-app-theme', find_program('sh'),
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-app-theme.py'],
     timeout: 150,

@@ -123,12 +123,14 @@ std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
     Rich foot;
     foot.append(std::to_string(hits_.size()) + (hits_.size() == 1 ? " match" : " matches"), role::muted());
     Rich keys;
-    keys.append("↑↓", role::text().with_bold());
-    keys.append(" pick   ", role::muted());
-    keys.append("Enter", role::text().with_bold());
-    keys.append(" go   ", role::muted());
-    keys.append("Esc", role::text().with_bold());
-    keys.append(" close", role::muted());
+    if (inner >= 44) {
+        keys.append("↑↓", role::text().with_bold());
+        keys.append(" pick   ", role::muted());
+        keys.append("Enter", role::text().with_bold());
+        keys.append(" go   ", role::muted());
+        keys.append("Esc", role::text().with_bold());
+        keys.append(" close", role::muted());
+    }
     foot = foot.fit(std::max(0, inner - keys.width()));
     foot.append(keys);
     rows.push_back(foot.fit(inner));

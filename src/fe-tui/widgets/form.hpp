@@ -58,6 +58,7 @@ public:
     /// A click at (x, y) relative to the form's top-left.
     Outcome click(int x, int y, bool dbl = false);
     void wheel(int d) { scroll_ = std::max(0, scroll_ + d); }
+    [[nodiscard]] bool editing() const noexcept { return editing_; }
     /// The pointer is over row y (-1: off the form): that field's label is
     /// underlined, as a link would be.
     void hover(int y) {
@@ -81,7 +82,7 @@ private:
     InputLine editor_;
     mutable int scroll_ = 0;
     // which field each drawn row is, and where list entries start
-    struct RowMap { int field = -1; int item = -1; };
+    struct RowMap { int field = -1; int item = -1; int value_x = 0; };
     mutable std::vector<RowMap> map_;
     int hover_ = -1;
 };

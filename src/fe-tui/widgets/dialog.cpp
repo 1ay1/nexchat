@@ -97,9 +97,22 @@ std::vector<Rich> Dialog::rows(int inner) const {
 maya::Element Dialog::element(int sw, int sh) const {
     using namespace maya::dsl;
     if (!open_) return maya::Element{maya::BoxElement{}};
-    const int w = std::clamp(std::max(display_width(title_) + 8, 52), 20, std::max(20, sw - 4));
+    const int w = std::clamp(std::max(display_width(title_) + 8, 52), 20, std::max(20, sw - (sw < 40 ? 0 : 4)));
     const int inner = w - 4;
     std::vector<Rich> body = rows(inner);
+    // taller than the screen: the text is cut, the last line says so (the
+    // field and the buttons always stay)
+    {
+        const int fixed = (kind_ == Kind::Prompt ? 2 : 0) + 1 + 2 + 1;   // field + gap, buttons, borders, gap
+        const int room = std::max(1, sh - fixed - 1);
+        const int text_rows = static_cast<int>(body.size()) - (kind_ == Kind::Prompt ? 3 : 1);
+        if (text_rows > room) {
+            std::vector<Rich> cut(body.begin(), body.begin() + room);
+            cut.back() = Rich{"…", role::muted()}.fit(inner);
+            cut.insert(cut.end(), body.begin() + text_rows, body.end());
+            body = std::move(cut);
+        }
+    }
 
     // Buttons, right-aligned: [ Cancel ] [ OK ]  (message: [ OK ])
     const bool two = kind_ != Kind::Message;

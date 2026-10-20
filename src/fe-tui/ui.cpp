@@ -1767,10 +1767,11 @@ public:
         if (b) {
             topic.channel = b->name; topic.modes = b->modes; topic.topic = b->topic;
             // the count shows here when the user list (which has it) doesn't
-            const bool users_shown = layout.show_users && W >= layout.wide;
+            const bool users_shown = layout.panes(W, b->kind == ChanKind::Channel).users;
             if (!users_shown) topic.users = b->total ? b->total : static_cast<int>(b->users.size());
         }
-        const bool has_topic = show_topic && b && b->kind == ChanKind::Channel;
+        // a short screen keeps its rows for the chat: no topic bar under 16
+        const bool has_topic = show_topic && b && b->kind == ChanKind::Channel && h >= 16;
 
         MainParts parts;
         parts.topic = has_topic ? &topic : nullptr;
@@ -1821,12 +1822,13 @@ public:
         const int topic_rows = has_topic ? 2 : 0;
         const int body_y = top + topic_rows + (strip_top ? 2 : 0);
         const int body_h = std::max(0, h - top - topic_rows - (strip_on ? 2 : 0) - MainLayout::kBottomRows);
-        const bool tree_on = !layout.tabs() && layout.show_tree && w >= layout.narrow;
+        const auto pn = layout.panes(w, parts.users != nullptr);
+        const bool tree_on = pn.tree;
         const bool tree_right = layout.switcher == MainLayout::Switcher::TreeRight;
-        const bool users_on = layout.show_users && parts.users && w >= layout.wide;
-        const int tw = tree_on ? layout.tree_width : 0, uw = users_on ? layout.users_width : 0;
+        const bool users_on = pn.users;
+        const int tw = pn.tw, uw = pn.uw;
         const int chat_x = tree_on && !tree_right ? tw + 1 : 0;
-        const int chat_w = std::max(1, w - tw - uw - (tree_on ? 1 : 0) - (users_on ? 1 : 0));
+        const int chat_w = pn.chat_w;
         r_menu = {0, 0, show_menu ? w : 0, show_menu ? 1 : 0};
         r_topic = {0, top + (strip_top ? 2 : 0), has_topic ? w : 0, has_topic ? 1 : 0};
         if (tree_right) {

@@ -112,6 +112,7 @@ struct ChatStyle {
     bool        show_marker = true;         // the read marker (text_show_marker)
     bool        stamp_repeat = false;       // every line its time (else only when it changes)
     bool        brackets = false;           // <nick> (else just nick: the column says it)
+    int         measure = 110;              // the text's widest line (0: the whole width)
     // Nick colours aren't ours: the core's text events put \003NN on the
     // nick already when hex_text_color_nicks is on.
 

@@ -75,6 +75,7 @@ private:
     bool open_ = false;
     std::string title_;
     bool has_list_ = false;
+    mutable bool narrow_ = false;   // list and body one at a time (a small screen)
     std::vector<std::string> list_;
     std::string list_heading_;
     int list_sel_ = 0;
