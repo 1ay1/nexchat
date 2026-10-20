@@ -13,7 +13,7 @@ disp=${DISP:-:96}
 tmp=$(mktemp -d)
 "$xvfb" "$disp" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1 &
 xpid=$!
-trap 'kill $xpid 2>/dev/null; rm -rf "$tmp"' EXIT
+trap 'st=$?; kill $xpid 2>/dev/null || true; rm -rf "$tmp"; exit $st' EXIT
 sleep 1
 fail=0
 
@@ -91,7 +91,7 @@ if [ -z "$ob" ]; then
 fi
 DISPLAY=$disp LD_LIBRARY_PATH=$obref/lib XDG_CONFIG_DIRS=$obref/../etc/xdg XDG_DATA_DIRS=$obref/share "$ob" --sm-disable >/dev/null 2>&1 &
 wm=$!
-trap 'kill $wm $xpid 2>/dev/null; rm -rf "$tmp"' EXIT
+trap 'st=$?; kill $wm $xpid 2>/dev/null || true; rm -rf "$tmp"; exit $st' EXIT
 sleep 1
 for c in 0 1 2 3 4; do
 	d="$tmp/cur$c"; mkdir -p "$d"

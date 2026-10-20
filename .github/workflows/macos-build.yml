@@ -15,7 +15,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Dependencies
-        run: brew install meson ninja pkg-config gtk4 openssl@3 gettext adwaita-icon-theme
+        # coreutils: the tests' `timeout` (not on macOS). GTK itself comes
+        # from osx/build-gtk.sh below, as in the app nexchat ships.
+        run: >-
+          brew install meson ninja pkg-config openssl@3 gettext adwaita-icon-theme coreutils
+          librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
+
+      # GTK with nexchat's fixes (osx/gtk-patches), built once per patch set:
+      # Homebrew's 4.24 has frame-timing and surface-freeze bugs of its own
+      # that the GUI tests trip over now and then
+      - uses: actions/cache@v4
+        id: gtk
+        with:
+          path: ~/.cache/nexchat-gtk
+          key: gtk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('osx/build-gtk.sh', 'osx/gtk-patches/*') }}
+      - name: GTK
+        if: steps.gtk.outputs.cache-hit != 'true'
+        run: sh osx/build-gtk.sh
 
       - name: Configure
         run: >-
@@ -27,9 +43,15 @@ jobs:
           -Dwith-python=false
           -Dwith-lua=false
           -Dplugin=false
+          "-Dpkg_config_path=$HOME/.cache/nexchat-gtk/lib/pkgconfig"
 
       - name: Build
         run: ninja -C build
 
       - name: Test
         run: meson test -C build --print-errorlogs
+
+      - name: App bundle
+        run: |
+          ninja -C build app
+          sh osx/check-app.sh build/nexchat.app

@@ -49,6 +49,35 @@ gboolean mybouncer_release (ircnet *net, char **err) { *err = NULL; return FALSE
 gboolean mybouncer_start (char **err) { *err = NULL; return FALSE; }
 void mybouncer_stop (void) { }
 char *mybouncer_status (void) { return NULL; }
+/* everything else the header has: nothing to get, and setting fails
+   (bouncer.c's /bouncer commands are built everywhere) */
+#define NOT_HERE (*err = g_strdup (_("soju doesn't run on Windows.")), FALSE)
+gboolean mybouncer_can_systemd (void) { return FALSE; }
+gboolean mybouncer_channel_add (ircnet *net, const char *chan, char **err) { return NOT_HERE; }
+gboolean mybouncer_channel_del (ircnet *net, const char *chan, char **err) { return NOT_HERE; }
+gboolean mybouncer_channel_set (ircnet *net, const char *chan, const char *key, const char *value, char **err) { return NOT_HERE; }
+char *mybouncer_channels (ircnet *net) { return NULL; }
+char *mybouncer_log_tail (int lines) { return NULL; }
+gboolean mybouncer_logs_as_files (void) { return FALSE; }
+char *mybouncer_net_certfp (ircnet *net, gboolean make, char **err) { NOT_HERE; return NULL; }
+char *mybouncer_net_get (ircnet *net, const char *key) { return NULL; }
+gboolean mybouncer_net_set (ircnet *net, const char *key, const char *value, char **err) { return NOT_HERE; }
+gboolean mybouncer_net_set_commands (ircnet *net, const char *lines, char **err) { return NOT_HERE; }
+char *mybouncer_password (void) { return NULL; }
+int mybouncer_port (void) { return 0; }
+gboolean mybouncer_remote (void) { return FALSE; }
+char *mybouncer_remote_certfp (void) { return NULL; }
+int mybouncer_remote_port (void) { return 0; }
+char *mybouncer_run (const char *const *words, GString *out) { return g_strdup (_("soju doesn't run on Windows.")); }
+gboolean mybouncer_set_kept_by_systemd (gboolean on, char **err) { return NOT_HERE; }
+gboolean mybouncer_set_logs_as_files (gboolean on, char **err) { return NOT_HERE; }
+gboolean mybouncer_set_password (const char *pw, char **err) { return NOT_HERE; }
+gboolean mybouncer_set_remote (gboolean on, char **err) { return NOT_HERE; }
+gboolean mybouncer_set_title (const char *title, char **err) { return NOT_HERE; }
+char *mybouncer_soju_name (ircnet *net) { return NULL; }
+char *mybouncer_title (void) { return NULL; }
+const char *mybouncer_user (void) { return "me"; }
+#undef NOT_HERE
 #else
 
 #define UNIT "nexchat-bouncer.service"

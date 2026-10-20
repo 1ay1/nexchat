@@ -58,7 +58,7 @@ case "$r" in Native*"| native") ok "Up goes back";; *) bad "Down Down Up gave: $
 r=$(keys_run "End")
 case "$r" in *Zenbones*) ok "End: the last one";; *) bad "End gave: $r";; esac
 r=$(keys_run "End Home")
-case "$r" in *"| ") ok "Home: the first one (HexChat)";; *) bad "End Home gave: $r";; esac
+case "$r" in *"| ") ok "Home: the first one (nexchat's own)";; *) bad "End Home gave: $r";; esac
 r=$(keys_run "Up Up")
 case "$r" in *"| ") ok "Up at the top stays";; *) bad "Up Up gave: $r";; esac
 n=$(grep -c CRITICAL "$tmp/k.log" || true)

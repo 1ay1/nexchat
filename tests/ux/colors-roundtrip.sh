@@ -40,8 +40,9 @@ tops() {
 }
 i=0; while [ "$(tops)" -lt 2 ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 sleep 1
-# OK writes colors.conf (palette_save) even if nothing changed
-DISPLAY=$disp python3 "$here/xkey.py" --delay 0.8 --at 400,380 alt+o
+# Preferences saves as you go and once more on Close (colors.conf too,
+# even with nothing changed): Close it
+DISPLAY=$disp python3 "$here/xkey.py" --delay 0.8 --at 400,380 alt+c
 sleep 2
 
 sort "$tmp/cfg/colors.conf" > "$tmp/after"
