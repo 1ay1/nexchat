@@ -20,6 +20,10 @@ More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's diffe
 
 The HexChat documentation still applies: [docs](https://hexchat.readthedocs.org/en/latest/index.html), [Python API](https://hexchat.readthedocs.org/en/latest/script_python.html), [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html).
 
+## Download
+
+Windows (installer or portable zip), macOS (`.dmg`) and Linux (`.flatpak`) packages are on the [Releases page](https://github.com/1ay1/nexchat/releases/latest).
+
 ## Building
 
 ```sh
@@ -31,6 +35,16 @@ meson test -C build   # needs -Dtext-frontend=true for the smoke tests
 On macOS (Homebrew: `brew install meson gtk4 openssl@3`), `ninja -C build app` also makes a self-contained `build/nexchat.app` you can drag to Applications.
 
 On Arch, `packaging/arch/nexchat-git` builds the latest master (`makepkg -si` in that folder). It installs next to HexChat without conflicts.
+
+### Making a release
+
+Set the version in `meson.build`, commit, then tag and push it:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` builds every package (`osx/make-dmg.sh`, `win32/package.sh` for the installer and the portable zip, the Flatpak and a source tarball) and publishes them as a GitHub Release with checksums.
 
 The screenshot above is regenerated with `tests/ux/readme-shot.sh build/src/fe-gtk/nexchat docs/screenshots`, against a fake IRC server; nobody's real chat is in it.
 

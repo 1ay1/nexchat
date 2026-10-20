@@ -1537,7 +1537,7 @@ menu_noplugin_info (void)
 									"%m  =  machine info\n"\
                            "%n  =  your nick\n"\
 									"%t  =  time/date\n"\
-                           "%v  =  HexChat version\n"\
+                           "%v  =  nexchat version\n"\
                            "%2  =  word 2\n"\
                            "%3  =  word 3\n"\
                            "&2  =  word 2 to the end of line\n"\
@@ -1584,7 +1584,7 @@ menu_noplugin_info (void)
                            "%s  =  the URL string\n\n"\
                            "Putting a ! in front of the command\n"\
                            "indicates it should be sent to a\n"\
-                           "shell instead of HexChat")
+                           "shell instead of nexchat")
 
 static void
 menu_usercommands (void)

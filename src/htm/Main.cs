@@ -1,5 +1,5 @@
 /**
- * HexChat Theme Manager
+ * nexchat Theme Manager
  *
  * Copyright (C) 2012 Patrick Griffs
  * Copyright (C) 2012 Berke Viktor
@@ -66,7 +66,7 @@ namespace thememan
 
                 if (!Directory.Exists(hexchatdir))
                 {
-                    MessageBox.Show("HexChat installation not found!\nCheck your .\\config folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("nexchat's settings weren't found!\nCheck the config folder next to nexchat", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Environment.Exit(1);
                 }
             }
@@ -75,19 +75,19 @@ namespace thememan
                 /* Environment.SpecialFolder.ApplicationData
                  * Windows: %APPDATA%
                  * Unix: ~/.config
-                 * Windows is case-insensitive so 'hexchat' should be fine for both
+                 * Windows is case-insensitive so 'nexchat' is fine for both
                  */
-                hexchatdir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "hexchat");
+                hexchatdir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "nexchat");
 
                 if (!Directory.Exists(hexchatdir))
                 {
                     if (RunningOnWindows())
                     {
-                        MessageBox.Show("HexChat installation not found!\nCheck your %APPDATA%\\HexChat folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);    
+                        MessageBox.Show("nexchat's settings weren't found!\nCheck your %APPDATA%\\nexchat folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);    
                     }
                     else
                     {
-                        MessageBox.Show("HexChat installation not found!\nCheck your ~/.config/hexchat folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show("nexchat's settings weren't found!\nCheck your ~/.config/nexchat folder", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     
                     Environment.Exit(1);
@@ -196,7 +196,7 @@ namespace thememan
 
         private void applybutton_Click_1(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show("HexChat must be closed and this will overwrite your current theme!\n\nDo you wish to continue?", "Warning", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
+            DialogResult result = MessageBox.Show("nexchat must be closed and this will overwrite your current theme!\n\nDo you wish to continue?", "Warning", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
             if (result == DialogResult.OK)
             {
                 File.Copy(Path.Combine(themedir, themelist.SelectedItem.ToString(), "colors.conf"), Path.Combine(hexchatdir, "colors.conf"), true);
@@ -224,7 +224,7 @@ namespace thememan
         private void importbutton_Click_1(object sender, EventArgs e)
         {
             importDialog = new OpenFileDialog();
-            importDialog.Filter = "HexChat Theme Files|*.hct";
+            importDialog.Filter = "nexchat and HexChat theme files|*.hct";
             importDialog.FilterIndex = 1;
             importDialog.FileOk += new CancelEventHandler(importdialog_FileOk);
             importDialog.ShowDialog();
