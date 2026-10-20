@@ -496,6 +496,24 @@ menu_create (nx_menu *menu, GSList *list, char *target, int check_path)
 
 			menu_extract_icon (pop->name, &label, &icon);
 
+			/* default command in hexchat.c: already ignored, it undoes it */
+			if (target && pop->cmd[0] == 'i' && !strcmp (pop->cmd, "ignore %s!*@* ALL"))
+			{
+				char *mask = g_strdup_printf ("%s!*@*", target);
+				if (ignore_exists (mask))
+				{
+					g_free (label);
+					label = g_strdup (_("_Unignore"));
+					menu_quick_item ("unignore %s!*@*", label, tempmenu, 0, target, icon);
+					g_free (mask);
+					g_free (label);
+					g_free (icon);
+					list = list->next;
+					continue;
+				}
+				g_free (mask);
+			}
+
 			if (!check_path || pop->cmd[0] != '!')
 			{
 				menu_quick_item (pop->cmd, label, tempmenu, 0, target, icon);
