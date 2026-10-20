@@ -14,8 +14,16 @@ subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-ke
                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def listener():
-    s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("127.0.0.1", 0)); s.listen(4); s.settimeout(15)
+    # dual-stack where there is IPv6: "localhost" is ::1 first on Windows,
+    # and a refused connect there takes ~2s before it tries 127.0.0.1
+    try:
+        s = socket.socket(socket.AF_INET6)
+        s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        s.bind(("::", 0))
+    except OSError:
+        s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", 0))
+    s.listen(4); s.settimeout(15)
     return s, s.getsockname()[1]
 
 plain, pport = listener()

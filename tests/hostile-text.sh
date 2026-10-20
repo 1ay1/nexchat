@@ -38,8 +38,11 @@ ircd=$!
 i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 
 mkdir -p "$tmp/cfg" "$tmp/dl/sub"
+# the config is read by the native binary: on MSYS2 /tmp means nothing to it
+dl="$tmp/dl/sub"
+command -v cygpath >/dev/null 2>&1 && dl=$(cygpath -m "$dl")
 printf '%s\n' "net_throttle = 0" "irc_nick1 = hostile" "dcc_auto_recv = 2" \
-	"dcc_save_nick = 1" "dcc_dir = $tmp/dl/sub" "dcc_completed_dir = $tmp/dl/sub" \
+	"dcc_save_nick = 1" "dcc_dir = $dl" "dcc_completed_dir = $dl" \
 	> "$tmp/cfg/hexchat.conf"
 {
 	sleep 1; echo "/join #t"; sleep 4; echo "/quit bye"; sleep 1
@@ -54,9 +57,10 @@ if ls -A "$tmp/dl/sub" | grep -q '^\.'; then echo "FAIL: dot file in the DCC dir
 if ! ls "$tmp/dl/sub" | grep -q escape; then echo "FAIL: the file wasn't received at all"; fail=1; fi
 grep -q "tagged-hello" "$tmp/client.log" || { echo "FAIL: tagged message not shown"; fail=1; }
 # a nick ending in RIGHT-TO-LEFT OVERRIDE is wrapped in FSI..PDI, so it
-# can't reverse the message after it
+# can't reverse the message after it (with colour on, an escape sits
+# between FSI and the nick)
 fsi=$(printf '\342\201\250'); pdi=$(printf '\342\201\251')
-grep -q "${fsi}mal${rlo}${pdi}.*bidi-tail" "$tmp/client.log" || { echo "FAIL: bidi nick not isolated"; grep -a bidi-tail "$tmp/client.log" | od -c | head; fail=1; }
+grep -aq "${fsi}[^${pdi}]*mal${rlo}${pdi}.*bidi-tail" "$tmp/client.log" || { echo "FAIL: bidi nick not isolated"; grep -a bidi-tail "$tmp/client.log" | od -c | head; fail=1; }
 
 if [ $fail -ne 0 ]; then
 	echo "--- dl:"; ls -laR "$tmp/dl"

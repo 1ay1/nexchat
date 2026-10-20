@@ -47,8 +47,25 @@ maya_opts.add_cmake_defines({
   'CMAKE_BUILD_TYPE': 'Release',
   'CMAKE_POSITION_INDEPENDENT_CODE': true,
 })
+# maya's CMake asks for C++26 (CXX_STANDARD 26), which meson's cmake module
+# turns into cpp_std=gnu++26; a meson older than that standard (Ubuntu
+# 24.04's 1.3) drops it with a warning and maya compiles as C++17. Give the
+# flag ourselves: the newest the compiler takes, C++23 at least.
+foreach std : ['-std=gnu++26', '-std=gnu++2c', '-std=gnu++23', '-std=gnu++2b']
+  if meson.get_compiler('cpp').has_argument(std)
+    maya_opts.append_compile_args('cpp', std, target: 'maya')
+    break
+  endif
+endforeach
 maya_proj = cmake.subproject('maya', options: maya_opts)
-maya_dep = maya_proj.dependency('maya')
+# Its include dirs by hand: an older meson's cmake module also lists
+# subprojects/maya/__CMake_build in the source tree, which doesn't exist, and
+# -Werror=missing-include-dirs (the C sources get them too) fails on it.
+maya_dep = declare_dependency(
+  dependencies: maya_proj.dependency('maya').partial_dependency(
+    compile_args: true, link_args: true, links: true, sources: true),
+  include_directories: include_directories('../../subprojects/maya/include'),
+)
 
 tui_cpp_args = []
 cxx = meson.get_compiler('cpp')

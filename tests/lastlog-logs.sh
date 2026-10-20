@@ -23,9 +23,10 @@ printf 'Mar 03 12:00:00 <dave>\tunrelated\n' > "$tmp/cfg/logs/OFTC/#misc.log"
 fail=0
 want() { grep -q -- "$1" "$tmp/out" && echo "ok:   $2" || { echo "FAIL: $2"; fail=1; }; }
 none() { if grep -q -- "$1" "$tmp/out"; then echo "FAIL: $2"; fail=1; else echo "ok:   $2"; fi; }
-want 'Libera.Chat/#linux.log' 'a match in one network: listed under its file'
+# the file names come with the platform's separator (\ on Windows)
+want 'Libera.Chat[/\]#linux.log' 'a match in one network: listed under its file'
 want 'the kernel release is out' 'the matching line'
-want 'OFTC/#debian.log' 'another network too'
+want 'OFTC[/\]#debian.log' 'another network too'
 want 'Release candidate' 'case-insensitive by default'
 none 'nothing to see' 'lines without a match left out'
 none '#misc.log' 'files without a match left out'
