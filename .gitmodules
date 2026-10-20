@@ -1,3 +1,6 @@
 [submodule "flatpak/shared-modules"]
 	path = flatpak/shared-modules
 	url = https://github.com/flathub/shared-modules.git
+[submodule "subprojects/maya"]
+	path = subprojects/maya
+	url = https://github.com/1ay1/maya.git

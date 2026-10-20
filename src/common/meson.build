@@ -20,6 +20,7 @@ common_sources = [
   'sts.c',
   'batch.c',
   'bouncer.c',
+  'bncprobe.c',
   'mybouncer.c',
   'cmdinfo.c',
   'cmddocs.c',

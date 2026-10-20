@@ -29,7 +29,6 @@ hexchat_gtk_sources = [
   'rawlog.c',
   'servlistgui.c',
   'bncsetup.c',
-  'bncdetect.c',
   'bncwin.c',
   'setup.c',
   'sexy-spell-entry.c',
