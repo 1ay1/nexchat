@@ -72,7 +72,9 @@ def render(screen, out, cols, rows):
                 fg, bg = bg, fg
             px, py = 8 + x * cw, 8 + y * ch
             if c.data and c.data != " ":
-                d.text((px, py + 1), c.data, font=bold if c.bold else font, fill=fg)
+                # Menlo Bold has no box-drawing glyphs: draw them regular
+                box = 0x2500 <= ord(c.data[0]) <= 0x259f
+                d.text((px, py + 1), c.data, font=bold if c.bold and not box else font, fill=fg)
             if c.underscore:
                 d.line([px, py + ch - 3, px + cw - 1, py + ch - 3], fill=fg)
     img.save(out)

@@ -32,11 +32,12 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
     const MainLayout& cfg = *this;
     {
         std::vector<maya::Element> rows;
-        // topic + its rule, then the body, then rule + status + input; a tab
-        // strip takes a row (and its rule) at the top or bottom
+        // topic + its rule, then the body, then rule + status + the input in
+        // its frame (3 rows); a tab strip takes a row (and its rule) at the
+        // top or bottom
         const bool strip = cfg.tabs() && cfg.show_tree && p.tree;
         const int top_rows = (p.topic ? 2 : 0) + (strip ? 2 : 0);
-        const int body_h = std::max(0, ht - top_rows - 3);
+        const int body_h = std::max(0, ht - top_rows - kBottomRows);
         auto rule = [w] {
             std::string s;
             for (int i = 0; i < w; ++i) s += "─";
@@ -102,7 +103,21 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         if (p.find) rows.push_back(p.find->element());
         else if (p.status) rows.push_back(p.status->row(w).element());
         else rows.push_back(Rich{}.pad_right(w).element());
-        if (p.input) rows.push_back(p.input->row(w, p.focus == Pane::Input).element());
+        if (p.input) {
+            // ╭──────╮
+            // │ noor ❯ hello │   the frame lights up (accent) while it has the keys
+            // ╰──────╯
+            const bool foc = p.focus == Pane::Input;
+            const Style edge = foc ? role::title() : role::border();
+            std::string bar;
+            for (int i = 0; i < w - 2; ++i) bar += "─";
+            rows.push_back(Rich{"╭" + bar + "╮", edge}.element());
+            Rich mid{"│", edge};
+            mid.append(p.input->row(std::max(1, w - 2), foc));
+            mid.append("│", edge);
+            rows.push_back(mid.element());
+            rows.push_back(Rich{"╰" + bar + "╯", edge}.element());
+        }
         return (v(std::move(rows)) | height(ht)).build();
     }
 }

@@ -50,8 +50,7 @@ def main():
             fails.append(what)
 
     def bar():
-        lines = t.text().splitlines()
-        return lines[-2] if len(lines) >= 2 else ""
+        return t.status_line()
 
     def conf():
         return open(os.path.join(cfg, "hexchat.conf")).read()
@@ -129,7 +128,7 @@ def main():
         t.send(b"\x1b", 0.5)
         check("Find:" not in bar() and "F10 menu" in bar(), "Esc closes it, the status bar is back")
         t.type("x", 0.3)
-        check(t.text().splitlines()[-1].rstrip().endswith("x"), "and typing goes to the input again")
+        check(t.input_line().endswith("x"), "and typing goes to the input again")
         t.send(b"\x15", 0.2)
 
         # Window → Search... opens it too

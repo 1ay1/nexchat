@@ -89,6 +89,20 @@ class Tui:
     def text(self):
         return "\n".join(line.rstrip() for line in self.screen.display)
 
+    # the main window's bottom: … rule, status, ╭─╮, │ input │, ╰─╯
+    STATUS_FROM_END, INPUT_FROM_END = 4, 2
+
+    def input_line(self):
+        """the input row, inside its frame (the │ edges stripped)"""
+        l = self.screen.display[-self.INPUT_FROM_END]
+        return l[1:-1].rstrip() if len(l) >= 2 else l.rstrip()
+
+    def status_line(self):
+        return self.screen.display[-self.STATUS_FROM_END].rstrip()
+
+    def status_row(self):
+        return self.screen.lines - self.STATUS_FROM_END
+
     def find(self, s):
         """(x, y) of the first cell of `s` on screen, or None."""
         for y, line in enumerate(self.screen.display):
@@ -160,7 +174,7 @@ def main():
 
         # tab completion of a nick from the user list
         t.type("ali\t", 0.5)
-        check("alice" in t.text().splitlines()[-1], "Tab completes a nick in the input")
+        check("alice" in t.input_line(), "Tab completes a nick in the input")
         t.send(b"\x15", 0.2)                  # Ctrl-U: GUI's underline… clear the line instead
         t.send(b"\x1bu", 0.2)                 # Alt-U: kill to start
 

@@ -1472,7 +1472,7 @@ public:
         }
         case Area::Input:
             if (middle) { if (!clipboard.empty()) input.paste(clipboard); }
-            else if (right) open_input_menu(x, y - 3);
+            else if (right) open_input_menu(x, y - 5);   // above the framed input
             else if (wheel_up || wheel_dn) input.key(maya::KeyEvent{wheel_up ? SpecialKey::Up : SpecialKey::Down, {}, ""});
             else if (left) {
                 // place the caret: the column past the prompt
@@ -1574,7 +1574,7 @@ public:
         const bool strip_top = strip_on && layout.switcher == MainLayout::Switcher::TabsTop;
         const int topic_rows = has_topic ? 2 : 0;
         const int body_y = top + topic_rows + (strip_top ? 2 : 0);
-        const int body_h = std::max(0, h - top - topic_rows - (strip_on ? 2 : 0) - 3);
+        const int body_h = std::max(0, h - top - topic_rows - (strip_on ? 2 : 0) - MainLayout::kBottomRows);
         const bool tree_on = !layout.tabs() && layout.show_tree && w >= layout.narrow;
         const bool tree_right = layout.switcher == MainLayout::Switcher::TreeRight;
         const bool users_on = layout.show_users && parts.users && w >= layout.wide;
@@ -1594,8 +1594,8 @@ public:
         r_chat = {chat_x, body_y, chat_w, body_h};
         r_users_div = {chat_x + chat_w, body_y, users_on ? 1 : 0, body_h};
         r_users = {chat_x + chat_w + 1, body_y, uw, users_on ? body_h : 0};
-        r_status = {0, h - 2, w, 1};
-        r_input = {0, h - 1, w, 1};
+        r_status = {0, h - 4, w, 1};
+        r_input = {1, h - 2, std::max(1, w - 2), 1};   // inside its frame (rows h-3..h-1)
 
         std::vector<maya::Element> rows;
         if (show_menu) {

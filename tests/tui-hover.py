@@ -76,7 +76,7 @@ def main():
             t.pump(0.3)
         # ── motion: someone typing, the dots walk ──────────────────────
         # (first: a typer goes stale after 6 s)
-        status_row = len(t.text().splitlines()) - 2
+        status_row = t.status_row()
 
         def dots():
             row = t.screen.buffer[status_row]
@@ -122,7 +122,7 @@ def main():
         move(p[0] + 1, p[1])
         check(underlined(p[0] + 1, p[1]), "hovering a menu title underlines it")
         lines = t.text().splitlines()
-        sy = len(lines) - 2
+        sy = t.status_row()
         sx = lines[sy].find("keys")
         if sx > 0:
             move(sx, sy)

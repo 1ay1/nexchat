@@ -111,7 +111,7 @@ def main():
             fails.append(what)
 
     def input_line(t):
-        return t.text().splitlines()[-1]
+        return t.input_line()
 
     def to_demo(t):
         p = t.find("#demo")

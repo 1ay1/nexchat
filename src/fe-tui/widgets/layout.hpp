@@ -45,6 +45,8 @@ struct MainParts {
 };
 
 struct MainLayout {
+    /// Rows under the body: the rule, the status row, the framed input (3).
+    static constexpr int kBottomRows = 5;
     int tree_width = 18;
     int users_width = 18;
     int wide = 100;     // show the user list at or above this width
