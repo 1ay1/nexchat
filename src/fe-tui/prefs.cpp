@@ -15,7 +15,7 @@ namespace nx::tui {
 
 namespace {
 
-enum class T { Head, Toggle, Text, Number, Menu, Label };
+enum class T { Head, Toggle, Text, Number, Menu, Label, TuiToggle };
 struct Setting {
     T kind;
     const char* label;
@@ -38,6 +38,9 @@ const std::vector<Page>& pages() {
             {T::Head, "Timestamps"},
             {T::Toggle, "Enable timestamps", "stamp_text"},
             {T::Text, "Timestamp format", "stamp_text_format"},
+            {T::TuiToggle, "Repeat the time on every line", "stamp_repeat=0"},
+            {T::Head, "Terminal"},
+            {T::TuiToggle, "Underline what's under the mouse (restart)", "hover=1"},
         }},
         {"Input box", {
             {T::Head, "Input Box"},
@@ -200,6 +203,18 @@ void Preferences::load(int page) {
         case T::Head:   f.kind = Field::Kind::Heading; break;
         case T::Label:  f.kind = Field::Kind::Heading; break;
         case T::Toggle: f.kind = Field::Kind::Toggle; f.on = nx_core_pref_int(s.pref) != 0; break;
+        case T::TuiToggle: {
+            // tui.conf: unset is the default given as "1"/"0" in pref after a '='
+            f.kind = Field::Kind::Toggle;
+            const std::string_view spec = s.pref;
+            const auto eq = spec.find('=');
+            const std::string key{spec.substr(0, eq)};
+            const char* v = nx_core_tui_get(key.c_str());
+            const char d = eq == std::string_view::npos ? '0' : spec[eq + 1];
+            const char c = v && *v ? v[0] : d;
+            f.on = c == '1' || c == 't' || c == 'y';
+            break;
+        }
         case T::Text:
             f.kind = std::string_view(s.pref).find("pass") != std::string_view::npos ? Field::Kind::Password : Field::Kind::Text;
             f.text = nx_core_pref_str(s.pref);
@@ -225,6 +240,12 @@ void Preferences::apply() {
         if (!s.pref) continue;
         switch (s.kind) {
         case T::Toggle: nx_core_pref_set_int(s.pref, f.on); break;
+        case T::TuiToggle: {
+            const std::string_view spec = s.pref;
+            const std::string key{spec.substr(0, spec.find('='))};
+            nx_core_tui_set(key.c_str(), f.on ? "1" : "0");
+            break;
+        }
         case T::Text: nx_core_pref_set_str(s.pref, f.text.c_str()); break;
         case T::Number: {
             char* end = nullptr;

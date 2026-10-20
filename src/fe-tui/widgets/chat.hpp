@@ -110,6 +110,7 @@ struct ChatStyle {
     bool        separator = true;           // the │ between nick and text
     bool        indent = true;              // nicks right-aligned against the │ (text_indent)
     bool        show_marker = true;         // the read marker (text_show_marker)
+    bool        stamp_repeat = false;       // every line its time (else only when it changes)
     // Nick colours aren't ours: the core's text events put \003NN on the
     // nick already when hex_text_color_nicks is on.
 

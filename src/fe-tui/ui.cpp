@@ -356,6 +356,10 @@ public:
         if (const char* f = nx_core_pref_str("stamp_text_format"); f && *f) chat_style.stamp_format = f;
         chat_style.indent = nx_core_pref_int("text_indent") != 0;
         chat_style.show_marker = nx_core_pref_int("text_show_marker") != 0;
+        {
+            const char* sr = nx_core_tui_get("stamp_repeat");
+            chat_style.stamp_repeat = sr && (sr[0] == '1' || sr[0] == 't' || sr[0] == 'y');
+        }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));
             for (std::size_t i = 0; i < b->chat.size(); ++i) b->chat[i].cached_cols = -1;   // re-wrap

@@ -496,6 +496,25 @@ static std::string joined(const std::vector<Rich>& rows) {
 
 static void test_chat() {
     {
+        // a time only where it changes (stamp_repeat off); every line with it on
+        ChatStyle ss;
+        ss.show_stamp = true;
+        ss.stamp_format = "%H:%M";
+        ChatBuffer b;
+        const std::time_t t0 = std::time(nullptr) / 3600 * 3600;   // on the hour
+        b.add("<a>\tone", t0);
+        b.add("<b>\ttwo", t0 + 10);       // same minute
+        b.add("<a>\tthree", t0 + 120);    // two minutes on
+        ChatView v;
+        auto r = v.rows(b, ss, 50, 3);
+        CHECK(r[0].text.find(':') == 2);                          // "HH:MM"
+        CHECK(r[1].text.rfind("     ", 0) == 0);                  // blank: same minute
+        CHECK(r[2].text.find(':') == 2);                          // a new minute shows
+        ss.stamp_repeat = true;
+        r = v.rows(b, ss, 50, 3);
+        CHECK(r[1].text.find(':') == 2);                          // every line
+    }
+    {
         // a day separator before the first line of a new day; none for a
         // fresh buffer that starts today, none twice for the same day
         ChatStyle ds;

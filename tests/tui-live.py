@@ -40,7 +40,7 @@ def main():
     open(os.path.join(cfg, "hexchat.conf"), "w").write(
         "net_throttle = 0\nirc_nick1 = tester\ngui_slist_skip = 1\nstamp_text = 1\n"
         "stamp_text_format = %H:%M\ntext_indent = 1\n")
-    open(os.path.join(cfg, "tui.conf"), "w").write("[tui]\ntheme=Dracula\n")
+    open(os.path.join(cfg, "tui.conf"), "w").write("[tui]\ntheme=Dracula\nstamp_repeat=1\n")
     os.environ.pop("NO_COLOR", None)
     t = smoke.Tui([binary, "-n", "-d", cfg, f"irc://127.0.0.1:-{port}/#demo"],
                   {"TERM": "xterm-256color", "COLORTERM": "truecolor"})

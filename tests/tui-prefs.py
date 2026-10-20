@@ -31,6 +31,7 @@ def main():
     os.makedirs(cfg)
     open(os.path.join(cfg, "hexchat.conf"), "w").write(
         "net_throttle = 0\nirc_nick1 = prefer\ngui_slist_skip = 1\nstamp_text = 1\nstamp_text_format = [%H:%M]\n")
+    open(os.path.join(cfg, "tui.conf"), "w").write("[tui]\nstamp_repeat=1\n")   # a time on every line
     os.environ.pop("NO_COLOR", None)
     # the pref accessors (by name) must read the fields the core does
     t = smoke.Tui([binary, "-n", "-d", cfg, f"irc://127.0.0.1:-{port}/"],

@@ -427,6 +427,19 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
             const auto& cells = buf[c.li].cached_cells;
             if (static_cast<std::size_t>(r) < cells.size()) src.cells = cells[static_cast<std::size_t>(r)];
         }
+        // the stamp only where it changes: a line in the same minute as
+        // the one above shows a blank (quieter, and the times that do show
+        // mark where the talk paused); a hovered line shows its own
+        if (r == 0 && st.show_stamp && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
+            && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
+            const std::string here = stamp_text(buf[c.li].stamp, st.stamp_format);
+            if (!here.empty() && here == stamp_text(buf[c.li - 1].stamp, st.stamp_format)) {
+                const int sw = stamp_width(st.stamp_format);
+                Rich blanked = Rich{}.pad_right(sw);
+                blanked.append(row.slice(row.take(sw).text.size()));
+                row = std::move(blanked);
+            }
+        }
         // Paint the selected cells, and the find matches.
         const bool finding = !find_.empty() && !src.marker;
         std::vector<Match> on_line;
