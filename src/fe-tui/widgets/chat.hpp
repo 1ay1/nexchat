@@ -94,6 +94,9 @@ public:
 
     /// Bumped on every change, so a view can tell it must redraw.
     [[nodiscard]] std::uint64_t version() const noexcept { return version_; }
+    /// The widest nick-column text in the buffer (formatting codes and a
+    /// <> pair don't count): the column fits the nicks there are.
+    [[nodiscard]] int widest_left(bool brackets) const;
 
 private:
     std::deque<ChatLine>   lines_;
@@ -101,6 +104,8 @@ private:
     LineId                 next_id_ = 1;
     std::optional<LineId>  marker_;
     std::uint64_t          version_ = 0;
+    mutable std::uint64_t  widest_at_ = ~std::uint64_t{0};
+    mutable int            widest_[2] = {0, 0};
 };
 
 struct ChatStyle {
@@ -113,6 +118,7 @@ struct ChatStyle {
     bool        stamp_repeat = false;       // every line its time (else only when it changes)
     bool        brackets = false;           // <nick> (else just nick: the column says it)
     int         measure = 110;              // the text's widest line (0: the whole width)
+    bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the
     // nick already when hex_text_color_nicks is on.
 

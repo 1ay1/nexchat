@@ -557,6 +557,7 @@ static void test_chat() {
     st.show_stamp = false;
     st.nick_width = 6;
     st.brackets = true;   // the columns below are counted with <> (the GUI's)
+    st.fit_nicks = false; // a fixed 6-column nick column
 
     ChatBuffer buf(5);
     for (int i = 1; i <= 3; ++i) buf.add("<n" + std::to_string(i) + ">\tline " + std::to_string(i) + "\n");
@@ -566,6 +567,19 @@ static void test_chat() {
     CHECK(rows[0].text.empty() && rows[1].text.empty());            // short buffer sits at the bottom
     CHECK_EQ(rows[2].text, std::string("  <n1> │ line 1"));
     CHECK_EQ(rows[4].text, std::string("  <n3> │ line 3"));
+    {
+        // fitted (the default): the column is as wide as the widest nick
+        ChatStyle fs = st;
+        fs.fit_nicks = true;
+        fs.nick_width = 14;
+        auto fr = ChatView{}.rows(buf, fs, 40, 5);
+        CHECK_EQ(fr[2].text, std::string("<n1> │ line 1"));
+        ChatBuffer lb;
+        lb.add("<a>\tx");
+        lb.add("<averyveryverylongnickname>\ty");
+        auto lr = ChatView{}.rows(lb, fs, 60, 2);
+        CHECK(lr[0].text.rfind(std::string(11, ' ') + "<a> │ x", 0) == 0);   // capped at nick_width (14)
+    }
 
     // Wrapping hangs under the text column (st.measure caps the text: 24).
     st.measure = 24;

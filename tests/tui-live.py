@@ -97,13 +97,14 @@ def main():
         t.type("/set stamp_text 1\r", 0.6)
         check(re.search(r"\d\d:\d\d", line_of("morning everyone")) is not None, "/set stamp_text 1: back")
 
-        l = line_of("morning everyone")
-        nick_col = l.find("alice")
+        # bob is shorter than the column (alice, mallory, … are wider)
+        l = line_of("did you try the new build")
+        nick_col = l.find("bob")
         t.type("/set text_indent 0\r", 0.6)
-        l2 = line_of("morning everyone")
-        check(l2.find("alice") < nick_col, "/set text_indent 0: nicks move flush left")
+        l2 = line_of("did you try the new build")
+        check(l2.find("bob") < nick_col, "/set text_indent 0: nicks move flush left")
         t.type("/set text_indent 1\r", 0.6)
-        check(line_of("morning everyone").find("alice") == nick_col, "/set text_indent 1: right-aligned again")
+        check(line_of("did you try the new build").find("bob") == nick_col, "/set text_indent 1: right-aligned again")
 
         t.type("/set gui_tab_layout 0\r", 0.8)
         tabs = [l for l in t.text().splitlines() if "Fake" in l and "#demo" in l]

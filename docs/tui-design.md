@@ -164,8 +164,10 @@ changes don't ripple into drawing code.
     first, then the tree (MainLayout::panes, the one answer for drawing
     and the mouse); on a screen of 160+ they grow a little
   - the chat line: stamp │ nick │ text with the text kept to a readable
-    measure (110); when it tightens the time goes first, then the nick
-    column gives way (to 8, …); under 28 columns of text it stacks, the
+    measure (110); the nick column is as wide as the widest nick in the
+    buffer (ChatStyle::fit_nicks; the configured width is the cap), so
+    short nicks don't leave a gap; when it tightens the time goes first,
+    then the nick column gives way (to 8, …); under 28 columns of text it stacks, the
     nick and time on a row of their own and the message under them
   - under 16 rows the topic bar goes
   - panels fill a small screen; a list and its page show one at a time

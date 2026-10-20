@@ -39,6 +39,22 @@ void ChatBuffer::clear() {
     ++version_;
 }
 
+int ChatBuffer::widest_left(bool brackets) const {
+    if (widest_at_ != version_) {
+        widest_[0] = widest_[1] = 0;
+        for (const ChatLine& l : lines_) {
+            if (l.left.empty() || l.day) continue;
+            const std::string plain = parse_irc(l.left).text;
+            int wd = display_width(plain);
+            widest_[1] = std::max(widest_[1], wd);
+            if (plain.size() > 2 && plain.front() == '<' && plain.back() == '>') wd -= 2;
+            widest_[0] = std::max(widest_[0], wd);
+        }
+        widest_at_ = version_;
+    }
+    return widest_[brackets ? 1 : 0];
+}
+
 namespace {
 int day_of(std::time_t t) {
     std::tm tm{};
@@ -398,7 +414,12 @@ static void seek_bottom(Cursor& c, const std::optional<std::pair<LineId, int>>& 
     }
 }
 
-std::vector<Rich> ChatView::rows(const ChatBuffer& buf, const ChatStyle& st, int w, int h) const {
+std::vector<Rich> ChatView::rows(const ChatBuffer& buf, const ChatStyle& st_in, int w, int h) const {
+    // the nick column is as wide as the widest nick in the buffer (no wider
+    // than the configured nick_width, never under 4): a channel of short
+    // nicks doesn't waste a gutter of space
+    ChatStyle st = st_in;
+    if (st.fit_nicks) st.nick_width = std::clamp(buf.widest_left(st.brackets), 4, st_in.nick_width);
     // A scrollbar column on the right once there's more than a screen: the
     // text is laid out a column narrower so it never sits under the bar.
     // (Every line's row count would cost a wrap of the whole buffer per
