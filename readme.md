@@ -18,6 +18,15 @@ Coming from HexChat:
 
 More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's different, what's new, and running both.
 
+### In the terminal
+
+`nexchat --tui` runs the same client in a terminal: the same servers, prefs and plugins, with the channel tree, the user list and the dialogs drawn as text. It fits any size, from an SSH session on a phone to a wide monitor. See [docs/tui-design.md](docs/tui-design.md).
+
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/tui-light.png">
+  <img alt="nexchat --tui: the channel tree, a conversation with coloured nicks and the user list, drawn in a terminal" src="docs/screenshots/tui-dark.png">
+</picture>
+
 The HexChat documentation still applies: [docs](https://hexchat.readthedocs.org/en/latest/index.html), [Python API](https://hexchat.readthedocs.org/en/latest/script_python.html), [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html).
 
 ## Download

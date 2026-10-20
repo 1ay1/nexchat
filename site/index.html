@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nexchat — HexChat, continued. IRC client for Linux, Windows, macOS</title>
-<meta name="description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued on GTK4 — your config, plugins and scripts carry over.">
+<title>nexchat — HexChat, continued. IRC client for Linux, Windows, macOS and the terminal</title>
+<meta name="description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop (GTK4) and in the terminal. HexChat, continued — your config, plugins and scripts carry over.">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="author" content="nexchat contributors">
 <link rel="canonical" href="https://1ay1.github.io/nexchat/">
@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="nexchat">
 <meta property="og:title" content="nexchat — HexChat, continued">
-<meta property="og:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued: same layout, your config and scripts carry over.">
+<meta property="og:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. HexChat, continued: same layout, your config and scripts carry over.">
 <meta property="og:url" content="https://1ay1.github.io/nexchat/">
 <meta property="og:image" content="https://1ay1.github.io/nexchat/img/og.png">
 <meta property="og:image:type" content="image/png">
@@ -31,7 +31,7 @@
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="nexchat — HexChat, continued">
-<meta name="twitter:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS. HexChat, continued.">
+<meta name="twitter:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. HexChat, continued.">
 <meta name="twitter:image" content="https://1ay1.github.io/nexchat/img/og.png">
 <meta name="twitter:image:alt" content="The nexchat window: channel tree, a conversation with coloured nicks, and the user list">
 
@@ -48,13 +48,16 @@
         "HexChat, continued",
         "nexchat IRC client"
       ],
-      "description": "A free, open source IRC client for Linux, BSD, Windows and macOS. It continues HexChat on GTK4, keeping its layout, menus and keybindings; HexChat configs, plugins and scripts carry over.",
+      "description": "A free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. It continues HexChat on GTK4, keeping its layout, menus and keybindings; HexChat configs, plugins and scripts carry over.",
       "applicationCategory": "CommunicationApplication",
       "applicationSubCategory": "IRC client",
       "operatingSystem": "Linux, BSD, Windows, macOS",
       "url": "https://1ay1.github.io/nexchat/",
       "image": "https://1ay1.github.io/nexchat/img/og.png",
-      "screenshot": "https://1ay1.github.io/nexchat/img/nexchat-light.webp",
+      "screenshot": [
+        "https://1ay1.github.io/nexchat/img/nexchat-light.webp",
+        "https://1ay1.github.io/nexchat/img/tui-dark.webp"
+      ],
       "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
       "isAccessibleForFree": true,
       "offers": {
@@ -63,7 +66,7 @@
         "priceCurrency": "USD"
       },
       "codeRepository": "https://github.com/1ay1/nexchat",
-      "programmingLanguage": "C",
+      "programmingLanguage": ["C", "C++"],
       "isBasedOn": {
         "@type": "SoftwareApplication",
         "name": "HexChat",
@@ -72,10 +75,11 @@
       "featureList": [
         "Channel tree or tabs, user list with mode icons",
         "GTK4 on every platform, HiDPI and Wayland",
-        "Follows the system light/dark mode",
+        "A full terminal client: nexchat --tui, keys and mouse",
+        "Follows the system light/dark mode; 600 terminal themes",
         "Native macOS menu bar and app bundle",
         "Python, Perl and Lua scripting",
-        "FiSH encryption, DCC, logging",
+        "FiSH encryption, DCC, logging, bouncers",
         "Imports HexChat configuration, plugins and scripts"
       ]
     },
@@ -107,10 +111,18 @@
         },
         {
           "@type": "Question",
+          "name": "Can I use nexchat over SSH or without a desktop?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Which platforms does nexchat run on?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Linux, the BSDs, Windows and macOS."
+            "text": "Linux, the BSDs, Windows and macOS. The terminal client runs on Linux, the BSDs and macOS."
           }
         },
         {
@@ -127,120 +139,272 @@
 }
 </script>
 <style>
-  /* deliberately plain: a document, like a man page or an old project
-     page. System font, one column, default link colours, no images
-     beyond the one screenshot. */
-  body {
-    max-width: 44em;
-    margin: 0 auto;
-    padding: 2em 1.25em 4em;
-    font: 17px/1.6 Georgia, "Times New Roman", serif;
-    color: #111;
-    background: #fff;
+  /* Plain, like a project page should be: one readable column, the system
+     font, real headings, a contents bar that follows you. Light and dark
+     follow the system. */
+  :root {
+    --fg: #16181b; --muted: #5d6570; --bg: #fbfbfa; --card: #f1f1ef;
+    --rule: #dcdcd8; --link: #1a5fb4; --accent: #6b4fbb; --code: #ececea;
   }
-  h1 { font-size: 2em; margin: 0.5em 0 0; }
-  h1 + p { margin-top: 0.2em; font-style: italic; }
-  h2 { font-size: 1.3em; margin: 2em 0 0.5em; }
-  img { max-width: 100%; height: auto; border: 1px solid #888; }
-  code, pre { font: 0.88em/1.5 Menlo, Consolas, "DejaVu Sans Mono", monospace; background: #f2f2f2; }
-  code { padding: 0 0.2em; }
-  pre { padding: 0.8em 1em; overflow-x: auto; }
-  pre code { padding: 0; font-size: 1em; }
-  dt { font-weight: bold; margin-top: 1em; }
-  dd { margin: 0.2em 0 0 0; }
-  footer { margin-top: 3em; font-size: 0.9em; }
-  /* after the rules above, so it wins */
   @media (prefers-color-scheme: dark) {
-    body { color: #ddd; background: #111; }
-    a { color: #8ab4f8; }
-    a:visited { color: #c58af9; }
-    code, pre { background: #222; color: #ddd; }
+    :root {
+      --fg: #e6e6e3; --muted: #9aa1ab; --bg: #0e0f10; --card: #17191b;
+      --rule: #2a2d31; --link: #8ab4f8; --accent: #b39ddb; --code: #1c1f22;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 4rem; }
+  body {
+    margin: 0;
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  a { color: var(--link); }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 0 1.25rem; }
+
+  /* the contents bar */
+  nav.top {
+    position: sticky; top: 0; z-index: 2;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+  nav.top .wrap { display: flex; align-items: center; gap: 1.25rem; height: 3.25rem; overflow-x: auto; }
+  nav.top .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--fg); text-decoration: none; white-space: nowrap; }
+  nav.top .brand img { width: 22px; height: 22px; border: 0; }
+  nav.top ul { display: flex; gap: 1.1rem; list-style: none; margin: 0 0 0 auto; padding: 0; }
+  nav.top ul a { color: var(--muted); text-decoration: none; font-size: .95rem; white-space: nowrap; }
+  nav.top ul a:hover { color: var(--fg); }
+
+  /* the opening */
+  header.hero { padding: 3.5rem 0 1.5rem; }
+  header.hero h1 { font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.1; margin: 0; letter-spacing: -.02em; }
+  header.hero .tag { font-size: 1.25rem; color: var(--muted); margin: .4rem 0 1.25rem; }
+  header.hero .lede { font-size: 1.1rem; max-width: 40rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 .5rem; }
+  .btn {
+    display: inline-block; padding: .6rem 1.1rem; border-radius: .5rem;
+    text-decoration: none; font-weight: 600; border: 1px solid var(--rule); color: var(--fg); background: var(--card);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  figure { margin: 1.5rem 0; }
+  figure img, picture img { display: block; max-width: 100%; height: auto; border-radius: .5rem; border: 1px solid var(--rule); }
+  figcaption { color: var(--muted); font-size: .92rem; margin-top: .5rem; }
+
+  main section { padding: 2.5rem 0 .5rem; border-top: 1px solid var(--rule); }
+  main section:first-child { border-top: 0; }
+  h2 { font-size: 1.6rem; margin: 0 0 .75rem; letter-spacing: -.01em; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 .4rem; }
+  p, ul, dl { margin: .6rem 0; }
+  li { margin: .25rem 0; }
+
+  /* feature grids */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .9rem; margin: 1rem 0; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: .6rem; padding: .9rem 1rem; }
+  .card h3 { margin: 0 0 .3rem; font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+  code, pre, kbd { font: .88em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; }
+  code { background: var(--code); padding: .05em .3em; border-radius: .25rem; }
+  pre { background: var(--code); padding: .9rem 1rem; border-radius: .5rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  kbd { background: var(--card); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: .3rem; padding: .05em .4em; font-size: .85em; }
+
+  table.keys { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  table.keys td { padding: .35rem .5rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.keys td:first-child { white-space: nowrap; width: 1%; }
+
+  details { border: 1px solid var(--rule); border-radius: .5rem; padding: .3rem .9rem; margin: .6rem 0; background: var(--card); }
+  details summary { cursor: pointer; font-weight: 600; padding: .3rem 0; }
+
+  dt { font-weight: 700; margin-top: 1.1rem; }
+  dd { margin: .2rem 0 0 0; }
+
+  footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding: 1.5rem 0 3rem; color: var(--muted); font-size: .9rem; }
+  footer ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    nav.top ul { gap: .8rem; }
+    nav.top ul li.opt { display: none; }
+    header.hero { padding-top: 2rem; }
   }
 </style>
 </head>
 <body>
 
-<h1>nexchat</h1>
-<p>HexChat, continued.</p>
+<nav class="top" aria-label="Contents">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="icon.svg" alt="" width="22" height="22">nexchat</a>
+    <ul>
+      <li><a href="#desktop">Desktop</a></li>
+      <li><a href="#terminal">Terminal</a></li>
+      <li class="opt"><a href="#hexchat">From HexChat</a></li>
+      <li><a href="#install">Install</a></li>
+      <li class="opt"><a href="#build">Build</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="https://github.com/1ay1/nexchat">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
 
-<p>nexchat is a free, open source IRC client for Linux, BSD, Windows and macOS. It is a continuation of <a href="https://hexchat.github.io/">HexChat</a>, whose repository was archived in 2024.</p>
+<div class="wrap" id="top">
 
-<p>The same HexChat you know: the same layout, menus, dialogs and keybindings, moved onto a current toolkit (GTK4) and kept working. Nothing is redesigned for its own sake.</p>
+<header class="hero">
+  <h1>nexchat</h1>
+  <p class="tag">HexChat, continued.</p>
+  <p class="lede">A free, open source IRC client for Linux, BSD, Windows and macOS — on the desktop and in the terminal. It continues <a href="https://hexchat.github.io/">HexChat</a>, whose repository was archived in 2024: the same layout, menus, dialogs and keybindings, on a current toolkit and kept working.</p>
+  <div class="actions">
+    <a class="btn primary" href="https://github.com/1ay1/nexchat/releases/latest">Download</a>
+    <a class="btn" href="#terminal">The terminal client</a>
+    <a class="btn" href="https://github.com/1ay1/nexchat">Source code</a>
+  </div>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark.webp">
+    <img src="img/nexchat-light.webp" width="2360" height="1120" loading="eager"
+         alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
+  </picture>
+</header>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark.webp">
-  <img src="img/nexchat-light.webp" width="2360" height="1120" loading="eager"
-       alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
-</picture>
+<main>
 
-<p><a href="https://github.com/1ay1/nexchat">Source code</a> &middot;
-<a href="https://github.com/1ay1/nexchat/issues">Issues</a> &middot;
-<a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a></p>
+<section id="desktop">
+  <h2>On the desktop</h2>
+  <p>The HexChat you know, moved onto GTK4. Nothing is redesigned for its own sake.</p>
+  <div class="grid">
+    <div class="card"><h3>GTK4 everywhere</h3><p>HiDPI and Wayland done properly, on Linux, the BSDs, Windows and macOS.</p></div>
+    <div class="card"><h3>Light and dark</h3><p>Colours follow the system's mode. Colours you set yourself stay as they are.</p></div>
+    <div class="card"><h3>At home on a Mac</h3><p>The system menu bar, &#8984; shortcuts, a menu bar icon, a self-contained <code>nexchat.app</code>.</p></div>
+    <div class="card"><h3>A native tray</h3><p>StatusNotifierItem on Linux and BSD, the notification area on Windows, a menu bar item on macOS.</p></div>
+    <div class="card"><h3>Stay online</h3><p>Set up a bouncer (soju) in one click, or connect to the one you have; your networks keep going while you're away.</p></div>
+    <div class="card"><h3>Scripting</h3><p>Python, Perl and Lua, plus C plugins — the HexChat API, unchanged.</p></div>
+  </div>
+</section>
 
-<h2 id="hexchat">Coming from HexChat</h2>
-<ul>
-  <li>On first start, nexchat copies <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>) to its own folder. Your HexChat folder is left as it is.</li>
-  <li>Plugins keep working. The C API is unchanged (<code>hexchat-plugin.h</code>, or the new <code>nexchat-plugin.h</code>).</li>
-  <li>Scripts keep working. Python can use <code>import hexchat</code> or <code>import nexchat</code>, Lua has both names, and Perl has <code>HexChat::</code> and <code>Nexchat::</code>.</li>
-  <li>Themes (<code>.hct</code>) and <code>colors.conf</code> work the same.</li>
-  <li>The <a href="https://hexchat.readthedocs.org/en/latest/">HexChat documentation</a> still applies.</li>
-</ul>
+<section id="terminal">
+  <h2>In the terminal</h2>
+  <p><code>nexchat --tui</code> runs the same client in a terminal: the same networks, settings, logs and scripts as the window, over SSH or in a tmux pane. It's the GUI's equal, not a cut-down version — every window is there, with the keyboard and the mouse.</p>
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: light)" srcset="img/tui-light.webp">
+      <img src="img/tui-dark.webp" width="1096" height="662" loading="lazy"
+           alt="nexchat in a terminal: the channel tree, a conversation with times shown only where they change, the user list grouped by rank, and a framed input line">
+    </picture>
+    <figcaption>nexchat --tui in a 120&times;34 terminal (Dracula; light scheme in light mode).</figcaption>
+  </figure>
 
-<h2 id="changes">What's different</h2>
-<ul>
-  <li>GTK4 on every platform, so HiDPI and Wayland work properly.</li>
-  <li>Colours follow the system's light or dark mode. Colours you set yourself stay as they are.</li>
-  <li>On macOS: the system menu bar, &#8984; shortcuts, a menu bar icon, and a self-contained <code>nexchat.app</code>.</li>
-  <li>The tray icon is native everywhere: StatusNotifierItem on Linux and BSD, the notification area on Windows, a menu bar item on macOS.</li>
-</ul>
+  <div class="grid">
+    <div class="card"><h3>Keys and mouse</h3><p>Click tabs and nicks, drag to select and copy, drag the dividers, hover to see what's clickable.</p></div>
+    <div class="card"><h3>Commands as you type</h3><p>Type <code>/</code> for every command, what it takes and what it does; values for its arguments as you go.</p></div>
+    <div class="card"><h3>Ctrl-P finds anything</h3><p>Every menu action, every tab, every command in one fuzzy list.</p></div>
+    <div class="card"><h3>600 themes</h3><p>Pick a scheme and see it as you move through the list, or keep your terminal's own colours.</p></div>
+    <div class="card"><h3>Any size</h3><p>From a phone-sized corner to a wide monitor: columns give way in order, and a narrow screen stacks each message under its nick.</p></div>
+    <div class="card"><h3>Everything live</h3><p>Preferences, <code>/set</code> and the theme apply at once; your <code>keybindings.conf</code> and <code>replace.conf</code> work here too.</p></div>
+  </div>
 
-<h2 id="install">Install</h2>
-<p>Download the latest release from <a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>:</p>
-<ul>
-  <li><strong>Windows</strong>: the <code>setup.exe</code> installer, or the <code>portable.zip</code> to run from any folder (settings stay beside it).</li>
-  <li><strong>macOS</strong> (Apple Silicon): the <code>.dmg</code>; drag nexchat to Applications. The first time, right-click it and choose Open.</li>
-  <li><strong>Linux</strong>: the <code>.flatpak</code>, installed with <code>flatpak install --user nexchat-*.flatpak</code>.</li>
-</ul>
+  <figure>
+    <img src="img/tui-commands.webp" width="1096" height="662" loading="lazy"
+         alt="The command popup in the terminal client: /kick with its usage, the argument being typed underlined, and the matching nicks to pick from">
+    <figcaption>Typing <code>/kick ma</code>: the usage, the argument you're on, and the people it could be.</figcaption>
+  </figure>
 
-<p>Or build from source with meson; it needs GTK 4.14 or newer, GLib 2.76, OpenSSL and meson 0.59.</p>
+  <h3>Keys worth knowing</h3>
+  <table class="keys">
+    <tr><td><kbd>Ctrl</kbd> <kbd>P</kbd></td><td>every command, action and tab</td></tr>
+    <tr><td><kbd>Ctrl</kbd> <kbd>G</kbd></td><td>go to a channel or conversation</td></tr>
+    <tr><td><kbd>Ctrl</kbd> <kbd>F</kbd></td><td>find in the chat (<kbd>&uarr;</kbd> <kbd>&darr;</kbd> step through matches)</td></tr>
+    <tr><td><kbd>Alt</kbd> <kbd>1</kbd>&hellip;<kbd>9</kbd></td><td>switch tabs; <kbd>Alt</kbd> <kbd>A</kbd> the next with activity</td></tr>
+    <tr><td><kbd>F10</kbd></td><td>the menus; <kbd>F1</kbd> every key</td></tr>
+  </table>
+  <p>The design, every window and how it's tested: <a href="https://github.com/1ay1/nexchat/blob/master/docs/tui-design.md">docs/tui-design.md</a>.</p>
+</section>
 
-<p>Linux and BSD:</p>
-<pre><code>git clone https://github.com/1ay1/nexchat
+<section id="hexchat">
+  <h2>Coming from HexChat</h2>
+  <ul>
+    <li>On first start, nexchat copies <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>) to its own folder. Your HexChat folder is left as it is.</li>
+    <li>Plugins keep working. The C API is unchanged (<code>hexchat-plugin.h</code>, or the new <code>nexchat-plugin.h</code>).</li>
+    <li>Scripts keep working. Python can use <code>import hexchat</code> or <code>import nexchat</code>, Lua has both names, and Perl has <code>HexChat::</code> and <code>Nexchat::</code>.</li>
+    <li>Themes (<code>.hct</code>) and <code>colors.conf</code> work the same.</li>
+    <li>The <a href="https://hexchat.readthedocs.org/en/latest/">HexChat documentation</a> still applies.</li>
+  </ul>
+  <p>More in <a href="https://github.com/1ay1/nexchat/blob/master/docs/coming-from-hexchat.md">Coming from HexChat</a>: what's different, what's new, and running both.</p>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+  <p>Download the latest release from <a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>:</p>
+  <div class="grid">
+    <div class="card"><h3>Windows</h3><p>The <code>setup.exe</code> installer, or the <code>portable.zip</code> to run from any folder (settings stay beside it).</p></div>
+    <div class="card"><h3>macOS</h3><p>The <code>.dmg</code> (Apple Silicon); drag nexchat to Applications. The first time, right-click it and choose Open. The terminal client is inside: <code>nexchat.app/Contents/MacOS/nexchat --tui</code>.</p></div>
+    <div class="card"><h3>Linux</h3><p>The <code>.flatpak</code>: <code>flatpak install --user nexchat-*.flatpak</code>. On Arch, <code>packaging/arch/nexchat-git</code>.</p></div>
+  </div>
+</section>
+
+<section id="build">
+  <h2>Build from source</h2>
+  <p>It builds with meson and needs GTK 4.14 or newer, GLib 2.76, OpenSSL and meson 0.59. The terminal client also needs a C++23 compiler and cmake (<code>-Dtui=enabled</code>; it's built when they're there).</p>
+
+  <details open>
+    <summary>Linux and BSD</summary>
+<pre><code>git clone --recursive https://github.com/1ay1/nexchat
 cd nexchat
 meson setup build
 ninja -C build
-./build/src/fe-gtk/nexchat</code></pre>
+./build/src/fe-gtk/nexchat          # the window
+./build/src/fe-gtk/nexchat --tui    # the terminal client</code></pre>
+  </details>
 
-<p>macOS, with Homebrew:</p>
-<pre><code>brew install meson gtk4 openssl@3
-git clone https://github.com/1ay1/nexchat
+  <details>
+    <summary>macOS, with Homebrew</summary>
+<pre><code>brew install meson gtk4 openssl@3 cmake
+git clone --recursive https://github.com/1ay1/nexchat
 cd nexchat
 meson setup build -Ddbus=disabled
 ninja -C build app
 open build/nexchat.app</code></pre>
+  </details>
 
-<p>Windows, in an MSYS2 UCRT64 shell:</p>
+  <details>
+    <summary>Windows, in an MSYS2 UCRT64 shell</summary>
 <pre><code>pacman -S mingw-w64-ucrt-x86_64-{gcc,pkg-config,meson,gtk4,gettext,openssl}
 git clone https://github.com/1ay1/nexchat
 cd nexchat
 meson setup build -Ddbus=disabled -Dwith-perl=false
 ninja -C build</code></pre>
+  </details>
+</section>
 
-<h2 id="faq">Questions</h2>
-<dl>
-  <dt>Is HexChat discontinued?</dt>
-  <dd>Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings.</dd>
-  <dt>Can I keep my HexChat settings, plugins and scripts?</dt>
-  <dd>Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names.</dd>
-  <dt>Which platforms does nexchat run on?</dt>
-  <dd>Linux, the BSDs, Windows and macOS.</dd>
-  <dt>Is nexchat free?</dt>
-  <dd>Yes. It is free and open source software under the GPL v2, like HexChat and X-Chat before it.</dd>
-</dl>
+<section id="faq">
+  <h2>Questions</h2>
+  <dl>
+    <dt>Is HexChat discontinued?</dt>
+    <dd>Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings.</dd>
+    <dt>Can I keep my HexChat settings, plugins and scripts?</dt>
+    <dd>Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names.</dd>
+    <dt>Can I use nexchat over SSH or without a desktop?</dt>
+    <dd>Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window.</dd>
+    <dt>Which platforms does nexchat run on?</dt>
+    <dd>Linux, the BSDs, Windows and macOS. The terminal client runs on Linux, the BSDs and macOS.</dd>
+    <dt>Is nexchat free?</dt>
+    <dd>Yes. It is free and open source software under the GPL v2, like HexChat and X-Chat before it.</dd>
+  </dl>
+</section>
+
+</main>
 
 <footer>
+  <ul>
+    <li><a href="https://github.com/1ay1/nexchat">Source code</a></li>
+    <li><a href="https://github.com/1ay1/nexchat/issues">Issues</a></li>
+    <li><a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a></li>
+    <li><a href="https://github.com/1ay1/nexchat/releases">Releases</a></li>
+  </ul>
   <p>X-Chat &copy; 1998&ndash;2010 Peter &#381;elezn&yacute;. HexChat &copy; 2009&ndash;2014 Berke Viktor. nexchat is released under the GPL v2.</p>
 </footer>
 
+</div>
 </body>
 </html>
