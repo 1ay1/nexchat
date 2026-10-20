@@ -484,6 +484,17 @@ fe_apply_css (void)
 	   (GTK4 scrollbars have no steppers.) */
 	g_string_append (css,
 		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n");
+	/* lag and throttle meters under the user list: GTK4's progress bar is
+	   a rounded trough with its own minimum sizes, which at this size drew
+	   as two hollow outlines with a speck of colour. Flat 4px bars: a
+	   track and its fill, nothing else. */
+	g_string_append (css,
+		"progressbar.nx-meter { min-height: 4px; padding: 0; margin: 2px 4px; }\n"
+		"progressbar.nx-meter.horizontal > trough { min-height: 4px; min-width: 0; border: none;"
+		" border-radius: 2px; background-color: alpha(@theme_fg_color, 0.12); box-shadow: none; }\n"
+		"progressbar.nx-meter.horizontal > trough > progress { min-height: 4px; min-width: 0; border: none;"
+		" border-radius: 2px; background-image: none; box-shadow: none; }\n"
+		"progressbar.nx-meter.nx-throttle.horizontal > trough > progress { background-color: #e5a50a; }\n");
 
 	/* Channel tabs, the nick button and the "3 ops, 16 total" box: GTK2
 	   buttons were text + a few px; GTK3 themes pad buttons to ~32px tall,
