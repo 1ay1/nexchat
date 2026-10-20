@@ -46,16 +46,15 @@ msgstr "Klient IRC"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat jest prostym, lecz dowolnie poszerzalnym klientem IRC. Pozwala na bezpieczne dołączenie do wielu sieci i rozmawianie z użytkownikami prywatnie bądź na kanałach. Można nawet przesyłać pliki."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat jest prostym, lecz dowolnie poszerzalnym klientem IRC. Pozwala na bezpieczne dołączenie do wielu sieci i rozmawianie z użytkownikami prywatnie bądź na kanałach. Można nawet przesyłać pliki."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat wspiera takie funkcje, jak: DCC, SASL, serwery proxy, sprawdzanie pisowni, alerty, logi, własne motywy i skrypty w Pythonie/Perlu."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat wspiera takie funkcje, jak: DCC, SASL, serwery proxy, sprawdzanie pisowni, alerty, logi, własne motywy i skrypty w Pythonie/Perlu."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -72,15 +71,15 @@ msgstr "IM;Chat;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "Otwórz tryb bezpieczny"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Menedżer motywów HexChat"
+msgid "nexchat Theme Manager"
+msgstr "Menedżer motywów nexchat"
 
 #. 0 means unlimited
 #. STRINGS
@@ -759,9 +758,9 @@ msgstr "RECONNECT [<host>] [<port>] [<hasło>], można użyć jako /RECONNECT ab
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <tekst>, wyślij surowe dane do HexChata, tak jakby zostały odebrane od serwera IRC"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <tekst>, wyślij surowe dane do nexchata, tak jakby zostały odebrane od serwera IRC"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4077,7 +4076,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4088,7 +4087,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Komendy użytkownika - Kody specjalne:\n\n%c  =  bieżący kanał\n%e  =  nazwa bieżącej sieci\n%m  =  informacje o maszynie\n%n  =  Twój nick\n%t  =  godzina/data\n%v  =  wersja HexChata\n%2  =  2 słowo\n%3  =  3 słowo\n&2  =  2 słowo do końca linii\n&3  =  3 słowo do końca linii\n\nnp.:\n/cmd jan czesc\n\n&2 było by \"jan\"\n&3 było by \"jan czesc\"."
+msgstr ""
+"Komendy użytkownika - Kody specjalne:\n"
+"\n"
+"%c  =  bieżący kanał\n"
+"%e  =  nazwa bieżącej sieci\n"
+"%m  =  informacje o maszynie\n"
+"%n  =  Twój nick\n"
+"%t  =  godzina/data\n"
+"%v  =  wersja nexchata\n"
+"%2  =  2 słowo\n"
+"%3  =  3 słowo\n"
+"&2  =  2 słowo do końca linii\n"
+"&3  =  3 słowo do końca linii\n"
+"\n"
+"np.:\n"
+"/cmd jan czesc\n"
+"\n"
+"&2 było by \"jan\"\n"
+"&3 było by \"jan czesc\"."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4145,8 +4162,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "Zarządanie Linkami - Kody specjalne:\n\n%s  =  ciąg z linkiem\n\nDodanie ! na początku komendy\noznacza, że zostanie ona wysłana\ndo terminala zamiast do HexChata"
+"shell instead of nexchat"
+msgstr ""
+"Zarządanie Linkami - Kody specjalne:\n"
+"\n"
+"%s  =  ciąg z linkiem\n"
+"\n"
+"Dodanie ! na początku komendy\n"
+"oznacza, że zostanie ona wysłana\n"
+"do terminala zamiast do nexchata"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

@@ -1659,7 +1659,9 @@ menu_ctcpguiopen (void)
 static void
 menu_docs (GtkWidget *wid, gpointer none)
 {
-	fe_open_url ("http://hexchat.readthedocs.org");
+	/* nexchat's site; it links on to the command and scripting reference
+	   (HexChat's, which nexchat keeps to) */
+	fe_open_url ("https://1ay1.github.io/nexchat/");
 }
 
 /*static void

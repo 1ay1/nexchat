@@ -40,16 +40,15 @@ msgstr "IRC-klient"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat er en enkel og fleksibel IRC-klient. Den gir deg muligheten til å sikkert koble deg til nettverk, ha samtaler i kanaler eller privat med brukere, og dette med et tilpassbart grensesnitt. Du kan også utføre filoverføringer."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat er en enkel og fleksibel IRC-klient. Den gir deg muligheten til å sikkert koble deg til nettverk, ha samtaler i kanaler eller privat med brukere, og dette med et tilpassbart grensesnitt. Du kan også utføre filoverføringer."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat støtter funksjoner som: DCC, SASL, mellomtjenere, stavekontroll, varslinger, logging, tilpassbare temaer, samt Python-/Perl-skript."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat støtter funksjoner som: DCC, SASL, mellomtjenere, stavekontroll, varslinger, logging, tilpassbare temaer, samt Python-/Perl-skript."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -66,15 +65,15 @@ msgstr "IM;Chat;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "Åpne i sikker modus"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Temabehandler for HexChat"
+msgid "nexchat Theme Manager"
+msgstr "Temabehandler for nexchat"
 
 #. 0 means unlimited
 #. STRINGS
@@ -753,9 +752,9 @@ msgstr "RECONNECT [<vert>] [<port>] [<passord>], kan bli brukt som /RECONNECT fo
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <tekst>, send rå data til HexChat, som om det var mottatt fra IRC-verten"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <tekst>, send rå data til nexchat, som om det var mottatt fra IRC-verten"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4071,7 +4070,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4082,7 +4081,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Brukerkommandoer - spesialkoder:\n\n%c  =  gjeldende kanal\n%e  =  gjeldende nettverksnavn\n%m  =  maskininformasjon\n%n  =  kallenavnet ditt\n%t  =  tid/dato\n%v  =  HexChat-versjon\n%2  =  ord 2\n%3  =  ord 3\n&2  =  ord 2 til enden av linjen\n&3  =  ord 3 til enden av linjen\n\nf.eks.:\n/cmd john hallo\n\n%2 vil bli «john»\n&2 vil bli «john hallo»."
+msgstr ""
+"Brukerkommandoer - spesialkoder:\n"
+"\n"
+"%c  =  gjeldende kanal\n"
+"%e  =  gjeldende nettverksnavn\n"
+"%m  =  maskininformasjon\n"
+"%n  =  kallenavnet ditt\n"
+"%t  =  tid/dato\n"
+"%v  =  nexchat-versjon\n"
+"%2  =  ord 2\n"
+"%3  =  ord 3\n"
+"&2  =  ord 2 til enden av linjen\n"
+"&3  =  ord 3 til enden av linjen\n"
+"\n"
+"f.eks.:\n"
+"/cmd john hallo\n"
+"\n"
+"%2 vil bli «john»\n"
+"&2 vil bli «john hallo»."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4139,8 +4156,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "URL-behandlere - spesialkoder:\n\n%s  =  URL-strengen\n\nPlassering av ! foran kommandoen\nindikerer at den skal sendes til et\nshell i steden for HexChat"
+"shell instead of nexchat"
+msgstr ""
+"URL-behandlere - spesialkoder:\n"
+"\n"
+"%s  =  URL-strengen\n"
+"\n"
+"Plassering av ! foran kommandoen\n"
+"indikerer at den skal sendes til et\n"
+"shell i steden for nexchat"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

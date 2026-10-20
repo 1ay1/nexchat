@@ -36,16 +36,15 @@ msgstr "Cliente de IRC"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "O HexChat é um Cliente de IRC fácil de usar, mas também fácil de expandir. Ele permite que te juntes de forma segura a várias redes e que fales com outros utilizadores em privado ou em canais através de uma interface personalizável. Se quiseres, podes até transferir ficheiros!"
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"O nexchat é um Cliente de IRC fácil de usar, mas também fácil de expandir. Ele permite que te juntes de forma segura a várias redes e que fales com outros utilizadores em privado ou em canais através de uma interface personalizável. Se quiseres, podes até transferir ficheiros!"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "O HexChat suporta funcionalidades como: DCC, SASL, proxies, verificação de erros ortográficos, alertas, registos, temas personalizados, e scripts em Python/Perl."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"O nexchat suporta funcionalidades como: DCC, SASL, proxies, verificação de erros ortográficos, alertas, registos, temas personalizados, e scripts em Python/Perl."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -62,15 +61,15 @@ msgstr "IM;Chat;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "Abrir Modo Seguro"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Gestor de Temas do HexChat"
+msgid "nexchat Theme Manager"
+msgstr "Gestor de Temas do nexchat"
 
 #. 0 means unlimited
 #. STRINGS
@@ -749,9 +748,9 @@ msgstr "RECONNECT [<endereço>] [<porta>] [<palavrapasse>], Usado para reiniciar
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <texto>, envio raw data para HexChat,como se fosse recebido do servidor de IRC"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <texto>, envio raw data para nexchat,como se fosse recebido do servidor de IRC"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4067,7 +4066,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4078,7 +4077,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Comandos Utilizador - Códigos especiais:\n\n%c  =  canal em uso\n%e  =  rede em uso\n%m  =  info máquina\n%n  =  meu nick\n%t  =  hora/data\n%v  =  Versão HexChat\n%2  =  palavra 2\n%3  =  palavra 3\n&2  =  palavra 2 no final da linha\n&3  =  palavra 3 no final da linha\n\nex:\n/cmd artur olá\n\n%2 será \"artur\"\n&2 será \"artur olá\"."
+msgstr ""
+"Comandos Utilizador - Códigos especiais:\n"
+"\n"
+"%c  =  canal em uso\n"
+"%e  =  rede em uso\n"
+"%m  =  info máquina\n"
+"%n  =  meu nick\n"
+"%t  =  hora/data\n"
+"%v  =  Versão nexchat\n"
+"%2  =  palavra 2\n"
+"%3  =  palavra 3\n"
+"&2  =  palavra 2 no final da linha\n"
+"&3  =  palavra 3 no final da linha\n"
+"\n"
+"ex:\n"
+"/cmd artur olá\n"
+"\n"
+"%2 será \"artur\"\n"
+"&2 será \"artur olá\"."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4135,8 +4152,14 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "URL Manipuladores- Códigos especiais:\n\n%s  =  string URL \nInserir um! na frente do comando\nindica que deve ser enviado para uma\nshell em vez HexChat"
+"shell instead of nexchat"
+msgstr ""
+"URL Manipuladores- Códigos especiais:\n"
+"\n"
+"%s  =  string URL \n"
+"Inserir um! na frente do comando\n"
+"indica que deve ser enviado para uma\n"
+"shell em vez nexchat"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

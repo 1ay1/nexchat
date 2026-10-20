@@ -34,16 +34,15 @@ msgstr "IRC 클라이언트"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "헥스채트는 사용하기 쉽고 확장성이 뛰어난 IRC 클라이언트 입니다. 여러 네트워크에 안전하게 참여할 수 있으며, 여러분이 직접 유연하게 꾸밀 수 있는 인터페이스를 사용하여 다른 사람과 개인적으로 대화하거나 대화방에서 대화할 수 있습니다. 게다가 파일도 보낼 수 있습니다."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"헥스채트는 사용하기 쉽고 확장성이 뛰어난 IRC 클라이언트 입니다. 여러 네트워크에 안전하게 참여할 수 있으며, 여러분이 직접 유연하게 꾸밀 수 있는 인터페이스를 사용하여 다른 사람과 개인적으로 대화하거나 대화방에서 대화할 수 있습니다. 게다가 파일도 보낼 수 있습니다."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "핵스채트는 DCC, SASL, 프록시 서버, 철자 검사, 경고, 기록, 사용자 정의 테마, 파이썬/펄 스크립트 같은 기능을 지원합니다."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"핵스채트는 DCC, SASL, 프록시 서버, 철자 검사, 경고, 기록, 사용자 정의 테마, 파이썬/펄 스크립트 같은 기능을 지원합니다."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -60,14 +59,14 @@ msgstr "IM;인스턴트 메신저;Chat;대화;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "공개 안전 모드"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
+msgid "nexchat Theme Manager"
 msgstr "핵스채트 테마 관리자"
 
 #. 0 means unlimited
@@ -747,8 +746,7 @@ msgstr "RECONNECT [<호스트>] [<포트>] [<암호>], 그냥 /RECONNECT는 현�
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
 msgstr "RECV <텍스트>, IRC 서버의 데이터와 같은 원시 데이터를 헥스채트에 보냅니다"
 
 #: src/common/outbound.c:4086
@@ -4065,7 +4063,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4076,7 +4074,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "사용자 명령 - 특수 코드:\n\n%c  =  현재 채널\n%e  =  현재 네트워크 이름\n%m  =  머신 정보\n%n  =  자신의 대화명\n%t  =  날짜/시간\n%v  =  헥스채트 버전\n%2  =  단어 2\n%3  =  단어 3\n&2  =  단어 2부터 줄 끌까지\n&3  =  단어 3부터 줄 끝까지\n\n예:\n/cmd john hello\n\n%2는 \"john\"\n&2는 \"john hello\"이 됩니다."
+msgstr ""
+"사용자 명령 - 특수 코드:\n"
+"\n"
+"%c  =  현재 채널\n"
+"%e  =  현재 네트워크 이름\n"
+"%m  =  머신 정보\n"
+"%n  =  자신의 대화명\n"
+"%t  =  날짜/시간\n"
+"%v  =  헥스채트 버전\n"
+"%2  =  단어 2\n"
+"%3  =  단어 3\n"
+"&2  =  단어 2부터 줄 끌까지\n"
+"&3  =  단어 3부터 줄 끝까지\n"
+"\n"
+"예:\n"
+"/cmd john hello\n"
+"\n"
+"%2는 \"john\"\n"
+"&2는 \"john hello\"이 됩니다."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4133,8 +4149,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "URL 처리기 - 특수 코드:\n\n%s  =  URL 문자열\n\n명령 앞에 ! 문자를 놓으십시오\n헥스채트 대신 쉘로 보내야 함을\n나타냅니다"
+"shell instead of nexchat"
+msgstr ""
+"URL 처리기 - 특수 코드:\n"
+"\n"
+"%s  =  URL 문자열\n"
+"\n"
+"명령 앞에 ! 문자를 놓으십시오\n"
+"헥스채트 대신 쉘로 보내야 함을\n"
+"나타냅니다"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

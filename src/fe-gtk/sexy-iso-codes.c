@@ -98,8 +98,23 @@ GHashTable *hash_table)
 	gchar *filename;
 	GError *error = NULL;
 
-	filename = g_build_filename (ISO_CODES_PREFIX, "share", "xml", "iso-codes",
-		basename, NULL);
+	filename = NULL;
+#ifdef G_OS_WIN32
+	/* a packaged install: share\ next to bin\ */
+	{
+		char *root = g_win32_get_package_installation_directory_of_module (NULL);
+		if (root)
+		{
+			filename = g_build_filename (root, "share", "xml", "iso-codes", basename, NULL);
+			g_free (root);
+			if (!g_file_test (filename, G_FILE_TEST_EXISTS))
+				g_clear_pointer (&filename, g_free);
+		}
+	}
+#endif
+	if (!filename)
+		filename = g_build_filename (ISO_CODES_PREFIX, "share", "xml", "iso-codes",
+			basename, NULL);
 	mapped_file = g_mapped_file_new (filename, FALSE, &error);
 	g_free (filename);
 

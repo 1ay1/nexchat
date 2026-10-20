@@ -30,3 +30,6 @@ osx/.HexChat.app
 *.VC.db
 *.VC.opendb
 __pycache__/
+
+# release packages (win32/package.sh, osx/make-dmg.sh)
+/dist/

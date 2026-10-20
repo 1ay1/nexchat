@@ -37,16 +37,15 @@ msgstr "IRCクライアント"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChatは使いやすく、しかも拡張可能なIRCクライアントです。安全に複数のネットワークに参加でき、カスタマイズ可能なインターフェイスを使用してチャネルのユーザーと話すことが可能、さらにファイルを転送することができます。"
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchatは使いやすく、しかも拡張可能なIRCクライアントです。安全に複数のネットワークに参加でき、カスタマイズ可能なインターフェイスを使用してチャネルのユーザーと話すことが可能、さらにファイルを転送することができます。"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChatは、次の機能をサポートしています: DCC, SASL, プロキシ, スペルチェック, アラート, カスタムテーマ, Python/Perl スクリプト"
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchatは、次の機能をサポートしています: DCC, SASL, プロキシ, スペルチェック, アラート, カスタムテーマ, Python/Perl スクリプト"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -70,8 +69,8 @@ msgid "Open Safe Mode"
 msgstr "セーフモードで開く"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "HexChatテーママネージャー"
+msgid "nexchat Theme Manager"
+msgstr "nexchatテーママネージャー"
 
 #. 0 means unlimited
 #. STRINGS
@@ -750,8 +749,7 @@ msgstr "RECONNECT [<ホスト>] [<ポート>] [<パスワード>], /RECONNECTだ
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
 msgstr ""
 
 #: src/common/outbound.c:4086
@@ -4068,7 +4066,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4079,7 +4077,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "ユーザーコマンド - 特殊なコード:\n\n%c = 現在のチャンネル\n%e = 現在のネットワーク名\n%m = マシン情報\n%n = 自分のニック\n%t = 時間/日付\n%v = HexChatのバージョン\n%2 = 単語 2\n%3 = 単語 3\n&2 = 行の末尾にある単語 2\n&3 = 行の末尾にある単語 3\n\n例:\n/cmd john hello\n\n%2 \"john\" になります\n&2 \"john hello\" になります"
+msgstr ""
+"ユーザーコマンド - 特殊なコード:\n"
+"\n"
+"%c = 現在のチャンネル\n"
+"%e = 現在のネットワーク名\n"
+"%m = マシン情報\n"
+"%n = 自分のニック\n"
+"%t = 時間/日付\n"
+"%v = nexchatのバージョン\n"
+"%2 = 単語 2\n"
+"%3 = 単語 3\n"
+"&2 = 行の末尾にある単語 2\n"
+"&3 = 行の末尾にある単語 3\n"
+"\n"
+"例:\n"
+"/cmd john hello\n"
+"\n"
+"%2 \"john\" になります\n"
+"&2 \"john hello\" になります"
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4136,7 +4152,7 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
+"shell instead of nexchat"
 msgstr ""
 
 #: src/fe-gtk/menu.c:1529
@@ -4425,7 +4441,7 @@ msgstr "コンテンツ(_C)"
 
 #: src/fe-gtk/menu.c:1850
 msgid "_About"
-msgstr "HexChat について(_A)"
+msgstr "nexchat について(_A)"
 
 #: src/fe-gtk/menu.c:2356
 msgid "_Attach"

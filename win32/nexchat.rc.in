@@ -1,0 +1,38 @@
+/* nexchat.exe's icon and version info (Explorer's Properties > Details,
+   the taskbar, Alt+Tab, the installer's uninstall entry) */
+#include <winver.h>
+
+#define NX_VERSION "@VERSION@"
+#define NX_COMMA_VERSION @COMMA_VERSION@
+
+/* the first icon in the file is the program's icon */
+1 ICON "@ICON@"
+
+1 VERSIONINFO
+FILEVERSION    NX_COMMA_VERSION
+PRODUCTVERSION NX_COMMA_VERSION
+FILEFLAGSMASK  0x3fL
+FILEFLAGS      0x0L
+FILEOS         VOS_NT_WINDOWS32
+FILETYPE       VFT_APP
+FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904B0"
+		BEGIN
+			VALUE "CompanyName", "nexchat"
+			VALUE "FileDescription", "nexchat IRC client"
+			VALUE "FileVersion", NX_VERSION
+			VALUE "InternalName", "nexchat"
+			VALUE "LegalCopyright", "GPL-2.0-or-later. Based on HexChat and X-Chat."
+			VALUE "OriginalFilename", "nexchat.exe"
+			VALUE "ProductName", "nexchat"
+			VALUE "ProductVersion", NX_VERSION
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x0409, 0x04B0
+	END
+END

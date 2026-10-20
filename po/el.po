@@ -38,16 +38,14 @@ msgstr "Πελάτης IRC"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
 msgstr ""
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "Το HexChat υποστηρίζει λειτουργίες όπως: DCC, SASL, διαμεσολαβητές, ορθογραφική διόρθωση, ειδοποιήσεις, logging, προσαρμοσμένα θέματα, και Python/Perl scripts."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"Το nexchat υποστηρίζει λειτουργίες όπως: DCC, SASL, διαμεσολαβητές, ορθογραφική διόρθωση, ειδοποιήσεις, logging, προσαρμοσμένα θέματα, και Python/Perl scripts."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -71,8 +69,8 @@ msgid "Open Safe Mode"
 msgstr "Άνοιγμα ασφαλούς λειτουργίας"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Διαχειριστής θεμάτων HexChat"
+msgid "nexchat Theme Manager"
+msgstr "Διαχειριστής θεμάτων nexchat"
 
 #. 0 means unlimited
 #. STRINGS
@@ -751,8 +749,7 @@ msgstr "RECONΝECT [<διακομιστής>] [<port>] [<password>], Μπορε�
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
 msgstr ""
 
 #: src/common/outbound.c:4086
@@ -4069,7 +4066,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4137,7 +4134,7 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
+"shell instead of nexchat"
 msgstr ""
 
 #: src/fe-gtk/menu.c:1529

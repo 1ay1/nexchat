@@ -1,0 +1,192 @@
+name: Release
+# Push a tag like v0.1.0 (or run it by hand with a version) and this builds
+# every package and attaches them to a GitHub Release:
+#   macOS        nexchat-<v>-macos-arm64.dmg
+#   Windows      nexchat-<v>-windows-x64-setup.exe (installer)
+#                nexchat-<v>-windows-x64-portable.zip
+#   Linux        nexchat-<v>-linux-x86_64.flatpak
+#   source       nexchat-<v>.tar.xz
+# Unsigned for now: macOS asks to confirm the first open (right-click >
+# Open), Windows SmartScreen says "unrecognized app" until the installer
+# has a reputation or a signing certificate.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, e.g. 0.1.0 (a draft release is made)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ inputs.version || github.ref_name }}
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Version
+        run: |
+          v="${VERSION#v}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # the tag and meson.build must agree: the version shown in About,
+          # in the Windows file properties and the bundle all come from meson
+          grep -q "version: '$v'" meson.build || {
+            echo "::error::meson.build says $(grep -o "version: '[^']*'" meson.build | head -1); tag says $v"; exit 1; }
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build libgtk-4-dev libssl-dev gettext desktop-file-utils appstream
+      - name: Source tarball
+        run: |
+          meson setup build -Dplugin=false -Ddbus=disabled
+          meson dist -C build --no-tests --formats xztar
+          mkdir -p dist
+          cp build/meson-dist/*.tar.xz "dist/nexchat-${{ steps.v.outputs.version }}.tar.xz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: dist/*
+
+  macos:
+    needs: source
+    runs-on: macos-latest
+    env:
+      V: ${{ needs.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: brew install meson ninja pkg-config openssl@3 gettext adwaita-icon-theme librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
+      # GTK with nexchat's fixes, built once per patch set
+      - uses: actions/cache@v4
+        id: gtk
+        with:
+          path: ~/.cache/nexchat-gtk
+          key: gtk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('osx/build-gtk.sh', 'osx/gtk-patches/*') }}
+      - name: GTK
+        if: steps.gtk.outputs.cache-hit != 'true'
+        run: sh osx/build-gtk.sh
+      - name: Build
+        run: |
+          meson setup build -Ddbus=disabled -Dwith-perl=false -Dwith-python=false -Dwith-lua=false \
+            "-Dpkg_config_path=$HOME/.cache/nexchat-gtk/lib/pkgconfig"
+          ninja -C build
+          ninja -C build app
+          sh osx/check-app.sh build/nexchat.app
+          sh osx/make-dmg.sh build/nexchat.app "$V"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+
+  windows:
+    needs: source
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    env:
+      V: ${{ needs.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >-
+            p7zip
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-gtk-update-icon-cache
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-enchant
+            mingw-w64-ucrt-x86_64-luajit
+            mingw-w64-ucrt-x86_64-python-cffi
+            mingw-w64-ucrt-x86_64-gettext
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-ntldd
+      - name: Build
+        run: |
+          meson setup build --prefix=/ucrt64 --buildtype=release \
+            -Ddbus=disabled -Dwith-upd=false -Dwith-perl=false
+          ninja -C build
+      - name: Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: Package
+        run: |
+          export PATH="$PATH:/c/Program Files (x86)/Inno Setup 6"
+          sh win32/package.sh build "$V"
+          ls -la dist
+          test -f "dist/nexchat-$V-windows-x64-setup.exe"
+          test -f "dist/nexchat-$V-windows-x64-portable.zip"
+      # the portable build starts and finds its config beside it
+      - name: Smoke test
+        run: |
+          mkdir -p t && cd t && 7z x -bso0 "../dist/nexchat-$V-windows-x64-portable.zip"
+          ./nexchat-$V-windows-x64-portable/bin/nexchat.exe --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+
+  flatpak:
+    needs: source
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-47
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: nexchat-${{ needs.source.outputs.version }}-linux-x86_64.flatpak
+          manifest-path: flatpak/io.github.nexchat.json
+          upload-artifact: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: '*.flatpak'
+
+  release:
+    needs: [source, macos, windows, flatpak]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum ./* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.source.outputs.version }}
+          name: nexchat ${{ needs.source.outputs.version }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            ## Downloads
+
+            | | |
+            |---|---|
+            | **macOS** (Apple Silicon) | `nexchat-${{ needs.source.outputs.version }}-macos-arm64.dmg`: open it, drag nexchat to Applications. First launch: right-click nexchat > Open (the app isn't notarized yet). |
+            | **Windows** installer | `nexchat-${{ needs.source.outputs.version }}-windows-x64-setup.exe`: Start menu entry, uninstaller, irc:// links. |
+            | **Windows** portable | `nexchat-${{ needs.source.outputs.version }}-windows-x64-portable.zip`: unzip anywhere, run `nexchat.bat`; settings stay in the folder. |
+            | **Linux** | `nexchat-${{ needs.source.outputs.version }}-linux-x86_64.flatpak`: `flatpak install --user nexchat-*.flatpak` |
+            | Source | `nexchat-${{ needs.source.outputs.version }}.tar.xz` |
+
+            Your HexChat settings, themes and scripts are picked up on first start.

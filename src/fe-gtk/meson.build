@@ -120,6 +120,15 @@ resources = gnome.compile_resources('resources',
 
 if host_machine.system() == 'windows'
   hexchat_gtk_ldflags += '-Wl,-e,mainCRTStartup'
+  # nexchat.exe's icon and version info (VERSIONINFO wants a,b,c,d)
+  ver = (meson.project_version() + '.0.0.0').split('.')
+  rc = configure_file(input: '../../win32/nexchat.rc.in', output: 'nexchat.rc',
+    configuration: {
+      'VERSION': meson.project_version(),
+      'COMMA_VERSION': ','.join([ver[0], ver[1], ver[2], ver[3]]),
+      'ICON': (meson.project_source_root() / 'data' / 'icons' / 'nexchat.ico').replace('\\', '/'),
+    })
+  hexchat_gtk_sources += import('windows').compile_resources(rc)
 endif
 
 # Wayland has no urgency hint: ask through xdg-activation instead

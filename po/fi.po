@@ -33,16 +33,15 @@ msgstr "IRC-asiakassovellus"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat on helppokäyttäinen IRC-asiakassovellus, joka on helposti laajennettavissa. Sen avulla voit liittyä lukuisiin eri verkkoihin ja keskustella muiden kanssa kanavilla tai yksityiskeskusteluissa. Voit myös siirtää tiedostoja muiden käyttäjien kanssa."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat on helppokäyttäinen IRC-asiakassovellus, joka on helposti laajennettavissa. Sen avulla voit liittyä lukuisiin eri verkkoihin ja keskustella muiden kanssa kanavilla tai yksityiskeskusteluissa. Voit myös siirtää tiedostoja muiden käyttäjien kanssa."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat tukee muun muassa seuraavia ominaisuuksia: DCC, SASL, välityspalvelimet, oikoluku, hälytykset, lokitus, mukautettavat teemat ja Python-/Perl-skriptit."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat tukee muun muassa seuraavia ominaisuuksia: DCC, SASL, välityspalvelimet, oikoluku, hälytykset, lokitus, mukautettavat teemat ja Python-/Perl-skriptit."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -66,8 +65,8 @@ msgid "Open Safe Mode"
 msgstr ""
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "HexChat-teemojen hallinta"
+msgid "nexchat Theme Manager"
+msgstr "nexchat-teemojen hallinta"
 
 #. 0 means unlimited
 #. STRINGS
@@ -746,8 +745,7 @@ msgstr "RECONNECT [<isäntä>] [<portti>] [<salasana>], voidaan kutsua /RECONNEC
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
 msgstr ""
 
 #: src/common/outbound.c:4086
@@ -4064,7 +4062,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4132,7 +4130,7 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
+"shell instead of nexchat"
 msgstr ""
 
 #: src/fe-gtk/menu.c:1529

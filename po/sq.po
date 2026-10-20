@@ -34,16 +34,15 @@ msgstr "Klient IRC"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat-i është një klient IRC-je i lehtë për t’u përdorur, por prapëseprapë shumë i zgjerueshëm. Ju lejon të hyni në mënyrë të sigurt, në shumë rrjete njëherësh, dhe të bisedoni me përdoruesit privatisht ose në kanale, duke përdorur një ndërfaqe të personalizueshme. Mundeni madje edhe të shkëmbeni kartela."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat-i është një klient IRC-je i lehtë për t’u përdorur, por prapëseprapë shumë i zgjerueshëm. Ju lejon të hyni në mënyrë të sigurt, në shumë rrjete njëherësh, dhe të bisedoni me përdoruesit privatisht ose në kanale, duke përdorur një ndërfaqe të personalizueshme. Mundeni madje edhe të shkëmbeni kartela."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat-i mbulon veçori të tilla si: DCC, SASL, ndërmjetës, drejtshkrim, sinjalizime, regjistrim veprimtarie, tema të personalizueshme, dhe programthe Python/Perl."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat-i mbulon veçori të tilla si: DCC, SASL, ndërmjetës, drejtshkrim, sinjalizime, regjistrim veprimtarie, tema të personalizueshme, dhe programthe Python/Perl."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -60,15 +59,15 @@ msgstr "IM;Fjalosje;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "Hap Mënyrën e Sigurt"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Përgjegjës Temash HexChat-i"
+msgid "nexchat Theme Manager"
+msgstr "Përgjegjës Temash nexchat-i"
 
 #. 0 means unlimited
 #. STRINGS
@@ -747,9 +746,9 @@ msgstr "RECONNECT [<strehë>] [<portë>] [<fjalëkalim>], Mund të jepet thjesht
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <tekst>, dërgojini HexChat-it të dhëna të papërpunuara, si të ishin marrë prej shërbyesit IRC"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <tekst>, dërgojini nexchat-it të dhëna të papërpunuara, si të ishin marrë prej shërbyesit IRC"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4065,7 +4064,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4076,7 +4075,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Urdhra Përdoruesi - Kode speciale:\n\n%c  =  kanali i atëçastshëm\n%e  =  emri i rrjetit të atëçastshëm\n%m  =  të dhëna makine\n%n  =  nofka juaj\n%t  =  koha/data\n%v  =  Version HexChat-i\n%2  =  fjala 2\n%3  =  fjala 3\n&2  =  fjala 2 në fund të rreshtit\n&3  =  fjala 3 në fund të rreshtit\n\npsh:\n/cmd Gjon, njatjeta\n\n%2 do të ishte \"Gjon\"\n&2 do të ishte \"Gjon, njatjeta\"."
+msgstr ""
+"Urdhra Përdoruesi - Kode speciale:\n"
+"\n"
+"%c  =  kanali i atëçastshëm\n"
+"%e  =  emri i rrjetit të atëçastshëm\n"
+"%m  =  të dhëna makine\n"
+"%n  =  nofka juaj\n"
+"%t  =  koha/data\n"
+"%v  =  Version nexchat-i\n"
+"%2  =  fjala 2\n"
+"%3  =  fjala 3\n"
+"&2  =  fjala 2 në fund të rreshtit\n"
+"&3  =  fjala 3 në fund të rreshtit\n"
+"\n"
+"psh:\n"
+"/cmd Gjon, njatjeta\n"
+"\n"
+"%2 do të ishte \"Gjon\"\n"
+"&2 do të ishte \"Gjon, njatjeta\"."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4133,8 +4150,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "Trajtues URL-sh - Kode speciale:\n\n%s  =  Vargu URL\n\nVendosja e një ! në fillim të urdhrit\ntregon që do të duhej dërguar te\nnjë shell, në vend se për HexChat-in"
+"shell instead of nexchat"
+msgstr ""
+"Trajtues URL-sh - Kode speciale:\n"
+"\n"
+"%s  =  Vargu URL\n"
+"\n"
+"Vendosja e një ! në fillim të urdhrit\n"
+"tregon që do të duhej dërguar te\n"
+"një shell, në vend se për nexchat-in"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

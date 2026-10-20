@@ -34,16 +34,15 @@ msgstr "Klien IRC"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat adalah klien IRC yang mudah digunakan tetapi bisa diperluas. Hal ini memungkinkan anda aman dalam bergabung ke beberapa jaringan dan berbicara ke pengguna secara pribadi atau dalam saluran dengan menggunakan antarmuka yang dapat disesuaikan. Anda bahkan dapat mentransfer berkas."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat adalah klien IRC yang mudah digunakan tetapi bisa diperluas. Hal ini memungkinkan anda aman dalam bergabung ke beberapa jaringan dan berbicara ke pengguna secara pribadi atau dalam saluran dengan menggunakan antarmuka yang dapat disesuaikan. Anda bahkan dapat mentransfer berkas."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat mendukung fitur seperti: DCC, SASL, proksi, periksa ejaan, peringatan, pencatatan, tema kustom, dan skrip Python/Perl."
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat mendukung fitur seperti: DCC, SASL, proksi, periksa ejaan, peringatan, pencatatan, tema kustom, dan skrip Python/Perl."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -67,8 +66,8 @@ msgid "Open Safe Mode"
 msgstr "Buka Mode Aman"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "Pengelola Tema HexChat"
+msgid "nexchat Theme Manager"
+msgstr "Pengelola Tema nexchat"
 
 #. 0 means unlimited
 #. STRINGS
@@ -747,9 +746,9 @@ msgstr "RECONNECT [<host>] [<pangkalan>] [<sandi>], Dapat dipanggil cukup dengan
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <teks>, kirim data asli le HexChat, seolah-olah itu diterima dari server IRC"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <teks>, kirim data asli le nexchat, seolah-olah itu diterima dari server IRC"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4065,7 +4064,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4076,7 +4075,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Perintah User - Kode Spesial:\n\n%c  =  kanal saat ini\n%e  =  nama jaringan saat ini\n%m  =  informasi mesin\n%n  =  nick kamu\n%t  =  waktu/tanggal\n%v  =  versi HexChat\n%2  =  2 kata\n%3  = 3 kata\n&2  =  2 kata dari akhir baris\n&3  =  3 kata dari akhir baris\n\ncontoh:\n/cmd john hello\n\n%2 hasilnya \"john\"\n&2 hasilnya \"john hello\"."
+msgstr ""
+"Perintah User - Kode Spesial:\n"
+"\n"
+"%c  =  kanal saat ini\n"
+"%e  =  nama jaringan saat ini\n"
+"%m  =  informasi mesin\n"
+"%n  =  nick kamu\n"
+"%t  =  waktu/tanggal\n"
+"%v  =  versi nexchat\n"
+"%2  =  2 kata\n"
+"%3  = 3 kata\n"
+"&2  =  2 kata dari akhir baris\n"
+"&3  =  3 kata dari akhir baris\n"
+"\n"
+"contoh:\n"
+"/cmd john hello\n"
+"\n"
+"%2 hasilnya \"john\"\n"
+"&2 hasilnya \"john hello\"."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4133,8 +4150,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "Pengendali Tautan - Kode Spesial:\n\n%s  =  Tautan\n\nMenaruh ! di depan perintah\nmenunjukkan hal tersebut harus dikirim ke \nshell bukan HexChat"
+"shell instead of nexchat"
+msgstr ""
+"Pengendali Tautan - Kode Spesial:\n"
+"\n"
+"%s  =  Tautan\n"
+"\n"
+"Menaruh ! di depan perintah\n"
+"menunjukkan hal tersebut harus dikirim ke \n"
+"shell bukan nexchat"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format
@@ -6115,8 +6139,9 @@ msgid "The Real name option cannot be left blank. Falling back to \"realname\"."
 msgstr ""
 
 #: src/fe-gtk/setup.c:2261
-msgid "Some settings were changed that require a restart to take full effect."
-msgstr "HexChat harus dijalankan ulang agar pengaturan baru dapat digunakan."
+msgid ""
+"Some settings were changed that require a restart to take full effect."
+msgstr "nexchat harus dijalankan ulang agar pengaturan baru dapat digunakan."
 
 #: src/fe-gtk/setup.c:2269
 msgid ""

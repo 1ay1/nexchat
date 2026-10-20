@@ -59,16 +59,15 @@ msgstr "IRC-Client"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChar ist ein einfach zu benutzender, aber dennoch erweiterbarer IRC-Client. Er erlaubt es, sicher mehreren Netzwerken beizutreten und sich mithilfe der anpassbaren Benutzerschnittstelle privat oder auch in Kanälen zu unterhalten. Sogar Dateiübertragungen sind möglich."
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat ist ein einfach zu benutzender, aber dennoch erweiterbarer IRC-Client. Er erlaubt es, sicher mehreren Netzwerken beizutreten und sich mithilfe der anpassbaren Benutzerschnittstelle privat oder auch in Kanälen zu unterhalten. Sogar Dateiübertragungen sind möglich."
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat unterstützt Features wie: DCC, SASL, Proxies, Rechtschreibprüfung, Benachrichtigungen, Logging, Benutzerdesigns und Python/Perl-Skripte"
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr ""
+"nexchat unterstützt Features wie: DCC, SASL, Proxies, Rechtschreibprüfung, Benachrichtigungen, Logging, Benutzerdesigns und Python/Perl-Skripte"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -85,15 +84,15 @@ msgstr "IM;Chat;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "Im sicheren Modus öffnen"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "HexChat-Themenverwalter"
+msgid "nexchat Theme Manager"
+msgstr "nexchat-Themenverwalter"
 
 #. 0 means unlimited
 #. STRINGS
@@ -780,9 +779,9 @@ msgstr "RECONNECT [<Host>] [<Port>] [<Passwort>], Kann einfach als /RECONNECT au
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <Text>, sendet Rohdaten an HexChat, als ob sie vom IRC-Server empfangen wurden"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr ""
+"RECV <Text>, sendet Rohdaten an nexchat, als ob sie vom IRC-Server empfangen wurden"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -3799,7 +3798,7 @@ msgstr "Sie sind mit %i IRC-Netzwerken verbunden."
 
 #: src/fe-gtk/maingui.c:1205
 msgid "Are you sure you want to quit?"
-msgstr "Sind Sie sicher, dass Sie HexChat beenden wollen?"
+msgstr "Sind Sie sicher, dass Sie nexchat beenden wollen?"
 
 #: src/fe-gtk/maingui.c:1207
 msgid "Some file transfers are still active."
@@ -4098,7 +4097,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4109,7 +4108,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "Benutzerbefehle - Spezielle Codes:\n\n%c  =  aktueller Channel\n%e = aktuelles Netzwerk\n%m  =  Computerinfo\n%n  =  Ihr Nick\n%t  =  Zeit/Datum\n%v  =  HexChat-Version\n%2  =  Wort 2\n%3  =  Wort 3\n&2  =  Wort 2 bis zum Ende der Zeile\n&3  =  Wort 3 bis zum Ende der Zeile\n\nz.B.:\n/cmd john hallo\n\n%2 wäre \"john\"\n&2 wäre \"john hallo\"."
+msgstr ""
+"Benutzerbefehle - Spezielle Codes:\n"
+"\n"
+"%c  =  aktueller Channel\n"
+"%e = aktuelles Netzwerk\n"
+"%m  =  Computerinfo\n"
+"%n  =  Ihr Nick\n"
+"%t  =  Zeit/Datum\n"
+"%v  =  nexchat-Version\n"
+"%2  =  Wort 2\n"
+"%3  =  Wort 3\n"
+"&2  =  Wort 2 bis zum Ende der Zeile\n"
+"&3  =  Wort 3 bis zum Ende der Zeile\n"
+"\n"
+"z.B.:\n"
+"/cmd john hallo\n"
+"\n"
+"%2 wäre \"john\"\n"
+"&2 wäre \"john hallo\"."
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4166,8 +4183,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "Befehle für URLs - Spezielle Codes:\n\n%s  =  die URL\n\nEin »!« am Anfang des Befehls sagt\naus, dass der Befehl in der Shell\nstatt in HexChat ausgeführt wird"
+"shell instead of nexchat"
+msgstr ""
+"Befehle für URLs - Spezielle Codes:\n"
+"\n"
+"%s  =  die URL\n"
+"\n"
+"Ein »!« am Anfang des Befehls sagt\n"
+"aus, dass der Befehl in der Shell\n"
+"statt in nexchat ausgeführt wird"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

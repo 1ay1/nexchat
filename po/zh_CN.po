@@ -48,16 +48,14 @@ msgstr "IRC 客户端"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:11
 msgid ""
-"HexChat is an easy to use yet extensible IRC Client. It allows you to "
-"securely join multiple networks and talk to users privately or in channels "
-"using a customizable interface. You can even transfer files."
-msgstr "HexChat 是一款易于使用的可扩展 IRC 客户端。它允许以安全的方式进入多个网络，与用户进行私密聊天，或者在频道中使用自定义界面，甚至还可以传送文件。"
+"nexchat is an easy to use yet extensible IRC Client. It allows you to securely join multiple networks and talk to users privately or in channels using a customizable interface. You can even transfer files."
+msgstr ""
+"nexchat 是一款易于使用的可扩展 IRC 客户端。它允许以安全的方式进入多个网络，与用户进行私密聊天，或者在频道中使用自定义界面，甚至还可以传送文件。"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:12
 msgid ""
-"HexChat supports features such as: DCC, SASL, proxies, spellcheck, alerts, "
-"logging, custom themes, and Python/Perl scripts."
-msgstr "HexChat 支持以下特性: DCC、SASL、代理、拼写检查、消息提醒、聊天记录、自定义主题和 Python/Perl 脚本。"
+"nexchat supports features such as: DCC, SASL, proxies, spellcheck, alerts, logging, custom themes, and Python/Perl scripts."
+msgstr "nexchat 支持以下特性: DCC、SASL、代理、拼写检查、消息提醒、聊天记录、自定义主题和 Python/Perl 脚本。"
 
 #: data/misc/io.github.Hexchat.appdata.xml.in:22
 msgid "Main Chat Window"
@@ -74,15 +72,15 @@ msgstr "IM;聊天;"
 #: data/misc/io.github.Hexchat.desktop.in.in:8
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:5
 msgid "hexchat"
-msgstr "hexchat"
+msgstr "nexchat"
 
 #: data/misc/io.github.Hexchat.desktop.in.in:19
 msgid "Open Safe Mode"
 msgstr "打开安全模式"
 
 #: data/misc/io.github.Hexchat.ThemeManager.desktop.in:3
-msgid "HexChat Theme Manager"
-msgstr "HexChat 主题管理器"
+msgid "nexchat Theme Manager"
+msgstr "nexchat 主题管理器"
 
 #. 0 means unlimited
 #. STRINGS
@@ -761,9 +759,8 @@ msgstr "RECONNECT [<主机>] [<端口号>] [<密码>]，可用 /RECONNECT 重新
 
 #: src/common/outbound.c:4085
 msgid ""
-"RECV <text>, send raw data to HexChat, as if it was received from the IRC "
-"server"
-msgstr "RECV <text>，向 HexChat 发送原始数据，就好像从 IRC 服务器上接收到的一样"
+"RECV <text>, send raw data to nexchat, as if it was received from the IRC server"
+msgstr "RECV <text>，向 nexchat 发送原始数据，就好像从 IRC 服务器上接收到的一样"
 
 #: src/common/outbound.c:4086
 msgid "RELOAD <name>, reloads a plugin or script"
@@ -4079,7 +4076,7 @@ msgid ""
 "%m  =  machine info\n"
 "%n  =  your nick\n"
 "%t  =  time/date\n"
-"%v  =  HexChat version\n"
+"%v  =  nexchat version\n"
 "%2  =  word 2\n"
 "%3  =  word 3\n"
 "&2  =  word 2 to the end of line\n"
@@ -4090,7 +4087,25 @@ msgid ""
 "\n"
 "%2 would be \"john\"\n"
 "&2 would be \"john hello\"."
-msgstr "用户命令 - 特殊代码：\n\n%c  =  当前频道\n%e  =  当前网络名称\n%m  =  机器信息\n%n  =  你的昵称\n%t  =  时间/日期\n%v  =  HexChat 版本\n%2  =  第 2 个词\n%3  =  第 3 个词\n&2  =  从第 2 个词到行末\n&3  =  从第 3 个词到行末\n\n如:\n/cmd john hello\n\n%2 是“john”\n&2 是“john hello”。"
+msgstr ""
+"用户命令 - 特殊代码：\n"
+"\n"
+"%c  =  当前频道\n"
+"%e  =  当前网络名称\n"
+"%m  =  机器信息\n"
+"%n  =  你的昵称\n"
+"%t  =  时间/日期\n"
+"%v  =  nexchat 版本\n"
+"%2  =  第 2 个词\n"
+"%3  =  第 3 个词\n"
+"&2  =  从第 2 个词到行末\n"
+"&3  =  从第 3 个词到行末\n"
+"\n"
+"如:\n"
+"/cmd john hello\n"
+"\n"
+"%2 是“john”\n"
+"&2 是“john hello”。"
 
 #: src/fe-gtk/menu.c:1486
 msgid ""
@@ -4147,8 +4162,15 @@ msgid ""
 "\n"
 "Putting a ! in front of the command\n"
 "indicates it should be sent to a\n"
-"shell instead of HexChat"
-msgstr "URL 处理程序 - 特殊代码:\n\n%s  =  URL 字符串\n\n在命令前加一个 “!” 表示\n该命令应被发送到 shell 而\n非 HexChat"
+"shell instead of nexchat"
+msgstr ""
+"URL 处理程序 - 特殊代码:\n"
+"\n"
+"%s  =  URL 字符串\n"
+"\n"
+"在命令前加一个 “!” 表示\n"
+"该命令应被发送到 shell 而\n"
+"非 nexchat"
 
 #: src/fe-gtk/menu.c:1529
 #, c-format

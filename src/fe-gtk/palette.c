@@ -546,7 +546,7 @@ char *
 palette_scheme_label (int i)
 {
 	if (i == 0)
-		return g_strdup (_("HexChat (follows light/dark)"));
+		return g_strdup (_("nexchat (follows light/dark)"));
 	if (i == 1)
 		return g_strdup (_("Native (system text colors)"));
 	i -= 2;
