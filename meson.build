@@ -65,6 +65,10 @@ config_h.set('HAVE_STRINGS_H', cc.has_header('strings.h'))
 config_h.set_quoted('HEXCHATLIBDIR',
   join_paths(get_option('prefix'), get_option('libdir'), 'nexchat/plugins')
 )
+# where `nexchat --tui` looks for nexchat-tui (src/fe-gtk/fe-gtk.c)
+config_h.set_quoted('NEXCHAT_LIBEXECDIR',
+  join_paths(get_option('prefix'), get_option('libexecdir'), 'nexchat')
+)
 
 if libssl_dep.found()
   config_h.set('HAVE_X509_GET_SIGNATURE_NID',
@@ -177,9 +181,13 @@ endif
 # macOS: `ninja -C build app` makes a self-contained build/nexchat.app
 # (osx/make-app.py); osx/check-app.sh checks it runs on its own
 if host_machine.system() == 'darwin' and get_option('gtk-frontend')
+  app_deps = [hexchat_gtk]
+  if is_variable('nexchat_tui')
+    app_deps += nexchat_tui
+  endif
   run_target('app',
     command: [find_program('python3'), files('osx/make-app.py'), meson.current_build_dir()],
-    depends: [hexchat_gtk],
+    depends: app_deps,
   )
 endif
 

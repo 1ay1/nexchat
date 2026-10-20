@@ -175,12 +175,72 @@ gtk_has_macos_fixes (void)
 }
 #endif
 
+#ifndef WIN32
+/* nexchat --tui: the terminal UI is its own binary (both frontends
+   define the whole fe.h, so they can't share one). Run it in our place,
+   before GTK touches a display: next to this executable (the build tree,
+   nexchat.app/Contents/MacOS), then libexecdir, then $PATH. */
+static void
+exec_tui (int argc, char *argv[])
+{
+	char **args = g_new0 (char *, argc + 1);
+	char *self = g_file_read_link ("/proc/self/exe", NULL);
+	char *dir, *cand;
+	int i, n = 0;
+
+	args[n++] = "nexchat-tui";
+	for (i = 1; i < argc; i++)
+		if (strcmp (argv[i], "--tui") != 0)
+			args[n++] = argv[i];
+	args[n] = NULL;
+
+#ifdef __APPLE__
+	{
+		char buf[4096];
+		uint32_t size = sizeof buf;
+		extern int _NSGetExecutablePath (char *, uint32_t *);
+		if (!self && _NSGetExecutablePath (buf, &size) == 0)
+			self = g_strdup (buf);
+	}
+#endif
+	if (!self)
+		self = g_strdup (argv[0]);
+	dir = g_path_get_dirname (self);
+	cand = g_build_filename (dir, "nexchat-tui", NULL);
+	if (g_file_test (cand, G_FILE_TEST_IS_EXECUTABLE))
+		execv (cand, args);
+	g_free (cand);
+	/* the build tree: src/fe-gtk/nexchat → src/fe-tui/nexchat-tui */
+	cand = g_build_filename (dir, "..", "fe-tui", "nexchat-tui", NULL);
+	if (g_file_test (cand, G_FILE_TEST_IS_EXECUTABLE))
+		execv (cand, args);
+	g_free (cand);
+	cand = g_build_filename (NEXCHAT_LIBEXECDIR, "nexchat-tui", NULL);
+	if (g_file_test (cand, G_FILE_TEST_IS_EXECUTABLE))
+		execv (cand, args);
+	g_free (cand);
+	execvp ("nexchat-tui", args);
+
+	fprintf (stderr, "nexchat: --tui: nexchat-tui isn't installed (build with -Dtui=enabled)\n");
+	exit (1);
+}
+#endif
+
 int
 fe_args (int argc, char *argv[])
 {
 	GError *error = NULL;
 	GOptionContext *context;
 	char *buffer;
+
+#ifndef WIN32
+	{
+		int i;
+		for (i = 1; i < argc; i++)
+			if (strcmp (argv[i], "--tui") == 0)
+				exec_tui (argc, argv);
+	}
+#endif
 
 #ifdef ENABLE_NLS
 	bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);

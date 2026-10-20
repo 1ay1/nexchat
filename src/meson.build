@@ -8,6 +8,8 @@ if get_option('text-frontend')
   subdir('fe-text')
 endif
 
+subdir('fe-tui')
+
 if get_option('theme-manager')
   subdir('htm')
 endif

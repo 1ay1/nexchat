@@ -1,6 +1,8 @@
 /build
 /build-*/
 /.agentty/
+/.cache/
+/subprojects/.wraplock
 builddir/
 doxygen*.tmp
 html/
