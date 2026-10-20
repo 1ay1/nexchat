@@ -50,6 +50,11 @@
 /* servlistgui.c globals */
 static GtkWidget *serverlist_win = NULL;
 static GtkWidget *networks_tree;		/* network TreeView */
+static GtkWidget *netfilter_entry;		/* "Find a network" */
+static char *netfilter;					/* what's typed there */
+static void servlist_network_row_cb (GtkWidget *view, gpointer user_data);
+static void servlist_connect_cb (GtkWidget *button, gpointer userdata);
+static void servlist_networks_populate (GtkWidget *treeview, GSList *netlist);
 
 static int netlist_win_width = 0;		/* don't hardcode pixels, just use as much as needed by default, save if resized */
 static int netlist_win_height = 0;
@@ -308,25 +313,70 @@ servlist_networks_populate_ (GtkWidget *treeview, GSList *netlist, gboolean favo
 	nx_store_clear (store);
 
 	i = 0;
+	{
+	nx_row *first = NULL;
+	gboolean chosen = FALSE;
 	while (netlist)
 	{
 		net = netlist->data;
-		if (!favorites || (net->flags & FLAG_FAVORITE))
+		if ((!favorites || (net->flags & FLAG_FAVORITE)) &&
+			 (!netfilter || !*netfilter || nocasestrstr (net->name, netfilter)))
 		{
 			row = nx_store_append (store, NULL);
+			if (!first)
+				first = row;
 			if (favorites)
 				nx_row_set (row, 0, net->name, 1, TRUE, 2, 400, -1);
 			else
 				nx_row_set (row, 0, net->name, 1, TRUE, 2, (net->flags & FLAG_FAVORITE) ? 800 : 400, -1);
-			if (i == prefs.hex_gui_slist_select)
+			if (i == prefs.hex_gui_slist_select && !(netfilter && *netfilter))
 			{
 				/* select this network */
 				servlist_select_and_show (treeview, row);
 				selected_net = net;
+				chosen = TRUE;
 			}
 		}
 		i++;
 		netlist = netlist->next;
+	}
+	/* filtering: the best match, the first one, is the selected one */
+	if (!chosen && first)
+	{
+		servlist_select_and_show (treeview, first);
+		servlist_network_row_cb (treeview, NULL);
+	}
+	}
+}
+
+/* the "Find a network" box */
+static void
+servlist_filter_changed (GtkSearchEntry *e, gpointer d)
+{
+	g_free (netfilter);
+	netfilter = g_strdup (gtk_editable_get_text (GTK_EDITABLE (e)));
+	servlist_networks_populate (networks_tree, network_list);
+}
+
+static void
+servlist_filter_activate (GtkSearchEntry *e, gpointer d)
+{
+	/* only what's shown and selected: nothing matched, nothing happens */
+	if (selected_net && nx_view_get_selected (networks_tree))
+		servlist_connect_cb (NULL, NULL);
+}
+
+/* Up/Down (Ctrl+G) from the box move through what's listed */
+static void
+servlist_filter_move (GtkSearchEntry *e, gpointer d)
+{
+	nx_row *row = nx_view_get_selected (networks_tree);
+	nx_row *to = row ? (GPOINTER_TO_INT (d) > 0 ? nx_row_next (row) : nx_row_prev (row)) : NULL;
+
+	if (to)
+	{
+		servlist_select_and_show (networks_tree, to);
+		servlist_network_row_cb (networks_tree, NULL);
 	}
 }
 
@@ -1901,6 +1951,22 @@ servlist_open_networks (void)
 	label1 = bold_label (_("Networks"));
 	nx_box_pack_start (vbox2, label1, FALSE, FALSE, 0);
 
+	g_clear_pointer (&netfilter, g_free);
+
+	/* type part of a name to narrow the list (there are dozens); Enter
+	   connects to the one selected */
+	netfilter_entry = gtk_search_entry_new ();
+	gtk_search_entry_set_placeholder_text (GTK_SEARCH_ENTRY (netfilter_entry), _("Find a network"));
+	gtk_widget_set_margin_start (netfilter_entry, 8);
+	gtk_widget_set_margin_end (netfilter_entry, 8);
+	gtk_widget_set_margin_top (netfilter_entry, 4);
+	nx_box_pack_start (vbox2, netfilter_entry, FALSE, FALSE, 0);
+	g_signal_connect (netfilter_entry, "search-changed", G_CALLBACK (servlist_filter_changed), NULL);
+	g_signal_connect (netfilter_entry, "activate", G_CALLBACK (servlist_filter_activate), NULL);
+	g_signal_connect (netfilter_entry, "next-match", G_CALLBACK (servlist_filter_move), GINT_TO_POINTER (1));
+	g_signal_connect (netfilter_entry, "previous-match", G_CALLBACK (servlist_filter_move), GINT_TO_POINTER (-1));
+	nx_widget_show (netfilter_entry);
+
 	table4 = gtk_grid_new ();
 	nx_widget_show (table4);
 	nx_box_pack_start (vbox2, table4, TRUE, TRUE, 0);
@@ -2037,7 +2103,18 @@ servlist_open_networks (void)
 	gtk_label_set_mnemonic_widget (GTK_LABEL (label6), entry4);
 	/* gtk_label_set_mnemonic_widget (GTK_LABEL (label7), entry5); */
 
-	gtk_widget_grab_focus (networks_tree);
+	gtk_widget_grab_focus (netfilter_entry);
+	/* tests: NEXCHAT_NETFIND=text types it in the find box */
+	if (g_getenv ("NEXCHAT_NETFIND"))
+	{
+		nx_row *r;
+		gtk_editable_set_text (GTK_EDITABLE (netfilter_entry), g_getenv ("NEXCHAT_NETFIND"));
+		servlist_filter_changed (GTK_SEARCH_ENTRY (netfilter_entry), NULL);
+		r = nx_view_get_selected (networks_tree);
+		g_printerr ("netfind: %d listed, selected %s\n",
+						nx_store_n_rows (nx_view_get_store (networks_tree), NULL),
+						r ? nx_row_peek_string (r, 0) : "none");
+	}
 	nx_widget_make_default (button_close);
 	return servlist;
 }
