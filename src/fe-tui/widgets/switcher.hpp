@@ -13,6 +13,7 @@
 // query line (an InputLine) and returns what was picked.
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -32,6 +33,9 @@ public:
     void open(std::vector<ChanEntry> entries, std::vector<std::string> networks);
     /// the card's title ("Go to" by default)
     std::string title = "Go to";
+    /// drawn after an entry's right-hand text (the theme picker's colour
+    /// swatches); empty Rich for none
+    std::function<Rich(std::uintptr_t key)> swatch;
     [[nodiscard]] bool is_open() const noexcept { return open_; }
     void close() { open_ = false; }
 

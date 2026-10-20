@@ -106,11 +106,15 @@ std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
         }
         Rich net{nets_[hits_[hi]], role::muted()};
         if (net.width() > inner / 2) net = net.fit(inner / 2);
-        row = row.fit(std::max(0, inner - net.width() - 1));
+        Rich sw = swatch ? swatch(e.key) : Rich{};
+        const int sww = sw.width() ? sw.width() + 1 : 0;
+        row = row.fit(std::max(0, inner - net.width() - 1 - sww));
         row.append(" ");
         row.append(net);
-        row = row.fit(inner);
+        row = row.fit(inner - sww);
         if (cur) row.replace_colors(role::selected());
+        // the swatch keeps its own colours, on the band or not
+        if (sww) { row.append(" "); row.append(sw); }
         rows.push_back(std::move(row));
     }
     if (hits_.empty()) rows.push_back(Rich{"  Nothing matches.", role::muted()}.fit(inner));

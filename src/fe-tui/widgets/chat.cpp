@@ -195,8 +195,12 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
 
     std::vector<Rich> rows;
     std::vector<std::vector<RowCell>> cells;
-    const int nick_w = st.nick_width;
+    // the nick column gives way on a narrow chat (text under 40 columns):
+    // down to 8, a long nick then cut with …; a small configured width stays
     const int sep_w = st.separator ? 3 : 1;           // " │ " or " "
+    int nick_w = st.nick_width;
+    if (w - stamp_w - sep_w - nick_w < 40 && nick_w > 8)
+        nick_w = std::clamp(w - stamp_w - sep_w - 40, 8, nick_w);
     const int text_w = w - stamp_w - nick_w - sep_w;
 
     if (text_w < 12) {

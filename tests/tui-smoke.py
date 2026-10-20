@@ -237,7 +237,7 @@ def main():
         t.send(b"\x1b[B", 0.2)                      # Choose a scheme…
         t.send(b"\r", 0.4)
         t.type("Dracula", 0.4)
-        check(t.wait_for("scheme", 2), "the theme picker lists maya's schemes")
+        check(t.wait_for("Theme", 2) and t.find("Dracula") is not None, "the theme picker lists maya's schemes")
         t.send(b"\r", 0.6)
         conf = os.path.join(cfg, "tui.conf")
         check(os.path.exists(conf) and "theme=Dracula" in open(conf).read(), "the theme is saved in tui.conf")

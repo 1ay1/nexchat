@@ -848,12 +848,24 @@ public:
         std::uintptr_t now = 0;
         for (std::size_t i = 0; i < std::size(maya::theme::schemes); ++i) {
             e.push_back({i + 1, maya::theme::schemes[i].name, ChanKind::Other});
-            nets_.push_back(maya::theme::owns_canvas(*maya::theme::schemes[i].theme) ? "scheme" : "");
+            nets_.push_back("");
             if (theme_name == maya::theme::schemes[i].name) now = i + 1;
         }
         picking_theme = true;
         palette_open = false;
         switcher.title = "Theme";
+        // each scheme's own colours: its background with its accent, primary
+        // and text on it (the schemes are in the maya table: literal colours)
+        switcher.swatch = [](std::uintptr_t k) -> Rich {
+            if (k == 0) return Rich{};
+            const maya::Theme& th = *maya::theme::schemes[k - 1].theme;
+            const maya::Color bg = th.background;
+            Rich r;
+            for (const maya::LitColor* c : {&th.accent, &th.primary, &th.success, &th.warning, &th.text})
+                r.append("●", Style{}.with_fg(maya::Color{*c}).with_bg(bg));
+            r.append(" ", Style{}.with_bg(bg));
+            return r;
+        };
         theme_before = theme_name;
         switcher.open(std::move(e), std::move(nets_));
         switcher.select_key(now);
@@ -873,6 +885,7 @@ public:
         }
         picking_theme = false;
         palette_open = false;
+        switcher.swatch = nullptr;
         switcher.title = "Go to";
         switcher.open(entries(), std::move(nn));
     }
@@ -923,6 +936,7 @@ public:
         }
         picking_theme = false;
         palette_open = true;
+        switcher.swatch = nullptr;
         switcher.title = "Command Palette";
         switcher.open(std::move(e), std::move(right));
     }

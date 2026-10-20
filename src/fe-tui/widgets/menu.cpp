@@ -207,7 +207,7 @@ std::vector<Rich> Menu::rows() const {
         // the band sits a cell in from the frame, the text a cell in from it
         Rich body{" "};
         const Style ink = it.enabled ? role::text() : role::muted();
-        if (it.check >= 0) body.append(it.check ? "✓ " : "  ", role::title());
+        if (it.check >= 0) body.append(it.check ? "● " : "○ ", it.check ? role::title() : role::muted());
         body.append(it.label, ink);
         Rich right;
         if (!it.hint.empty()) right.append(it.hint, role::muted());
