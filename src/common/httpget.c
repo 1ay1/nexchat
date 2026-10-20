@@ -101,13 +101,14 @@ address_is_public (GInetAddress *a)
 	return TRUE;
 }
 
-/* the first public address the name has; NULL if it has none */
-static GInetAddress *
+/* the name's addresses we may use (public ones, unless allow_local), in
+   the resolver's order; NULL if none */
+static GList *
 resolve_public (const char *host, gboolean allow_local, GCancellable *c, char **err)
 {
 	GResolver *r = g_resolver_get_default ();
 	GList *l, *addrs = g_resolver_lookup_by_name (r, host, c, NULL);
-	GInetAddress *pick = NULL;
+	GList *ok = NULL;
 
 	g_object_unref (r);
 	if (!addrs)
@@ -115,13 +116,13 @@ resolve_public (const char *host, gboolean allow_local, GCancellable *c, char **
 		*err = g_strdup ("can't resolve the name");
 		return NULL;
 	}
-	for (l = addrs; l && !pick; l = l->next)
+	for (l = addrs; l; l = l->next)
 		if (allow_local || address_is_public (l->data) || g_getenv ("NEXCHAT_HTTPGET_ALLOW_LOCAL"))
-			pick = g_object_ref (l->data);
+			ok = g_list_prepend (ok, g_object_ref (l->data));
 	g_resolver_free_addresses (addrs);
-	if (!pick)
+	if (!ok)
 		*err = g_strdup ("not a public address");
-	return pick;
+	return g_list_reverse (ok);
 }
 
 /* one connection, plain or TLS, read and written the same way */
@@ -177,33 +178,36 @@ static gboolean
 conn_open (conn *c, const char *host, int port, gboolean tls, gboolean allow_local,
 			  GCancellable *cancel, char **err)
 {
-	GInetAddress *addr;
-	GSocketAddress *sa;
+	GList *addrs, *l;
 	GError *e = NULL;
 
 	memset (c, 0, sizeof *c);
-	if (!(addr = resolve_public (host, allow_local, cancel, err)))
+	if (!(addrs = resolve_public (host, allow_local, cancel, err)))
 		return FALSE;
-	c->sock = g_socket_new (g_inet_address_get_family (addr), G_SOCKET_TYPE_STREAM,
-									G_SOCKET_PROTOCOL_TCP, &e);
+	/* each address in turn: a name with IPv6 and IPv4 where only one
+	   answers (localhost: ::1 first) still connects */
+	for (l = addrs; l && !c->sock; l = l->next)
+	{
+		GSocketAddress *sa;
+		GSocket *s = g_socket_new (g_inet_address_get_family (l->data), G_SOCKET_TYPE_STREAM,
+											G_SOCKET_PROTOCOL_TCP, NULL);
+		if (!s)
+			continue;
+		g_socket_set_timeout (s, TIMEOUT_SECS);
+		sa = g_inet_socket_address_new (l->data, port);
+		if (g_socket_connect (s, sa, cancel, l->next ? NULL : &e))
+			c->sock = s;
+		else
+			g_object_unref (s);
+		g_object_unref (sa);
+	}
+	g_list_free_full (addrs, g_object_unref);
 	if (!c->sock)
 	{
-		g_object_unref (addr);
-		*err = g_strdup (e->message);
-		g_error_free (e);
+		*err = g_strdup (e ? e->message : "can't connect");
+		g_clear_error (&e);
 		return FALSE;
 	}
-	g_socket_set_timeout (c->sock, TIMEOUT_SECS);
-	sa = g_inet_socket_address_new (addr, port);
-	g_object_unref (addr);
-	if (!g_socket_connect (c->sock, sa, cancel, &e))
-	{
-		g_object_unref (sa);
-		*err = g_strdup (e->message);
-		g_error_free (e);
-		return FALSE;
-	}
-	g_object_unref (sa);
 	/* GSocket is non-blocking underneath; OpenSSL reads the fd itself and
 	   wants it blocking (the timeout below still applies: SO_RCVTIMEO) */
 	g_socket_set_blocking (c->sock, TRUE);
