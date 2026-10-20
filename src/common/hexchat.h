@@ -182,6 +182,7 @@ struct hexchatprefs
 	unsigned int hex_irc_reconnect_rejoin;
 	unsigned int hex_irc_conf_mode;
 	unsigned int hex_irc_smart_filter;	/* minutes; 0 = off */
+	unsigned int hex_irc_group_joinpart;	/* runs of joins/parts as one line */
 	unsigned int hex_irc_hidehost;
 	unsigned int hex_irc_hide_nickchange;
 	unsigned int hex_irc_hide_version;

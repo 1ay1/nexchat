@@ -4052,6 +4052,10 @@ fe_session_callback (session *sess)
 	g_free (sess->res->queue_tip);
 	g_free (sess->res->lag_text);
 	g_free (sess->res->lag_tip);
+	if (sess->res->jp_joined)
+		g_ptr_array_unref (sess->res->jp_joined);
+	if (sess->res->jp_left)
+		g_ptr_array_unref (sess->res->jp_left);
 
 	if (sess->gui->bartag)
 		fe_timeout_remove (sess->gui->bartag);

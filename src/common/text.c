@@ -2138,6 +2138,28 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 				 time (NULL) - u->lasttalk > (time_t) prefs.hex_irc_smart_filter * 60)
 				return;
 		}
+		/* grouped: "→ alice, bob joined · ← carol left" as one line that
+		   grows; the log still gets each event in full */
+		if (prefs.hex_irc_group_joinpart && sess->type == SESS_CHANNEL)
+		{
+			char o[4096];
+			format_event (sess, index, word, o, sizeof (o), stripcolor_args);
+			if (o[0])
+			{
+				char *t = text_fixup_invalid_utf8 (o, -1, NULL);
+				log_write (sess, t, timestamp);
+				scrollback_save (sess, t, timestamp);
+				if (fe_print_joinpart (sess, index == XP_TE_JOIN ? 0 : index == XP_TE_QUIT ? 2 : 1,
+											  word[1], timestamp))
+				{
+					g_free (t);
+					return;
+				}
+				fe_print_text (sess, t, timestamp, FALSE);
+				g_free (t);
+				return;
+			}
+		}
 		break;
 
 	/* ===Private message=== */

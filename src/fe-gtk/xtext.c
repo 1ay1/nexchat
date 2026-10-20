@@ -1363,6 +1363,16 @@ gtk_xtext_last_no_stamp (xtext_buffer *buf)
 		buf->text_last->no_stamp = TRUE;
 }
 
+static void gtk_xtext_remove_bottom (xtext_buffer *buffer);
+
+/* take the newest line out (it's about to be written again, longer:
+   grouped joins and parts) */
+void
+gtk_xtext_drop_last (xtext_buffer *buf)
+{
+	gtk_xtext_remove_bottom (buf);
+}
+
 /* scroll to the newest line */
 void
 gtk_xtext_scroll_to_end (GtkXText *xtext)

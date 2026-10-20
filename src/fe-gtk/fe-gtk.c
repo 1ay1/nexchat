@@ -1725,11 +1725,118 @@ fe_progressbar_end (server *serv)
 	}
 }
 
+/* runs of joins, parts and quits as one line that grows:
+     "→ alice, bob joined · ← carol left"
+   A name that joins and leaves again within the run isn't listed twice:
+   leaving after joining takes them off "joined" (they came and went). */
+static void
+jp_list (GString *s, GPtrArray *a, int max)
+{
+	guint i;
+
+	for (i = 0; i < a->len && (int) i < max; i++)
+	{
+		if (i)
+			g_string_append (s, ", ");
+		g_string_append (s, g_ptr_array_index (a, i));
+	}
+	if ((int) a->len > max)
+		g_string_append_printf (s, _(" and %d more"), (int) a->len - max);
+}
+
+static gboolean
+jp_remove (GPtrArray *a, const char *nick)
+{
+	guint i;
+
+	for (i = 0; i < a->len; i++)
+		if (!g_ascii_strcasecmp (g_ptr_array_index (a, i), nick))
+		{
+			g_ptr_array_remove_index (a, i);
+			return TRUE;
+		}
+	return FALSE;
+}
+
+gboolean
+fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stamp)
+{
+	restore_gui *res = sess->res;
+	xtext_buffer *buf = res->buffer;
+	GString *s;
+
+	/* only while our line is still the newest; anything else printed in
+	   between starts a new group */
+	if (!res->jp_line || buf->text_last != res->jp_line)
+	{
+		if (res->jp_joined)
+			g_ptr_array_set_size (res->jp_joined, 0);
+		else
+			res->jp_joined = g_ptr_array_new_with_free_func (g_free);
+		if (res->jp_left)
+			g_ptr_array_set_size (res->jp_left, 0);
+		else
+			res->jp_left = g_ptr_array_new_with_free_func (g_free);
+		/* the first of a run is shown as the event itself, full text */
+		res->jp_line = NULL;
+	}
+	else
+		gtk_xtext_drop_last (buf);
+
+	if (kind == 0)
+	{
+		jp_remove (res->jp_left, nick);
+		jp_remove (res->jp_joined, nick);
+		g_ptr_array_add (res->jp_joined, g_strdup (nick));
+	}
+	else if (!jp_remove (res->jp_joined, nick))
+	{
+		jp_remove (res->jp_left, nick);
+		g_ptr_array_add (res->jp_left, g_strdup (nick));
+	}
+
+	if (!res->jp_line && res->jp_joined->len + res->jp_left->len == 1)
+	{
+		/* one event: printed as usual (with its reason, host, colours);
+		   fe_print_joinpart_done records its line */
+		res->jp_pending = TRUE;
+		return FALSE;
+	}
+
+	s = g_string_new ("*\t");
+	if (res->jp_joined->len)
+	{
+		g_string_append (s, "\00303\342\206\222\017 ");
+		jp_list (s, res->jp_joined, 12);
+		g_string_append (s, _(" joined"));
+	}
+	if (res->jp_left->len)
+	{
+		if (res->jp_joined->len)
+			g_string_append (s, "\302\240\00314\302\267\017  ");
+		g_string_append (s, "\00305\342\206\220\017 ");
+		jp_list (s, res->jp_left, 12);
+		g_string_append (s, _(" left"));
+	}
+	if (!res->jp_joined->len && !res->jp_left->len)
+		g_string_append_printf (s, _("\00314%s came and went"), nick);
+	PrintTextRaw (buf, (unsigned char *) s->str, prefs.hex_text_indent, stamp);
+	g_string_free (s, TRUE);
+	res->jp_line = buf->text_last;
+	return TRUE;
+}
+
 void
 fe_print_text (struct session *sess, char *text, time_t stamp,
 			   gboolean no_activity)
 {
 	PrintTextRaw (sess->res->buffer, (unsigned char *)text, prefs.hex_text_indent, stamp);
+	/* the first join/part of a run: the next one replaces this line */
+	if (sess->res->jp_pending)
+	{
+		sess->res->jp_pending = FALSE;
+		sess->res->jp_line = ((xtext_buffer *) sess->res->buffer)->text_last;
+	}
 
 	if (no_activity || !sess->gui->is_tab)
 		return;

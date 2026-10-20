@@ -328,6 +328,7 @@ void gtk_xtext_select_all (GtkXText *xtext);
 char *gtk_xtext_line_text_at (GtkXText *xtext, int x, int y);
 void gtk_xtext_scroll_to_end (GtkXText *xtext);
 void gtk_xtext_last_no_stamp (xtext_buffer *buf);
+void gtk_xtext_drop_last (xtext_buffer *buf);
 void gtk_xtext_set_jump_button (GtkXText *xtext, gboolean show);
 void gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms);
 GType gtk_xtext_get_type (void);

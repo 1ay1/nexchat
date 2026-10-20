@@ -97,6 +97,10 @@ void fe_progressbar_start (struct session *sess);
 void fe_progressbar_end (struct server *serv);
 void fe_print_text (struct session *sess, char *text, time_t stamp,
 					gboolean no_activity);
+/* a join (kind 0), part (1) or quit (2) of nick in a channel, already in
+   the logs: the frontend may show runs of them as one line. FALSE: it
+   didn't, print the event as usual */
+gboolean fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stamp);
 void fe_userlist_insert (struct session *sess, struct User *newuser, gboolean sel);
 int fe_userlist_remove (struct session *sess, struct User *user);
 void fe_userlist_rehash (struct session *sess, struct User *user);

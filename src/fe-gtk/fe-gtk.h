@@ -102,6 +102,13 @@ typedef struct restore_gui
 
 	void *tab;			/* (chan *) */
 
+	/* joins/parts shown as one growing line (fe_print_joinpart): who, in
+	   order, and the line that shows them; NULL when the last line in the
+	   chat is something else */
+	GPtrArray *jp_joined, *jp_left;
+	void *jp_line;		/* (textentry *) the group's line, if still the last */
+	gboolean jp_pending;	/* the run's first event is being printed as usual */
+
 	/* information stored when this tab isn't front-most */
 	struct _NxStore *user_model;	/* the user list's rows (nxlist.h) */
 	void *buffer;		/* xtext_Buffer */
