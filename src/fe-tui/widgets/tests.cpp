@@ -543,6 +543,7 @@ static void test_chat() {
     ChatStyle st;
     st.show_stamp = false;
     st.nick_width = 6;
+    st.brackets = true;   // the columns below are counted with <> (the GUI's)
 
     ChatBuffer buf(5);
     for (int i = 1; i <= 3; ++i) buf.add("<n" + std::to_string(i) + ">\tline " + std::to_string(i) + "\n");
@@ -625,7 +626,8 @@ static void test_chat() {
     ChatBuffer sb;
     sb.add("*\tx", 1700000000);
     auto srows = ChatView{}.rows(sb, ts, 30, 1);
-    CHECK_EQ(srows[0].text.size(), std::string("[hh:mm]    * │ x").size());
+    CHECK_EQ(srows[0].width(), display_width("[hh:mm]    * │ x"));
+    CHECK(srows[0].text.find("• │ x") != std::string::npos);   // a system line's * is a dot
     CHECK(srows[0].text[0] == '[');
 
     // Too narrow for columns: flush left.
@@ -815,7 +817,7 @@ static void test_bars() {
     TopicBar t{"#nexchat", "+nt", "Welcome \002home\002\nsecond line"};
     auto r = t.row(40);
     CHECK_EQ(r.width(), 40);
-    CHECK_EQ(r.text, std::string(" #nexchat +nt  │  Welcome home second l…"));
+    CHECK_EQ(r.text, std::string(" #nexchat   +nt  │  Welcome home second…"));
 
     StatusBar s;
     s.nick = "alice";
@@ -856,6 +858,7 @@ static void test_layout() {
     ChatView view;
     ChatStyle cs;
     cs.show_stamp = false;
+    cs.brackets = true;
     UserList users;
     users.set({{"alice", '@'}, {"bob"}});
     StatusBar status;

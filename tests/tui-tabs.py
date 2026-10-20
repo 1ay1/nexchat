@@ -76,7 +76,7 @@ def main():
         check(r >= 0, "tabs: Fake, #demo and heidi on one row")
         check(r > len(lines(t)) // 2, "at the bottom (gui_tab_pos 6)")
         check(not any(tree_row(l) for l in lines(t)), "no tree")
-        check(t.find("<alice>") is not None or t.find("morning everyone") is not None,
+        check(t.find("alice │") is not None or t.find("morning everyone") is not None,
               "the chat takes the whole width")
         # a click on #demo's tab
         p = t.find(" #demo ")

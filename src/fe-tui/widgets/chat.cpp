@@ -109,7 +109,7 @@ namespace {
 std::uint64_t style_key(const ChatStyle& st) {
     std::uint64_t k = std::hash<std::string>{}(st.stamp_format);
     k = k * 31 + static_cast<std::uint64_t>(st.nick_width);
-    k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0);
+    k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -179,6 +179,17 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
         return line.cached_rows;
     }
     Rich left = parse_irc(line.left);
+    // a system line (joins, modes, the MOTD…) puts a lone "*" in the nick
+    // column: a centred dot in the same colour reads as status, not a nick
+    if (left.text == "*" && left.runs.size() == 1) {
+        const Style s = left.runs[0].style;
+        left = Rich{"•", s};
+    }
+    // "<nick>": the brackets are the GUI's way of saying "a message"; the
+    // column already says it, so they're dropped (tui.conf brackets=1
+    // keeps them)
+    if (!st.brackets && left.text.size() > 2 && left.text.front() == '<' && left.text.back() == '>')
+        left = left.slice(1, left.text.size() - 1);
     Rich right = parse_irc(line.right);
     if (line.hilight) right.overlay(Style{}.with_bold());
     line.plain_left = left.text;
@@ -230,7 +241,10 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
         const int nick_pad = nick_w - nick.width();
         // indent on: right-aligned against the │ (xtext's); off: flush left
         nick = st.indent ? nick.pad_left(nick_w) : nick.pad_right(nick_w);
-        Rich sep{st.separator ? " │ " : " ", dim};
+        // the separator: │ dim; a line that mentions you gets a bright ┃
+        Rich sep = line.hilight && st.separator
+                       ? [] { Rich s{" "}; s.append("┃", role::hilight()); s.append(" "); return s; }()
+                       : Rich{st.separator ? " │ " : " ", dim};
         Rich blank = Rich{}.pad_right(stamp_w + nick_w);
 
         const auto spans = wrap_spans(right, text_w);

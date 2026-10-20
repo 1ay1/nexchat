@@ -20,16 +20,34 @@ maya::Element fill_row(std::function<Rich(int)> make) {
 }  // namespace
 
 Rich TopicBar::row(int w) const {
+    // " # nexchat   19 · +nt   HexChat, continued — now on GTK4"
+    // the channel big (the # quiet), its people and modes small, the topic
     Rich out;
     out.append(" ");
-    out.append(channel, role::title());
-    if (!modes.empty()) { out.append(" "); out.append(modes, role::muted()); }
+    std::size_t sig = 0;
+    while (sig < channel.size() && (channel[sig] == '#' || channel[sig] == '&' || channel[sig] == '!' || channel[sig] == '+'))
+        ++sig;
+    if (sig) out.append(channel.substr(0, sig), role::muted().with_bold());
+    out.append(channel.substr(sig), role::title());
+    Rich meta;
+    if (users > 0) {
+        meta.append(std::to_string(users), role::text());
+        meta.append(users == 1 ? " person" : " people", role::muted());
+    }
+    if (!modes.empty()) {
+        if (!meta.text.empty()) meta.append(" · ", role::muted());
+        meta.append(modes, role::muted());
+    }
+    if (!meta.text.empty()) { out.append("   "); out.append(meta); }
     if (!topic.empty()) {
         out.append("  │  ", role::border());
         // A topic is one line, whatever it holds.
         std::string flat = topic;
         for (char& c : flat) if (c == '\n' || c == '\r') c = ' ';
         out.append(parse_irc(flat));
+    } else {
+        out.append("  │  ", role::border());
+        out.append("no topic", role::muted().with_italic());
     }
     out = out.fit(w);
     return out;

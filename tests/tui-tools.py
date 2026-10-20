@@ -105,7 +105,7 @@ def main():
             t.dclick(p[0] + 1, p[1])            # double-click: go there
             t.pump(0.6)
         check(t.find("╭─ Mentions") is None, "double-click closes it...")
-        check(t.find("<heidi>") and not t.find("did you try the new build"),
+        check(t.find("heidi │ hi, this is a query") and not t.find("did you try the new build"),
               "...and goes to heidi's tab")
         p = t.find("#demo")
         if p:

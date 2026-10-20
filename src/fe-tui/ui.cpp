@@ -359,6 +359,8 @@ public:
         {
             const char* sr = nx_core_tui_get("stamp_repeat");
             chat_style.stamp_repeat = sr && (sr[0] == '1' || sr[0] == 't' || sr[0] == 'y');
+            const char* br = nx_core_tui_get("brackets");
+            chat_style.brackets = br && (br[0] == '1' || br[0] == 't' || br[0] == 'y');
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));
@@ -1762,7 +1764,12 @@ public:
         status.hot = hover_area == Area::Status ? status_hot : StatusBar::Hot::None;
 
         TopicBar topic;
-        if (b) { topic.channel = b->name; topic.modes = b->modes; topic.topic = b->topic; }
+        if (b) {
+            topic.channel = b->name; topic.modes = b->modes; topic.topic = b->topic;
+            // the count shows here when the user list (which has it) doesn't
+            const bool users_shown = layout.show_users && W >= layout.wide;
+            if (!users_shown) topic.users = b->total ? b->total : static_cast<int>(b->users.size());
+        }
         const bool has_topic = show_topic && b && b->kind == ChanKind::Channel;
 
         MainParts parts;

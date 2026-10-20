@@ -95,12 +95,12 @@ def main():
         base = set(any_underline())
 
         # ── the chat: a nick in the nick column ────────────────────────
-        p = t.find("<alice>")
+        p = t.find("alice │ morning")
         check(p is not None, "alice is on screen")
         if p:
             move(p[0] + 2, p[1])
             check(underlined(p[0] + 2, p[1]), "hovering a nick in the chat underlines it")
-            check(not underlined(p[0], p[1]), "...the nick, not its < >")
+            check(not underlined(p[0] - 1, p[1]), "...the nick only")
         # plain text: nothing new
         p = t.find("morning everyone")
         if p:

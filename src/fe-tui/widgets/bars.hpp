@@ -20,6 +20,7 @@ struct TopicBar {
     std::string channel;
     std::string modes;     // "+nt", "" = none
     std::string topic;     // raw IRC text
+    int users = 0;         // people in it (0: not shown)
 
     [[nodiscard]] Rich row(int w) const;
     [[nodiscard]] maya::Element element() const;

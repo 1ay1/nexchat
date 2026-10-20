@@ -39,6 +39,7 @@ const std::vector<Page>& pages() {
             {T::Toggle, "Enable timestamps", "stamp_text"},
             {T::Text, "Timestamp format", "stamp_text_format"},
             {T::TuiToggle, "Repeat the time on every line", "stamp_repeat=0"},
+            {T::TuiToggle, "Nicks in <brackets>", "brackets=0"},
             {T::Head, "Terminal"},
             {T::TuiToggle, "Underline what's under the mouse (restart)", "hover=1"},
         }},

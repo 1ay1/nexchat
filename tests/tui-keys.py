@@ -161,7 +161,7 @@ def main():
         t.send(b"\x1b1", 0.4)                                  # Alt-1: page 1, the server tab
         check("Welcome to the fake network" in t.text() or "MOTD" in t.text(), "Change Page 1: the first tab")
         t.send(b"\x1b[6;5~", 0.4)                              # Ctrl-PageDown: relative +1
-        check(t.find("<alice>") is not None or "#demo" in t.text().splitlines()[1], "Change Page Relative 1: the next")
+        check(t.find("alice │") is not None or "#demo" in t.text().splitlines()[1], "Change Page Relative 1: the next")
         # someone messages us in another tab: Alt-` goes there (lastact)
         t.send(b"\x1b1", 0.4)
         t.send(b"\x1b`", 0.5)
