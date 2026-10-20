@@ -129,11 +129,16 @@ jobs:
           ls -la dist
           test -f "dist/nexchat-$V-windows-x64-setup.exe"
           test -f "dist/nexchat-$V-windows-x64-portable.zip"
-      # the portable build starts and finds its config beside it
+      # the portable build has every DLL it needs and starts (a GUI app:
+      # --version shows a message box, so it's killed after a moment; a
+      # missing DLL fails at once with 0xC0000135)
       - name: Smoke test
         run: |
           mkdir -p t && cd t && 7z x -bso0 "../dist/nexchat-$V-windows-x64-portable.zip"
-          ./nexchat-$V-windows-x64-portable/bin/nexchat.exe --version
+          exe="nexchat-$V-windows-x64-portable/bin/nexchat.exe"
+          missing=$(ntldd -R "$exe" 2>&1 | grep -i "not found" || true)
+          if [ -n "$missing" ]; then echo "$missing"; exit 1; fi
+          timeout 10 "$exe" --version || [ $? -eq 124 ]
       - uses: actions/upload-artifact@v4
         with:
           name: windows

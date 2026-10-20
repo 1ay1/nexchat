@@ -19,9 +19,13 @@ prefix=${MINGW_PREFIX:-/ucrt64}
 rm -rf "$here/dist/stage"
 mkdir -p "$stage"
 
-# nexchat itself, laid out as installed (bin/, share/, lib/)
+# nexchat itself, laid out as installed (bin/, share/, lib/): DESTDIR
+# joins the prefix as Windows spells it (D:/.../ucrt64), so find where
+# the binary landed instead of guessing the path
 DESTDIR="$here/dist/stage/root" meson install -C "$build" --no-rebuild >/dev/null
-root=$here/dist/stage/root$prefix
+exe=$(find "$here/dist/stage/root" -path '*/bin/nexchat.exe' | head -1)
+[ -n "$exe" ] || { echo "nexchat.exe wasn't installed" >&2; exit 1; }
+root=$(dirname "$(dirname "$exe")")
 cp -R "$root"/. "$stage"/
 rm -rf "$here/dist/stage/root"
 
@@ -39,9 +43,11 @@ cp -n "$prefix"/bin/librsvg-2-2.dll "$stage/bin/" 2>/dev/null || true
 for f in $(deps "$prefix"/bin/librsvg-2-2.dll); do cp -n "$(cygpath -u "$f")" "$stage/bin/" 2>/dev/null || true; done
 mkdir -p "$stage/lib/gdk-pixbuf-2.0"
 cp -R "$prefix/lib/gdk-pixbuf-2.0/2.10.0" "$stage/lib/gdk-pixbuf-2.0/"
-# the loader cache with paths relative to the bundle
-( cd "$stage" && GDK_PIXBUF_MODULEDIR=lib/gdk-pixbuf-2.0/2.10.0/loaders \
-	"$prefix/bin/gdk-pixbuf-query-loaders.exe" > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache )
+# the loader cache with paths relative to the bundle (the tool writes
+# absolute Windows paths; GTK resolves relative ones against lib\...)
+( cd "$stage" && "$prefix/bin/gdk-pixbuf-query-loaders.exe" lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll ) |
+	sed -e 's#^"[^"]*[/\\]\(lib[/\\]gdk-pixbuf-2\.0[/\\]2\.10\.0[/\\]loaders[/\\][^"]*\)"#"\1"#' \
+	> "$stage/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
 
 # GTK's settings schemas, icon theme and the bits of share/ it reads
 mkdir -p "$stage/share/glib-2.0/schemas" "$stage/share/icons"
