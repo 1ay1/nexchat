@@ -306,8 +306,10 @@ model_item (nx_item *it)
 		else
 			g_menu_item_set_action_and_target_value (mi, name, NULL);
 	}
+	/* GTK's menu tracker reads "use-markup" with the "&s" format: any
+	   string turns it on, a boolean is never found (the tags showed raw) */
 	if (it->flags & NX_ITEM_MARKUP)
-		g_menu_item_set_attribute (mi, "use-markup", "b", TRUE);
+		g_menu_item_set_attribute (mi, "use-markup", "s", "true");
 	if (it->pixbuf)
 	{
 		/* GdkPixbuf is a GIcon */

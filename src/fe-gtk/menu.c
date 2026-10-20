@@ -562,12 +562,33 @@ copy_to_clipboard_cb (nx_item *item, gpointer url)
 	gtkutil_copy_to_clipboard (w ? w : parent_window, url);
 }
 
-/* an info line; choosing it copies `copy` (NULL: it does nothing) */
+/* an info line, "Label: value" as plain text (the macOS menu bar and
+   NSMenu show labels as-is, so markup came out as <tt><b> tags; and a
+   value with < or & in it broke markup elsewhere). Choosing it copies
+   `copy` (NULL: it does nothing). */
 static void
-menu_info_item (nx_menu *submenu, char *markup, char *copy)
+menu_info_item (nx_menu *submenu, const char *label, const char *value, char *copy)
 {
-	nx_menu_add_item (submenu, NX_MENU_APPEND, markup, NX_ITEM_MARKUP, NULL,
+	char *text = g_strdup_printf ("%s %s", label, value ? value : _("unknown"));
+
+	nx_menu_add_item (submenu, NX_MENU_APPEND, text, 0, NULL,
 							copy ? copy_to_clipboard_cb : NULL, copy);
+	g_free (text);
+}
+
+/* "just now", "4 minutes ago", "2 hours ago", "3 days ago" */
+static char *
+menu_ago (time_t when)
+{
+	long s = (long) (time (NULL) - when);
+
+	if (s < 60)
+		return g_strdup (_("just now"));
+	if (s < 3600)
+		return g_strdup_printf (g_dngettext (NULL, "%ld minute ago", "%ld minutes ago", s / 60), s / 60);
+	if (s < 86400)
+		return g_strdup_printf (g_dngettext (NULL, "%ld hour ago", "%ld hours ago", s / 3600), s / 3600);
+	return g_strdup_printf (g_dngettext (NULL, "%ld day ago", "%ld days ago", s / 86400), s / 86400);
 }
 
 /* returns boolean: Some data is missing */
@@ -575,70 +596,35 @@ menu_info_item (nx_menu *submenu, char *markup, char *copy)
 static gboolean
 menu_create_nickinfo_menu (struct User *user, nx_menu *submenu)
 {
-	char buf[512];
-	char unknown[96];
-	char *real, *fmt, *users_country;
+	char *real, *users_country, *ago;
 	struct away_msg *away;
 	gboolean missing = FALSE;
 
-	/* let the translators tweak this if need be */
-	fmt = _("<tt><b>%-11s</b></tt> %s");
-	g_snprintf (unknown, sizeof (unknown), "<i>%s</i>", _("Unknown"));
+	real = user->realname ? strip_color (user->realname, -1, STRIP_ALL) : NULL;
+	menu_info_item (submenu, _("Real name:"), real, user->realname);
+	g_free (real);
 
-	if (user->realname)
-	{
-		real = strip_color (user->realname, -1, STRIP_ALL|STRIP_ESCMARKUP);
-		g_snprintf (buf, sizeof (buf), fmt, _("Real Name:"), real);
-		g_free (real);
-	} else
-	{
-		g_snprintf (buf, sizeof (buf), fmt, _("Real Name:"), unknown);
-	}
-	/* `unknown` is on the stack: an item showing it copies nothing (it
-	   copied freed memory before) */
-	menu_info_item (submenu, buf, user->realname);
-
-	g_snprintf (buf, sizeof (buf), fmt, _("User:"),
-				 user->hostname ? user->hostname : unknown);
-	menu_info_item (submenu, buf, user->hostname);
-	
-	g_snprintf (buf, sizeof (buf), fmt, _("Account:"),
-				 user->account ? user->account : unknown);
-	menu_info_item (submenu, buf, user->account);
+	menu_info_item (submenu, _("User:"), user->hostname, user->hostname);
+	menu_info_item (submenu, _("Account:"), user->account, user->account);
 
 	users_country = country (user->hostname);
 	if (users_country)
-	{
-		g_snprintf (buf, sizeof (buf), fmt, _ ("Country:"), users_country);
-		menu_info_item (submenu, buf, users_country);
-	}
+		menu_info_item (submenu, _("Country:"), users_country, users_country);
 
-	g_snprintf (buf, sizeof (buf), fmt, _("Server:"),
-				 user->servername ? user->servername : unknown);
-	menu_info_item (submenu, buf, user->servername);
+	menu_info_item (submenu, _("Server:"), user->servername, user->servername);
 
-	if (user->lasttalk)
-	{
-		char min[96];
-
-		g_snprintf (min, sizeof (min), _("%u minutes ago"),
-					(unsigned int) ((time (0) - user->lasttalk) / 60));
-		g_snprintf (buf, sizeof (buf), fmt, _("Last Msg:"), min);
-	} else
-	{
-		g_snprintf (buf, sizeof (buf), fmt, _("Last Msg:"), unknown);
-	}
-	menu_info_item (submenu, buf, NULL);
+	ago = user->lasttalk ? menu_ago (user->lasttalk) : NULL;
+	menu_info_item (submenu, _("Last message:"), ago, NULL);
+	g_free (ago);
 
 	if (user->away)
 	{
 		away = server_away_find_message (current_sess->server, user->nick);
 		if (away)
 		{
-			char *msg = strip_color (away->message ? away->message : unknown, -1, STRIP_ALL|STRIP_ESCMARKUP);
-			g_snprintf (buf, sizeof (buf), fmt, _("Away Msg:"), msg);
+			char *msg = away->message ? strip_color (away->message, -1, STRIP_ALL) : NULL;
+			menu_info_item (submenu, _("Away:"), msg, away->message);
 			g_free (msg);
-			menu_info_item (submenu, buf, away->message);
 		}
 		else
 			missing = TRUE;
