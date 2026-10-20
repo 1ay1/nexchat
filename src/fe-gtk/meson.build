@@ -60,7 +60,9 @@ endif
 hexchat_gtk_deps = [
   hexchat_common_dep,
   libgmodule_dep, # used by libsexy
-  gtk_dep
+  gtk_dep,
+  # libm: pow() in xtext.c (part of libc on macOS and Windows, not on Linux)
+  meson.get_compiler('c').find_library('m', required: false),
 ]
 if host_machine.system() == 'darwin'
   hexchat_gtk_deps += dependency('appleframeworks',
