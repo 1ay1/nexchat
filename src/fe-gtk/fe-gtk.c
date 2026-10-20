@@ -1812,7 +1812,9 @@ fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stam
 
 	/* only while our line is still the newest; anything else printed in
 	   between starts a new group */
-	if (!res->jp_line || buf->text_last != res->jp_line)
+	/* the pointer alone could match a new line allocated where a trimmed
+	   or cleared one was: the append count says no other line came since */
+	if (!res->jp_line || buf->text_last != res->jp_line || buf->appended != res->jp_serial)
 	{
 		if (res->jp_joined)
 			g_ptr_array_set_size (res->jp_joined, 0);
@@ -1868,6 +1870,7 @@ fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stam
 	PrintTextRaw (buf, (unsigned char *) s->str, prefs.hex_text_indent, stamp);
 	g_string_free (s, TRUE);
 	res->jp_line = buf->text_last;
+	res->jp_serial = buf->appended;
 	return TRUE;
 }
 
@@ -1881,6 +1884,7 @@ fe_print_text (struct session *sess, char *text, time_t stamp,
 	{
 		sess->res->jp_pending = FALSE;
 		sess->res->jp_line = ((xtext_buffer *) sess->res->buffer)->text_last;
+		sess->res->jp_serial = ((xtext_buffer *) sess->res->buffer)->appended;
 	}
 
 	if (no_activity || !sess->gui->is_tab)

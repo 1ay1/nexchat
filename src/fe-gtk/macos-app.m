@@ -148,7 +148,7 @@ path_changed (nw_path_t path)
    that one, the way GDK itself does for a window opening under the
    pointer (-[GdkMacosWindow checkSendEnterNotify]). */
 
-static NSWindow *ptr_believed;		/* GDK's idea: the pointer is in this one */
+static __weak NSWindow *ptr_believed;		/* GDK's idea: the pointer is in this one (weak: a closed window is nil) */
 static id ptr_monitor;
 
 /* GdkMacosBaseView keeps its tracking area; only that one's events count
@@ -258,6 +258,12 @@ macos_app_install (const macos_app_hooks *h)
 		object:nil queue:nil usingBlock:^(NSNotification *n) {
 			(void) n;
 			dispatch_async (dispatch_get_main_queue (), ^{ focus_next_window (); });
+		}];
+	/* a window closing: GDK's idea of where the pointer is can't be it */
+	[[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillCloseNotification
+		object:nil queue:nil usingBlock:^(NSNotification *n) {
+			if ([n object] == ptr_believed)
+				ptr_believed = nil;
 		}];
 
 	ptr_monitor = [NSEvent addLocalMonitorForEventsMatchingMask:

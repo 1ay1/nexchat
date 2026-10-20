@@ -21,6 +21,7 @@
 #include "../common/hexchat.h"
 #include "../common/hexchatc.h"
 #include "../common/httpget.h"
+#include "../common/outbound.h"
 #include "gtkutil.h"
 #include "xtext.h"
 #include "urlpreview.h"
@@ -30,6 +31,23 @@
 #define MAX_SIDE 360			/* the popup's largest side, in points */
 #define CACHE_MAX 64
 
+/* one fetch: it may outlive the chat box it was for (tab closed, chat
+   destroyed while the download runs), so it holds only a weak pointer */
+typedef struct request
+{
+	GWeakRef xtext;
+	char *url;
+	GCancellable *cancel;
+	gboolean cancelled;
+} request;
+
+static void
+request_cancel (request *rq)
+{
+	rq->cancelled = TRUE;
+	g_cancellable_cancel (rq->cancel);
+}
+
 typedef struct
 {
 	GtkWidget *xtext;
@@ -38,7 +56,7 @@ typedef struct
 	char *url;					/* hovered, waiting or shown */
 	GdkRectangle at;
 	guint timer;
-	GCancellable *cancel;
+	struct request *pending;	/* the fetch in flight, if any */
 } preview;
 
 /* url -> GdkTexture, or a "not an image" marker (the cache value is the
@@ -88,6 +106,19 @@ looks_like_image (const char *url)
 	return yes;
 }
 
+/* the fetch in flight is no longer wanted (its callback still runs, and
+   frees it) */
+static void
+preview_cancel (preview *p)
+{
+	struct request *rq = p->pending;
+
+	if (!rq)
+		return;
+	p->pending = NULL;
+	request_cancel (rq);
+}
+
 static void
 preview_hide (preview *p)
 {
@@ -96,11 +127,7 @@ preview_hide (preview *p)
 		g_source_remove (p->timer);
 		p->timer = 0;
 	}
-	if (p->cancel)
-	{
-		g_cancellable_cancel (p->cancel);
-		g_clear_object (&p->cancel);
-	}
+	preview_cancel (p);
 	if (p->pop && gtk_widget_get_visible (p->pop))
 		gtk_popover_popdown (GTK_POPOVER (p->pop));
 	g_clear_pointer (&p->url, g_free);
@@ -135,26 +162,37 @@ preview_show (preview *p, GdkTexture *t)
 static void
 fetched (httpget_result *res, gpointer data)
 {
-	preview *p = data;
+	request *rq = data;
+	GtkWidget *xtext = g_weak_ref_get (&rq->xtext);
+	preview *p = xtext ? g_object_get_data (G_OBJECT (xtext), "nx-urlpreview") : NULL;
 	GdkTexture *t = NULL;
-	const char *url = res->final_url;
-	char *asked = g_object_get_data (G_OBJECT (p->xtext), "nx-preview-asked");
 
 	if (res->body && !res->truncated && res->status == 200 && res->content_type &&
 		 g_str_has_prefix (res->content_type, "image/"))
 		t = gdk_texture_new_from_bytes (res->body, NULL);
 	if (g_getenv ("NEXCHAT_PREVIEW_DEBUG"))
-		g_printerr ("preview: %s -> %d %s %s\n", asked ? asked : url, res->status,
+		g_printerr ("preview: %s -> %d %s %s\n", rq->url, res->status,
 						res->content_type ? res->content_type : "-",
 						t ? "image" : res->error ? res->error : "not an image");
-	if (asked)
-		cache_put (asked, t ? (gpointer) g_object_ref (t) : NOT_IMAGE);
-	/* still on that link: show it */
-	if (t && p->url && asked && !strcmp (p->url, asked))
-		preview_show (p, t);
+	/* cancelled (moved off the link) isn't an answer: ask again next time */
+	if (!rq->cancelled || t)
+		cache_put (rq->url, t ? (gpointer) g_object_ref (t) : NOT_IMAGE);
+	if (p)
+	{
+		/* still on that link: show it */
+		if (t && p->url && !strcmp (p->url, rq->url))
+			preview_show (p, t);
+		if (p->pending == rq)
+			p->pending = NULL;
+	}
 	if (t)
 		g_object_unref (t);
-	g_clear_object (&p->cancel);
+	if (xtext)
+		g_object_unref (xtext);
+	g_weak_ref_clear (&rq->xtext);
+	g_object_unref (rq->cancel);
+	g_free (rq->url);
+	g_free (rq);
 }
 
 static gboolean
@@ -174,12 +212,15 @@ hover_settled (gpointer data)
 		preview_show (p, v);
 		return G_SOURCE_REMOVE;
 	}
-	if (p->cancel)
-		g_cancellable_cancel (p->cancel);
-	g_clear_object (&p->cancel);
-	p->cancel = g_cancellable_new ();
-	g_object_set_data_full (G_OBJECT (p->xtext), "nx-preview-asked", g_strdup (p->url), g_free);
-	httpget (p->url, MAX_IMAGE, p->cancel, fetched, p);
+	preview_cancel (p);
+	{
+		request *rq = g_new0 (request, 1);
+		g_weak_ref_init (&rq->xtext, p->xtext);
+		rq->url = g_strdup (p->url);
+		rq->cancel = g_cancellable_new ();
+		p->pending = rq;
+		httpget (rq->url, MAX_IMAGE, rq->cancel, fetched, rq);
+	}
 	return G_SOURCE_REMOVE;
 }
 
@@ -222,10 +263,22 @@ preview_free (preview *p)
 }
 
 static gboolean
+test_close_cb (gpointer d)
+{
+	handle_command (current_sess, "close", FALSE);
+	g_printerr ("preview: closed the window mid-fetch\n");
+	return G_SOURCE_REMOVE;
+}
+
+static gboolean
 test_hover_cb (gpointer xtext)
 {
 	GdkRectangle at = { 120, 60, 1, 1 };
 	g_signal_emit_by_name (xtext, "url-hover", g_getenv ("NEXCHAT_PREVIEW_URL"), &at);
+	/* tests: NEXCHAT_PREVIEW_CLOSE=1 closes the window while it downloads
+	   (with the tab detached, its own chat box goes with it) */
+	if (g_getenv ("NEXCHAT_PREVIEW_CLOSE"))
+		g_timeout_add (HOVER_MS + 50, test_close_cb, NULL);
 	return G_SOURCE_REMOVE;
 }
 
@@ -237,9 +290,15 @@ urlpreview_attach (GtkWidget *xtext)
 	p->xtext = xtext;
 	g_signal_connect (xtext, "url-hover", G_CALLBACK (on_url_hover), p);
 	g_object_set_data_full (G_OBJECT (xtext), "nx-urlpreview", p, (GDestroyNotify) preview_free);
-	/* tests: NEXCHAT_PREVIEW_URL=url hovers it once the window is up */
+	/* tests: NEXCHAT_PREVIEW_URL=url hovers it once the window is up (the
+	   first chat box made, or with NEXCHAT_PREVIEW_CLOSE the second: a
+	   detached tab's own window) */
 	if (g_getenv ("NEXCHAT_PREVIEW_URL"))
-		g_timeout_add (2500, test_hover_cb, xtext);
+	{
+		static int made;
+		if (++made == (g_getenv ("NEXCHAT_PREVIEW_CLOSE") ? 2 : 1))
+			g_timeout_add (g_getenv ("NEXCHAT_PREVIEW_CLOSE") ? 800 : 2500, test_hover_cb, xtext);
+	}
 }
 
 /* tests: hover this link now, as the pointer would */

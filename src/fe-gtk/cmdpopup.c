@@ -64,6 +64,7 @@ typedef struct
 	int word_start;		/* byte offset in the text of the word they replace */
 	gboolean suppress;	/* Escape: stay closed for this command */
 	char *suppressed_for;	/* ...the command it was closed on */
+	guint focus_tag;		/* the focus-out check pending */
 } cmdpopup;
 
 static void
@@ -986,6 +987,7 @@ focus_out_idle (gpointer data)
 {
 	cmdpopup *p = data;
 
+	p->focus_tag = 0;
 	if (!entry_focused (p))
 		popup_hide (p);
 	return G_SOURCE_REMOVE;
@@ -994,12 +996,17 @@ focus_out_idle (gpointer data)
 static void
 focus_out_cb (GtkEventControllerFocus *f, cmdpopup *p)
 {
-	g_timeout_add (150, focus_out_idle, p);
+	/* one pending at a time; cmdpopup_free stops it (the window may close
+	   within the 150 ms, the input box with it) */
+	if (!p->focus_tag)
+		p->focus_tag = g_timeout_add (150, focus_out_idle, p);
 }
 
 static void
 cmdpopup_free (cmdpopup *p)
 {
+	if (p->focus_tag)
+		g_source_remove (p->focus_tag);
 	if (p->items)
 		g_ptr_array_unref (p->items);
 	g_free (p->suppressed_for);

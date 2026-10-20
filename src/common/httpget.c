@@ -506,6 +506,9 @@ httpget (const char *url, gsize max_bytes, GCancellable *cancel, httpget_cb cb, 
 	j->cb = cb;
 	j->data = data;
 	t = g_task_new (NULL, cancel, fetch_done, j);
+	/* the result comes back even when cancelled: the callback owns the
+	   caller's data and must run to free it */
+	g_task_set_check_cancellable (t, FALSE);
 	g_task_set_task_data (t, j, NULL);
 	g_task_run_in_thread (t, fetch_thread);
 	g_object_unref (t);
@@ -529,6 +532,7 @@ httppost (const char *url, GBytes *body, const char *content_type, const char *f
 	j->cb = cb;
 	j->data = data;
 	t = g_task_new (NULL, cancel, fetch_done, j);
+	g_task_set_check_cancellable (t, FALSE);
 	g_task_set_task_data (t, j, NULL);
 	g_task_run_in_thread (t, fetch_thread);
 	g_object_unref (t);

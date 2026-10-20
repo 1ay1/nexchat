@@ -1062,8 +1062,10 @@ nx_menu_bar_export_macos (nx_menu *m)
 	names = g_action_group_list_actions (G_ACTION_GROUP (m->actions));
 	for (i = 0; names && names[i]; i++)
 	{
-		GAction *a = g_action_map_lookup_action (G_ACTION_MAP (m->actions), names[i]);
-		if (a)
+		GAction *a = g_action_map_lookup_action (G_ACTION_MAP (app), names[i]);
+		/* the first window's actions run the menu; a later window (a
+		   detached tab) has the same items, run on the front window */
+		if (!a && (a = g_action_map_lookup_action (G_ACTION_MAP (m->actions), names[i])))
 			g_action_map_add_action (G_ACTION_MAP (app), a);
 	}
 	g_strfreev (names);
@@ -1074,10 +1076,16 @@ nx_menu_bar_export_macos (nx_menu *m)
 		g_action_map_add_action (G_ACTION_MAP (app), G_ACTION (q));
 		g_object_unref (q);
 	}
-	model = macos_copy_range (G_MENU_MODEL (m->model), 0, -1);
-	gtk_application_set_menubar (app, model);
-	macos_merge_app_menu (app, model);
-	g_object_unref (model);
+	/* once: setting it again makes GTK's menu tracker remove items by
+	   positions that the merge into the application menu (below) moved,
+	   and AppKit throws (NSRangeException on detaching a tab) */
+	if (!gtk_application_get_menubar (app))
+	{
+		model = macos_copy_range (G_MENU_MODEL (m->model), 0, -1);
+		gtk_application_set_menubar (app, model);
+		macos_merge_app_menu (app, model);
+		g_object_unref (model);
+	}
 	gtk_widget_set_visible (m->bar_widget, FALSE);
 	g_object_set_data (G_OBJECT (m->bar_widget), "nx-macos-global", GINT_TO_POINTER (1));
 }

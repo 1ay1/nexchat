@@ -107,6 +107,7 @@ typedef struct restore_gui
 	   chat is something else */
 	GPtrArray *jp_joined, *jp_left;
 	void *jp_line;		/* (textentry *) the group's line, if still the last */
+	guint jp_serial;	/* buf->appended when jp_line was the newest line */
 	gboolean jp_pending;	/* the run's first event is being printed as usual */
 
 	/* information stored when this tab isn't front-most */

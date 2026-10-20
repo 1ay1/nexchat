@@ -4317,6 +4317,7 @@ gtk_xtext_remove_bottom (xtext_buffer *buffer)
 	ent = buffer->text_last;
 	if (!ent)
 		return;
+	buffer->appended++;	/* the last line changed, as far as anyone watching knows */
 	buffer->num_lines -= g_slist_length (ent->sublines);
 	buffer->text_last = ent->prev;
 	if (buffer->text_last)
@@ -4901,6 +4902,7 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 	ent->stamp = stamp;
 	if (stamp == 0)
 		ent->stamp = time (0);
+	buf->appended++;
 	ent->slp = NULL;
 	ent->str_width = gtk_xtext_text_width_ent (buf->xtext, ent);
 	ent->mark_start = -1;

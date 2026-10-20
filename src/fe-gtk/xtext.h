@@ -112,6 +112,7 @@ typedef struct {
 	int window_height;
 
 	int last_day;					/* local date of the last line, yyyymmdd (day separators) */
+	guint appended;				/* lines ever appended: tells "the last line is still X" apart from a new line at X's old address */
 
 	unsigned int time_stamp:1;
 	unsigned int scrollbar_down:1;
