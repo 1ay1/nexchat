@@ -138,7 +138,7 @@ maya::Element Dialog::element(int sw, int sh) const {
 
     std::vector<Rich> card;
     Rich top{"╭─", role::border()};
-    top.append(" " + title_ + " ", error_ ? role::bad().with_bold() : role::title());
+    top.append(" " + title_ + " ", error_ ? role::bad().with_bold() : role::selected().with_bold());
     std::string fill;
     for (int i = top.width(); i < w - 1; ++i) fill += "─";
     top.append(fill, role::border());

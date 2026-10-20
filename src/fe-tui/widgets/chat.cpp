@@ -454,6 +454,29 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
                 row = std::move(blanked);
             }
         }
+        // the same person again within 5 minutes: the nick goes blank too,
+        // so a run of lines reads as one block (hover shows it)
+        if (r == 0 && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
+            && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
+            const ChatLine& L = buf[c.li];
+            const ChatLine& P = buf[c.li - 1];
+            if (P.cached_cols < 0) (void)line_rows(P, st, w);
+            const bool msg = !L.plain_left.empty() && L.plain_left != "•" && L.plain_left.front() != '*';
+            if (msg && L.plain_left == P.plain_left && L.stamp - P.stamp < 300 && L.stamp >= P.stamp) {
+                // the nick's cells (RowCell::Left) become blanks
+                std::size_t from = 0, to = 0;
+                for (std::size_t i = 0; i < src.cells.size(); ++i)
+                    if (src.cells[i].src == RowCell::Left) { if (!to) from = i; to = i + 1; }
+                if (to > from) {
+                    const std::size_t b0 = row.take(static_cast<int>(from)).text.size();
+                    const std::size_t b1 = row.take(static_cast<int>(to)).text.size();
+                    Rich g = row.slice(0, b0);
+                    g.append(Rich{}.pad_right(static_cast<int>(to - from)));
+                    g.append(row.slice(b1));
+                    row = std::move(g);
+                }
+            }
+        }
         // Paint the selected cells, and the find matches.
         const bool finding = !find_.empty() && !src.marker;
         std::vector<Match> on_line;

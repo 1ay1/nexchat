@@ -1780,6 +1780,24 @@ public:
         parts.chat_style = &chat_style;
         parts.users = b && b->kind == ChanKind::Channel ? &users : nullptr;
         parts.status = &status;
+        // an almost-empty tab's card
+        MainParts::Welcome welcome;
+        if (b) {
+            if (b->kind == ChanKind::Channel) {
+                welcome.name = b->name;
+                welcome.what = b->topic.empty() ? "A channel" : "";
+                welcome.hints = {"Say hello — or type / for commands", "Ctrl-P finds anything"};
+            } else if (b->kind == ChanKind::Query) {
+                welcome.name = b->name;
+                welcome.what = "A private conversation";
+                welcome.hints = {"Only the two of you see this"};
+            } else if (b->kind == ChanKind::Server) {
+                welcome.name = b->name;
+                welcome.what = n && n->connected ? "Connected" : "The network’s own messages";
+                welcome.hints = {"/join #channel to go in one · Ctrl-S the networks", "F1 every key · Ctrl-P every command"};
+            }
+            parts.welcome = &welcome;
+        }
         (void)status.row(w);                 // lays out the clickable spans
         status_spans = status.spans_;
         Rich find_r;

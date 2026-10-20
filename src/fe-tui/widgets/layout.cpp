@@ -13,6 +13,13 @@ namespace {
 // A column of `h` rows `w` wide made of one Rich per row.
 maya::Element column(std::vector<Rich> rows) { return stack_rows(rows); }
 
+// the width of a row without its trailing spaces
+int rtrim_width(const Rich& r) {
+    std::string_view s = r.text;
+    while (!s.empty() && s.back() == ' ') s.remove_suffix(1);
+    return display_width(s);
+}
+
 maya::Element vbar(int h, int thumb_y = 0, int thumb_h = 0, bool hot = false) {
     // the pane divider; a scrolled chat's thumb is drawn on it, heavier;
     // under the pointer (it drags) the whole line lights up
@@ -72,6 +79,28 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         if (p.view) p.view->bar_outside = div_right;
         std::vector<Rich> chat = p.buffer && p.view ? p.view->rows(*p.buffer, cs, chat_w, body_h)
                                                     : std::vector<Rich>(static_cast<std::size_t>(body_h));
+        // a tab that has barely started (all of it fits with room to spare):
+        // a quiet card in the empty space above it — the name, a line of what
+        // it is, a hint — instead of a screen of nothing
+        if (p.buffer && p.welcome && p.welcome->name.size()) {
+            int blank = 0;
+            while (blank < body_h && rtrim_width(chat[static_cast<std::size_t>(blank)]) == 0) ++blank;
+            if (blank >= 7 && chat_w >= 30) {
+                std::vector<Rich> card;
+                card.push_back(Rich{p.welcome->name, role::title()});
+                if (!p.welcome->what.empty()) card.push_back(Rich{p.welcome->what, role::muted()});
+                card.push_back(Rich{});
+                for (const auto& hnt : p.welcome->hints) card.push_back(Rich{hnt, role::muted().with_italic()});
+                const int top = std::max(0, (blank - static_cast<int>(card.size())) / 2);
+                for (std::size_t k = 0; k < card.size() && top + static_cast<int>(k) < blank; ++k) {
+                    Rich r = card[k];
+                    if (r.width() > chat_w - 4) r = r.fit(chat_w - 4);
+                    const int pad = std::max(0, (chat_w - r.width()) / 2);
+                    chat[static_cast<std::size_t>(top) + k] = Rich{}.pad_right(pad);
+                    chat[static_cast<std::size_t>(top) + k].append(r);
+                }
+            }
+        }
         const auto th = p.view && div_right ? p.view->thumb() : ChatView::Thumb{};
         for (auto& r : chat) r = r.pad_right(chat_w);
         maya::Element chat_el = column(std::move(chat));

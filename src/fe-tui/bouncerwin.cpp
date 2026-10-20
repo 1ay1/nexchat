@@ -1097,12 +1097,12 @@ public:
         w_ = w; h_ = h;
         const int inner = w - 4;
         const bool tabs = page_ == P_MAIN && nx_bnc_state() == NX_MYBNC_SET_UP;
-        const int body_h = h - 2 - (tabs ? 2 : 0) - 2 - (note_.text.empty() ? 0 : 1);
+        const int body_h = h - 2 - 1 - (tabs ? 2 : 0) - 2 - (note_.text.empty() ? 0 : 1);
         std::vector<Rich> card;
         // top border with the title and ✕
         {
             Rich top{"╭─", role::border()};
-            top.append(" " + title() + " ", role::title());
+            top.append(" " + title() + " ", role::selected().with_bold());
             std::string fill;
             for (int i = top.width(); i < w - 5; ++i) fill += "─";
             top.append(fill, role::border());
@@ -1117,12 +1117,13 @@ public:
             card.push_back(row);
         };
         tab_x_.clear();
+        line(Rich{});                     // room under the title
         if (tabs) {
             Rich t;
             const char* names[] = {"Networks", "Channels", "Access", "Storage"};
             int x = x_ + 2;
             for (int i = 0; i < 4; ++i) {
-                Rich one{std::string(" ") + names[i] + " ", i == tab_ ? role::title() : role::muted()};
+                Rich one{std::string(" ") + names[i] + " ", i == tab_ ? role::title().with_bold() : role::muted()};
                 if (i == tab_) one.replace_colors(role::selected());
                 tab_x_.push_back({x, x + one.width()});
                 x += one.width() + 1;
@@ -1135,7 +1136,7 @@ public:
             line(Rich{rule, role::border()});
         }
         body_x_ = x_ + 2;
-        body_y_ = y_ + 1 + (tabs ? 2 : 0);
+        body_y_ = y_ + 2 + (tabs ? 2 : 0);
         for (auto& r : sheet_.rows(inner, body_h)) line(r);
         if (!note_.text.empty()) {
             Rich n;
@@ -1144,8 +1145,13 @@ public:
             else n.append(note_.text, role::text());
             line(n);
         }
-        // the bottom row: "Use another bouncer..." left, Close right (main page only)
-        line(Rich{});
+        // the bottom row, under a rule as the panels have it: "Use another
+        // bouncer..." left, Close right (main page only)
+        {
+            std::string s;
+            for (int i = 0; i < w - 2; ++i) s += "─";
+            card.push_back(Rich{"├" + s + "┤", role::border()});
+        }
         {
             Rich b;
             if (page_ == P_MAIN) {
@@ -1208,7 +1214,7 @@ public:
         if (!press_) return;
         if (y == y_ && x >= x_ + w_ - 5 && x < x_ + w_ - 2) { open_ = false; return; }
         for (std::size_t i = 0; i < tab_x_.size(); ++i)
-            if (y == y_ + 1 && x >= tab_x_[i].first && x < tab_x_[i].second) { tab_ = static_cast<Tab>(i); note_ = {}; return; }
+            if (y == y_ + 2 && x >= tab_x_[i].first && x < tab_x_[i].second) { tab_ = static_cast<Tab>(i); note_ = {}; return; }
         if (y == bottom_y_ && page_ == P_MAIN) {
             if (x < x_ + 2 + 27) { press(I_OTHER); return; }
             if (x >= x_ + w_ - 12) { open_ = false; return; }

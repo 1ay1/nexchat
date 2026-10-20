@@ -145,7 +145,7 @@ maya::Element Switcher::element(int w, int max_rows) const {
     std::vector<Rich> card;
     auto edge = [&](std::string_view l, std::string_view title, std::string_view r) {
         Rich e{l, role::border()};
-        if (!title.empty()) { e.append("─", role::border()); e.append(title, role::title()); }
+        if (!title.empty()) { e.append("─", role::border()); e.append(title, role::selected().with_bold()); }
         std::string fill;
         for (int i = e.width(); i < inner + 3; ++i) fill += "─";
         e.append(fill, role::border());

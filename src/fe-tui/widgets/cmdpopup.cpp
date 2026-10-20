@@ -72,7 +72,7 @@ std::vector<Rich> CmdPopup::rows(int w, int max_h) const {
             u.append(" ");
             top.append(u.take(std::max(0, w - 6)));
         } else {
-            top.append(" " + title + " ", role::title());
+            top.append(" " + title + " ", role::selected().with_bold());
         }
         std::string fill;
         for (int i = top.width(); i < w - 1; ++i) fill += "\u2500";

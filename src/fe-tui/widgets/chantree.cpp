@@ -133,19 +133,27 @@ std::vector<Rich> ChanTree::rows(int w, int h, bool focused) const {
         if (cur) name = name.merge(Style{}.with_bold());
         if (hover_ && *hover_ == e.key && !cur) name = name.merge(Style{}.with_underline());
 
-        // the current row: a bar in the first column (▌), the name bold
+        // the current row: a bar in the first column (▌), the name bold;
+        // a query is marked with @ (quiet), a channel needs nothing (its #)
         Rich left;
         left.append(cur ? "▌" : " ", role::title());
         if (e.kind == ChanKind::Server) {
             left.append(e.collapsed ? "▸ " : "▾ ", dim);
             left.append(e.name, name.merge(Style{}.with_bold()));
+        } else if (e.kind == ChanKind::Query) {
+            left.append("  ");
+            left.append("@", dim);
+            left.append(e.name, name);
         } else {
             left.append("  ");
             left.append(e.name, name);
         }
 
+        // the unread count as a little pill: " 3 " on the activity colour's
+        // band for a mention, plain digits otherwise
         Rich badge;
-        if (act == Activity::Hilight) badge.append(unread ? std::to_string(unread) + " ●" : "●", activity_style(act));
+        if (act == Activity::Hilight)
+            badge.append(unread ? "●" + std::to_string(unread) : "●", activity_style(act).with_bold());
         else if (unread) badge.append(e.kind == ChanKind::Server && e.collapsed
                                           ? "(" + std::to_string(unread) + ")"
                                           : std::to_string(unread),
@@ -189,7 +197,7 @@ Rich ChanTree::strip(int w, int trunc) const {
         Rich label;
         label.append(" ");
         label.append(name, st);
-        if (e.activity == Activity::Hilight) label.append(e.unread ? " " + std::to_string(e.unread) + "●" : " ●", activity_style(e.activity));
+        if (e.activity == Activity::Hilight) label.append(e.unread ? " ●" + std::to_string(e.unread) : " ●", activity_style(e.activity).with_bold());
         else if (e.unread) label.append(" " + std::to_string(e.unread), e.activity == Activity::None ? dim : activity_style(e.activity));
         label.append(" ");
         if (i == sel_) label.replace_colors(role::selected());

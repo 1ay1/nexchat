@@ -42,6 +42,9 @@ struct MainParts {
     const Rich*       find = nullptr;      // the find bar: drawn over the status row
     /// the divider under the pointer (draggable): drawn in the accent
     enum class Div { None, Tree, Users } hover_div = Div::None;
+    /// a quiet card in an almost-empty tab: its name, what it is, hints
+    struct Welcome { std::string name, what; std::vector<std::string> hints; };
+    const Welcome* welcome = nullptr;
 };
 
 struct MainLayout {

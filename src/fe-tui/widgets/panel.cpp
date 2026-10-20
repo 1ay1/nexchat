@@ -254,13 +254,20 @@ maya::Element Panel::element(int sw, int sh) const {
     for (std::size_t i = 0; i < buttons_.size(); ++i) {
         const bool foc = part_ == Part::Buttons && static_cast<int>(i) == button_focus_;
         const bool on = buttons_[i].enabled;
+        const bool primary = on && i == 0 && buttons_.size() > 1;
         Style st = on ? role::text() : role::muted();
-        if (on && i == 0 && buttons_.size() > 1) st = role::title();
+        if (primary) st = role::title().with_bold();
+        if (static_cast<int>(i) == hover_button_) st = st.with_underline();
+        // "[ Connect ]": the main action's label on the band, the focused
+        // button all of it
         Rich b;
-        b.append("[ ", on ? role::border() : role::muted());
-        b.append(buttons_[i].label, static_cast<int>(i) == hover_button_ ? st.with_underline() : st);
-        b.append(" ]", on ? role::border() : role::muted());
-        if (foc) b.replace_colors(role::selected());
+        b.append("[", on ? role::border() : role::muted());
+        Rich lab{" " + buttons_[i].label + " ", st};
+        if (primary && !foc) lab.replace_colors(role::selected());
+        if (primary && !foc && static_cast<int>(i) == hover_button_) lab.overlay(Style{}.with_underline());
+        b.append(lab);
+        b.append("]", on ? role::border() : role::muted());
+        if (foc) { b.replace_colors(role::selected()); b.overlay(Style{}.with_bold()); }
         total += b.width() + (i ? 2 : 0);
         parts.push_back(std::move(b));
     }
@@ -279,9 +286,10 @@ maya::Element Panel::element(int sw, int sh) const {
     // compose the card
     std::vector<Rich> card;
     {
-        // the title as a tag on the top edge: ╭─ Network List ───── ✕ ─╮
+        // the title as a pill on the top edge: ╭─▐ Network List ▌──── ✕ ─╮
         Rich top{"╭─", role::border()};
-        top.append(" " + title_ + " ", role::title());
+        Rich pill{" " + title_ + " ", role::selected().with_bold()};
+        top.append(pill);
         std::string fill;
         for (int i = top.width(); i < w - 5; ++i) fill += "─";
         top.append(fill, role::border());

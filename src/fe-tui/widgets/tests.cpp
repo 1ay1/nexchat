@@ -513,6 +513,19 @@ static void test_chat() {
         ss.stamp_repeat = true;
         r = v.rows(b, ss, 50, 3);
         CHECK(r[1].text.find(':') == 2);                          // every line
+        // the same person twice in a row: the second line's nick is blank
+        ChatBuffer run;
+        run.add("<a>\tone", t0);
+        run.add("<a>\ttwo", t0 + 30);
+        run.add("<b>\tthree", t0 + 40);
+        ChatStyle rs;
+        rs.show_stamp = false;
+        rs.nick_width = 4;
+        ChatView rv;
+        auto rr = rv.rows(run, rs, 30, 3);
+        CHECK(rr[0].text.rfind("   a │ one", 0) == 0);
+        CHECK(rr[1].text.rfind("     │ two", 0) == 0);
+        CHECK(rr[2].text.rfind("   b │ three", 0) == 0);
     }
     {
         // a day separator before the first line of a new day; none for a
@@ -656,7 +669,7 @@ static void test_chantree() {
     auto rows = t.rows(16, 7);
     CHECK_EQ(rows[0].text, std::string("▌▾ Libera       "));   // the current row: ▌
     CHECK_EQ(rows[1].text, std::string("   #nexchat   3 "));
-    CHECK_EQ(rows[2].text, std::string("   #gtk     1 ● "));
+    CHECK_EQ(rows[2].text, std::string("   #gtk      ●1 "));
     CHECK_EQ(rows[6].text, std::string("                "));
     CHECK(*t.selected() == 1);
 
@@ -670,7 +683,7 @@ static void test_chantree() {
     t.select_key(1);
     t.toggle_collapse();
     rows = t.rows(16, 7);
-    CHECK_EQ(rows[0].text, std::string("▌▸ Libera   4 ● "));        // summed, the worst activity
+    CHECK_EQ(rows[0].text, std::string("▌▸ Libera    ●4 "));        // summed, the worst activity
     CHECK_EQ(rows[1].text, std::string(" ▾ OFTC         "));
     CHECK(t.key_at_row(2) == std::optional<std::uintptr_t>{6});
 
