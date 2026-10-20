@@ -92,7 +92,7 @@ Plugin compatibility (nothing breaks):
 - [x] Python: `import nexchat` / `hexchat` / `xchat`. Lua: `nexchat` and `hexchat` globals. Perl: `Nexchat::` / `HexChat::` / `Xchat::`.
 - [ ] `gtkwin_ptr` stays. Document what it returns once it's a GTK4 window (phase 4).
 - [x] D-Bus: bus name `io.github.nexchat.service`, so `--existing` never talks to a running HexChat. Object paths and interfaces stay `org.hexchat.*`, so remote-control scripts only need the new bus name.
-- [x] CTCP VERSION reply is "nexchat 2.16.2 / <os>".
+- [x] CTCP VERSION reply is "nexchat <version> / <os>".
 
 ## Phase 2: GTK3
 

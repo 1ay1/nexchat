@@ -26,6 +26,19 @@
     <binary>nexchat</binary>
   </provides>
   <releases>
+    <release date="2026-10-20" version="0.1.0">
+      <description>
+        <p>The first nexchat release: HexChat, continued on GTK4.</p>
+        <ul>
+          <li>GTK4 on Linux, Windows and macOS, following the system's light and dark mode</li>
+          <li>Replies with a quote bar, a Mentions window and grouped joins and parts</li>
+          <li>Image links preview on hover; files share through the bouncer's file host</li>
+          <li>Day separators, coloured nicks and a searchable network list</li>
+          <li>Native macOS behaviour: menu bar, Dock badge, notifications, away while locked</li>
+          <li>Your HexChat settings, themes and scripts are picked up on first start</li>
+        </ul>
+      </description>
+    </release>
     <release date="2024-02-07" version="2.16.2">
       <description>
         <p>This is a minor release with small improvements and fixes:</p>

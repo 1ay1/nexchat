@@ -1,7 +1,8 @@
 pkgbase = nexchat-git
-	pkgdesc = HexChat on GTK4: the same IRC client, on a current toolkit (git master)
-	pkgver = 2.16.2.r167.gc9176bfd
+	pkgdesc = IRC client: HexChat continued on GTK4 (git master)
+	pkgver = 0.1.0.r0.g0000000
 	pkgrel = 1
+	epoch = 1
 	url = https://github.com/1ay1/nexchat
 	arch = x86_64
 	arch = aarch64

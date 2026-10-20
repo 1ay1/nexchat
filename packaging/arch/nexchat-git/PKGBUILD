@@ -2,9 +2,12 @@
 
 pkgname=nexchat-git
 _pkgname=nexchat
-pkgver=2.16.2.r167.gc9176bfd
+# nexchat's own numbering started at 0.1.0, below the 2.16.2 it carried from
+# HexChat before: the epoch keeps pacman upgrading
+epoch=1
+pkgver=0.1.0.r0.g0000000
 pkgrel=1
-pkgdesc="HexChat on GTK4: the same IRC client, on a current toolkit (git master)"
+pkgdesc="IRC client: HexChat continued on GTK4 (git master)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/1ay1/nexchat"
 license=('GPL-2.0-or-later')
@@ -23,7 +26,7 @@ sha256sums=('SKIP')
 
 pkgver() {
 	cd "$_pkgname"
-	# 2.16.2.r<commits since the meson version changed>.g<hash>
+	# 0.1.0.r<commits since the meson version changed>.g<hash>
 	local ver
 	ver=$(sed -n "s/^  version: '\(.*\)',/\1/p" meson.build)
 	printf '%s.r%s.g%s' "$ver" \
