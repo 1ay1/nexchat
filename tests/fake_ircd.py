@@ -26,6 +26,8 @@ p.add_argument("--script-after",
                help="send --script after this channel's JOIN instead of the first")
 p.add_argument("--caps", default="",
                help="capabilities to offer (echo-message makes it echo our PRIVMSGs back)")
+p.add_argument("--isupport", default="",
+               help="more 005 tokens, e.g. soju.im/FILEHOST=http://127.0.0.1:8766/upload")
 a = p.parse_args()
 
 DEMO_USERS = ["~founder", "&admin", "@alice", "@carol", "%helper", "+bob", "+dave",
@@ -197,6 +199,8 @@ try:
                 send(f":fake 001 {nick} :Welcome to the fake network {nick}")
                 net = "Libera.Chat" if a.showcase else "Fake"
                 send(f":fake 005 {nick} CHANTYPES=# PREFIX=(qaohv)~&@%+ CHANMODES=b,k,l,imnpst NETWORK={net} :are supported")
+                if a.isupport:
+                    send(f":fake 005 {nick} {a.isupport} :are supported")
                 send(f":fake 376 {nick} :End of MOTD")
                 if a.showcase:
                     for when, l in SHOWCASE_QUERY:

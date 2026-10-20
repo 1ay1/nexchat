@@ -57,6 +57,7 @@
 #include "textgui.h"
 #include "fkeys.h"
 #include "cmdpopup.h"
+#include "upload.h"
 
 static void replace_handle (GtkWidget * wid);
 void key_action_tab_clean (void);
@@ -425,6 +426,14 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 	r = key_handle (wid, keyval, state, NULL);
 	if (r != KEY_NOT_HANDLED)
 		goto done;
+
+#ifdef USE_OPENSSL
+	/* Cmd/Ctrl+V with a picture on the clipboard, on a server with a file
+	   host: it's uploaded and the link lands here */
+	if (mods == STATE_CTRL && (keyval == GDK_KEY_v || keyval == GDK_KEY_V) &&
+		 upload_paste (current_sess, wid))
+		return TRUE;
+#endif
 
 	/* Shift+Enter: a new line in the same message (gui_multiline) */
 	if (prefs.hex_gui_multiline && mods == STATE_SHIFT &&

@@ -36,10 +36,14 @@ hexchat_gtk_sources = [
   'textgui.c',
   'urlgrab.c',
   'mentions.c',
-  'urlpreview.c',
   'userlistgui.c',
   'xtext.c'
 ]
+
+# link previews and uploads: the HTTP(S) client in common/httpget.c
+if libssl_dep.found()
+  hexchat_gtk_sources += ['urlpreview.c', 'upload.c']
+endif
 
 gtk_dep = dependency('gtk4', version: '>= 4.14.0')
 # the tray: a StatusNotifierItem over D-Bus on Unix desktops; Windows:

@@ -60,6 +60,7 @@
 #include "bncwin.h"
 #include "mentions.h"
 #include "urlpreview.h"
+#include "upload.h"
 #ifdef __APPLE__
 #include "platform-macos.h"
 #endif
@@ -1879,6 +1880,21 @@ static void
 mg_dialog_dnd_drop (GtkWidget * widget, double x, double y, const char *uris,
 						  gpointer ud)
 {
+#ifdef USE_OPENSSL
+	/* the server has a file host: upload, the link goes in the input box */
+	if (upload_available (current_sess))
+	{
+		char **list = g_uri_list_extract_uris (uris), **u;
+		for (u = list; u && *u; u++)
+		{
+			GFile *f = g_file_new_for_uri (*u);
+			upload_file (current_sess, f);
+			g_object_unref (f);
+		}
+		g_strfreev (list);
+		return;
+	}
+#endif
 	if (current_sess->type == SESS_DIALOG)
 		/* sess->channel is really the nickname of dialogs */
 		mg_dnd_drop_file (current_sess, current_sess->channel, (char *) uris);

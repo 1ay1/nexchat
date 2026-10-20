@@ -36,7 +36,25 @@ typedef struct
 	gsize max_bytes;
 	httpget_cb cb;
 	gpointer data;
+	/* POST */
+	GBytes *body;
+	char *content_type, *filename, *auth;
+	/* the address came from our own server, not a link: a bouncer on
+	   the LAN or this machine is fine */
+	gboolean allow_local;
 } job;
+
+static void
+job_free (job *j)
+{
+	g_free (j->url);
+	if (j->body)
+		g_bytes_unref (j->body);
+	g_free (j->content_type);
+	g_free (j->filename);
+	g_free (j->auth);
+	g_free (j);
+}
 
 static void
 result_free (httpget_result *r)
@@ -85,7 +103,7 @@ address_is_public (GInetAddress *a)
 
 /* the first public address the name has; NULL if it has none */
 static GInetAddress *
-resolve_public (const char *host, GCancellable *c, char **err)
+resolve_public (const char *host, gboolean allow_local, GCancellable *c, char **err)
 {
 	GResolver *r = g_resolver_get_default ();
 	GList *l, *addrs = g_resolver_lookup_by_name (r, host, c, NULL);
@@ -98,7 +116,7 @@ resolve_public (const char *host, GCancellable *c, char **err)
 		return NULL;
 	}
 	for (l = addrs; l && !pick; l = l->next)
-		if (address_is_public (l->data) || g_getenv ("NEXCHAT_HTTPGET_ALLOW_LOCAL"))
+		if (allow_local || address_is_public (l->data) || g_getenv ("NEXCHAT_HTTPGET_ALLOW_LOCAL"))
 			pick = g_object_ref (l->data);
 	g_resolver_free_addresses (addrs);
 	if (!pick)
@@ -156,14 +174,15 @@ conn_read (conn *c, char *buf, gsize len)
 }
 
 static gboolean
-conn_open (conn *c, const char *host, int port, gboolean tls, GCancellable *cancel, char **err)
+conn_open (conn *c, const char *host, int port, gboolean tls, gboolean allow_local,
+			  GCancellable *cancel, char **err)
 {
 	GInetAddress *addr;
 	GSocketAddress *sa;
 	GError *e = NULL;
 
 	memset (c, 0, sizeof *c);
-	if (!(addr = resolve_public (host, cancel, err)))
+	if (!(addr = resolve_public (host, allow_local, cancel, err)))
 		return FALSE;
 	c->sock = g_socket_new (g_inet_address_get_family (addr), G_SOCKET_TYPE_STREAM,
 									G_SOCKET_PROTOCOL_TCP, &e);
@@ -260,7 +279,7 @@ header_get (const char *head, const char *name)
 
 /* one request; a redirect comes back as *location */
 static void
-fetch_once (const char *url, gsize max_bytes, GCancellable *cancel,
+fetch_once (job *j, const char *url, gsize max_bytes, GCancellable *cancel,
 				httpget_result *res, char **location)
 {
 	GUri *uri = g_uri_parse (url, G_URI_FLAGS_ENCODED, NULL);
@@ -290,7 +309,7 @@ fetch_once (const char *url, gsize max_bytes, GCancellable *cancel,
 	}
 	tls = !g_ascii_strcasecmp (scheme, "https");
 	port = g_uri_get_port (uri) > 0 ? g_uri_get_port (uri) : tls ? 443 : 80;
-	if (!conn_open (&c, host, port, tls, cancel, &res->error))
+	if (!conn_open (&c, host, port, tls, j->allow_local, cancel, &res->error))
 	{
 		conn_close (&c);
 		g_uri_unref (uri);
@@ -299,10 +318,29 @@ fetch_once (const char *url, gsize max_bytes, GCancellable *cancel,
 
 	path = g_strdup_printf ("%s%s%s", *g_uri_get_path (uri) ? g_uri_get_path (uri) : "/",
 									g_uri_get_query (uri) ? "?" : "", g_uri_get_query (uri) ? g_uri_get_query (uri) : "");
-	req = g_strdup_printf ("GET %s HTTP/1.0\r\nHost: %s\r\n"
-								  "User-Agent: nexchat (link preview)\r\n"
-								  "Accept: text/html, image/*;q=0.9\r\nConnection: close\r\n\r\n",
-								  path, host);
+	if (j->body)
+	{
+		/* the file is the whole body (soju.im/FILEHOST); its name goes in
+		   Content-Disposition, quotes and line breaks taken out */
+		char *name = g_strdup (j->filename ? j->filename : "file");
+		g_strdelimit (name, "\"\\\r\n", '_');
+		req = g_strdup_printf ("POST %s HTTP/1.0\r\nHost: %s\r\n"
+									  "User-Agent: nexchat\r\n"
+									  "Content-Type: %s\r\n"
+									  "Content-Disposition: attachment; filename=\"%s\"\r\n"
+									  "Content-Length: %" G_GSIZE_FORMAT "\r\n"
+									  "%s%s%s"
+									  "Connection: close\r\n\r\n",
+									  path, host, j->content_type ? j->content_type : "application/octet-stream",
+									  name, g_bytes_get_size (j->body),
+									  j->auth ? "Authorization: " : "", j->auth ? j->auth : "", j->auth ? "\r\n" : "");
+		g_free (name);
+	}
+	else
+		req = g_strdup_printf ("GET %s HTTP/1.0\r\nHost: %s\r\n"
+									  "User-Agent: nexchat (link preview)\r\n"
+									  "Accept: text/html, image/*;q=0.9\r\nConnection: close\r\n\r\n",
+									  path, host);
 	g_free (path);
 	if (conn_write (&c, req, strlen (req)) <= 0)
 	{
@@ -313,6 +351,25 @@ fetch_once (const char *url, gsize max_bytes, GCancellable *cancel,
 		return;
 	}
 	g_free (req);
+	if (j->body)
+	{
+		gsize len, off = 0;
+		const char *b = g_bytes_get_data (j->body, &len);
+		while (off < len && !g_cancellable_is_cancelled (cancel))
+		{
+			gssize w = conn_write (&c, b + off, MIN (len - off, 65536));
+			if (w <= 0)
+				break;
+			off += w;
+		}
+		if (off < len)
+		{
+			res->error = g_strdup ("the upload was cut off");
+			conn_close (&c);
+			g_uri_unref (uri);
+			return;
+		}
+	}
 
 	in = g_byte_array_new ();
 	while ((n = conn_read (&c, buf, sizeof buf)) > 0 && !g_cancellable_is_cancelled (cancel))
@@ -358,7 +415,8 @@ fetch_once (const char *url, gsize max_bytes, GCancellable *cancel,
 			res->content_type = g_ascii_strdown (g_strstrip (ct), -1);
 			g_free (ct);
 		}
-		if (res->status >= 300 && res->status < 400)
+		/* a redirect to follow, or (uploads) where the file now is */
+		if ((res->status >= 300 && res->status < 400) || (j->body && res->status == 201))
 		{
 			char *loc = header_get (head, "Location");
 			if (loc)
@@ -395,7 +453,19 @@ fetch_thread (GTask *task, gpointer src, gpointer data, GCancellable *cancel)
 		g_clear_pointer (&res->error, g_free);
 		g_clear_pointer (&res->content_type, g_free);
 		res->status = 0;
-		fetch_once (url, j->max_bytes, cancel, res, &next);
+		fetch_once (j, url, j->max_bytes, cancel, res, &next);
+		/* an upload: no redirects; Location is the answer */
+		if (j->body)
+		{
+			if (next)
+			{
+				g_free (url);
+				url = next;
+			}
+			else if (!res->error && res->status != 201)
+				res->error = g_strdup_printf ("the server said %d", res->status);
+			break;
+		}
 		if (!next)
 			break;
 		g_free (url);
@@ -418,8 +488,7 @@ fetch_done (GObject *src, GAsyncResult *ar, gpointer data)
 		j->cb (res, j->data);
 		result_free (res);
 	}
-	g_free (j->url);
-	g_free (j);
+	job_free (j);
 }
 
 void
@@ -430,6 +499,29 @@ httpget (const char *url, gsize max_bytes, GCancellable *cancel, httpget_cb cb, 
 
 	j->url = g_strdup (url);
 	j->max_bytes = max_bytes;
+	j->cb = cb;
+	j->data = data;
+	t = g_task_new (NULL, cancel, fetch_done, j);
+	g_task_set_task_data (t, j, NULL);
+	g_task_run_in_thread (t, fetch_thread);
+	g_object_unref (t);
+}
+
+void
+httppost (const char *url, GBytes *body, const char *content_type, const char *filename,
+			 const char *auth, GCancellable *cancel, httpget_cb cb, gpointer data)
+{
+	job *j = g_new0 (job, 1);
+	GTask *t;
+
+	j->url = g_strdup (url);
+	j->max_bytes = 64 * 1024;	/* the reply: a short body, at most */
+	j->body = g_bytes_ref (body);
+	j->content_type = g_strdup (content_type);
+	j->filename = g_strdup (filename);
+	j->auth = g_strdup (auth);
+	/* the URL is the server's own (ISUPPORT), not a link someone pasted */
+	j->allow_local = TRUE;
 	j->cb = cb;
 	j->data = data;
 	t = g_task_new (NULL, cancel, fetch_done, j);

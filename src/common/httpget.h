@@ -37,4 +37,12 @@ typedef void (*httpget_cb) (httpget_result *res, gpointer data);
 void httpget (const char *url, gsize max_bytes, GCancellable *cancel,
 				  httpget_cb cb, gpointer data);
 
+/* POST body to url (file uploads): content_type and filename describe
+   it, auth is an "Authorization:" value or NULL. Redirects aren't
+   followed (the spec asks for 201 + Location; res->final_url carries the
+   Location, resolved against url). Public addresses only, as above. */
+void httppost (const char *url, GBytes *body, const char *content_type,
+					const char *filename, const char *auth, GCancellable *cancel,
+					httpget_cb cb, gpointer data);
+
 #endif

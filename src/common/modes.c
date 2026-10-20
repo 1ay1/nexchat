@@ -898,6 +898,18 @@ inbound_005 (server * serv, char *word[], const message_tags_data *tags_data)
 		} else if (g_strcmp0 (tokname, "MONITOR") == 0)
 		{
 			serv->supports_monitor = tokadding;
+		} else if (g_strcmp0 (tokname, "soju.im/FILEHOST") == 0 ||
+					  g_strcmp0 (tokname, "draft/FILEHOST") == 0 ||
+					  g_strcmp0 (tokname, "FILEHOST") == 0)
+		{
+			/* where files can be uploaded (fe: dropping or pasting one).
+			   Plain http on a TLS connection would send the login in the
+			   clear: not taken. */
+			g_clear_pointer (&serv->filehost, g_free);
+			if (tokadding && *tokvalue &&
+				 (g_str_has_prefix (tokvalue, "https://") ||
+				  (g_str_has_prefix (tokvalue, "http://") && !serv->use_ssl)))
+				serv->filehost = g_strdup (tokvalue);
 		} else if (g_strcmp0 (tokname, "NETWORK") == 0)
 		{
 			if (serv->server_session->type == SESS_SERVER && strlen (tokvalue))

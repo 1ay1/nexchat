@@ -46,6 +46,7 @@
 #include "../common/userlist.h"
 #include "../common/outbound.h"
 #include "gtkutil.h"
+#include "upload.h"
 #include "maingui.h"
 #include "bncsetup.h"
 #include "bncdetect.h"
@@ -1433,6 +1434,9 @@ fe_main (void)
 		g_timeout_add (2000, fe_zoom_start, g_strsplit (g_getenv ("NEXCHAT_ZOOM"), " ", -1));
 	if (g_getenv ("NEXCHAT_KEYS"))
 		g_timeout_add (500, fe_keys_step, g_strsplit (g_getenv ("NEXCHAT_KEYS"), ";", -1));
+#ifdef USE_OPENSSL
+	upload_test_init ();
+#endif
 	if (g_getenv ("NEXCHAT_XDRAG"))
 		g_timeout_add (30, fe_xdrag_step, g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1));
 	if (g_getenv ("NEXCHAT_XCHECK"))
