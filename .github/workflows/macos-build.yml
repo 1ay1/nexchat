@@ -13,13 +13,17 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive    # subprojects/maya, for the TUI
 
       - name: Dependencies
         # coreutils: the tests' `timeout` (not on macOS). GTK itself comes
         # from osx/build-gtk.sh below, as in the app nexchat ships.
-        run: >-
-          brew install meson ninja pkg-config openssl@3 gettext adwaita-icon-theme coreutils
-          librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
+        # cmake: maya (the TUI); pyte: the TUI's pty tests
+        run: |
+          brew install meson ninja pkg-config openssl@3 gettext adwaita-icon-theme coreutils cmake \
+            librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
+          python3 -m pip install --break-system-packages pyte
 
       # GTK with nexchat's fixes (osx/gtk-patches), built once per patch set:
       # Homebrew's 4.24 has frame-timing and surface-freeze bugs of its own
@@ -37,6 +41,7 @@ jobs:
         run: >-
           meson setup build
           -Dtext-frontend=true
+          -Dtui=enabled
           -Ddbus=disabled
           -Dwith-upd=false
           -Dwith-perl=false

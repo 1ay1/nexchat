@@ -31,6 +31,8 @@ jobs:
       version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive    # meson dist puts git submodules (maya) in the tarball
       - id: v
         name: Version
         run: |
@@ -46,7 +48,7 @@ jobs:
           sudo apt-get install -y meson ninja-build libgtk-4-dev libssl-dev gettext desktop-file-utils appstream
       - name: Source tarball
         run: |
-          meson setup build -Dplugin=false -Ddbus=disabled
+          meson setup build -Dplugin=false -Ddbus=disabled -Dtui=disabled
           meson dist -C build --no-tests --formats xztar
           mkdir -p dist
           cp build/meson-dist/*.tar.xz "dist/nexchat-${{ steps.v.outputs.version }}.tar.xz"
@@ -62,8 +64,10 @@ jobs:
       V: ${{ needs.source.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive    # subprojects/maya: nexchat-tui in the .app
       - name: Dependencies
-        run: brew install meson ninja pkg-config openssl@3 gettext adwaita-icon-theme librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
+        run: brew install meson ninja pkg-config cmake openssl@3 gettext adwaita-icon-theme librsvg gdk-pixbuf glib pango cairo harfbuzz graphene libepoxy jpeg-turbo libpng libtiff sassc
       # GTK with nexchat's fixes, built once per patch set
       - uses: actions/cache@v4
         id: gtk
@@ -75,7 +79,7 @@ jobs:
         run: sh osx/build-gtk.sh
       - name: Build
         run: |
-          meson setup build -Ddbus=disabled -Dwith-perl=false -Dwith-python=false -Dwith-lua=false \
+          meson setup build -Ddbus=disabled -Dwith-perl=false -Dwith-python=false -Dwith-lua=false -Dtui=enabled \
             "-Dpkg_config_path=$HOME/.cache/nexchat-gtk/lib/pkgconfig"
           ninja -C build
           ninja -C build app

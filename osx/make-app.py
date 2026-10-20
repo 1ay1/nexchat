@@ -160,6 +160,14 @@ shutil.copy2(exe_src, exe)
 bundle_libs(exe, exe_src)
 fix(exe, "../Frameworks")
 
+# the terminal UI (`nexchat --tui` runs it from beside nexchat), when built
+tui_src = os.path.join(build, "src", "fe-tui", "nexchat-tui")
+if os.path.exists(tui_src):
+    tui = os.path.join(macos, "nexchat-tui")
+    shutil.copy2(tui_src, tui)
+    bundle_libs(tui, tui_src)
+    fix(tui, "../Frameworks")
+
 # plugins (fishlim, sysinfo, checksum, ...): Resources/lib/nexchat/plugins
 plugdir = os.path.join(res, "lib", "nexchat", "plugins")
 os.makedirs(plugdir)
@@ -274,6 +282,8 @@ for top, _, files in os.walk(contents):
         if f.endswith((".dylib", ".so")):
             run("codesign", "--force", "--sign", a.sign, p)
 run("codesign", "--force", "--sign", a.sign, exe)
+if os.path.exists(os.path.join(macos, "nexchat-tui")):
+    run("codesign", "--force", "--sign", a.sign, os.path.join(macos, "nexchat-tui"))
 run("codesign", "--force", "--sign", a.sign, app)
 
 size = run("du", "-sh", app).split()[0]
