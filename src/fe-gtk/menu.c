@@ -2514,6 +2514,102 @@ menu_debug_dump_to (nx_menu *menu_bar, const char *path)
    with no use for the first argument get the nx_item, which they ignore */
 #define TABLE_CB(i) ((nx_item_cb) mymenu[i].callback)
 
+/* ---- shortcuts that aren't menu items ---- */
+
+static int
+sess_is_tab (session *s)
+{
+	return s->gui && s->gui->is_tab;
+}
+
+/* the next tab with something to read, most important first (a private
+   message that highlighted you, then a highlight, then messages) */
+static gboolean
+win_next_unread (GtkWidget *w, GVariant *args, gpointer d)
+{
+	session *s = lastact_getfirst (sess_is_tab);
+
+	(void) w; (void) args; (void) d;
+	if (s && s != current_sess)
+		mg_bring_tofront_sess (s);
+	return TRUE;
+}
+
+static gboolean
+win_tab_n (GtkWidget *w, GVariant *args, gpointer d)
+{
+	(void) w; (void) d;
+	mg_switch_page (FALSE, g_variant_get_int32 (args));
+	return TRUE;
+}
+
+static gboolean
+win_tab_step (GtkWidget *w, GVariant *args, gpointer d)
+{
+	(void) w; (void) d;
+	mg_switch_page (TRUE, g_variant_get_int32 (args));
+	return TRUE;
+}
+
+static gboolean
+win_jump (GtkWidget *w, GVariant *args, gpointer d)
+{
+	(void) w; (void) args; (void) d;
+	jumpto_open ();
+	return TRUE;
+}
+
+static void
+win_shortcut (GtkShortcutController *c, guint key, GdkModifierType mods,
+				  GtkShortcutFunc f, GVariant *args)
+{
+	GtkShortcut *s = gtk_shortcut_new (gtk_keyval_trigger_new (key, mods),
+												  gtk_callback_action_new (f, NULL, NULL));
+	if (args)
+		gtk_shortcut_set_arguments (s, args);
+	gtk_shortcut_controller_add_shortcut (c, s);
+}
+
+static void
+menu_window_shortcuts (GtkWidget *window)
+{
+	GtkEventController *c = gtk_shortcut_controller_new ();
+	GtkShortcutController *sc = GTK_SHORTCUT_CONTROLLER (c);
+
+	gtk_shortcut_controller_set_scope (sc, GTK_SHORTCUT_SCOPE_MANAGED);
+	gtk_event_controller_set_propagation_phase (c, GTK_PHASE_CAPTURE);
+
+	/* next unread: Alt+A is Marked Away, and Option+letters type accents on
+	   a Mac, so Ctrl+Space here and Cmd+Shift+A below */
+#ifndef __APPLE__
+	win_shortcut (sc, GDK_KEY_space, GDK_CONTROL_MASK, win_next_unread, NULL);
+#endif
+#ifdef __APPLE__
+	{
+		int i;
+		/* what every Mac app with tabs does: Cmd+1..9 a tab (9 = the last
+		   one in Safari; here simply the ninth), Cmd+Shift+[ ] and
+		   Cmd+Option+Left/Right the previous/next tab */
+		for (i = 1; i <= 9; i++)
+			win_shortcut (sc, GDK_KEY_0 + i, GDK_META_MASK, win_tab_n, g_variant_new_int32 (i - 1));
+		win_shortcut (sc, GDK_KEY_braceleft, GDK_META_MASK | GDK_SHIFT_MASK, win_tab_step, g_variant_new_int32 (-1));
+		win_shortcut (sc, GDK_KEY_braceright, GDK_META_MASK | GDK_SHIFT_MASK, win_tab_step, g_variant_new_int32 (1));
+		win_shortcut (sc, GDK_KEY_bracketleft, GDK_META_MASK | GDK_SHIFT_MASK, win_tab_step, g_variant_new_int32 (-1));
+		win_shortcut (sc, GDK_KEY_bracketright, GDK_META_MASK | GDK_SHIFT_MASK, win_tab_step, g_variant_new_int32 (1));
+		win_shortcut (sc, GDK_KEY_Left, GDK_META_MASK | GDK_ALT_MASK, win_tab_step, g_variant_new_int32 (-1));
+		win_shortcut (sc, GDK_KEY_Right, GDK_META_MASK | GDK_ALT_MASK, win_tab_step, g_variant_new_int32 (1));
+		/* Cmd+K stays "insert colour" (IRC people know it); Xcode's
+		   Open Quickly and VS Code's Cmd+P for jump to */
+		win_shortcut (sc, GDK_KEY_O, GDK_META_MASK | GDK_SHIFT_MASK, win_jump, NULL);
+		win_shortcut (sc, GDK_KEY_o, GDK_META_MASK | GDK_SHIFT_MASK, win_jump, NULL);
+		win_shortcut (sc, GDK_KEY_p, GDK_META_MASK, win_jump, NULL);
+		win_shortcut (sc, GDK_KEY_A, GDK_META_MASK | GDK_SHIFT_MASK, win_next_unread, NULL);
+		win_shortcut (sc, GDK_KEY_a, GDK_META_MASK | GDK_SHIFT_MASK, win_next_unread, NULL);
+	}
+#endif
+	gtk_widget_add_controller (window, c);
+}
+
 /* bar: the window's menu bar, its shortcuts working in `window`. !bar: a
    popup copy (middle-click), shortcuts only shown. */
 nx_menu *
@@ -2537,6 +2633,8 @@ menu_create_main (GtkWidget *window, int bar, int away, int toplevel,
 	/* the bar's shortcuts work in the window; the popup copy only shows them
 	   (its accel group was never attached to a window) */
 	nx_menu_set_accel_window (menu_bar, bar ? window : NULL);
+	if (bar && window)
+		menu_window_shortcuts (window);
 
 	/* set the initial state of toggles */
 	mymenu[MENUBAR_OFFSET].state = !prefs.hex_gui_hide_menu;

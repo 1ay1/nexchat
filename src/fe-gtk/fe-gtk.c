@@ -831,6 +831,64 @@ fe_init (void)
 }
 
 
+/* tests: NEXCHAT_KEYS="<Meta>2;<Meta><Shift>bracketleft;..." presses each
+   shortcut on the main window in turn (through the window's shortcut
+   controllers, as a key press would), then prints the front tab */
+static gboolean
+fe_keys_step (gpointer data)
+{
+	char **keys = data;
+	static int i;
+	GtkWidget *win = current_sess && current_sess->gui ? current_sess->gui->window : NULL;
+	char *name;
+
+	if (!win)
+		return G_SOURCE_CONTINUE;
+	if (!keys[i])
+	{
+		g_strfreev (keys);
+		return G_SOURCE_REMOVE;
+	}
+	{
+		guint key;
+		GdkModifierType mods;
+		GListModel *ctl = gtk_widget_observe_controllers (win);
+		guint n, done = FALSE;
+
+		if (gtk_accelerator_parse (keys[i], &key, &mods))
+			for (n = 0; n < g_list_model_get_n_items (ctl) && !done; n++)
+			{
+				GObject *c = g_list_model_get_item (ctl, n);
+				if (GTK_IS_SHORTCUT_CONTROLLER (c))
+				{
+					GListModel *sl = G_LIST_MODEL (c);
+					guint j;
+					for (j = 0; j < g_list_model_get_n_items (sl) && !done; j++)
+					{
+						GtkShortcut *s = g_list_model_get_item (sl, j);
+						GtkShortcutTrigger *t = gtk_shortcut_get_trigger (s);
+						if (GTK_IS_KEYVAL_TRIGGER (t) &&
+							 gtk_keyval_trigger_get_keyval (GTK_KEYVAL_TRIGGER (t)) == key &&
+							 gtk_keyval_trigger_get_modifiers (GTK_KEYVAL_TRIGGER (t)) == mods)
+						{
+							gtk_shortcut_action_activate (gtk_shortcut_get_action (s), 0, win,
+																	gtk_shortcut_get_arguments (s));
+							done = TRUE;
+						}
+						g_object_unref (s);
+					}
+				}
+				g_object_unref (c);
+			}
+		g_object_unref (ctl);
+		name = current_sess->res && current_sess->res->tab ? chan_get_name (current_sess->res->tab) : NULL;
+		g_printerr ("keys: %s -> %s%s\n", keys[i], name ? name : "?", done ? "" : " (no shortcut)");
+		g_free (name);
+	}
+	i++;
+	return G_SOURCE_CONTINUE;
+}
+
 /* tests: NEXCHAT_TABS_DUMP=1 prints every tab's text on stderr each second,
    each round after a "tabs:" line; =text also prints the front window's
    lines ("line: ...") */
@@ -1332,6 +1390,8 @@ fe_main (void)
 
 	if (g_getenv ("NEXCHAT_ZOOM"))
 		g_timeout_add (2000, fe_zoom_start, g_strsplit (g_getenv ("NEXCHAT_ZOOM"), " ", -1));
+	if (g_getenv ("NEXCHAT_KEYS"))
+		g_timeout_add (500, fe_keys_step, g_strsplit (g_getenv ("NEXCHAT_KEYS"), ";", -1));
 	if (g_getenv ("NEXCHAT_XDRAG"))
 		g_timeout_add (30, fe_xdrag_step, g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1));
 	if (g_getenv ("NEXCHAT_XCHECK"))
