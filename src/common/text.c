@@ -347,11 +347,19 @@ scrollback_load (session *sess)
 
 	if (lines)
 	{
-		text = ctime (&stamp);
-		buf = g_strdup_printf ("\n*\t%s %s\n", _("Loaded log from"), text);
+		/* where the restored history ends: one quiet line, the date said
+		   the way people say it (no empty, timestamped line before it) */
+		GDateTime *dt = g_date_time_new_from_unix_local (stamp);
+		char *when = dt ? g_date_time_format (dt, _("%A %e %B, %H:%M")) : NULL;
+
+		if (when)
+			g_strstrip (when);
+		buf = g_strdup_printf ("*\t\00314%s %s\n", _("History up to"), when ? when : "");
 		fe_print_text (sess, buf, 0, TRUE);
 		g_free (buf);
-		/*EMIT_SIGNAL (XP_TE_GENMSG, sess, "*", buf, NULL, NULL, NULL, 0);*/
+		g_free (when);
+		if (dt)
+			g_date_time_unref (dt);
 	}
 }
 
