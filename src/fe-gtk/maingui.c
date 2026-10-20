@@ -2794,18 +2794,19 @@ mg_create_center (session *sess, session_gui *gui, GtkWidget *box)
 	   a shrinkable chat side made the window's minimum width ~37px, and GTK
 	   then sized everything for that width ("Trying to measure GtkNotebook
 	   for width of 36, but it needs at least 212" on every relayout,
-	   whenever the user list was hidden) */
+	   whenever the user list was hidden). Nor below what they hold: a tab
+	   list squeezed under its arrow buttons got negative widths. */
 	if (prefs.hex_gui_win_swap)
 	{
-		nx_paned_pack (gui->hpane_left, gui->vpane_left, TRUE, FALSE, TRUE);
+		nx_paned_pack (gui->hpane_left, gui->vpane_left, TRUE, FALSE, FALSE);
 		nx_paned_pack (gui->hpane_left, gui->hpane_right, FALSE, TRUE, FALSE);
 	}
 	else
 	{
-		nx_paned_pack (gui->hpane_left, gui->vpane_left, FALSE, FALSE, TRUE);
+		nx_paned_pack (gui->hpane_left, gui->vpane_left, FALSE, FALSE, FALSE);
 		nx_paned_pack (gui->hpane_left, gui->hpane_right, TRUE, TRUE, FALSE);
 	}
-	nx_paned_pack (gui->hpane_right, gui->vpane_right, TRUE, FALSE, TRUE);
+	nx_paned_pack (gui->hpane_right, gui->vpane_right, TRUE, FALSE, FALSE);
 
 	gtkutil_container_add (GTK_WIDGET (box), gui->hpane_left);
 
