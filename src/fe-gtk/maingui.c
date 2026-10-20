@@ -61,6 +61,7 @@
 #include "mentions.h"
 #include "urlpreview.h"
 #include "upload.h"
+#include "replybar.h"
 #ifdef __APPLE__
 #include "platform-macos.h"
 #endif
@@ -462,7 +463,13 @@ mg_inputbox_cb (GtkWidget *igad, session_gui *gui)
 	}
 
 	if (sess)
-		mg_send_input (sess, igad, cmd);
+	{
+		/* a reply chosen (the bar over the input): this line answers it */
+		if (!strchr (cmd, '\n') && replybar_send (sess, cmd))
+			;
+		else
+			mg_send_input (sess, igad, cmd);
+	}
 
 	g_free (cmd);
 }
@@ -751,6 +758,7 @@ mg_focus (session *sess)
 	/* read here: the bouncer tells your other devices */
 	readmarker_send (sess);
 	mg_typing_refresh (sess);
+	replybar_update (sess);
 }
 
 /* the connecting indicator: a block bouncing in a framed trough, square
@@ -3312,6 +3320,9 @@ mg_create_entry (session *sess, GtkWidget *box)
 	GtkWidget *hbox, *but, *entry;
 	session_gui *gui = sess->gui;
 
+	/* "Replying to alice: ..." sits right over the input row */
+	nx_box_pack_start (box, replybar_new (gui), 0, 0, 0);
+
 	hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
 	nx_box_pack_start (box, hbox, 0, 0, 0);
 
@@ -4072,6 +4083,7 @@ fe_session_callback (session *sess)
 		g_ptr_array_unref (sess->res->jp_joined);
 	if (sess->res->jp_left)
 		g_ptr_array_unref (sess->res->jp_left);
+	g_free (sess->res->reply_to);
 
 	if (sess->gui->bartag)
 		fe_timeout_remove (sess->gui->bartag);

@@ -101,6 +101,9 @@ void fe_print_text (struct session *sess, char *text, time_t stamp,
    the logs: the frontend may show runs of them as one line. FALSE: it
    didn't, print the event as usual */
 gboolean fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stamp);
+/* /reply without a message: choose what to answer (msgid NULL: a list to
+   pick from; else that line). FALSE if the frontend can't */
+gboolean fe_reply_pick (struct session *sess, const char *msgid);
 void fe_userlist_insert (struct session *sess, struct User *newuser, gboolean sel);
 int fe_userlist_remove (struct session *sess, struct User *user);
 void fe_userlist_rehash (struct session *sess, struct User *user);

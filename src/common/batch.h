@@ -67,6 +67,14 @@ void reply_remember (session *sess, const char *msgid, const char *nick, const c
 void reply_show (session *sess, const char *msgid, time_t stamp);
 /* the msgid of nick's last line here, or NULL */
 const char *reply_last_from (session *sess, const char *nick);
+/* who said msgid here and what ("nick\ttext"), or NULL */
+const char *reply_lookup (session *sess, const char *msgid);
+/* the n most recent lines here, newest first: a list of msgids (not
+   copies; valid until more lines come). Caller frees the list only. */
+GList *reply_recent (session *sess, int n);
+/* send text as a reply to msgid (falls back to "nick: text" when the
+   server can't carry it) */
+void reply_send (session *sess, const char *msgid, const char *text);
 /* forget everything for sess (closed) */
 void reply_free (session *sess);
 /* REDACT: msgid in target was deleted by nick, with reason or NULL */

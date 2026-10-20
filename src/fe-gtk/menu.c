@@ -60,6 +60,9 @@
 #include "textgui.h"
 #include "urlgrab.h"
 #include "mentions.h"
+#include "replybar.h"
+#include "../common/proto-irc.h"
+#include "../common/batch.h"
 #include "userlistgui.h"
 #include "menu.h"
 #include "bncsetup.h"
@@ -651,6 +654,18 @@ fe_userlist_update (session *sess, struct User *user)
 	menu_create_nickinfo_menu (user, nick_submenu);
 }
 
+static void
+menu_reply_cb (nx_item *item, gpointer nick)
+{
+	const char *msgid;
+
+	if (!current_sess || !nick)
+		return;
+	msgid = reply_last_from (current_sess, nick);
+	if (msgid)
+		replybar_set (current_sess, msgid);
+}
+
 void
 menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel)
 {
@@ -685,6 +700,10 @@ menu_nickmenu (session *sess, GdkEvent *event, char *nick, int num_sel)
 			}
 
 			menu_quick_endsub ();
+			/* answer what they said last here (shown over the input box) */
+			if ((sess->type == SESS_CHANNEL || sess->type == SESS_DIALOG) &&
+				 reply_last_from (sess, nick))
+				menu_quick_item_with_callback (menu_reply_cb, _("Reply"), menu, str_copy);
 			menu_quick_item (0, 0, menu, XCMENU_SHADED, 0, 0);
 		}
 	}

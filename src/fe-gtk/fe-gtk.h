@@ -110,6 +110,8 @@ typedef struct restore_gui
 	guint jp_serial;	/* buf->appended when jp_line was the newest line */
 	gboolean jp_pending;	/* the run's first event is being printed as usual */
 
+	char *reply_to;		/* msgid the next message answers (the bar above the input) */
+
 	/* information stored when this tab isn't front-most */
 	struct _NxStore *user_model;	/* the user list's rows (nxlist.h) */
 	void *buffer;		/* xtext_Buffer */
@@ -135,6 +137,7 @@ typedef struct session_gui
 		*vscrollbar,
 		*chat_overlay,	/* the chat column; the "/" list floats over it */
 		*typing_label,	/* "alice is typing..." under the input row */
+		*reply_bar,		/* "Replying to alice: ..." over the input row */
 		*window,	/* toplevel */
 		*topic_entry,
 		*note_book,

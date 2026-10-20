@@ -3101,19 +3101,61 @@ cmd_delete (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 	return TRUE;
 }
 
+/* text as an answer to msgid, in this channel or query: the +draft/reply
+   tag when the server carries tags, else "nick: text" (who said msgid) */
+void
+reply_send (session *sess, const char *msgid, const char *text)
+{
+	message_tags_data tags = MESSAGE_TAGS_DATA_INIT;
+	const char *line = reply_lookup (sess, msgid);
+
+	if (!sess->server->connected)
+	{
+		notc_msg (sess);
+		return;
+	}
+	if (!sess->server->have_message_tags || !msgid || !line || strpbrk (msgid, " ;\r\n"))
+	{
+		char *who = line ? g_strndup (line, strcspn (line, "\t")) : NULL;
+		char *say = who ? g_strdup_printf ("%s%s %s", who, prefs.hex_completion_suffix, text)
+						 : g_strdup (text);
+		handle_say (sess, say, FALSE);
+		g_free (say);
+		g_free (who);
+		return;
+	}
+	tcp_sendf (sess->server, "@+draft/reply=%s PRIVMSG %s :%s\r\n", msgid, sess->channel, text);
+	if (!sess->server->have_echo)
+	{
+		tags.reply = (char *) msgid;
+		inbound_chanmsg (sess->server, sess, sess->channel, sess->server->nick, (char *) text, TRUE, FALSE, &tags);
+	}
+}
+
 static int
 cmd_reply (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 {
 	char *nick = word[2], *msg = word_eol[3];
 	const char *msgid;
-	message_tags_data tags = MESSAGE_TAGS_DATA_INIT;
 
-	if (!*nick || !*msg)
-		return FALSE;
 	if (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG)
 	{
 		notj_msg (sess);
 		return TRUE;
+	}
+	/* /reply: choose the message in a list; /reply alice: her last one
+	   (the input box then shows "Replying to alice: ...") */
+	if (!*nick)
+		return fe_reply_pick (sess, NULL) ? TRUE : FALSE;
+	if (!*msg)
+	{
+		msgid = reply_last_from (sess, nick);
+		if (!msgid)
+		{
+			PrintTextf (sess, _("Nothing from %s here to reply to.\n"), nick);
+			return TRUE;
+		}
+		return fe_reply_pick (sess, msgid) ? TRUE : FALSE;
 	}
 	if (!sess->server->connected)
 	{
@@ -3121,20 +3163,14 @@ cmd_reply (struct session *sess, char *tbuf, char *word[], char *word_eol[])
 		return TRUE;
 	}
 	msgid = reply_last_from (sess, nick);
-	if (!sess->server->have_message_tags || !msgid || strpbrk (msgid, " ;\r\n"))
+	if (!msgid)
 	{
-		/* the server can't carry it, or nothing of theirs to answer:
-		   say it the old way */
+		/* nothing of theirs to answer: say it the old way */
 		g_snprintf (tbuf, TBUFSIZE, "%s%s %s", nick, prefs.hex_completion_suffix, msg);
 		handle_say (sess, tbuf, FALSE);
 		return TRUE;
 	}
-	tcp_sendf (sess->server, "@+draft/reply=%s PRIVMSG %s :%s\r\n", msgid, sess->channel, msg);
-	if (!sess->server->have_echo)
-	{
-		tags.reply = (char *) msgid;
-		inbound_chanmsg (sess->server, sess, sess->channel, sess->server->nick, msg, TRUE, FALSE, &tags);
-	}
+	reply_send (sess, msgid, msg);
 	return TRUE;
 }
 
@@ -4451,7 +4487,7 @@ const struct commands xc_cmds[] = {
 	{"RECV", cmd_recv, 1, 0, 1, N_("RECV <text>, send raw data to nexchat, as if it was received from the IRC server")},
 	{"RELOAD", cmd_reload, 0, 0, 1, N_("RELOAD <name>, reloads a plugin or script")},
 	{"REPLY", cmd_reply, 1, 1, 1,
-	 N_("REPLY <nick> <message>, answers that person's last message here, on servers that pass replies on")},
+	 N_("REPLY [<nick> [<message>]], answers that person's last message here (on servers that pass replies on). With no message the reply is written in the input box; with no nick, choose the message from a list")},
 	{"SAY", cmd_say, 0, 0, 1,
 	 N_("SAY <text>, sends the text to the object in the current window")},
 	{"SEND", cmd_send, 0, 0, 1, N_("SEND <nick> [<file>]")},

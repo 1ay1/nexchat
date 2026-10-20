@@ -667,6 +667,27 @@ reply_remember (session *sess, const char *msgid, const char *nick, const char *
 }
 
 const char *
+reply_lookup (session *sess, const char *msgid)
+{
+	reply_store *s = reply_get (sess, FALSE);
+
+	return s && msgid ? g_hash_table_lookup (s->byid, msgid) : NULL;
+}
+
+GList *
+reply_recent (session *sess, int n)
+{
+	reply_store *s = reply_get (sess, FALSE);
+	GList *l, *out = NULL;
+
+	if (!s)
+		return NULL;
+	for (l = s->order.tail; l && n > 0; l = l->prev, n--)
+		out = g_list_append (out, l->data);
+	return out;
+}
+
+const char *
 reply_last_from (session *sess, const char *nick)
 {
 	reply_store *s = reply_get (sess, FALSE);

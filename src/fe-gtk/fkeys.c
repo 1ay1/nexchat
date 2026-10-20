@@ -58,6 +58,7 @@
 #include "fkeys.h"
 #include "cmdpopup.h"
 #include "upload.h"
+#include "replybar.h"
 
 static void replace_handle (GtkWidget * wid);
 void key_action_tab_clean (void);
@@ -434,6 +435,20 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 		 upload_paste (current_sess, wid))
 		return TRUE;
 #endif
+
+	/* Cmd/Ctrl+Shift+R (Ctrl+R is "reverse colour"): reply to one of the
+	   recent messages (a popup to choose); Esc: not replying after all */
+	if (mods == (STATE_CTRL | STATE_SHIFT) && (keyval == GDK_KEY_r || keyval == GDK_KEY_R) && current_sess &&
+		 (current_sess->type == SESS_CHANNEL || current_sess->type == SESS_DIALOG))
+	{
+		replybar_pick (current_sess);
+		return TRUE;
+	}
+	if (keyval == GDK_KEY_Escape && !mods && replybar_active (current_sess))
+	{
+		replybar_set (current_sess, NULL);
+		return TRUE;
+	}
 
 	/* Cmd/Ctrl+C with nothing selected in the input box: copy what's
 	   selected in the chat (the focus lives in the input box, so the

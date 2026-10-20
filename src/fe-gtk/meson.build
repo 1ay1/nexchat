@@ -36,6 +36,7 @@ hexchat_gtk_sources = [
   'textgui.c',
   'urlgrab.c',
   'mentions.c',
+  'replybar.c',
   'userlistgui.c',
   'xtext.c'
 ]

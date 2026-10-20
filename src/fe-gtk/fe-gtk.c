@@ -47,6 +47,7 @@
 #include "../common/outbound.h"
 #include "gtkutil.h"
 #include "upload.h"
+#include "replybar.h"
 #include "maingui.h"
 #include "bncsetup.h"
 #include "bncdetect.h"
@@ -495,6 +496,13 @@ fe_apply_css (void)
 		"progressbar.nx-meter.horizontal > trough > progress { min-height: 4px; min-width: 0; border: none;"
 		" border-radius: 2px; background-image: none; box-shadow: none; }\n"
 		"progressbar.nx-meter.nx-throttle.horizontal > trough > progress { background-color: #e5a50a; }\n");
+	/* "Replying to alice: ..." over the input box: a quiet strip with an
+	   accent edge, like the quote in chat apps */
+	g_string_append (css,
+		".nx-replybar { padding: 2px 4px 2px 8px; margin: 2px 0;"
+		" border-left: 3px solid @theme_selected_bg_color;"
+		" background-color: alpha(@theme_fg_color, 0.06); }\n"
+		".nx-replybar button { min-height: 0; min-width: 0; padding: 0 4px; }\n");
 
 	/* Channel tabs, the nick button and the "3 ops, 16 total" box: GTK2
 	   buttons were text + a few px; GTK3 themes pad buttons to ~32px tall,
@@ -1092,6 +1100,14 @@ fe_self_shot (gpointer data)
 			if (GTK_IS_POPOVER (c) && gtk_widget_get_visible (c))
 				win = c;
 	}
+	/* NEXCHAT_SHOT_REPLYPICK=1: the reply picker over the input box */
+	if (g_getenv ("NEXCHAT_SHOT_REPLYPICK") && current_sess && current_sess->gui)
+	{
+		GtkWidget *c;
+		for (c = gtk_widget_get_first_child (current_sess->gui->input_box); c; c = gtk_widget_get_next_sibling (c))
+			if (GTK_IS_POPOVER (c) && gtk_widget_get_visible (c))
+				win = c;
+	}
 
 	if (win)
 	{
@@ -1448,6 +1464,7 @@ fe_main (void)
 #ifdef USE_OPENSSL
 	upload_test_init ();
 #endif
+	replybar_test_init ();
 	if (g_getenv ("NEXCHAT_XDRAG"))
 		g_timeout_add (30, fe_xdrag_step, g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1));
 	if (g_getenv ("NEXCHAT_XCHECK"))
