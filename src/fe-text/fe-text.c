@@ -738,6 +738,11 @@ fe_server_callback (struct server *serv)
 {
 }
 void
+fe_mention (struct session *sess, const char *nick, const char *text, time_t stamp)
+{
+}
+
+void
 fe_url_add (const char *text)
 {
 }

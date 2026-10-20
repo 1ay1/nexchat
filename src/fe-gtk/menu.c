@@ -59,6 +59,7 @@
 #include "search.h"
 #include "textgui.h"
 #include "urlgrab.h"
+#include "mentions.h"
 #include "userlistgui.h"
 #include "menu.h"
 #include "bncsetup.h"
@@ -1997,6 +1998,7 @@ static struct mymenu mymenu[] = {
 	{N_("File _Transfers"), menu_dcc_win, 0, M_MENUITEM, 0, 0, 1},
 	{N_("Friends List"), notify_opengui, 0, M_MENUITEM, 0, 0, 1},
 	{N_("Ignore List"), ignore_gui_open, 0, M_MENUITEM, 0, 0, 1},
+	{N_("_Mentions"), mentions_open, 0, M_MENUITEM, 0, 0, 1, GDK_KEY_I},
 	{N_("_Plugins and Scripts"), menu_pluginlist, 0, M_MENUITEM, 0, 0, 1},
 	{N_("_Raw Log"), menu_rawlog, 0, M_MENUITEM, 0, 0, 1},	/* 61 */
 	{N_("_URL Grabber"), url_opengui, 0, M_MENUITEM, 0, 0, 1},
@@ -2006,7 +2008,7 @@ static struct mymenu mymenu[] = {
 	{N_("_Copy Selection"), menu_copy_selection, 0, M_MENUITEM, 0, 0, 1, GDK_KEY_C},
 	{N_("C_lear Text"), menu_flushbuffer, NX_STOCK_CLEAR, M_MENUSTOCK, 0, 0, 1},
 	{N_("Save Text" ELLIPSIS), menu_savebuffer, NX_STOCK_SAVE, M_MENUSTOCK, 0, 0, 1},
-#define SEARCH_OFFSET (72)
+#define SEARCH_OFFSET (73)
 	{N_("Search"), 0, NX_STOCK_JUSTIFY_LEFT, M_MENUSUB, 0, 0, 1},
 		{N_("Search Text" ELLIPSIS), menu_search, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_f},
 		{N_("Search Next"   ), menu_search_next, NX_STOCK_FIND, M_MENUSTOCK, 0, 0, 1, GDK_KEY_g},

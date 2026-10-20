@@ -119,6 +119,8 @@ void fe_clear_channel (struct session *sess);
 void fe_session_callback (struct session *sess);
 void fe_server_callback (struct server *serv);
 void fe_url_add (const char *text);
+/* a highlight or a private message (Window > Mentions): who, what, where */
+void fe_mention (struct session *sess, const char *nick, const char *text, time_t stamp);
 void fe_pluginlist_update (void);
 void fe_buttons_update (struct session *sess);
 void fe_dlgbuttons_update (struct session *sess);

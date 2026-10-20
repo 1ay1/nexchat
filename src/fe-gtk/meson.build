@@ -35,6 +35,7 @@ hexchat_gtk_sources = [
   'sexy-spell-entry.c',
   'textgui.c',
   'urlgrab.c',
+  'mentions.c',
   'userlistgui.c',
   'xtext.c'
 ]

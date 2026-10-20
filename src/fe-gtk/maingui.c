@@ -58,6 +58,7 @@
 #include "cmdpopup.h"
 #include "gtkutil.h"
 #include "bncwin.h"
+#include "mentions.h"
 #ifdef __APPLE__
 #include "platform-macos.h"
 #endif
@@ -4039,6 +4040,7 @@ fe_server_callback (server *serv)
 void
 fe_session_callback (session *sess)
 {
+	mentions_session_gone (sess);
 	gtk_xtext_buffer_free (sess->res->buffer);
 	g_object_unref (G_OBJECT (sess->res->user_model));
 

@@ -2167,6 +2167,7 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 	case XP_TE_DPRIVMSG:
 	case XP_TE_PRIVACTION:
 	case XP_TE_DPRIVACTION:
+		fe_mention (sess, word[1], word[2], timestamp);
 		if (chanopt_is_set (prefs.hex_input_beep_priv, sess->alert_beep) && (!prefs.hex_away_omit_alerts || !sess->server->is_away))
 			sound_beep (sess);
 		if (chanopt_is_set (prefs.hex_input_flash_priv, sess->alert_taskbar) && (!prefs.hex_away_omit_alerts || !sess->server->is_away))
@@ -2179,6 +2180,7 @@ text_emit (int index, session *sess, char *a, char *b, char *c, char *d,
 	/* ===Highlighted message=== */
 	case XP_TE_HCHANACTION:
 	case XP_TE_HCHANMSG:
+		fe_mention (sess, word[1], word[2], timestamp);
 		if (chanopt_is_set (prefs.hex_input_beep_hilight, sess->alert_beep) && (!prefs.hex_away_omit_alerts || !sess->server->is_away))
 			sound_beep (sess);
 		if (chanopt_is_set (prefs.hex_input_flash_hilight, sess->alert_taskbar) && (!prefs.hex_away_omit_alerts || !sess->server->is_away))
