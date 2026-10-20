@@ -57,6 +57,7 @@ private:
     std::size_t            sel_ = 0;
     bool                   has_sel_ = false;
     mutable int            top_ = 0;
+    mutable std::vector<int> drawn_;   // per body row: a user index, or -1 (a heading / blank)
     std::optional<std::string> hover_;
 };
 

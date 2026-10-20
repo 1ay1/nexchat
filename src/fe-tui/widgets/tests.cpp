@@ -685,14 +685,32 @@ static void test_userlist() {
     u.set({{"ChanServ", '@'}, {"alice", '@'}, {"bob", '+'}, {"carol", 0, true}, {"me", 0, false, true}});
     auto rows = u.rows(12, 4);
     CHECK_EQ(rows[0].text, std::string(" 5 users · …"));
-    CHECK_EQ(rows[1].text, std::string(" @ChanServ ▐"));          // 5 in 3 rows: a scrollbar
-    CHECK_EQ(rows[3].text, std::string(" +bob       "));
+    CHECK_EQ(rows[1].text, std::string(" @ChanServ ▐"));          // a small channel: flat, a scrollbar
+    CHECK(u.nick_at_row(1) == std::optional<std::string>{"ChanServ"});
     CHECK(!u.selected());
     CHECK(u.find("CA"));
     CHECK_EQ(u.selected()->nick, std::string("carol"));
     rows = u.rows(12, 4);                                           // scrolls to the selection
-    CHECK_EQ(rows[3].text, std::string("  carol     "));
     CHECK(u.nick_at_row(3) == std::optional<std::string>{"carol"});
+    {
+        // a big one: grouped by rank, headings that aren't nicks
+        UserList big;
+        std::vector<UserEntry> all{{"op1", '@'}, {"op2", '@'}};
+        for (int i = 0; i < 14; ++i) all.push_back({"m" + std::to_string(i)});
+        big.set(all);
+        auto br = big.rows(16, 8);
+        CHECK(br[1].text.rfind(" OPERATORS", 0) == 0);
+        CHECK(!big.nick_at_row(1));
+        CHECK(big.nick_at_row(2) == std::optional<std::string>{"op1"});
+        CHECK(br[4].text.rfind(" MEMBERS", 0) == 0);
+    }
+    {
+        // one group only: no headings
+        UserList plain;
+        plain.set({{"a"}, {"b"}});
+        auto pr = plain.rows(12, 4);
+        CHECK_EQ(pr[1].text, std::string("  a         "));
+    }
     u.set({{"carol"}, {"dave"}});
     CHECK_EQ(u.selected()->nick, std::string("carol"));             // kept by nick
 }
