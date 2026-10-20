@@ -103,12 +103,56 @@ PrintTextLine (xtext_buffer *xtbuf, unsigned char *text, int len, int indent, ti
 		gtk_xtext_append_indent (xtbuf, 0, 0, text, len, timet);
 }
 
+/* a "── Tuesday, 14 October ──" line before the first line of a new day
+   (or of the first day in a fresh tab that has history from before
+   today), so you can tell when things were said */
+static void
+day_separator (xtext_buffer *buf, time_t stamp)
+{
+	GDateTime *dt, *now;
+	int day;
+	char *date, *line;
+
+	if (!prefs.hex_text_day_sep || !stamp)
+		return;
+	dt = g_date_time_new_from_unix_local (stamp);
+	if (!dt)
+		return;
+	day = g_date_time_get_year (dt) * 10000 + g_date_time_get_month (dt) * 100 +
+			g_date_time_get_day_of_month (dt);
+	if (day == buf->last_day)
+	{
+		g_date_time_unref (dt);
+		return;
+	}
+	/* a brand new buffer only says so when it starts in the past */
+	now = g_date_time_new_now_local ();
+	if (buf->last_day || g_date_time_get_year (now) * 10000 + g_date_time_get_month (now) * 100 +
+							   g_date_time_get_day_of_month (now) != day)
+	{
+		date = g_date_time_format (dt, g_date_time_get_year (dt) == g_date_time_get_year (now)
+											? _("%A, %e %B") : _("%A, %e %B %Y"));
+		g_strstrip (date);
+		/* grey, centred feel in the text column: dashes either side */
+		line = g_strdup_printf ("\00314\342\224\200\342\224\200\342\224\200 %s \342\224\200\342\224\200\342\224\200", date);
+		gtk_xtext_append_indent (buf, 0, 0, (unsigned char *) line, strlen (line), stamp);
+		gtk_xtext_last_no_stamp (buf);
+		g_free (line);
+		g_free (date);
+	}
+	buf->last_day = day;
+	g_date_time_unref (now);
+	g_date_time_unref (dt);
+}
+
 void
 PrintTextRaw (void *xtbuf, unsigned char *text, int indent, time_t stamp)
 {
 	char *last_text = text;
 	int len = 0;
 	int beep_done = FALSE;
+
+	day_separator (xtbuf, stamp ? stamp : time (NULL));
 
 	/* split the text into separate lines */
 	while (1)

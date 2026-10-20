@@ -111,6 +111,8 @@ typedef struct {
 	int window_width;				/* window size when last rendered. */
 	int window_height;
 
+	int last_day;					/* local date of the last line, yyyymmdd (day separators) */
+
 	unsigned int time_stamp:1;
 	unsigned int scrollbar_down:1;
 	unsigned int needs_recalc:1;
@@ -325,6 +327,7 @@ gboolean gtk_xtext_has_selection (GtkXText *xtext);
 void gtk_xtext_select_all (GtkXText *xtext);
 char *gtk_xtext_line_text_at (GtkXText *xtext, int x, int y);
 void gtk_xtext_scroll_to_end (GtkXText *xtext);
+void gtk_xtext_last_no_stamp (xtext_buffer *buf);
 void gtk_xtext_set_jump_button (GtkXText *xtext, gboolean show);
 void gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms);
 GType gtk_xtext_get_type (void);

@@ -177,7 +177,7 @@ struct textentry
 	GSList *slp;
 	GSList *sublines;
 	guchar tag;
-	guchar pad1;
+	guchar no_stamp;	/* a day separator: no time in front */
 	guchar pad2;	/* 32-bit align : 44 bytes total */
 	GList *marks;	/* List of found strings */
 };
@@ -1353,6 +1353,14 @@ xtext_jump_hit (GtkXText *xtext, int x, int y)
 	xtext_jump_rect (xtext, layout, &r);
 	g_object_unref (layout);
 	return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
+}
+
+/* the line just appended shows no time in front (day separators) */
+void
+gtk_xtext_last_no_stamp (xtext_buffer *buf)
+{
+	if (buf->text_last)
+		buf->text_last->no_stamp = TRUE;
 }
 
 /* scroll to the newest line */
@@ -3674,7 +3682,7 @@ gtk_xtext_render_line (GtkXText * xtext, textentry * ent, int line,
 	start_subline = subline;
 
 	/* draw the timestamp */
-	if (xtext->auto_indent && xtext->buffer->time_stamp)
+	if (xtext->auto_indent && xtext->buffer->time_stamp && !ent->no_stamp)
 	{
 		char *time_str;
 		int len;

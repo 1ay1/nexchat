@@ -221,6 +221,7 @@ struct hexchatprefs
 	unsigned int hex_text_search_regexp;
 	unsigned int hex_text_show_marker;
 	unsigned int hex_text_show_sep;
+	unsigned int hex_text_day_sep;
 	unsigned int hex_text_stripcolor_msg;
 	unsigned int hex_text_stripcolor_replay;
 	unsigned int hex_text_stripcolor_topic;

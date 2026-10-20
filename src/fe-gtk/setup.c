@@ -162,6 +162,7 @@ static const setting appearance_settings[] =
 	{ST_TOGGLE, N_("Colored nick names"), P_OFFINTNL(hex_text_color_nicks), N_("Give each person on IRC a different color"),0,0},
 	{ST_TOGGLR, N_("Indent nick names"), P_OFFINTNL(hex_text_indent), N_("Make nick names right-justified"),0,0},
 	{ST_TOGGLE, N_ ("Show marker line"), P_OFFINTNL (hex_text_show_marker), N_ ("Insert a red line after the last read text."), 0, 0},
+	{ST_TOGGLE, N_ ("Show day separators"), P_OFFINTNL (hex_text_day_sep), N_ ("A line with the date where the day changes."), 0, 0},
 	{ST_EFILE, N_ ("Background image:"), P_OFFSETNL (hex_text_background), 0, 0, sizeof prefs.hex_text_background},
 	{ST_NUMBER, N_("Text zoom:"), P_OFFINTNL(hex_text_zoom), N_("Size of the chat text, in percent. Ctrl+wheel and Ctrl+=/-/0 change it."), (const char **)N_("%"), 300},
 

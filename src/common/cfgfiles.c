@@ -668,6 +668,7 @@ const struct prefs vars[] =
 	{"text_search_follow", P_OFFINT (hex_text_search_follow), TYPE_BOOL},
 	{"text_search_regexp", P_OFFINT (hex_text_search_regexp), TYPE_BOOL},
 	{"text_show_marker", P_OFFINT (hex_text_show_marker), TYPE_BOOL},
+	{"text_day_sep", P_OFFINT (hex_text_day_sep), TYPE_BOOL},
 	{"text_show_sep", P_OFFINT (hex_text_show_sep), TYPE_BOOL},
 	{"text_spell_langs", P_OFFSET (hex_text_spell_langs), TYPE_STR},
 	{"text_stripcolor_msg", P_OFFINT (hex_text_stripcolor_msg), TYPE_BOOL},
@@ -898,6 +899,7 @@ load_default_config(void)
 	prefs.hex_text_search_follow = 1;
 	prefs.hex_text_show_marker = 1;
 	prefs.hex_text_show_sep = 1;
+	prefs.hex_text_day_sep = 1;
 	prefs.hex_text_stripcolor_replay = 1;
 	prefs.hex_text_stripcolor_topic = 1;
 	prefs.hex_text_thin_sep = 1;
