@@ -876,6 +876,10 @@ load_default_config(void)
 	prefs.hex_gui_tray_blink = 1;
 	prefs.hex_gui_ulist_count = 1;
 	prefs.hex_gui_ulist_icons = 1;
+	/* each person a colour of their own, in the chat and the user list:
+	   what makes a busy channel readable */
+	prefs.hex_text_color_nicks = 1;
+	prefs.hex_gui_ulist_color = 1;
 	prefs.hex_gui_ulist_style = 1;
 	prefs.hex_gui_win_nick = 1;
 	prefs.hex_gui_win_save = 1;
@@ -995,7 +999,9 @@ load_default_config(void)
 	safe_strcpy (prefs.hex_irc_real_name, realname, sizeof(prefs.hex_irc_real_name));
 	safe_strcpy (prefs.hex_irc_user_name, username, sizeof(prefs.hex_irc_user_name));
 	strcpy (prefs.hex_stamp_log_format, "%b %d %H:%M:%S ");
-	strcpy (prefs.hex_stamp_text_format, "[%H:%M:%S] ");
+	/* hours and minutes: the day lines say which day, the seconds were
+	   a fifth of a narrow window */
+	strcpy (prefs.hex_stamp_text_format, "%H:%M ");
 
 	font = fe_get_default_font ();
 	if (font)
