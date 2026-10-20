@@ -1,0 +1,67 @@
+From 4da63d9edd4b5bfe86e3e9510229fbfab48334bf Mon Sep 17 00:00:00 2001
+From: nexchat <ayush@nexchat>
+Date: Wed, 21 Oct 2026 01:50:51 +0200
+Subject: [PATCH] macos: keep the display link's pause in step with its frames
+
+The display link source is paused while no surface waits for a frame,
+and pause/unpause assert it isn't already in that state. Two ways put
+the two out of step:
+
+* a monitor reconfigure (display mode change, a window moving to
+  another screen, the screen waking) makes a new link, which starts
+  paused, while frames are already waiting: those frames never get a
+  callback, and the next remove_frame_callback() pauses it again;
+* a frame removed while the queue was already empty.
+
+Then:
+
+  gdk_display_link_source_pause: assertion 'source->paused == FALSE' failed
+
+Start a new link when frames are waiting, and pause/unpause only on a
+real change. Seen under nexchat's GUI tests on GitHub's macOS runners.
+---
+ gdk/macos/gdkmacosmonitor.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/gdk/macos/gdkmacosmonitor.c b/gdk/macos/gdkmacosmonitor.c
+index 326098c..d839fd3 100644
+--- a/gdk/macos/gdkmacosmonitor.c
++++ b/gdk/macos/gdkmacosmonitor.c
+@@ -262,6 +262,14 @@ _gdk_macos_monitor_reset_display_link (GdkMacosMonitor  *self,
+                          self,
+                          NULL);
+   g_source_attach (source, NULL);
++
++  /* A new link starts paused. Frames already waiting would never get
++   * their callback (the link only starts when the queue goes from 0 to
++   * 1), and the next remove_frame_callback() would pause it again:
++   * "gdk_display_link_source_pause: assertion 'source->paused == FALSE'
++   * failed". Start it for them. */
++  if (self->awaiting_frames.length > 0 && !self->in_frame)
++    gdk_display_link_source_unpause (self->display_link);
+ }
+ 
+ gboolean
+@@ -400,7 +408,8 @@ gdk_macos_monitor_add_frame_callback (GdkMacosMonitor      *self,
+     {
+       g_queue_push_head_link (&self->awaiting_frames, &frame->throttle);
+ 
+-      if (!self->in_frame && self->awaiting_frames.length == 1)
++      if (!self->in_frame && self->awaiting_frames.length == 1 &&
++          self->display_link->paused)
+         gdk_display_link_source_unpause (self->display_link);
+     }
+ }
+@@ -415,7 +424,8 @@ gdk_macos_monitor_remove_frame_callback (GdkMacosMonitor      *self,
+     {
+       g_queue_unlink (&self->awaiting_frames, &frame->throttle);
+ 
+-      if (!self->in_frame && self->awaiting_frames.length == 0)
++      if (!self->in_frame && self->awaiting_frames.length == 0 &&
++          !self->display_link->paused)
+         gdk_display_link_source_pause (self->display_link);
+     }
+ }
+-- 
+2.54.0 (Apple Git-157)
+
