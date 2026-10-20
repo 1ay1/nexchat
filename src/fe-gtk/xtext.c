@@ -185,6 +185,7 @@ struct textentry
 enum
 {
 	WORD_CLICK,
+	URL_HOVER,
 	LAST_SIGNAL
 };
 
@@ -2011,6 +2012,11 @@ gtk_xtext_set_url_tooltip (GtkXText *xtext, int word_type, int x, int y)
 			url = g_strndup (word + start, end - start);
 	}
 	gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), url);
+	/* "url-hover": something may show what's there (an image preview) */
+	{
+		GdkRectangle at = { x, y, 1, 1 };
+		g_signal_emit (xtext, xtext_signals[URL_HOVER], 0, url, &at);
+	}
 	g_free (url);
 }
 
@@ -2023,7 +2029,10 @@ gtk_xtext_unhover (GtkXText *xtext)
 	   its window, flickering the pointer and tripping GTK's surface freeze
 	   bug) */
 	if (gtk_widget_get_has_tooltip (GTK_WIDGET (xtext)))
+	{
 		gtk_widget_set_tooltip_text (GTK_WIDGET (xtext), NULL);
+		g_signal_emit (xtext, xtext_signals[URL_HOVER], 0, NULL, NULL);
+	}
 	if (xtext->cursor_hand || xtext->cursor_resize)
 	{
 		gboolean had_link = xtext->hilight_ent != NULL;
@@ -2761,6 +2770,12 @@ gtk_xtext_class_init (GtkXTextClass * class)
 	xtext_class = (GtkXTextClass *) class;
 
 	parent_class = g_type_class_peek (gtk_widget_get_type ());
+
+	xtext_signals[URL_HOVER] =
+		g_signal_new ("url-hover",
+							G_TYPE_FROM_CLASS (object_class),
+							G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+							G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_POINTER);
 
 	xtext_signals[WORD_CLICK] =
 		g_signal_new ("word_click",

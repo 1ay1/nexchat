@@ -36,6 +36,7 @@ hexchat_gtk_sources = [
   'textgui.c',
   'urlgrab.c',
   'mentions.c',
+  'urlpreview.c',
   'userlistgui.c',
   'xtext.c'
 ]
@@ -58,7 +59,7 @@ hexchat_gtk_deps = [
 ]
 if host_machine.system() == 'darwin'
   hexchat_gtk_deps += dependency('appleframeworks',
-                                 modules: ['AppKit', 'UserNotifications', 'Network'])
+                                 modules: ['AppKit', 'UserNotifications', 'Network', 'Security'])
 endif
 
 # GTK builds several backends, see 'targets'

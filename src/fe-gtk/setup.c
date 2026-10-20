@@ -636,6 +636,7 @@ static const setting logging_settings[] =
 	{ST_TOGGLE,	N_("Enable logging of URLs to disk"), P_OFFINTNL(hex_url_logging), 0, 0, 0},
 	{ST_TOGGLE,	N_("Enable URL grabber"), P_OFFINTNL(hex_url_grabber), 0, 0, 1},
 	{ST_NUMBER,	N_("Maximum number of URLs to grab:"), P_OFFINTNL(hex_url_grabber_limit), 0, 0, 9999},
+	{ST_TOGGLE,	N_("Preview image links on hover"), P_OFFINTNL(hex_gui_url_preview), N_("Rest the pointer on a link to an image and it pops up. The image is downloaded only then, which lets its site know; never while you're away."), 0, 0},
 
 	{ST_END, 0, 0, 0, 0, 0}
 };

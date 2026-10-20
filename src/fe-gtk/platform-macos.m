@@ -12,6 +12,8 @@
    name in the menu bar. */
 
 #import <AppKit/AppKit.h>
+#import <Security/Security.h>
+#include <glib/gstdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <glib.h>
@@ -374,6 +376,54 @@ macos_bundle_setup (const char *textdomain)
 	SET ("GIO_MODULE_DIR", "lib", "gio", "modules");
 	SET ("OPENSSL_MODULES", "lib", "ossl-modules");
 #undef SET
+
+	/* the bundled OpenSSL looks for trusted roots where Homebrew keeps
+	   them, which a Mac without Homebrew doesn't have: TLS servers (and
+	   https link previews) would fail to verify. Hand it the system's own
+	   roots, the ones Safari trusts, written out once per launch. */
+	if (!g_getenv ("SSL_CERT_FILE"))
+	{
+		CFArrayRef roots = NULL;
+		GString *pem = g_string_new (NULL);
+
+		if (SecTrustCopyAnchorCertificates (&roots) == errSecSuccess && roots)
+		{
+			CFIndex i;
+			for (i = 0; i < CFArrayGetCount (roots); i++)
+			{
+				CFDataRef der = SecCertificateCopyData ((SecCertificateRef) CFArrayGetValueAtIndex (roots, i));
+				char *b64;
+				int j, len;
+
+				if (!der)
+					continue;
+				b64 = g_base64_encode (CFDataGetBytePtr (der), CFDataGetLength (der));
+				len = strlen (b64);
+				g_string_append (pem, "-----BEGIN CERTIFICATE-----\n");
+				for (j = 0; j < len; j += 64)
+				{
+					g_string_append_len (pem, b64 + j, MIN (64, len - j));
+					g_string_append_c (pem, '\n');
+				}
+				g_string_append (pem, "-----END CERTIFICATE-----\n");
+				g_free (b64);
+				CFRelease (der);
+			}
+			CFRelease (roots);
+		}
+		if (pem->len)
+		{
+			char *dir = g_build_filename (g_get_user_cache_dir (), "nexchat", NULL);
+			char *file = g_build_filename (dir, "roots.pem", NULL);
+
+			g_mkdir_with_parents (dir, 0700);
+			if (g_file_set_contents (file, pem->str, pem->len, NULL))
+				g_setenv ("SSL_CERT_FILE", file, TRUE);
+			g_free (file);
+			g_free (dir);
+		}
+		g_string_free (pem, TRUE);
+	}
 
 	p = g_build_filename (r, "share", "locale", NULL);
 	bindtextdomain (textdomain, p);

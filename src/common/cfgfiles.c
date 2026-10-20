@@ -536,6 +536,7 @@ const struct prefs vars[] =
 	{"gui_typing_chat", P_OFFINT (hex_gui_typing_chat), TYPE_BOOL},
 	{"gui_typing_send", P_OFFINT (hex_gui_typing_send), TYPE_BOOL},
 	{"gui_typing_show", P_OFFINT (hex_gui_typing_show), TYPE_BOOL},
+	{"gui_url_preview", P_OFFINT (hex_gui_url_preview), TYPE_BOOL},
 	{"gui_tab_utils", P_OFFINT (hex_gui_tab_utils), TYPE_BOOL},
 	{"gui_throttlemeter", P_OFFINT (hex_gui_throttlemeter), TYPE_INT},
 	{"gui_topicbar", P_OFFINT (hex_gui_topicbar), TYPE_BOOL},
@@ -880,6 +881,8 @@ load_default_config(void)
 	   what makes a busy channel readable */
 	prefs.hex_text_color_nicks = 1;
 	prefs.hex_gui_ulist_color = 1;
+	/* hover an image link: it pops up (fetched only then) */
+	prefs.hex_gui_url_preview = 1;
 	prefs.hex_gui_ulist_style = 1;
 	prefs.hex_gui_win_nick = 1;
 	prefs.hex_gui_win_save = 1;

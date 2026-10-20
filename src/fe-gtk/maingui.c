@@ -59,6 +59,7 @@
 #include "gtkutil.h"
 #include "bncwin.h"
 #include "mentions.h"
+#include "urlpreview.h"
 #ifdef __APPLE__
 #include "platform-macos.h"
 #endif
@@ -2617,6 +2618,9 @@ mg_create_textarea (session *sess, GtkWidget *box)
 
 	g_signal_connect (G_OBJECT (xtext), "word_click",
 							G_CALLBACK (mg_word_clicked), NULL);
+#ifdef USE_OPENSSL
+	urlpreview_attach (GTK_WIDGET (xtext));
+#endif
 
 	gui->vscrollbar = gtk_scrollbar_new (GTK_ORIENTATION_VERTICAL, GTK_XTEXT (xtext)->adj);
 	gtk_widget_set_name (gui->vscrollbar, "hexchat-scrollbar");

@@ -1072,6 +1072,14 @@ fe_self_shot (gpointer data)
 		if (pop && gtk_widget_get_visible (pop))
 			win = pop;
 	}
+	/* NEXCHAT_SHOT_PREVIEW=1: the image link preview popover */
+	if (g_getenv ("NEXCHAT_SHOT_PREVIEW") && current_sess && current_sess->gui)
+	{
+		GtkWidget *c;
+		for (c = gtk_widget_get_first_child (current_sess->gui->xtext); c; c = gtk_widget_get_next_sibling (c))
+			if (GTK_IS_POPOVER (c) && gtk_widget_get_visible (c))
+				win = c;
+	}
 
 	if (win)
 	{

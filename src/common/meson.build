@@ -80,7 +80,7 @@ textevents = custom_target('textevents',
 #   HAVE_GTK_MAC
 
 if libssl_dep.found()
-  common_sources += 'ssl.c'
+  common_sources += ['ssl.c', 'httpget.c']
   common_deps += libssl_dep
 endif
 
