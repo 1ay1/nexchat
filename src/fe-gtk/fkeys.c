@@ -435,6 +435,18 @@ key_handle_input (GtkWidget *wid, guint keyval, GdkModifierType state, gpointer 
 		return TRUE;
 #endif
 
+	/* Cmd/Ctrl+C with nothing selected in the input box: copy what's
+	   selected in the chat (the focus lives in the input box, so the
+	   chat's selection was otherwise only Ctrl+Shift+C) */
+	if (mods == STATE_CTRL && (keyval == GDK_KEY_c || keyval == GDK_KEY_C) &&
+		 !gtk_editable_get_selection_bounds (GTK_EDITABLE (wid), NULL, NULL) &&
+		 current_sess && current_sess->gui && current_sess->gui->xtext &&
+		 gtk_xtext_has_selection (GTK_XTEXT (current_sess->gui->xtext)))
+	{
+		gtk_xtext_copy_selection (GTK_XTEXT (current_sess->gui->xtext));
+		return TRUE;
+	}
+
 	/* Shift+Enter: a new line in the same message (gui_multiline) */
 	if (prefs.hex_gui_multiline && mods == STATE_SHIFT &&
 		 (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter || keyval == GDK_KEY_ISO_Enter))

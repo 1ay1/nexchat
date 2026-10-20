@@ -163,14 +163,21 @@ static const setting appearance_settings[] =
 	{ST_TOGGLR, N_("Indent nick names"), P_OFFINTNL(hex_text_indent), N_("Make nick names right-justified"),0,0},
 	{ST_TOGGLE, N_ ("Show marker line"), P_OFFINTNL (hex_text_show_marker), N_ ("Insert a red line after the last read text."), 0, 0},
 	{ST_TOGGLE, N_ ("Show day separators"), P_OFFINTNL (hex_text_day_sep), N_ ("A line with the date where the day changes."), 0, 0},
+#ifdef __APPLE__
+#define ZOOM_KEYS "\342\214\230+wheel and \342\214\230+/\342\210\222/0"
+#define COPY_KEYS "\342\214\230C"
+#else
+#define ZOOM_KEYS "Ctrl+wheel and Ctrl+=/-/0"
+#define COPY_KEYS "Ctrl+Shift+C"
+#endif
 	{ST_EFILE, N_ ("Background image:"), P_OFFSETNL (hex_text_background), 0, 0, sizeof prefs.hex_text_background},
-	{ST_NUMBER, N_("Text zoom:"), P_OFFINTNL(hex_text_zoom), N_("Size of the chat text, in percent. Ctrl+wheel and Ctrl+=/-/0 change it."), (const char **)N_("%"), 300},
+	{ST_NUMBER, N_("Text zoom:"), P_OFFINTNL(hex_text_zoom), N_("Size of the chat text, in percent. " ZOOM_KEYS " change it."), (const char **)N_("%"), 300},
 
-	{ST_HEADER, N_("Modern Features"), 0,0,0},
+	{ST_HEADER, N_("Reading"), 0,0,0},
 	{ST_TOGGLE, N_("Jump to latest button"), P_OFFINTNL(hex_gui_jump_button), N_("While scrolled up, show a button with the number of new lines that takes you back down."),0,0},
-	{ST_TOGGLR, N_("Zoom with Ctrl+wheel and Ctrl+=/-/0"), P_OFFINTNL(hex_gui_zoom_keys),0,0,0},
+	{ST_TOGGLR, N_("Zoom with " ZOOM_KEYS), P_OFFINTNL(hex_gui_zoom_keys),0,0,0},
 
-	{ST_HEADER, N_("Transparency Settings"), 0,0,0},
+	{ST_HEADER, N_("Window"), 0,0,0},
 	{ST_HSCALE, N_("Window opacity:"), P_OFFINTNL(hex_gui_transparency),0,0,0},
 
 	{ST_HEADER,	N_("Timestamps"),0,0,0},
@@ -588,7 +595,7 @@ static const setting advanced_settings[] =
 	{ST_HEADER,	N_("Auto Copy Behavior"),0,0,0},
 	{ST_TOGGLE, N_("Automatically copy selected text"), P_OFFINTNL(hex_text_autocopy_text),
 					N_("Copy selected text to clipboard when left mouse button is released. "
-						"Otherwise, Ctrl+Shift+C will copy the "
+						"Otherwise, " COPY_KEYS " will copy the "
 						"selected text to the clipboard."), 0, 0},
 	{ST_TOGGLE, N_("Automatically include timestamps"), P_OFFINTNL(hex_text_autocopy_stamp),
 					N_("Automatically include timestamps in copied lines of text. Otherwise, "
