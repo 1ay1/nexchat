@@ -24,6 +24,7 @@
 #include "../common/outbound.h"
 #include "gtkutil.h"
 #include "xtext.h"
+#include "nximage.h"
 #include "urlpreview.h"
 
 #define HOVER_MS 450
@@ -59,8 +60,8 @@ typedef struct
 	struct request *pending;	/* the fetch in flight, if any */
 } preview;
 
-/* url -> GdkTexture, or a "not an image" marker (the cache value is the
-   preview class's "nothing" sentinel) */
+/* url -> GdkPaintable (a texture, or a GIF that plays), or a "not an
+   image" marker */
 static GHashTable *cache;
 static GQueue cache_order = G_QUEUE_INIT;
 #define NOT_IMAGE ((gpointer) 1)
@@ -134,11 +135,13 @@ preview_hide (preview *p)
 }
 
 static void
-preview_show (preview *p, GdkTexture *t)
+preview_show (preview *p, GdkPaintable *t)
 {
-	int w = gdk_texture_get_width (t), h = gdk_texture_get_height (t);
+	int w = gdk_paintable_get_intrinsic_width (t), h = gdk_paintable_get_intrinsic_height (t);
 	double s = MIN (1.0, (double) MAX_SIDE / MAX (w, h));
 
+	if (w <= 0 || h <= 0)
+		return;
 	if (!p->pop)
 	{
 		p->pop = gtk_popover_new ();
@@ -151,7 +154,7 @@ preview_show (preview *p, GdkTexture *t)
 		gtk_picture_set_content_fit (GTK_PICTURE (p->pic), GTK_CONTENT_FIT_CONTAIN);
 		gtk_popover_set_child (GTK_POPOVER (p->pop), p->pic);
 	}
-	gtk_picture_set_paintable (GTK_PICTURE (p->pic), GDK_PAINTABLE (t));
+	gtk_picture_set_paintable (GTK_PICTURE (p->pic), t);
 	gtk_widget_set_size_request (p->pic, MAX (1, (int) (w * s)), MAX (1, (int) (h * s)));
 	gtk_popover_set_pointing_to (GTK_POPOVER (p->pop), &p->at);
 	gtk_popover_popup (GTK_POPOVER (p->pop));
@@ -165,15 +168,17 @@ fetched (httpget_result *res, gpointer data)
 	request *rq = data;
 	GtkWidget *xtext = g_weak_ref_get (&rq->xtext);
 	preview *p = xtext ? g_object_get_data (G_OBJECT (xtext), "nx-urlpreview") : NULL;
-	GdkTexture *t = NULL;
+	GdkPaintable *t = NULL;
+	int w = 0, h = 0;
+	gboolean animated = FALSE;
 
 	if (res->body && !res->truncated && res->status == 200 && res->content_type &&
 		 g_str_has_prefix (res->content_type, "image/"))
-		t = gdk_texture_new_from_bytes (res->body, NULL);
+		t = nx_image_from_bytes (res->body, &w, &h, &animated);
 	if (g_getenv ("NEXCHAT_PREVIEW_DEBUG"))
 		g_printerr ("preview: %s -> %d %s %s\n", rq->url, res->status,
 						res->content_type ? res->content_type : "-",
-						t ? "image" : res->error ? res->error : "not an image");
+						t ? (animated ? "animated image" : "image") : res->error ? res->error : "not an image");
 	/* cancelled (moved off the link) isn't an answer: ask again next time */
 	if (!rq->cancelled || t)
 		cache_put (rq->url, t ? (gpointer) g_object_ref (t) : NOT_IMAGE);

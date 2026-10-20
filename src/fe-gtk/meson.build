@@ -43,7 +43,7 @@ hexchat_gtk_sources = [
 
 # link previews and uploads: the HTTP(S) client in common/httpget.c
 if libssl_dep.found()
-  hexchat_gtk_sources += ['urlpreview.c', 'upload.c']
+  hexchat_gtk_sources += ['urlpreview.c', 'upload.c', 'nximage.c']
 endif
 
 gtk_dep = dependency('gtk4', version: '>= 4.14.0')
