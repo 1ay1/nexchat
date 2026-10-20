@@ -76,11 +76,11 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         for (auto& r : chat) r = r.pad_right(chat_w);
         maya::Element chat_el = column(std::move(chat));
         if (p.switcher && p.switcher->is_open()) {
-            const int sw = std::min(chat_w, 50);
+            const int sw = std::min(chat_w, 72);
             const int pad = std::max(0, (chat_w - sw) / 2);
             chat_el = maya::detail::zstack({
                 std::move(chat_el),
-                (v(p.switcher->element(sw)) | padding(1, 0, 0, pad)).build(),
+                (v(p.switcher->element(sw, std::clamp(body_h - 6, 3, 14))) | padding(1, 0, 0, pad)).build(),
             });
         }
         body.push_back(std::move(chat_el));

@@ -76,6 +76,7 @@ tui_widgets = static_library('nexchat_tui_widgets',
   'widgets/form.cpp',
   'widgets/panel.cpp',
   'widgets/sheet.cpp',
+  'widgets/cmdpopup.cpp',
   cpp_args: tui_cpp_args,
   dependencies: maya_dep,
   override_options: ['cpp_std=none'],
@@ -111,6 +112,7 @@ if host_machine.system() != 'windows'
     'bouncer.c',
     'tools.c',
     'keys.c',
+    'cmds.c',
     'netlist.cpp',
     'prefs.cpp',
     'chanlist.cpp',
@@ -176,6 +178,10 @@ if host_machine.system() != 'windows'
   )
   test('tui-hover', find_program('sh'),
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-hover.py'],
+    timeout: 90,
+  )
+  test('tui-cmdpop', find_program('sh'),
+    args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-cmdpop.py'],
     timeout: 90,
   )
   test('tui-app-theme', find_program('sh'),

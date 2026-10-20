@@ -87,6 +87,7 @@ public:
     struct Entry { std::string title; std::vector<MenuItem> items; };
 
     void set(std::vector<Entry> e) { entries_ = std::move(e); }
+    [[nodiscard]] const std::vector<Entry>& entries() const { return entries_; }
     [[nodiscard]] bool is_open() const { return menu_.is_open(); }
     void open(int index);
     void close() { menu_.close(); open_ = -1; }

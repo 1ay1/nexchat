@@ -232,6 +232,35 @@ int  nx_ui_open_transfers (int passive);
 /* ── Raw Log (fe_add_rawlog): every line to and from a server ──────── */
 void nx_ui_rawlog (nx_key net, const char *line, int outbound);
 
+/* ── the command popup (fe-gtk/cmdpopup.c), on common/cmdinfo.c ───────── */
+/* One suggestion: name (bold), middle column, a description (dim), what
+   replaces the word being typed, a group heading above it (or ""), and the
+   command a row is about. All owned by the list (nx_cmd_list_free). */
+typedef struct
+{
+	char *name, *middle, *desc, *insert, *heading, *cmd;
+} nx_cmd_item;
+typedef struct
+{
+	nx_cmd_item *items;
+	int n;
+	int args;          /* the items are values for an argument (else commands) */
+	int word_start;    /* byte offset of the word they replace */
+	char *usage;       /* "/KICK <nick> [reason]" (args), "" otherwise */
+	int arg_start, arg_end;  /* the current argument in usage, bytes (-1: none) */
+	char *desc;        /* the command's one-line description */
+	char *example;     /* "/join #linux", or "" */
+} nx_cmd_list;
+/* What to show for `text` with the caret at byte `cursor` in `buf`; NULL
+   when it isn't a command being typed (or gui_input_cmdhelp is off). */
+nx_cmd_list *nx_core_cmd_suggest (nx_key buf, const char *text, int cursor);
+void nx_cmd_list_free (nx_cmd_list *l);
+/* what one command does, its example and options, for the details line
+   (nx_core_gfree it) */
+char *nx_core_cmd_details (const char *cmd);
+/* the command char ("/") */
+char nx_core_cmd_char (void);
+
 /* ── keybindings.conf (fe-gtk/fkeys.c's file, read the same way) ─────── */
 /* the GUI's actions, in its order (key_actions[]) */
 enum nx_key_action

@@ -30,6 +30,8 @@ public:
     enum class Outcome { Open, Picked, Cancelled };
 
     void open(std::vector<ChanEntry> entries, std::vector<std::string> networks);
+    /// the card's title ("Go to" by default)
+    std::string title = "Go to";
     [[nodiscard]] bool is_open() const noexcept { return open_; }
     void close() { open_ = false; }
 

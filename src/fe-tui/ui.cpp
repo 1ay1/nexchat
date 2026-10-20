@@ -25,6 +25,7 @@
 #include "../bridge-bnc.h"
 #include "bars.hpp"
 #include "chantree.hpp"
+#include "cmdpopup.hpp"
 #include "chat.hpp"
 #include "dialog.hpp"
 #include "inputline.hpp"
@@ -76,7 +77,7 @@ enum Action : int {
     A_None, A_Quit, A_NetList, A_Prefs, A_IgnoreList, A_FriendsList, A_Transfers, A_RawLog, A_Bouncer, A_Disconnect, A_Reconnect, A_Close, A_Away, A_ChanList, A_Nick,
     A_ToggleTree, A_ToggleUsers, A_ToggleTopic, A_ToggleMenu, A_ToggleStamps,
     A_ClearText, A_Search, A_ResetMarker, A_Copy, A_Paste, A_SelectAll,
-    A_Prev, A_Next, A_NextActive, A_GoTo,
+    A_Prev, A_Next, A_NextActive, A_GoTo, A_Palette,
     A_BanList, A_Mentions, A_Plugins, A_UrlGrabber,
     A_Theme, A_ThemeNative, A_Keys, A_About,
     A_Join, A_Part, A_Topic,
@@ -409,6 +410,7 @@ public:
             }},
             {"Window", {
                 {"Go to…", "^G", A_GoTo},
+                {"Command Palette…", "^P", A_Palette},
                 {"Previous", "Alt-←", A_Prev},
                 {"Next", "Alt-→", A_Next},
                 {"Next Active", "Alt-A", A_NextActive},
@@ -614,6 +616,7 @@ public:
         case A_Next: step_buffer(+1); break;
         case A_NextActive: next_active(); break;
         case A_GoTo: open_switcher(); break;
+        case A_Palette: open_palette(); break;
         case A_ThemeNative: set_theme("native"); break;
         case A_Theme: open_theme_picker(); break;
         case A_Keys: show_keys(); break;
@@ -849,6 +852,8 @@ public:
             if (theme_name == maya::theme::schemes[i].name) now = i + 1;
         }
         picking_theme = true;
+        palette_open = false;
+        switcher.title = "Theme";
         theme_before = theme_name;
         switcher.open(std::move(e), std::move(nets_));
         switcher.select_key(now);
@@ -867,13 +872,81 @@ public:
             nn.push_back(it == nets.end() ? "" : it->second.name);
         }
         picking_theme = false;
+        palette_open = false;
+        switcher.title = "Go to";
         switcher.open(entries(), std::move(nn));
+    }
+
+    // ── Ctrl-P: the command palette ─────────────────────────────────────────
+    // Everything in one fuzzy list: each menu action ("Window › Mentions",
+    // its key on the right), each tab, each /command. The key says which:
+    //   kPalAction + action id, kPalCmd + index into palette_cmds, or a
+    //   buffer key (even: a pointer, or ours, odd).
+    static constexpr std::uintptr_t kPalAction = std::uintptr_t{1} << 60;
+    static constexpr std::uintptr_t kPalCmd = std::uintptr_t{1} << 61;
+    bool palette_open = false;
+    std::vector<std::string> palette_cmds;
+    void open_palette() {
+        build_menubar();
+        std::vector<ChanEntry> e;
+        std::vector<std::string> right;
+        // menu actions, "Menu › Item"
+        std::function<void(const std::string&, const std::vector<MenuItem>&)> walk =
+            [&](const std::string& path, const std::vector<MenuItem>& items) {
+                for (const auto& it : items) {
+                    if (it.label.empty()) continue;
+                    if (!it.sub.empty()) { walk(path + it.label + " › ", it.sub); continue; }
+                    if (it.action <= A_None || !it.enabled) continue;
+                    std::string label = it.label;
+                    if (label.size() > 3 && label.compare(label.size() - 3, 3, "…") == 0) label.erase(label.size() - 3);
+                    e.push_back({kPalAction + static_cast<std::uintptr_t>(it.action), path + label, ChanKind::Other});
+                    right.push_back(it.hint);
+                }
+            };
+        for (const auto& m : menubar.entries()) walk(m.title + " › ", m.items);
+        // tabs
+        for (auto& en : entries()) {
+            const Buffer* b = buf(en.key);
+            auto it = b ? nets.find(b->net) : nets.end();
+            e.push_back(en);
+            right.push_back(it == nets.end() ? "" : "tab · " + it->second.name);
+        }
+        // /commands
+        palette_cmds.clear();
+        if (nx_cmd_list* l = nx_core_cmd_suggest(core_key(cur), std::string(1, nx_core_cmd_char()).c_str(), 1)) {
+            for (int i = 0; i < l->n; ++i) {
+                palette_cmds.push_back(l->items[i].insert);
+                e.push_back({kPalCmd + palette_cmds.size() - 1, l->items[i].name, ChanKind::Other});
+                right.push_back(l->items[i].desc);
+            }
+            nx_cmd_list_free(l);
+        }
+        picking_theme = false;
+        palette_open = true;
+        switcher.title = "Command Palette";
+        switcher.open(std::move(e), std::move(right));
+    }
+    void palette_pick(std::uintptr_t k) {
+        if (k >= kPalCmd) {
+            const std::size_t i = static_cast<std::size_t>(k - kPalCmd);
+            if (i < palette_cmds.size()) {
+                std::string ins = palette_cmds[i];
+                for (char& c : ins) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                input.set(std::string(1, nx_core_cmd_char()) + ins + " ");
+                focus = Pane::Input;
+                refresh_cmdpopup();
+            }
+        } else if (k >= kPalAction) {
+            act(static_cast<int>(k - kPalAction));
+        } else {
+            switch_to(k);
+        }
     }
 
     void show_keys() {
         queue_dialog({0, "Keyboard Shortcuts",
             "Alt-1…9  buffer N        Alt-←/→ Ctrl-PgUp/PgDn  prev/next\n"
-            "Alt-A    next active     Ctrl-G  go to…\n"
+            "Alt-A    next active     Ctrl-G  go to…     Ctrl-P  every command\n"
             "PgUp/PgDn  scroll        Ctrl-Home/End  top/bottom\n"
             "Tab      complete        Ctrl-L  user list\n"
             "Ctrl-F   find (↑↓/Enter older/newer, Alt-C case, Alt-R regex, Alt-A all)\n"
@@ -921,6 +994,7 @@ public:
             const auto o = switcher.key(k);
             if (o == Switcher::Outcome::Picked) {
                 if (picking_theme) set_theme(theme_of(*switcher.picked()));     // keep it (saved)
+                else if (palette_open) { palette_open = false; palette_pick(*switcher.picked()); }
                 else switch_to(*switcher.picked());
             } else if (picking_theme) {
                 if (o == Switcher::Outcome::Cancelled) set_theme(theme_before, false);   // back
@@ -931,12 +1005,14 @@ public:
 
         // global keys
         if (find_open && find_key(k)) return;
-        if (focus == Pane::Input && keybinding(k)) return;
+        if (focus == Pane::Input && cmdpop_key(k)) return;
+        if (focus == Pane::Input && keybinding(k)) { refresh_cmdpopup(); return; }
         if (ck && k.mods.ctrl && !k.mods.alt) {
             switch (c) {
             case 'q': nx_core_quit(); return;
             case 's': netlist.open(); return;
             case 'f': open_find(); return;
+            case 'p': open_palette(); return;
             case 'g': open_switcher(); return;
             case 'l': layout.show_users = !layout.show_users; build_menubar(); return;
             case 'w': if (b) close_buffer(cur); return;
@@ -1025,6 +1101,117 @@ public:
         if (sk && *sk == SpecialKey::Enter) { submit(); return; }
         focus = Pane::Input;
         input.key(k);
+        refresh_cmdpopup();
+    }
+
+    // ── the command popup ("/…": fe-gtk/cmdpopup.c) ─────────────────────────
+    CmdPopup cmdpop;
+    bool moved_in_popup = false;   // Up/Down picked a value (Enter fills it in)
+    int cmdpop_x = 0, cmdpop_y = 0, cmdpop_w = 0, cmdpop_h = 0;   // where it was drawn
+    std::string cmdpop_cmd() const {
+        const std::string& t = input.text();
+        if (t.empty() || t[0] != nx_core_cmd_char()) return {};
+        const auto sp = t.find(' ');
+        return t.substr(1, sp == std::string::npos ? std::string::npos : sp - 1);
+    }
+    void refresh_cmdpopup() {
+        const std::string cmd = cmdpop_cmd();
+        if (cmd.empty() && (input.text().empty() || input.text()[0] != nx_core_cmd_char())) {
+            cmdpop.close();
+            cmdpop.undismiss();
+            return;
+        }
+        if (cmdpop.dismissed_for(cmd)) return;
+        cmdpop.undismiss();
+        nx_cmd_list* l = nx_core_cmd_suggest(core_key(cur), input.text().c_str(), static_cast<int>(input.cursor()));
+        CmdPopup::Data d;
+        if (l) {
+            for (int i = 0; i < l->n; ++i) {
+                const nx_cmd_item& it = l->items[i];
+                d.items.push_back({it.name, it.middle, it.desc, it.insert, it.heading, it.cmd});
+            }
+            d.args = l->args != 0;
+            d.word_start = l->word_start;
+            d.usage = l->usage;
+            d.arg_start = l->arg_start;
+            d.arg_end = l->arg_end;
+            d.desc = l->desc;
+            d.example = l->example;
+            nx_cmd_list_free(l);
+        }
+        cmdpop.set(std::move(d), input.text());
+        moved_in_popup = false;
+        cmdpop_details();
+    }
+    void cmdpop_details() {
+        cmdpop.details.clear();
+        if (const auto* s = cmdpop.selected(); s && !cmdpop.data().args && !s->cmd.empty())
+            if (char* d = nx_core_cmd_details(s->cmd.c_str())) { cmdpop.details = d; nx_core_gfree(d); }
+    }
+    // put the selected item in the line (cmdpopup.c fill_in)
+    void cmdpop_fill() {
+        const auto* it = cmdpop.selected();
+        if (!it) return;
+        const std::string text = input.text();
+        const std::size_t cur = input.cursor();
+        if (!cmdpop.data().args) {
+            // the command: "/join " and what was after the name
+            const auto sp = text.find(' ');
+            std::string rest = sp == std::string::npos ? std::string() : text.substr(sp + 1);
+            std::string ins = it->insert;
+            for (char& c : ins) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            std::string t = std::string(1, nx_core_cmd_char()) + ins + " " + rest;
+            input.set(t, ins.size() + 2);
+        } else {
+            const std::size_t ws = std::min<std::size_t>(static_cast<std::size_t>(cmdpop.data().word_start), text.size());
+            const std::string before = text.substr(0, ws);
+            const std::string after = text.substr(std::min(cur, text.size()));
+            const bool space_after = !after.empty() && after[0] == ' ';
+            std::string t = before + it->insert + (space_after ? "" : " ") + after;
+            input.set(t, before.size() + it->insert.size() + 1);
+        }
+        refresh_cmdpopup();
+    }
+    // true: the popup took the key
+    bool cmdpop_key(const maya::KeyEvent& k) {
+        if (!cmdpop.is_open()) return false;
+        const auto* sk = std::get_if<SpecialKey>(&k.key);
+        if (!sk) return false;
+        switch (*sk) {
+        case SpecialKey::Escape: cmdpop.dismiss(cmdpop_cmd()); return true;
+        case SpecialKey::Up: if (!cmdpop.has_items()) return false; cmdpop.move(-1); moved_in_popup = true; cmdpop_details(); return true;
+        case SpecialKey::Down: if (!cmdpop.has_items()) return false; cmdpop.move(+1); moved_in_popup = true; cmdpop_details(); return true;
+        case SpecialKey::PageUp: if (!cmdpop.has_items()) return false; cmdpop.move(-8); moved_in_popup = true; cmdpop_details(); return true;
+        case SpecialKey::PageDown: if (!cmdpop.has_items()) return false; cmdpop.move(+8); moved_in_popup = true; cmdpop_details(); return true;
+        case SpecialKey::Tab:
+            if (!cmdpop.has_items()) return false;
+            cmdpop_fill();
+            return true;
+        case SpecialKey::Enter: {
+            // the command list: Enter fills in the picked command, unless
+            // what's typed is a whole command already (then it sends); values:
+            // Enter fills in while a word is being picked, else sends
+            if (cmdpop.has_items() && !cmdpop.data().args) {
+                const std::string typed = cmdpop_cmd();
+                const auto* s = cmdpop.selected();
+                const bool whole = s && strcasecmp(s->insert.c_str(), typed.c_str()) == 0;
+                bool any_whole = false;
+                for (const auto& it : cmdpop.data().items) any_whole |= strcasecmp(it.insert.c_str(), typed.c_str()) == 0;
+                if (!whole && !(any_whole && cmdpop.selected() == &cmdpop.data().items.front())) { cmdpop_fill(); return true; }
+                cmdpop.close();
+                return false;
+            }
+            if (cmdpop.has_items() && cmdpop.data().args) {
+                const std::size_t ws = static_cast<std::size_t>(cmdpop.data().word_start);
+                const std::string word = input.text().substr(std::min(ws, input.text().size()),
+                                                             input.cursor() > ws ? input.cursor() - ws : 0);
+                if (!word.empty() && moved_in_popup) { cmdpop_fill(); return true; }
+            }
+            cmdpop.close();
+            return false;
+        }
+        default: return false;
+        }
     }
 
     // ── keybindings.conf (the GUI's fkeys.c) ────────────────────────────────
@@ -1167,6 +1354,8 @@ public:
 
     void submit() {
         Buffer* b = current();
+        cmdpop.close();
+        cmdpop.undismiss();
         if (nx_core_keybind_count() == 0) check_replace();   // the GUI's default Return binding
         std::string line = input.text();
         if (line.empty()) return;
@@ -1315,6 +1504,20 @@ public:
         }
 
         // hover (no button down, no drag): underline what a click would act on
+        if (cmdpop_h > 0 && x >= cmdpop_x && x < cmdpop_x + cmdpop_w && y >= cmdpop_y && y < cmdpop_y + cmdpop_h) {
+            // the command popup: hover marks a row, a click fills it in
+            if (m.kind == MouseEventKind::Move && m.button == MouseButton::None) { cmdpop.hover_row(y - cmdpop_y); return; }
+            if (m.button == MouseButton::ScrollUp || m.button == MouseButton::ScrollDown) {
+                cmdpop.move(m.button == MouseButton::ScrollUp ? -1 : 1);
+                cmdpop_details();
+                return;
+            }
+            if (m.kind == MouseEventKind::Press && m.button == MouseButton::Left) {
+                if (cmdpop.item_at_row(y - cmdpop_y)) cmdpop_fill();
+                return;
+            }
+            return;
+        }
         if (drag == Drag::None && m.kind == MouseEventKind::Move && m.button == MouseButton::None) {
             hover(x, y);
             return;
@@ -1462,7 +1665,7 @@ public:
             case StatusBar::Hot::Below: if (b) b->view.to_bottom(); break;
             case StatusBar::Hot::Network: netlist.open(); break;
             case StatusBar::Hot::Hint0: build_menubar(); menubar.open(0); break;
-            case StatusBar::Hot::Hint1: open_switcher(); break;
+            case StatusBar::Hot::Hint1: open_palette(); break;
             case StatusBar::Hot::Hint2: show_keys(); break;
             default:
                 if (x < W / 2) { if (Network* n = cur_net()) command(n->away ? "back" : "away"); }
@@ -1537,7 +1740,7 @@ public:
         if (!toast.empty() && std::chrono::steady_clock::now() < toast_until) status.typing = toast;
         status.frame = anim_frame;
         animating = status.animating();
-        status.hints = {"F10 menu", "^G go to", "F1 keys"};
+        status.hints = {"F10 menu", "^P commands", "F1 keys"};
         status.hot = hover_area == Area::Status ? status_hot : StatusBar::Hot::None;
 
         TopicBar topic;
@@ -1608,6 +1811,21 @@ public:
         maya::Element window = (v(std::move(rows)) | height(h)).build();
 
         std::vector<maya::Element> layers{std::move(window)};
+        if (cmdpop.is_open() && focus == Pane::Input && !find_open) {
+            // over the chat, its bottom on the input's frame, as wide as the
+            // chat area (at least 64 columns), as tall as it needs
+            const int pw = std::clamp(std::max(r_chat.w, 64), 20, w);
+            const int px = std::clamp(r_chat.x, 0, std::max(0, w - pw));
+            const int bottom = h - MainLayout::kBottomRows;   // the rule over the status row
+            auto pr = cmdpop.rows(pw, std::max(3, std::min(bottom - top - 1, 20)));
+            cmdpop_y = bottom - static_cast<int>(pr.size());
+            cmdpop_x = px;
+            cmdpop_h = static_cast<int>(pr.size());
+            cmdpop_w = pw;
+            layers.push_back((v(stack_rows(pr)) | padding(std::max(cmdpop_y, 0), 0, 0, px)).build());
+        } else {
+            cmdpop_h = 0;
+        }
         if (menubar.is_open()) layers.push_back(menubar.overlay(w, h));
         if (ctx.is_open()) layers.push_back(ctx.element(w, h));
         if (netlist.is_open()) layers.push_back(netlist.element(w, h));

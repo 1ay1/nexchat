@@ -784,12 +784,12 @@ static void test_bars() {
     s.nick = "alice";
     s.network = "Libera";
     s.lag = 0.25;
-    s.hints = {"^G go to"};
+    s.hints = {"^P commands"};
     auto sr = s.row(60);
     CHECK_EQ(sr.width(), 60);
     CHECK(sr.text.find(" ● Libera  250 ms") == 0);
-    CHECK(sr.text.find("^G go to ") != std::string::npos);
-    CHECK(s.row(20).text.find("^G") == std::string::npos);          // hints give way first
+    CHECK(sr.text.find("^P commands ") != std::string::npos);
+    CHECK(s.row(20).text.find("^P") == std::string::npos);          // hints give way first
 }
 
 static void test_switcher() {

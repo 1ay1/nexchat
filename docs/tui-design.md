@@ -246,7 +246,16 @@ a terminal can deliver the key:
   does nothing: the tree keeps the core's order;
   Esc closes whatever is open, then cancels a reply.
 * F10 / Alt-F etc. open the menus; Ctrl-G the switcher; Ctrl-P the
-  command palette (every menu item and /command, fuzzy).
+  command palette (every menu action as "Menu › Item", every tab, every
+  /command, fuzzy, the matched letters lit).
+* Typing "/" opens the command popup over the input (the GUI's
+  cmdpopup.c, cmds.c over common/cmdinfo.c): commands grouped (Most used
+  first) with what to type after them and what they do, the selected one's
+  details and example; once the command is in, its usage with the argument
+  under the caret stressed and values for it (people by who spoke last,
+  channels, settings, networks, options). ↑↓ pick, Tab fills in, Enter
+  fills in a partly typed command or sends a whole one, Esc closes it for
+  that command, a click fills in. gui_input_cmdhelp turns it off.
 * keybindings.conf: the user's own bindings from the GUI's file are
   loaded too (same parser, fe-gtk/fkeys.c's actions), where they map to
   keys a terminal sends.

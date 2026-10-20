@@ -221,6 +221,14 @@ def main():
         t.send(b"\x07", 0.4)
         check(t.wait_for("Go to", 2), "Ctrl-G opens the switcher")
         t.send(b"\x1b", 0.6)
+        # Ctrl-P: the command palette, every action and command
+        t.send(b"\x10", 0.4)
+        check(t.wait_for("Command Palette", 2), "Ctrl-P opens the command palette")
+        t.type("prefer", 0.4)
+        check(t.find("Preferences") is not None, "it finds menu actions (Preferences)")
+        t.send(b"\r", 0.6)
+        check(t.wait_for("Settings", 2), "Enter runs it")
+        t.send(b"\x1b", 0.6)
 
         # View → Theme → Choose a scheme…: pick Dracula, saved in tui.conf
         t.send(b"\x1bv", 0.4)                       # Alt-V

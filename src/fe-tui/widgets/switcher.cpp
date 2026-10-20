@@ -38,7 +38,7 @@ void Switcher::open(std::vector<ChanEntry> entries, std::vector<std::string> net
     nets_ = std::move(networks);
     nets_.resize(all_.size());
     query_.clear();
-    query_.set_prompt(Rich{"> ", role::title()});
+    query_.set_prompt(Rich{" ⌕ ", role::muted()});
     picked_.reset();
     open_ = true;
     refilter();
@@ -83,24 +83,51 @@ Switcher::Outcome Switcher::key(const maya::KeyEvent& k) {
 std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
     std::vector<Rich> rows;
     rows.push_back(query_.row(inner, true));
+    rows.push_back(Rich{}.pad_right(inner));
     const int n = std::min<int>(max_rows, static_cast<int>(hits_.size()));
     // Scroll the result list with the selection.
     const int top = std::clamp(static_cast<int>(sel_) - n + 1, 0, std::max(0, static_cast<int>(hits_.size()) - n));
+    const std::string q = query_.text();
+    auto lower = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
     for (int r = 0; r < n; ++r) {
         const std::size_t hi = static_cast<std::size_t>(top + r);
         const ChanEntry& e = all_[hits_[hi]];
-        Rich row;
-        row.append("  ");
-        row.append(e.name, e.kind == ChanKind::Server ? role::text().with_bold() : role::text());
+        const bool cur = hi == sel_;
+        Rich row{cur ? "▌ " : "  ", role::title()};
+        // the letters the query matched (in order), in the accent
+        const Style base = e.kind == ChanKind::Server ? role::text().with_bold() : role::text();
+        std::size_t qi = 0;
+        for (std::size_t i = 0; i < e.name.size();) {
+            const std::size_t len = utf8_len(static_cast<unsigned char>(e.name[i]));
+            const bool hit = qi < q.size() && len == 1 && lower(e.name[i]) == lower(q[qi]);
+            if (hit) ++qi;
+            row.append(std::string_view(e.name).substr(i, len), hit ? role::title().with_bold() : base);
+            i += len;
+        }
         Rich net{nets_[hits_[hi]], role::muted()};
+        if (net.width() > inner / 2) net = net.fit(inner / 2);
         row = row.fit(std::max(0, inner - net.width() - 1));
         row.append(" ");
         row.append(net);
         row = row.fit(inner);
-        if (hi == sel_) row.replace_colors(role::selected());
+        if (cur) row.replace_colors(role::selected());
         rows.push_back(std::move(row));
     }
-    if (hits_.empty()) rows.push_back(Rich{"  no match", role::muted()}.fit(inner));
+    if (hits_.empty()) rows.push_back(Rich{"  Nothing matches.", role::muted()}.fit(inner));
+    // the count, and how to use it
+    rows.push_back(Rich{}.pad_right(inner));
+    Rich foot;
+    foot.append(std::to_string(hits_.size()) + (hits_.size() == 1 ? " match" : " matches"), role::muted());
+    Rich keys;
+    keys.append("↑↓", role::text().with_bold());
+    keys.append(" pick   ", role::muted());
+    keys.append("Enter", role::text().with_bold());
+    keys.append(" go   ", role::muted());
+    keys.append("Esc", role::text().with_bold());
+    keys.append(" close", role::muted());
+    foot = foot.fit(std::max(0, inner - keys.width()));
+    foot.append(keys);
+    rows.push_back(foot.fit(inner));
     return rows;
 }
 
@@ -121,7 +148,7 @@ maya::Element Switcher::element(int w, int max_rows) const {
         e.append(r, role::border());
         return e;
     };
-    card.push_back(edge("╭", " Go to ", "╮"));
+    card.push_back(edge("╭", " " + title + " ", "╮"));
     for (auto& b : body) {
         Rich row{"│ ", role::border()};
         row.append(b.pad_right(inner));
