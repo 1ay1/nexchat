@@ -2559,6 +2559,27 @@ win_jump (GtkWidget *w, GVariant *args, gpointer d)
 	return TRUE;
 }
 
+static gboolean
+win_emoji (GtkWidget *w, GVariant *args, gpointer d)
+{
+	(void) w; (void) args; (void) d;
+	if (current_sess && current_sess->gui && current_sess->gui->input_box)
+	{
+		GtkWidget *e = current_sess->gui->input_box;
+		GtkWidget *t = GTK_IS_EDITABLE (e) ? GTK_WIDGET (gtk_editable_get_delegate (GTK_EDITABLE (e))) : NULL;
+
+		gtk_widget_grab_focus (e);
+		/* the action is the GtkText's, inside the entry */
+		g_signal_emit_by_name (t ? t : e, "insert-emoji");
+		if (g_getenv ("NEXCHAT_KEYS"))
+		{
+			GtkWidget *ch = g_object_get_data (G_OBJECT (t ? t : e), "gtk-emoji-chooser");
+			g_printerr ("emoji chooser: %s\n", ch && gtk_widget_get_visible (ch) ? "open" : "not open");
+		}
+	}
+	return TRUE;
+}
+
 static void
 win_shortcut (GtkShortcutController *c, guint key, GdkModifierType mods,
 				  GtkShortcutFunc f, GVariant *args)
@@ -2583,6 +2604,13 @@ menu_window_shortcuts (GtkWidget *window)
 	   a Mac, so Ctrl+Space here and Cmd+Shift+A below */
 #ifndef __APPLE__
 	win_shortcut (sc, GDK_KEY_space, GDK_CONTROL_MASK, win_next_unread, NULL);
+#endif
+	/* the emoji chooser on the input box: Cmd+Ctrl+Space as in every Mac
+	   app (and Ctrl+. elsewhere, GTK's own key, wherever the focus is) */
+#ifdef __APPLE__
+	win_shortcut (sc, GDK_KEY_space, GDK_META_MASK | GDK_CONTROL_MASK, win_emoji, NULL);
+#else
+	win_shortcut (sc, GDK_KEY_period, GDK_CONTROL_MASK, win_emoji, NULL);
 #endif
 #ifdef __APPLE__
 	{
