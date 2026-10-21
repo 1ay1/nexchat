@@ -339,7 +339,7 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     env: gui_env + ['DISP=:90'], timeout: 120)
   test('gui-cmdpopup', find_program('sh'),
     args: [files('../../tests/ux/cmdpopup.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:89'], timeout: 180)
+    env: gui_env + ['DISP=:69'], timeout: 180)
   test('gui-cmdpopup-all', find_program('sh'),
     args: [files('../../tests/ux/cmdpopup-all.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:96'], timeout: 120)
@@ -364,14 +364,14 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     env: gui_env + ['DISP=:78'], timeout: 180)
   test('gui-detect', find_program('sh'),
     args: [files('../../tests/ux/detect.sh'), hexchat_gtk],
-    env: gui_env + ['DISP=:78'], timeout: 240)
+    env: gui_env + ['DISP=:68'], timeout: 240)
   test('gui-stayonline', find_program('sh'),
     args: [files('../../tests/ux/stayonline.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:80'], timeout: 480)
   # flood of channel traffic while the UI is clicked, scrolled and zoomed
   test('gui-stress', find_program('sh'),
     args: [files('../../tests/stress.sh'), hexchat_gtk, '15'],
-    env: gui_env + ['DISP=:91', 'EXIT_WAIT=60'], timeout: 120)
+    env: gui_env + ['DISP=:71', 'EXIT_WAIT=60'], timeout: 120)
   test('gui-tray', find_program('sh'),
     args: [files('../../tests/ux/tray.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:74'], timeout: 60)

@@ -349,6 +349,48 @@ palette_ui_css (GString *css)
 	css_rgb (css, "@define-color insensitive_base_color %s;\n", &view);
 	css_rgb (css, "@define-color content_view_bg %s;\n", &view);
 	css_rgb (css, "@define-color text_view_bg %s;\n", &view);
+	/* libadwaita's names (GTK4 themes and a user's gtk.css use these):
+	   without them, cards, headers, popovers and the accent come from the
+	   desktop theme, not the scheme */
+	css_rgb (css, "@define-color window_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color window_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color view_bg_color %s;\n", &view);
+	css_rgb (css, "@define-color view_fg_color %s;\n", &text);
+	css_rgb (css, "@define-color accent_color %s;\n", &sel);
+	css_rgb (css, "@define-color accent_bg_color %s;\n", &sel);
+	css_rgb (css, "@define-color accent_fg_color %s;\n", &selfg);
+	css_rgb (css, "@define-color headerbar_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color headerbar_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color headerbar_border_color %s;\n", &bord);
+	css_rgb (css, "@define-color headerbar_backdrop_color %s;\n", &bg);
+	css_rgb (css, "@define-color card_bg_color %s;\n", &view);
+	css_rgb (css, "@define-color card_fg_color %s;\n", &text);
+	css_rgb (css, "@define-color dialog_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color dialog_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color popover_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color popover_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color sidebar_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color sidebar_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color secondary_sidebar_bg_color %s;\n", &bg);
+	css_rgb (css, "@define-color secondary_sidebar_fg_color %s;\n", &fg);
+	css_rgb (css, "@define-color thumbnail_bg_color %s;\n", &view);
+	css_rgb (css, "@define-color thumbnail_fg_color %s;\n", &text);
+	css_rgb (css, "@define-color scrollbar_outline_color %s;\n", &bord);
+	/* and the widgets that write them out literally in a gtk.css */
+	g_string_append (css,
+		".card { background-color: @card_bg_color; color: @card_fg_color; }\n"
+		"button.suggested-action, button.default { background-color: @theme_selected_bg_color;"
+		" color: @theme_selected_fg_color; }\n"
+		"switch:checked, checkbutton check:checked, checkbutton radio:checked {"
+		" background-color: @theme_selected_bg_color; border-color: @theme_selected_bg_color;"
+		" color: @theme_selected_fg_color; }\n"
+		"scale > trough > highlight, progressbar > trough > progress {"
+		" background-color: @theme_selected_bg_color; }\n"
+		"tooltip { background-color: @theme_bg_color; color: @theme_fg_color; border-color: @borders; }\n"
+		"listview > row:hover:not(:selected), row.activatable:hover:not(:selected) {"
+		" background-color: alpha(@theme_fg_color, 0.06); }\n"
+		"entry:focus, entry:focus-within, spinbutton:focus-within {"
+		" outline-color: alpha(@theme_selected_bg_color, 0.5); border-color: @theme_selected_bg_color; }\n");
 
 	/* GTK's Default theme writes most widgets with fixed greys, not the
 	   names above: give each kind of surface its colour */
@@ -400,7 +442,11 @@ palette_ui_css (GString *css)
 		/* lists and selection */
 		"row:selected, .view:selected, columnview > listview > row:selected,"
 		" listview > row:selected, treeview:selected, text selection, label > selection,"
-		" entry > text > selection, flowboxchild:selected"
+		" entry > text > selection, flowboxchild:selected,"
+		/* the cells in a selected row too: a desktop theme's *:selected
+		   matches them, and would paint its own colour over ours */
+		" listview > row:selected *:selected, listview > row:selected > cell,"
+		" columnview > listview > row:selected > cell"
 		" { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; }\n");
 	css_rgb (css, "row:hover:not(:selected), listview > row:hover:not(:selected)"
 		" { background-color: %s; }\n", &hover);
@@ -416,7 +462,10 @@ palette_ui_css (GString *css)
 		"notebook > header > tabs > tab:checked { color: @theme_fg_color; box-shadow: inset 0 -3px @theme_selected_bg_color; }\n"
 		"scrollbar { background-color: transparent; border-color: transparent; }\n"
 		"scrollbar > range > trough { background-color: transparent; border: none; }\n"
-		"scrollbar > range > trough > slider { background-color: alpha(@theme_fg_color, 0.35); border: none; }\n"
+		/* only the colour: themes (Adwaita) give the slider a transparent
+		   8px border its -8px margin cancels; taking the border away left
+		   a negative size (GTK warns, the slider misdraws) */
+		"scrollbar > range > trough > slider { background-color: alpha(@theme_fg_color, 0.35); }\n"
 		"scrollbar > range > trough > slider:hover { background-color: alpha(@theme_fg_color, 0.55); }\n"
 		"scale > trough { background-color: @borders; }\n"
 		"scale > trough > slider { background-color: @theme_fg_color; background-image: none; border-color: @borders; box-shadow: none; }\n"

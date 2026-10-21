@@ -15,10 +15,13 @@ disp=${DISP:-:77}
 tmp=$(mktemp -d)
 app=; xv=; wm=
 cleanup() {
+	set +e
 	[ -n "$app" ] && kill $app 2>/dev/null
 	[ -n "$wm" ] && kill $wm 2>/dev/null
 	pkill -f "soju -config $tmp/cfg/bouncer/config" 2>/dev/null
+	[ -n "${KEEP:-}" ] && cp "$tmp/log" "$KEEP" 2>/dev/null
 	bnc_stop; kill $xv 2>/dev/null; rm -rf "$tmp"
+	return 0
 }
 trap 'st=$?; cleanup; exit $st' EXIT
 start_xvfb "$xvfb" "$disp"

@@ -30,7 +30,7 @@ printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 
 python3 "$here/../fake_ircd.py" --demo --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &
 ircd=$!
 i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
-DISPLAY=$disp "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
+DISPLAY=$disp NEXCHAT_SHOT_ON="$tmp/shot.req" "$bin" -a -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
 wait_window "$disp"
 
@@ -94,8 +94,11 @@ x --click 60,58
 chat
 
 # 4. drag across line 1 from its first character: with text_autocopy_text=1
-#    the release copies it; paste it and send it
-x --drag 222,74:700,74
+#    the release copies it; paste it and send it. Start a few px inside the
+#    text: x 221 is where the separator ends, and a press on the separator
+#    moves it instead of selecting
+if [ -n "${KEEP:-}" ]; then echo "$tmp/drag.png" > "$tmp/shot.req"; sleep 1.5; fi
+x --drag 226,74:700,74
 sleep 0.3
 x ctrl+v Return
 wait_for got '^PRIVMSG #nexchat : *morning everyone' && ok "chat view drag-select copies" \

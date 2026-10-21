@@ -71,6 +71,19 @@ run "$d" "$out/chat-native.png"
 got=$(px "$out/chat-native.png" 300 250)
 [ "$got" = ffffff ] && echo "ok:   native background $got" || { echo "FAIL: native $got"; fail=1; }
 
+# a desktop gtk.css that paints every selection (and every card) green: a
+# scheme picked in nexchat still wins, in the chat and in the channel tree
+cp -r "$XDG_CONFIG_HOME" "$tmp/xdg-green"
+printf '*:selected, row:selected, listview > row:selected { background-color: #00ff00; color: #000000; }\n.card { background-color: #00ff00; }\n' \
+	> "$tmp/xdg-green/gtk-4.0/gtk.css"
+d="$tmp/green"; mkdir -p "$d"; printf 'scheme = Dracula\n' > "$d/colors.conf"
+run "$d" "$out/chat-green-css.png" XDG_CONFIG_HOME="$tmp/xdg-green"
+got=$(px "$out/chat-green-css.png" 300 250)
+[ "$got" = 282a36 ] && echo "ok:   gtk.css doesn't change the scheme's chat ($got)" || { echo "FAIL: chat under gtk.css $got"; fail=1; }
+# the channel tree's selected row (the <none> server tab, top left)
+got=$(px "$out/chat-green-css.png" 100 40)
+[ "$got" != 00ff00 ] && echo "ok:   the tree's selection is the scheme's ($got), not gtk.css's" || { echo "FAIL: tree selection is gtk.css green"; fail=1; }
+
 # Preferences > Colors shows the list with the current scheme
 d="$tmp/prefs"; mkdir -p "$d"; printf 'scheme = Nord\n' > "$d/colors.conf"
 run "$d" "$out/prefs-colors.png" NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_SHOT_WIN=1 NEXCHAT_PREFS_PAGE=4

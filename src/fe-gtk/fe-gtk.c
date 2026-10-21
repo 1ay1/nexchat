@@ -484,9 +484,13 @@ fe_apply_css (void)
 	{
 		fe_css_provider = gtk_css_provider_new ();
 		g_signal_connect (fe_css_provider, "parsing-error", G_CALLBACK (css_parsing_error), NULL);
+		/* above the user's gtk.css (USER): the colours picked in nexchat
+		   (a scheme, the text box's for the lists) are what it shows; a
+		   desktop theme's "every selected row is green" doesn't paint over
+		   them. Layout fixes here don't fight a theme either way. */
 		gtk_style_context_add_provider_for_display (screen,
 					GTK_STYLE_PROVIDER (fe_css_provider),
-					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+					GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
 	}
 
 	if (prefs.hex_gui_input_style)
@@ -533,7 +537,13 @@ fe_apply_css (void)
 		css_append_color (css, "background-color", &colors[COL_BG]);
 		g_string_append (css, "}\n");
 		g_string_append (css, "#hexchat-userlist > listview > row:selected,"
-									 " #hexchat-tree > listview > row:selected {");
+									 " #hexchat-tree > listview > row:selected,"
+									 /* and every cell in it: a desktop theme's *:selected
+									    would paint those too (in its own colour) */
+									 " #hexchat-userlist > listview > row:selected *:selected,"
+									 " #hexchat-tree > listview > row:selected *:selected,"
+									 " #hexchat-userlist > listview > row:selected > cell,"
+									 " #hexchat-tree > listview > row:selected > cell {");
 		css_append_color (css, "color", &colors[COL_MARK_FG]);
 		css_append_color (css, "background-color", &colors[COL_MARK_BG]);
 		g_string_append (css, "}\n");
@@ -614,6 +624,9 @@ fe_apply_css (void)
 		"popovermenubar > item { padding: 4px 7px; border-radius: 0; }\n"
 		/* frames (the chat view's): GTK3 drew them square */
 		"frame, frame > border { border-radius: 0; }\n"
+		/* cards (the Bouncer window's): a plain 1px box, square, no shadow */
+		".card { border-radius: 0; box-shadow: none; border: 1px solid alpha(currentColor, 0.18); }\n"
+		".nx-bnc-card { padding: 8px 10px; margin: 2px; }\n"
 		/* a frame's label (nx_labelled_frame_new): on the window colour so
 		   the line stops at it, as GTK3 drew it */
 		"label.nx-frame-label { background: @theme_bg_color; padding-right: 1px; }\n"
@@ -687,9 +700,26 @@ fe_apply_css (void)
 		".nx-cmdpopup .nx-cmd-keys { padding: 1px 6px 2px 6px; font-size: smaller;"
 		" border-top: 1px solid alpha(currentColor, 0.12); }\n");
 
-	/* a scheme colours the whole window, not just the text box (last, so
-	   it wins over the rules above that use the theme's names) */
-	palette_ui_css (css);
+	/* a scheme colours the whole window, not just the text box. Its own
+	   provider, above the user's gtk.css: a scheme picked in nexchat is
+	   what nexchat looks like (gtk.css still styles everything when no
+	   scheme is set) */
+	{
+		static GtkCssProvider *scheme_provider;
+		GString *sc = g_string_new (NULL);
+		palette_ui_css (sc);
+		if (!scheme_provider)
+		{
+			scheme_provider = gtk_css_provider_new ();
+			g_signal_connect (scheme_provider, "parsing-error", G_CALLBACK (css_parsing_error), NULL);
+			gtk_style_context_add_provider_for_display (screen, GTK_STYLE_PROVIDER (scheme_provider),
+						GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
+		}
+		if (g_getenv ("NX_DUMP_CSS"))
+			g_printerr ("---- nexchat scheme css ----\n%s\n----\n", sc->str);
+		gtk_css_provider_load_from_string (scheme_provider, sc->str);
+		g_string_free (sc, TRUE);
+	}
 
 	/* GTK4 loads what it can and reports errors through a signal */
 	if (g_getenv ("NX_DUMP_CSS"))

@@ -44,6 +44,7 @@ typedef struct
 	gboolean filling;	/* setting widgets from soju: no callbacks */
 	int remote;		/* soju servers elsewhere shown in the list */
 	char *remote_key;
+	guint serial;
 } bncwin;
 
 static bncwin *open_win;
@@ -200,6 +201,25 @@ moved (const char *text, gboolean done, gboolean ok, gpointer data)
 	}
 }
 
+/* the list is rebuilt on the next idle, not from a switch's own notify
+   handler: gtk_switch_set_active still touches the switch after emitting
+   notify, and a rebuild in there frees it first (GTK criticals, or worse) */
+static guint win_serial;	/* bumps per window: an idle for a closed one does nothing */
+
+static gboolean
+refresh_idle (gpointer data)
+{
+	if (open_win && open_win->serial == GPOINTER_TO_UINT (data))
+		refresh (open_win);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+refresh_soon (bncwin *w)
+{
+	g_idle_add (refresh_idle, GUINT_TO_POINTER (w->serial));
+}
+
 static void
 switched (GObject *o, GParamSpec *ps, gpointer data)
 {
@@ -227,14 +247,14 @@ switched (GObject *o, GParamSpec *ps, gpointer data)
 		gtk_label_set_markup (GTK_LABEL (w->note), m);
 		g_free (m);
 		g_free (err);
-		refresh (w);
+		refresh_soon (w);
 	}
 	else
 	{
 		char *t = g_strdup_printf (_("%s connects directly again (when you next connect to it)."), net->name);
 		gtk_label_set_text (GTK_LABEL (w->note), t);
 		g_free (t);
-		refresh (w);
+		refresh_soon (w);
 	}
 }
 
@@ -1000,7 +1020,7 @@ fill_one_remote (bncwin *w, ircnet *net)
 
 	card = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
 	gtk_widget_add_css_class (card, "card");
-	nx_set_border_width (card, 10);
+	gtk_widget_add_css_class (card, "nx-bnc-card");
 
 	/* name, where, how it's doing */
 	top = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2081,6 +2101,7 @@ bncwin_open (GtkWindow *parent, ircnet *from)
 	}
 	w = g_new0 (bncwin, 1);
 	open_win = w;
+	w->serial = ++win_serial;
 	w->from = from;
 	w->rows = g_ptr_array_new ();
 	w->win = nx_window_new ();
