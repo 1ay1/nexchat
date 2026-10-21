@@ -207,11 +207,13 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
 endif
 
 # Backend-independent smoke test: connect, join, render (no XTest needed).
-# On X11 backends it runs under a private Xvfb.
+# On X11 backends it runs under a private Xvfb. These share the one
+# desktop session (macOS, Windows): one at a time, or they starve each
+# other on a small CI runner (prefs-live, select timed out on macOS).
 if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   test('smoke-gui', find_program('sh'),
     args: [files('../../tests/smoke-gui.sh'), hexchat_gtk],
-    timeout: 60)
+    timeout: 60, is_parallel: false)
   # the tab switcher: clicks switch, many tabs scroll, no criticals
   # (not on Windows: tabs, select and scroll fail on the CI runner's
   # desktop: the click on a scrolled-off tab, and pixel diffs between a
@@ -220,21 +222,21 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   if not win
   test('tabs', find_program('sh'),
     args: [files('../../tests/ux/tabs.sh'), hexchat_gtk],
-    env: ['TABPOS=6'], timeout: 60)
+    env: ['TABPOS=6'], timeout: 60, is_parallel: false)
   endif
   # Preferences: a scheme picked applies and saves at once, no OK
   test('prefs-live', find_program('sh'),
     args: [files('../../tests/ux/prefs-live.sh'), hexchat_gtk],
-    timeout: 240)
+    timeout: 240, is_parallel: false)
   # selecting text leaves no row half drawn
   if not win
   test('select', find_program('sh'),
     args: [files('../../tests/ux/select.sh'), hexchat_gtk],
-    timeout: 300)
+    timeout: 300, is_parallel: false)
   # trackpad pixel scroll, wheel steps, flick glide: all drawn whole
   test('scroll', find_program('sh'),
     args: [files('../../tests/ux/scroll.sh'), hexchat_gtk],
-    timeout: 90)
+    timeout: 90, is_parallel: false)
   endif
   # emoji, accents, CJK, broken UTF-8: drawn, selected, copied whole
   # (not on Windows yet: on the runner Pango finds no font fallback for
@@ -242,7 +244,7 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   if not win
   test('utf8', find_program('python3'),
     args: [files('../../tests/ux/utf8.py'), hexchat_gtk],
-    timeout: 240)
+    timeout: 240, is_parallel: false)
   endif
 endif
 
