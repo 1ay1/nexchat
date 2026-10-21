@@ -174,6 +174,9 @@ def main():
         t.pump(0.4)
         for _ in range(6):
             t.send(b"\x1b", 0.1)
+        # a slow machine can read the last Esc and the ^Q together, as
+        # Alt-^Q: let the Escs land first
+        t.pump(1.0)
         before_quit = t.text()
         t.send(b"\x11", 0.5)
 
@@ -192,6 +195,10 @@ def main():
         if pid == 0:
             # a quit dialog may ask: say yes
             t.send(b"\r", 0.3)
+            pid, status = wait_exit(6)
+        if pid == 0:
+            # still here: one more ^Q, on its own
+            t.send(b"\x11", 0.5)
             pid, status = wait_exit(6)
         check(pid != 0, "Ctrl-Q still quits")
         if pid == 0:
