@@ -118,11 +118,21 @@ def main():
                 break
         check(ok, "the picture shows, in half blocks")
         check("/cat.png" in hits, "fetched when asked")
-        # its colours: scaled up, so red at the top left and blue at the bottom left
-        cells = [(y, x, c) for y, row in t.screen.buffer.items() for x, c in row.items() if c.data == "▀"]
-        if cells:
-            y0, x0, c0 = min(cells, key=lambda v: (v[0], v[1]))
-            y1, x1, c1 = max(cells, key=lambda v: (v[0], -v[1]))
+        # its colours: scaled up, so red at the top left and blue at the bottom left.
+        # A slow runner can catch the picture half drawn: wait for the blue.
+        def corners():
+            cells = [(y, x, c) for y, row in t.screen.buffer.items() for x, c in row.items() if c.data == "▀"]
+            if not cells:
+                return None
+            return (min(cells, key=lambda v: (v[0], v[1]))[2], max(cells, key=lambda v: (v[0], -v[1]))[2])
+        cs = corners()
+        for _ in range(25):
+            if cs and cs[1].bg == "0000ff":
+                break
+            t.pump(0.2)
+            cs = corners()
+        if cs:
+            c0, c1 = cs
             check(c0.fg == "ff0000", f"red at the top left (got {c0.fg})")
             check(c1.bg == "0000ff", f"blue at the bottom left (got {c1.bg})")
         t.send(b"\x1b", 0.5)

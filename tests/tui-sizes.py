@@ -50,24 +50,37 @@ def main():
             print("FAIL:", what)
             fails.append(what)
 
-    def boxes_whole(t, where, rows_end=True):
+    def boxes_whole(t, where, rows_end=True, wait=3.0):
+        """boxes_check, again until it holds or `wait` runs out: a slow
+        machine may still be redrawing after a resize."""
+        end = time.time() + wait
+        while True:
+            probs = []
+            boxes_check(t, where, rows_end, probs)
+            if not probs or time.time() >= end:
+                break
+            t.pump(0.25)
+        for p in probs:
+            check(False, p)
+
+    def boxes_check(t, where, rows_end, probs):
         """every row that starts a box edge ends it: ╭…╮ ╰…╯ ├…┤ │…│ (a frame
         that spans the screen); and nothing past the width. A menu may cover
         the end of a frame under it: rows_end=False skips that part."""
         for y, line in enumerate(t.screen.display):
             s = line.rstrip()
             if len(line) > t.screen.columns:
-                check(False, f"{where}: row {y} is wider than the screen")
+                probs.append(f"{where}: row {y} is wider than the screen")
             for l, r in (("╭", "╮"), ("╰", "╯"), ("├", "┤")):
                 if rows_end and s.startswith(l) and not s.endswith(r):
-                    check(False, f"{where}: row {y} opens {l} and doesn't close: {s[-12:]!r}")
+                    probs.append(f"{where}: row {y} opens {l} and doesn't close: {s[-12:]!r}")
         # every ╭ has its ╰ somewhere under it in the same column (a box
         # cut off by the bottom edge has none)
         d = t.screen.display
         for y, line in enumerate(d):
             for x, ch in enumerate(line):
                 if ch == "╭" and not any(len(d[y2]) > x and d[y2][x] in "╰├" for y2 in range(y + 1, len(d))):
-                    check(False, f"{where}: the box at {x},{y} has no bottom on screen")
+                    probs.append(f"{where}: the box at {x},{y} has no bottom on screen")
 
     for cols, rows in SIZES:
         smoke.COLS, smoke.ROWS = cols, rows
