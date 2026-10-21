@@ -1104,6 +1104,21 @@ static void test_readability() {
     const int bh2 = sat("bob ─");
     CHECK(bh2 > 0 && sp[static_cast<std::size_t>(bh2) - 1].find_first_not_of(' ') == std::string::npos);
     pst.head_gaps = false;
+    {
+        // the header's nick is clickable: hit() lands in the nick column
+        ChatView hv;
+        auto hr = hv.rows(ph, pst, 30, 12);
+        int hy = -1;
+        for (int i = 0; i < static_cast<int>(hr.size()); ++i)
+            if (hr[static_cast<std::size_t>(i)].text.rfind("bob ─", 0) == 0) hy = i;
+        CHECK(hy >= 0);
+        auto h = hv.hit(1, hy);
+        CHECK(h && h->in_left);
+        if (h) {
+            auto wd = hv.word_at(ph, *h);
+            CHECK(wd && wd->text == "bob");
+        }
+    }
     // one_column_below=0: never
     pst.single_col_below = 0;
     auto nrows = ChatView{}.rows(ph, pst, 50, 8);

@@ -740,6 +740,25 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         src.line = buf[c.li].id;
         const int r = c.ri - c.extra(c.li);
         src.marker = r < 0;
+        if (r == -1 && c.head(c.li)) {
+            // the "nick ─── time" header: its nick cells are the nick column's,
+            // so a click / right-click there finds the nick
+            const ChatLine& L = buf[c.li];
+            const std::string& pl = L.plain_left;
+            std::size_t b0 = 0, b1 = pl.size();
+            if (!st.brackets && pl.size() > 2 && pl.front() == '<' && pl.back() == '>') b0 = 1, b1 = pl.size() - 1;
+            std::vector<RowCell> cells(static_cast<std::size_t>(std::max(w, 0)));
+            std::size_t x = 0;
+            for (std::size_t bi = b0; bi < b1 && x < cells.size();) {
+                std::size_t n = 1;
+                while (bi + n < b1 && (static_cast<unsigned char>(pl[bi + n]) & 0xC0) == 0x80) ++n;
+                const int cw = std::max(1, display_width(std::string_view(pl).substr(bi, n)));
+                for (int k = 0; k < cw && x < cells.size(); ++k) cells[x++] = {RowCell::Left, static_cast<std::uint32_t>(bi)};
+                bi += n;
+            }
+            src.cells = std::move(cells);
+            src.marker = false;
+        }
         if (r >= 0) {
             const auto& cells = buf[c.li].cached_cells;
             if (static_cast<std::size_t>(r) < cells.size()) src.cells = cells[static_cast<std::size_t>(r)];
