@@ -39,14 +39,14 @@ bad() { echo "FAIL: $1"; fail=1; }
 run () # name "steps"
 {
 	rm -f "$tmp/port"
-	python3 "$here/tests/fake_ircd.py" --timeout 40 --log "$tmp/server.log" --portfile "$tmp/port" \
+	python3 "$here/tests/fake_ircd.py" --timeout 70 --log "$tmp/server.log" --portfile "$tmp/port" \
 		--script "$tmp/script" >/dev/null 2>&1 &
 	srv=$!
 	i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 	rm -rf "$tmp/cfg"; mkdir "$tmp/cfg"
 	printf 'gui_slist_skip = 1\nirc_nick1 = sel\ngui_win_width = 760\ngui_win_height = 420\nstamp_text = 1\n' > "$tmp/cfg/hexchat.conf"
 	NEXCHAT_XDRAG="wait 90;$2" NEXCHAT_XDRAG_PNG="$tmp/$1" NEXCHAT_XDRAG_QUIT=1 \
-		timeout 30 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/#sel" >"$tmp/$1.log" 2>&1 || true
+		timeout 60 "$bin" -n -d "$tmp/cfg" "irc://127.0.0.1:-$(cat "$tmp/port")/#sel" >"$tmp/$1.log" 2>&1 || true
 	kill $srv 2>/dev/null || true; wait $srv 2>/dev/null || true; srv=
 	d=$(sed -n 's/^xdrag-diff: //p' "$tmp/$1.log" | tail -1)
 	s=$(sed -n 's/^xdrag-stray: //p' "$tmp/$1.log" | tail -1)

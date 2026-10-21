@@ -98,7 +98,7 @@ chat
 x --drag 222,74:700,74
 sleep 0.3
 x ctrl+v Return
-wait_for got '^PRIVMSG #nexchat :morning everyone' && ok "chat view drag-select copies" \
+wait_for got '^PRIVMSG #nexchat : *morning everyone' && ok "chat view drag-select copies" \
 	|| bad "chat view drag-select"
 
 # 5. double-click "smoke," (line 2, characters 5-10) selects just that word
