@@ -25,7 +25,7 @@
 namespace nx::tui {
 
 struct Field {
-    enum class Kind { Text, Password, Toggle, Choice, List, Button, Heading };
+    enum class Kind { Text, Password, Toggle, Choice, List, Button, Heading, Slider };
     Kind        kind = Kind::Text;
     std::string label;
     std::string text;                 // Text / Password
@@ -36,6 +36,11 @@ struct Field {
     int         item = 0;             // List: the selected entry
     int         id = 0;               // the owner's
     bool        enabled = true;
+    // Slider: value in [lo, hi] in steps of step; ←/→ step, PgUp/PgDn five
+    // steps, Home/End the ends, a click on the track jumps there
+    int         value = 0, lo = 0, hi = 100, step = 1;
+    std::string unit;                 // shown after the value ("columns")
+    std::string zero;                 // shown instead when the value is 0 ("never")
 };
 
 class Form {
@@ -72,6 +77,7 @@ public:
 
 private:
     void step(int d);
+    Outcome slide(Field& f, int by);
     void editor_open();
     void editor_commit();
     std::vector<Field> fields_;
@@ -82,7 +88,7 @@ private:
     InputLine editor_;
     mutable int scroll_ = 0;
     // which field each drawn row is, and where list entries start
-    struct RowMap { int field = -1; int item = -1; int value_x = 0; };
+    struct RowMap { int field = -1; int item = -1; int value_x = 0; int track_w = 0; };
     mutable std::vector<RowMap> map_;
     int hover_ = -1;
 };

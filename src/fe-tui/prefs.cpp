@@ -15,12 +15,16 @@ namespace nx::tui {
 
 namespace {
 
-enum class T { Head, Toggle, Text, Number, Menu, Label, TuiToggle };
+enum class T { Head, Toggle, Text, Number, Menu, Label, TuiToggle, TuiSlider };
 struct Setting {
     T kind;
     const char* label;
     const char* pref = nullptr;              // hexchat.conf name
     std::vector<const char*> choices = {};   // Menu
+    // TuiSlider: pref is "key=default"; the range, step, unit, and the word for 0
+    int lo = 0, hi = 0, step = 1;
+    const char* unit = "";
+    const char* zero = "";
 };
 struct Page { const char* name; std::vector<Setting> settings; };
 
@@ -46,6 +50,8 @@ const std::vector<Page>& pages() {
             {T::TuiToggle, "My nick in colour where others mention it", "my_nick=1"},
             {T::TuiToggle, "A blank line where the talk paused", "pause_gap=1"},
             {T::TuiToggle, "Narrow terminal: nick and time above the text", "one_column_stacked=1"},
+            {T::TuiSlider, "Narrow terminal: one column below", "one_column_below=60", {},
+             0, 160, 5, "columns", "never"},
             {T::Head, "Terminal"},
             {T::TuiToggle, "Underline what's under the mouse (restart)", "hover=1"},
             {T::TuiToggle, "Links you can click (OSC 8)", "links=1"},
@@ -223,6 +229,19 @@ void Preferences::load(int page) {
             f.on = c == '1' || c == 't' || c == 'y';
             break;
         }
+        case T::TuiSlider: {
+            f.kind = Field::Kind::Slider;
+            const std::string_view spec = s.pref;
+            const auto eq = spec.find('=');
+            const std::string key{spec.substr(0, eq)};
+            const char* v = nx_core_tui_get(key.c_str());
+            const std::string d = eq == std::string_view::npos ? "0" : std::string(spec.substr(eq + 1));
+            f.value = std::clamp(std::atoi(v && *v ? v : d.c_str()), s.lo, s.hi);
+            f.lo = s.lo, f.hi = s.hi, f.step = s.step;
+            f.unit = s.unit;
+            f.zero = s.zero;
+            break;
+        }
         case T::Text:
             f.kind = std::string_view(s.pref).find("pass") != std::string_view::npos ? Field::Kind::Password : Field::Kind::Text;
             f.text = nx_core_pref_str(s.pref);
@@ -252,6 +271,12 @@ void Preferences::apply() {
             const std::string_view spec = s.pref;
             const std::string key{spec.substr(0, spec.find('='))};
             nx_core_tui_set(key.c_str(), f.on ? "1" : "0");
+            break;
+        }
+        case T::TuiSlider: {
+            const std::string_view spec = s.pref;
+            const std::string key{spec.substr(0, spec.find('='))};
+            nx_core_tui_set(key.c_str(), std::to_string(f.value).c_str());
             break;
         }
         case T::Text: nx_core_pref_set_str(s.pref, f.text.c_str()); break;

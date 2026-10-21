@@ -79,6 +79,13 @@ void Form::editor_commit() {
     }
 }
 
+Form::Outcome Form::slide(Field& f, int by) {
+    const int v = std::clamp(f.value + by, f.lo, f.hi);
+    if (v == f.value) return Outcome::None;
+    f.value = v;
+    return Outcome::Changed;
+}
+
 Form::Outcome Form::key(const maya::KeyEvent& k, bool* used) {
     if (used) *used = true;
     if (fields_.empty()) { if (used) *used = false; return Outcome::None; }
@@ -134,6 +141,18 @@ Form::Outcome Form::key(const maya::KeyEvent& k, bool* used) {
                 return Outcome::Changed;
             }
             if (f.kind == Field::Kind::Toggle) { f.on = *sk == SpecialKey::Right; return Outcome::Changed; }
+            if (f.kind == Field::Kind::Slider) return slide(f, (*sk == SpecialKey::Left ? -1 : 1) * f.step);
+            break;
+        case SpecialKey::PageUp: case SpecialKey::PageDown:
+            if (f.kind == Field::Kind::Slider) return slide(f, (*sk == SpecialKey::PageDown ? -5 : 5) * f.step);
+            break;
+        case SpecialKey::Home: case SpecialKey::End:
+            if (f.kind == Field::Kind::Slider) {
+                const int to = *sk == SpecialKey::Home ? f.lo : f.hi;
+                if (to == f.value) return Outcome::None;
+                f.value = to;
+                return Outcome::Changed;
+            }
             break;
         case SpecialKey::Enter:
             switch (f.kind) {
@@ -195,6 +214,18 @@ Form::Outcome Form::click(int x, int y, bool dbl) {
     focus(m.field);
     switch (f.kind) {
     case Field::Kind::Toggle: f.on = !f.on; return Outcome::Changed;
+    case Field::Kind::Slider: {
+        // on the track: jump to that spot
+        const int tx = x - m.value_x - 1;
+        if (m.track_w <= 1 || tx < 0 || tx >= m.track_w) return Outcome::None;
+        const int span = f.hi - f.lo;
+        int v = f.lo + (span * tx + (m.track_w - 1) / 2) / (m.track_w - 1);
+        if (f.step > 1) v = f.lo + ((v - f.lo + f.step / 2) / f.step) * f.step;
+        v = std::clamp(v, f.lo, f.hi);
+        if (v == f.value) return Outcome::None;
+        f.value = v;
+        return Outcome::Changed;
+    }
     case Field::Kind::Choice: {
         const int vx = m.value_x;
         if (was || x >= vx) {
@@ -293,6 +324,7 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
             }
         }
         Rich value;
+        int slider_w = 0;
         switch (f.kind) {
         case Field::Kind::Text: case Field::Kind::Password: {
             if (foc && editing_) { value = editor_.row(vw, true); break; }
@@ -314,6 +346,34 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
             if (cv.width() > vw - 4) cv = cv.fit(std::max(1, vw - 4));
             value.append(cv);
             value.append(" ›", role::muted());
+            value = value.fit(vw);
+            break;
+        }
+        case Field::Kind::Slider: {
+            // [━━━━━●─────] 60 columns: the track as wide as fits (8–30)
+            const std::string num = f.value == 0 && !f.zero.empty()
+                                        ? f.zero
+                                        : std::to_string(f.value) + (f.unit.empty() ? "" : " " + f.unit);
+            // the track keeps one width whatever the number says
+            int widest = display_width(f.zero);
+            for (int v : {f.lo, f.hi})
+                widest = std::max(widest, display_width(std::to_string(v) + (f.unit.empty() ? "" : " " + f.unit)));
+            const int tw = std::clamp(vw - 3 - widest, 0, 30);
+            const Style line = foc ? role::title() : role::border();
+            value = Rich{"[", role::border()};
+            if (tw >= 8) {
+                const int span = std::max(1, f.hi - f.lo);
+                const int at = (std::clamp(f.value, f.lo, f.hi) - f.lo) * (tw - 1) / span;
+                std::string done, rest;
+                for (int c = 0; c < at; ++c) done += "━";
+                for (int c = at + 1; c < tw; ++c) rest += "─";
+                value.append(done, line);
+                value.append("●", foc ? role::title() : ink);
+                value.append(rest, role::border());
+                slider_w = tw;
+            }
+            value.append("] ", role::border());
+            value.append(num, ink);
             value = value.fit(vw);
             break;
         }
@@ -353,7 +413,7 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
         Rich row = label;
         row.append(value);
         all.push_back(row.fit(w));
-        map.push_back({static_cast<int>(i), -1, stacked ? 3 : lw + 1});
+        map.push_back({static_cast<int>(i), -1, stacked ? 3 : lw + 1, slider_w});
         for (auto& m : more) {
             all.push_back(m.fit(w));
             map.push_back({static_cast<int>(i), -1, lw + 1});

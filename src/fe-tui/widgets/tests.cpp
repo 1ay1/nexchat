@@ -1135,6 +1135,33 @@ static void test_modal_text() {
     for (auto& r : thin) all += r.text + "\n";
     CHECK(all.find("…") == std::string::npos);
     CHECK(all.find("colour") != std::string::npos);
+
+    // a slider: ←/→ step, clamped, End/Home the ends, 0 shows its word
+    Form sf;
+    Field s;
+    s.kind = Field::Kind::Slider;
+    s.label = "One column below";
+    s.value = 60, s.lo = 0, s.hi = 160, s.step = 5;
+    s.unit = "columns";
+    s.zero = "never";
+    sf.set({s});
+    auto key = [&](maya::SpecialKey k) {
+        maya::KeyEvent e;
+        e.key = k;
+        return sf.key(e);
+    };
+    CHECK(sf.rows(80, 2)[0].text.find("60 columns") != std::string::npos);
+    CHECK(key(maya::SpecialKey::Right) == Form::Outcome::Changed);
+    CHECK(sf.fields()[0].value == 65);
+    key(maya::SpecialKey::End);
+    CHECK(sf.fields()[0].value == 160);
+    CHECK(key(maya::SpecialKey::Right) == Form::Outcome::None);   // stays at the end
+    key(maya::SpecialKey::Home);
+    CHECK(sf.rows(80, 2)[0].text.find("never") != std::string::npos);
+    // the track is the same width at either end
+    const auto t0 = sf.rows(80, 2)[0].text.find(']');
+    key(maya::SpecialKey::End);
+    CHECK(sf.rows(80, 2)[0].text.find(']') == t0);
 }
 
 int main() {
