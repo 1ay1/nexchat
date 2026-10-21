@@ -14,6 +14,10 @@ one drops the time first, a tiny one stacks the nick over the text.
 """
 import os
 import re
+import signal
+import fcntl
+import struct
+import termios
 import subprocess
 import sys
 import tempfile
@@ -46,16 +50,24 @@ def main():
             print("FAIL:", what)
             fails.append(what)
 
-    def boxes_whole(t, where):
+    def boxes_whole(t, where, rows_end=True):
         """every row that starts a box edge ends it: ╭…╮ ╰…╯ ├…┤ │…│ (a frame
-        that spans the screen); and nothing past the width"""
+        that spans the screen); and nothing past the width. A menu may cover
+        the end of a frame under it: rows_end=False skips that part."""
         for y, line in enumerate(t.screen.display):
             s = line.rstrip()
             if len(line) > t.screen.columns:
                 check(False, f"{where}: row {y} is wider than the screen")
             for l, r in (("╭", "╮"), ("╰", "╯"), ("├", "┤")):
-                if s.startswith(l) and not s.endswith(r):
+                if rows_end and s.startswith(l) and not s.endswith(r):
                     check(False, f"{where}: row {y} opens {l} and doesn't close: {s[-12:]!r}")
+        # every ╭ has its ╰ somewhere under it in the same column (a box
+        # cut off by the bottom edge has none)
+        d = t.screen.display
+        for y, line in enumerate(d):
+            for x, ch in enumerate(line):
+                if ch == "╭" and not any(len(d[y2]) > x and d[y2][x] in "╰├" for y2 in range(y + 1, len(d))):
+                    check(False, f"{where}: the box at {x},{y} has no bottom on screen")
 
     for cols, rows in SIZES:
         smoke.COLS, smoke.ROWS = cols, rows
@@ -92,9 +104,18 @@ def main():
                       f"{where}: stacked, the message under its nick")
             # every popup at this size
             for name, keys in (("palette", b"\x10"), ("go to", b"\x07"), ("keys", b"\x1bOP"),
-                               ("network list", b"\x13"), ("command popup", b"/")):
+                               ("network list", b"\x13"), ("command popup", b"/"),
+                               ("window menu", b"\x1b[21~\x1b[C\x1b[C\x1b[C"),
+                               ("bouncer", b"\x10bouncer\r")):
                 t.send(keys, 0.6)
-                boxes_whole(t, f"{where} {name}")
+                boxes_whole(t, f"{where} {name}", name != "window menu")
+                # the terminal shrinks and grows again with it open
+                for c2, r2 in ((max(30, cols // 2), max(10, rows - 6)), (cols, rows)):
+                    t.screen.resize(r2, c2)
+                    fcntl.ioctl(t.fd, termios.TIOCSWINSZ, struct.pack("HHHH", r2, c2, 0, 0))
+                    os.kill(t.pid, signal.SIGWINCH)
+                    t.pump(0.5)
+                    boxes_whole(t, f"{where} {name} resized to {c2}x{r2}", name != "window menu")
                 t.send(b"\x1b", 0.3)
                 t.send(b"\x1bu", 0.2)
                 t.send(b"\x1b", 0.2)

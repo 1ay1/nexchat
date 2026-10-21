@@ -964,18 +964,30 @@ public:
     }
 
     void show_keys() {
+        // one key per line: reads the same at any width (the dialog wraps
+        // and scrolls)
         queue_dialog({0, "Keyboard Shortcuts",
-            "Alt-1…9  buffer N        Alt-←/→ Ctrl-PgUp/PgDn  prev/next\n"
-            "Alt-A    next active     Ctrl-G  go to…     Ctrl-P  every command\n"
-            "PgUp/PgDn  scroll        Ctrl-Home/End  top/bottom\n"
-            "Tab      complete        Ctrl-L  user list\n"
-            "Ctrl-F   find (↑↓/Enter older/newer, Alt-C case, Alt-R regex, Alt-A all)\n"
-            "Ctrl-B/I/U/R/O  bold/italic/underline/reverse/reset, Ctrl-K colour\n"
-            "Alt-K / Alt-U   kill to end / to start (readline's ^K ^U)\n"
-            "F2 / F3  focus tree / users   F10  menu   Esc  back\n"
-            "Ctrl-W   close buffer    Ctrl-Q  quit\n"
-            "Mouse: click, right-click menus, wheel, drag to select (copies),\n"
-            "       drag the │ dividers, middle-click pastes.", ""});
+            "Alt-1…9        buffer N\n"
+            "Alt-←/→        previous / next buffer (also Ctrl-PgUp/PgDn)\n"
+            "Alt-A          next active buffer\n"
+            "Ctrl-G         go to…\n"
+            "Ctrl-P         every command\n"
+            "PgUp/PgDn      scroll\n"
+            "Ctrl-Home/End  top / bottom\n"
+            "Tab            complete\n"
+            "Ctrl-L         user list\n"
+            "Ctrl-F         find (↑↓/Enter older/newer, Alt-C case, Alt-R regex, Alt-A all)\n"
+            "Ctrl-B/I/U/R/O bold / italic / underline / reverse / reset\n"
+            "Ctrl-K         colour\n"
+            "Alt-K / Alt-U  kill to end / to start (readline's ^K ^U)\n"
+            "F2 / F3        focus tree / users\n"
+            "F10            menu\n"
+            "Esc            back\n"
+            "Ctrl-W         close buffer\n"
+            "Ctrl-Q         quit\n"
+            "\n"
+            "Mouse: click, right-click menus, wheel, drag to select (copies), "
+            "drag the │ dividers, middle-click pastes.", ""});
     }
 
     // ── keys ────────────────────────────────────────────────────────────
@@ -1516,9 +1528,14 @@ public:
             }
         }
         if (switcher.is_open()) {
-            if (m.kind == MouseEventKind::Press) {
-                switcher.close();
-                if (picking_theme) set_theme(theme_before, false);   // as Esc: back
+            const auto o = switcher.mouse(m, x - r_chat.x - layout.switcher_at_x, y - r_chat.y - layout.switcher_at_y);
+            if (o == Switcher::Outcome::Picked) {
+                if (picking_theme) set_theme(theme_of(*switcher.picked()));     // keep it (saved)
+                else if (palette_open) { palette_open = false; palette_pick(*switcher.picked()); }
+                else switch_to(*switcher.picked());
+            } else if (picking_theme) {
+                if (o == Switcher::Outcome::Cancelled) set_theme(theme_before, false);   // back
+                else if (auto c = switcher.current()) set_theme(theme_of(*c), false);   // preview
             }
             return;
         }

@@ -12,6 +12,7 @@
 // Enter = OK, Esc = Cancel, Tab moves between the field and the buttons,
 // the buttons are clickable. One dialog at a time; a queue is the owner's.
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 #include <string>
@@ -58,6 +59,9 @@ private:
     mutable int x_ = 0, y_ = 0, w_ = 0, h_ = 0;
     mutable int ok_x0_ = 0, ok_x1_ = 0, cancel_x0_ = 0, cancel_x1_ = 0, buttons_y_ = 0;
     int hover_ = 0;   // 1 OK, 2 Cancel under the pointer
+    // text taller than the screen scrolls (↑↓ PgUp PgDn, the wheel)
+    mutable int scroll_ = 0, text_room_ = 0, text_rows_ = 0;
+    void scroll(int d) { scroll_ = std::clamp(scroll_ + d, 0, std::max(0, text_rows_ - text_room_)); }
 };
 
 }  // namespace nx::tui

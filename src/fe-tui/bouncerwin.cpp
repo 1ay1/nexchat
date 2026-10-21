@@ -1091,18 +1091,22 @@ public:
     maya::Element element(int sw, int shh) {
         using namespace maya::dsl;
         build();
-        const int w = std::clamp(sw - 4, 50, 110), h = std::clamp(shh - 2, 14, 44);
+        // like Panel: a small screen gets the whole of it, a big one a comfortable card
+        const int w = sw < 60 ? std::max(20, sw) : std::clamp(sw - 4, 50, 110);
+        const int h = shh < 18 ? std::max(8, shh) : std::clamp(shh - 2, 14, 44);
         x_ = std::max(0, (sw - w) / 2);
         y_ = std::max(0, (shh - h) / 2);
         w_ = w; h_ = h;
         const int inner = w - 4;
         const bool tabs = page_ == P_MAIN && nx_bnc_state() == NX_MYBNC_SET_UP;
-        const int body_h = h - 2 - 1 - (tabs ? 2 : 0) - 2 - (note_.text.empty() ? 0 : 1);
+        const int body_h = std::max(1, h - 2 - 1 - (tabs ? 2 : 0) - 2 - (note_.text.empty() ? 0 : 1));
         std::vector<Rich> card;
         // top border with the title and ✕
         {
             Rich top{"╭─", role::border()};
-            top.append(" " + title() + " ", role::selected().with_bold());
+            Rich t{" " + title() + " "};
+            if (t.width() > w - 7) { t = t.take(std::max(0, w - 9)); t.append("… "); }
+            top.append(t.text, role::selected().with_bold());
             std::string fill;
             for (int i = top.width(); i < w - 5; ++i) fill += "─";
             top.append(fill, role::border());
@@ -1120,7 +1124,9 @@ public:
         line(Rich{});                     // room under the title
         if (tabs) {
             Rich t;
-            const char* names[] = {"Networks", "Channels", "Access", "Storage"};
+            // narrow: the short names ("Net" "Chan" …) so all four stay clickable
+            const bool shrt = inner < 44;
+            const char* names[] = {shrt ? "Net" : "Networks", shrt ? "Chan" : "Channels", shrt ? "Acc" : "Access", shrt ? "Store" : "Storage"};
             int x = x_ + 2;
             for (int i = 0; i < 4; ++i) {
                 Rich one{std::string(" ") + names[i] + " ", i == tab_ ? role::title().with_bold() : role::muted()};
@@ -1154,10 +1160,16 @@ public:
         }
         {
             Rich b;
+            other_x1_ = close_x0_ = -1;
             if (page_ == P_MAIN) {
                 const bool more = remote_count() > 0;
-                b.append(more ? "[ Add another bouncer... ]" : "[ Use another bouncer... ]", role::text());
-                b = b.pad_right(inner - 9);
+                // narrow: shorter labels, Close stays on the right
+                std::string other = more ? "[ Add another bouncer... ]" : "[ Use another bouncer... ]";
+                if (static_cast<int>(other.size()) + 10 > inner) other = more ? "[ Add... ]" : "[ Another... ]";
+                b.append(other, role::text());
+                other_x1_ = x_ + 2 + b.width();
+                b = b.pad_right(std::max(b.width() + 1, inner - 9));
+                close_x0_ = x_ + 2 + b.width();
                 b.append("[ Close ]", role::text());
             }
             line(b);
@@ -1169,7 +1181,7 @@ public:
         card.push_back(Rich{bottom, role::border()});
         return (v(stack_rows(card)) | padding(y_, 0, 0, x_)).build();
     }
-    mutable int bottom_y_ = 0;
+    mutable int bottom_y_ = 0, other_x1_ = -1, close_x0_ = -1;
 
     // ── input ──────────────────────────────────────────────────────────
     void key(const maya::KeyEvent& k) {
@@ -1216,8 +1228,8 @@ public:
         for (std::size_t i = 0; i < tab_x_.size(); ++i)
             if (y == y_ + 2 && x >= tab_x_[i].first && x < tab_x_[i].second) { tab_ = static_cast<Tab>(i); note_ = {}; return; }
         if (y == bottom_y_ && page_ == P_MAIN) {
-            if (x < x_ + 2 + 27) { press(I_OTHER); return; }
-            if (x >= x_ + w_ - 12) { open_ = false; return; }
+            if (x >= x_ + 2 && x < other_x1_) { press(I_OTHER); return; }
+            if (close_x0_ >= 0 && x >= close_x0_ && x < close_x0_ + 9) { open_ = false; return; }
         }
         build();
         if (sheet_.click(x - body_x_, y - body_y_) == Sheet::Outcome::Pressed) {

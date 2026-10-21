@@ -108,11 +108,15 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
         if (p.switcher && p.switcher->is_open()) {
             const int sw = std::min(chat_w, 72);
             const int pad = std::max(0, (chat_w - sw) / 2);
-            // card = border + query + gap + rows + gap + footer + border
-            const int rows_room = std::clamp(body_h - 1 - 6, 1, 14);
+            // card = border + query + gap + rows + gap + footer + border; it
+            // never runs past the body (a tiny one keeps one row)
+            const int top_gap = body_h > 12 ? 1 : 0;
+            const int rows_room = std::clamp(body_h - top_gap - 6, 1, 14);
+            switcher_at_x = pad;
+            switcher_at_y = top_gap;
             chat_el = maya::detail::zstack({
                 std::move(chat_el),
-                (v(p.switcher->element(sw, rows_room)) | padding(body_h > 12 ? 1 : 0, 0, 0, pad)).build(),
+                (v(p.switcher->element(sw, rows_room)) | padding(top_gap, 0, 0, pad)).build(),
             });
         }
         body.push_back(std::move(chat_el));

@@ -13,19 +13,19 @@ namespace nx::tui {
 
 void Dialog::message(std::string title, std::string text, bool error) {
     kind_ = Kind::Message; title_ = std::move(title); text_ = std::move(text); error_ = error;
-    open_ = true; focus_ = 0;
+    open_ = true; focus_ = 0; scroll_ = 0;
 }
 
 void Dialog::confirm(std::string title, std::string text) {
     kind_ = Kind::Confirm; title_ = std::move(title); text_ = std::move(text); error_ = false;
-    open_ = true; focus_ = 0;
+    open_ = true; focus_ = 0; scroll_ = 0;
 }
 
 void Dialog::prompt(std::string title, std::string text, std::string initial) {
     kind_ = Kind::Prompt; title_ = std::move(title); text_ = std::move(text); error_ = false;
     field_.set(std::move(initial));
     field_.set_prompt(Rich{" "});
-    open_ = true; focus_ = 0;
+    open_ = true; focus_ = 0; scroll_ = 0;
 }
 
 Dialog::Outcome Dialog::key(const maya::KeyEvent& k) {
@@ -40,6 +40,10 @@ Dialog::Outcome Dialog::key(const maya::KeyEvent& k) {
             return finish(true);
         case SpecialKey::Tab:     focus_ = (focus_ + 1) % stops; return Outcome::Open;
         case SpecialKey::BackTab: focus_ = (focus_ + stops - 1) % stops; return Outcome::Open;
+        case SpecialKey::Up:       scroll(-1); return Outcome::Open;
+        case SpecialKey::Down:     scroll(+1); return Outcome::Open;
+        case SpecialKey::PageUp:   scroll(-std::max(1, text_room_ - 1)); return Outcome::Open;
+        case SpecialKey::PageDown: scroll(+std::max(1, text_room_ - 1)); return Outcome::Open;
         case SpecialKey::Left: case SpecialKey::Right:
             if (kind_ != Kind::Prompt || focus_ > 0) {
                 focus_ = (focus_ + (*s == SpecialKey::Left ? stops - 1 : 1)) % stops;
@@ -71,6 +75,10 @@ Dialog::Outcome Dialog::mouse(const maya::MouseEvent& m) {
         }
         return Outcome::Open;
     }
+    if (m.button == maya::MouseButton::ScrollUp || m.button == maya::MouseButton::ScrollDown) {
+        if (m.kind == maya::MouseEventKind::Press) scroll(m.button == maya::MouseButton::ScrollUp ? -3 : 3);
+        return Outcome::Open;
+    }
     if (m.kind != maya::MouseEventKind::Release || m.button != maya::MouseButton::Left) return Outcome::Open;
     if (my == buttons_y_) {
         if (mx >= ok_x0_ && mx < ok_x1_) return finish(true);
@@ -97,20 +105,37 @@ std::vector<Rich> Dialog::rows(int inner) const {
 maya::Element Dialog::element(int sw, int sh) const {
     using namespace maya::dsl;
     if (!open_) return maya::Element{maya::BoxElement{}};
-    const int w = std::clamp(std::max(display_width(title_) + 8, 52), 20, std::max(20, sw - (sw < 40 ? 0 : 4)));
+    // as wide as its longest line wants (52 at least), never wider than the screen
+    int want = std::max(display_width(title_) + 8, 52);
+    for (std::size_t a = 0; a <= text_.size();) {
+        std::size_t b = text_.find('\n', a);
+        if (b == std::string::npos) b = text_.size();
+        want = std::max(want, display_width(std::string_view(text_).substr(a, b - a)) + 4);
+        a = b + 1;
+    }
+    want = std::min(want, 80);
+    const int w = std::clamp(want, std::min(20, sw), std::max(1, sw - (sw < 60 ? 0 : 4)));
     const int inner = w - 4;
     std::vector<Rich> body = rows(inner);
-    // taller than the screen: the text is cut, the last line says so (the
-    // field and the buttons always stay)
+    // taller than the screen: the text scrolls, ▲/▼ on the frame say there's
+    // more (the field and the buttons always stay)
+    bool more_up = false, more_down = false;
     {
-        const int fixed = (kind_ == Kind::Prompt ? 2 : 0) + 1 + 2 + 1;   // field + gap, buttons, borders, gap
-        const int room = std::max(1, sh - fixed - 1);
-        const int text_rows = static_cast<int>(body.size()) - (kind_ == Kind::Prompt ? 3 : 1);
+        // rows() is: gap, text…, [gap, field], gap
+        const int tail = kind_ == Kind::Prompt ? 3 : 1;
+        const int text_rows = static_cast<int>(body.size()) - 1 - tail;
+        const int fixed = 1 + tail + 1 + 2;                 // top gap, tail, buttons, borders
+        const int room = std::max(1, sh - fixed);
+        text_rows_ = text_rows;
+        text_room_ = std::min(room, text_rows);
+        scroll_ = std::clamp(scroll_, 0, std::max(0, text_rows - text_room_));
         if (text_rows > room) {
-            std::vector<Rich> cut(body.begin(), body.begin() + room);
-            cut.back() = Rich{"…", role::muted()}.fit(inner);
-            cut.insert(cut.end(), body.begin() + text_rows, body.end());
+            std::vector<Rich> cut{body.front()};
+            cut.insert(cut.end(), body.begin() + 1 + scroll_, body.begin() + 1 + scroll_ + room);
+            cut.insert(cut.end(), body.end() - tail, body.end());
             body = std::move(cut);
+            more_up = scroll_ > 0;
+            more_down = scroll_ + room < text_rows;
         }
     }
 
@@ -141,7 +166,7 @@ maya::Element Dialog::element(int sw, int sh) const {
     // The card.
     const int h = static_cast<int>(body.size()) + 2;
     x_ = std::max(0, (sw - w) / 2);
-    y_ = std::max(0, (sh - h) / 3);
+    y_ = std::clamp((sh - h) / 3, 0, std::max(0, sh - h));
     w_ = w; h_ = h;
     buttons_y_ = y_ + h - 2;
     const int bx = x_ + 2 + inner - bw;
@@ -151,9 +176,9 @@ maya::Element Dialog::element(int sw, int sh) const {
 
     std::vector<Rich> card;
     Rich top{"╭─", role::border()};
-    top.append(" " + title_ + " ", error_ ? role::bad().with_bold() : role::selected().with_bold());
+    top.append(Rich{" " + title_ + " "}.take(std::max(0, w - 4)).text, error_ ? role::bad().with_bold() : role::selected().with_bold());
     std::string fill;
-    for (int i = top.width(); i < w - 1; ++i) fill += "─";
+    for (int i = top.width(); i < w - 1; ++i) fill += more_up && i == w - 4 ? "▲" : "─";
     top.append(fill, role::border());
     top.append("╮", role::border());
     card.push_back(std::move(top));
@@ -164,7 +189,7 @@ maya::Element Dialog::element(int sw, int sh) const {
         card.push_back(std::move(row));
     }
     std::string bottom = "╰";
-    for (int i = 0; i < w - 2; ++i) bottom += "─";
+    for (int i = 0; i < w - 2; ++i) bottom += more_down && i == w - 4 ? "▼" : "─";
     bottom += "╯";
     card.push_back(Rich{bottom, role::border()});
     return (v(stack_rows(card)) | padding(y_, 0, 0, x_)).build();

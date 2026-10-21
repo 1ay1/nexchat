@@ -60,8 +60,17 @@ public:
     /// Score `name` against `query` (0 = no match). Exposed for tests.
     [[nodiscard]] static int score(std::string_view name, std::string_view query);
 
+    /// The mouse, `x`/`y` relative to the card's top-left (as placed by
+    /// element()): a click picks a row, the wheel moves the selection, a
+    /// click outside the card cancels.
+    Outcome mouse(const maya::MouseEvent& m, int x, int y);
+    /// The card's size as last drawn.
+    [[nodiscard]] int card_w() const { return card_w_; }
+    [[nodiscard]] int card_h() const { return card_h_; }
+
 private:
     void refilter();
+    mutable int top_ = 0, shown_ = 0, card_w_ = 0, card_h_ = 0;
     bool                       open_ = false;
     InputLine                  query_;
     std::vector<ChanEntry>     all_;

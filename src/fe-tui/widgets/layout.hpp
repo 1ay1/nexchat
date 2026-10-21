@@ -87,6 +87,9 @@ struct MainLayout {
     /// The window filling its slot. `p`'s pointees must outlive the frame
     /// (they're read at paint time, when the slot's size is known).
     [[nodiscard]] maya::Element element(const MainParts& p) const;
+    /// Where the switcher card was drawn, relative to the chat area's
+    /// top-left (for the mouse).
+    mutable int switcher_at_x = 0, switcher_at_y = 0;
 };
 
 }  // namespace nx::tui

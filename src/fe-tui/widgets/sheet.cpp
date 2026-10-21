@@ -95,6 +95,15 @@ void Sheet::flatten(int w) const {
             parts.push_back(std::move(p));
         }
         int x = r.controls_left ? left.width() + (parts.empty() ? 0 : 2) : std::max(left.width() + 1, w - total);
+        // the text and its controls don't fit side by side: the text keeps
+        // its row, the controls get one under it (right-aligned, or after
+        // the indent), so none of them fall off the edge
+        if (!parts.empty() && x + total > w && r.text.width() > 0) {
+            flat_.push_back(left.fit(w));
+            flat_hots_.emplace_back();
+            left = Rich{}.pad_right(r.indent);
+            x = r.controls_left ? r.indent : std::max(r.indent, w - total);
+        }
         Rich row = r.controls_left ? left : left.fit(std::max(0, x - 1));
         if (r.controls_left && !parts.empty()) row.append("  ");
         else row = row.pad_right(x);

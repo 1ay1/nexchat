@@ -33,12 +33,13 @@ void Menu::open(std::vector<MenuItem> items, int x, int y) {
     want_y_ = y;
     open_ = !items_.empty();
     sel_ = -1;
+    top_ = 0;
     child_.reset();
     activated_ = 0;
     step(+1);
 }
 
-int Menu::width() const {
+int Menu::natural_width() const {
     int w = 8;
     for (const auto& it : items_) {
         const int lw = display_width(it.label) + (it.check >= 0 ? 2 : 0) + (it.sub.empty() ? 0 : 2);
@@ -48,11 +49,32 @@ int Menu::width() const {
     return w + 6;   // borders + a cell of margin + a cell of padding, each side
 }
 
+int Menu::width() const { return std::min(natural_width(), max_w_); }
+
 void Menu::place(int sw, int sh) const {
-    const int w = width(), h = height();
+    max_w_ = std::max(8, sw);
+    const int w = width();
     x_ = std::clamp(want_x_, 0, std::max(0, sw - w));
-    y_ = want_y_;
-    if (y_ + h > sh) y_ = std::max(0, std::min(want_y_ - h, sh - h));   // flip above
+    // below if it fits, else above if it fits there, else the taller side, scrolled
+    const int n = static_cast<int>(items_.size());
+    const int below = sh - want_y_ - 2, above = want_y_ - 2;
+    if (n <= below || below >= above) {
+        max_rows_ = std::max(1, std::min(n, below));
+        y_ = std::max(0, std::min(want_y_, sh - max_rows_ - 2));
+    } else {
+        max_rows_ = std::max(1, std::min(n, above));
+        y_ = std::max(0, want_y_ - max_rows_ - 2);
+    }
+    keep_sel_visible();
+}
+
+void Menu::keep_sel_visible() const {
+    const int n = static_cast<int>(items_.size()), k = shown();
+    if (sel_ >= 0) {
+        if (sel_ < top_) top_ = sel_;
+        if (sel_ >= top_ + k) top_ = sel_ - k + 1;
+    }
+    top_ = std::clamp(top_, 0, std::max(0, n - k));
 }
 
 void Menu::step(int d) {
@@ -74,7 +96,7 @@ bool Menu::enter() {
     if (!it.enabled || it.is_sep()) return false;
     if (!it.sub.empty()) {
         child_ = std::make_unique<Menu>();
-        child_->open(it.sub, x_ + width() - 1, y_ + 1 + sel_);
+        child_->open(it.sub, x_ + width() - 1, y_ + 1 + sel_ - top_);
         return false;
     }
     activated_ = it.action;
@@ -137,9 +159,9 @@ Menu::Outcome Menu::key(const maya::KeyEvent& k) {
 
 int Menu::item_at(int mx, int my) const {
     if (mx <= x_ || mx >= x_ + width() - 1) return -1;
-    const int i = my - y_ - 1;
-    if (i < 0 || i >= static_cast<int>(items_.size())) return -1;
-    return i;
+    const int r = my - y_ - 1;
+    if (r < 0 || r >= shown()) return -1;
+    return top_ + r;
 }
 
 Menu::Outcome Menu::mouse(const maya::MouseEvent& m) {
@@ -185,15 +207,18 @@ Menu::Outcome Menu::mouse(const maya::MouseEvent& m) {
 std::vector<Rich> Menu::rows() const {
     const int w = width();
     const int inner = w - 2;
+    keep_sel_visible();
+    const int n = static_cast<int>(items_.size()), k = shown();
     std::vector<Rich> out;
-    auto edge = [&](std::string_view l, std::string_view r) {
+    // a cut menu says so on its edge: ▲ more above, ▼ more below
+    auto edge = [&](std::string_view l, std::string_view r, bool more, std::string_view arrow) {
         std::string s{l};
-        for (int i = 0; i < inner; ++i) s += "─";
+        for (int i = 0; i < inner; ++i) s += more && i == inner / 2 ? std::string(arrow) : std::string("─");
         s += r;
         return Rich{s, role::border()};
     };
-    out.push_back(edge("╭", "╮"));
-    for (std::size_t i = 0; i < items_.size(); ++i) {
+    out.push_back(edge("╭", "╮", top_ > 0, "▲"));
+    for (std::size_t i = static_cast<std::size_t>(top_); i < static_cast<std::size_t>(top_ + k); ++i) {
         const MenuItem& it = items_[i];
         if (it.is_sep()) {
             // a quiet rule joined to the frame: ├╌╌╌┤
@@ -213,14 +238,15 @@ std::vector<Rich> Menu::rows() const {
         if (!it.hint.empty()) right.append(it.hint, role::muted());
         if (!it.sub.empty()) right.append(right.text.empty() ? "›" : " ›", ink);
         right.append(" ");
-        body = body.fit(inner - 2 - right.width());
+        body = body.fit(std::max(0, inner - 2 - right.width()));
         body.append(right);
+        body = body.fit(std::max(0, inner - 2));
         if (static_cast<int>(i) == sel_) body.replace_colors(role::selected());
         row.append(body);
         row.append(" │", role::border());
         out.push_back(std::move(row));
     }
-    out.push_back(edge("╰", "╯"));
+    out.push_back(edge("╰", "╯", top_ + k < n, "▼"));
     return out;
 }
 
@@ -233,7 +259,7 @@ maya::Element Menu::element(int sw, int sh) const {
     if (child_ && child_->is_open()) {
         // beside the item that opened it, now that we know where we are
         child_->want_x_ = x_ + width() - 1;
-        child_->want_y_ = y_ + std::max(sel_, 0);
+        child_->want_y_ = y_ + std::max(sel_ - top_, 0);
         if (child_->want_x_ + child_->width() > sw) child_->want_x_ = std::max(0, x_ - child_->width() + 1);
         layers.push_back(child_->element(sw, sh));
     }

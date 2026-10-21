@@ -15,6 +15,7 @@
 // highlights, click activates, a click outside closes) both work; the
 // menu returns what happened and the owner acts on it.
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -63,7 +64,7 @@ public:
     [[nodiscard]] int x() const { return x_; }
     [[nodiscard]] int y() const { return y_; }
     [[nodiscard]] int width() const;
-    [[nodiscard]] int height() const { return static_cast<int>(items_.size()) + 2; }
+    [[nodiscard]] int height() const { return shown() + 2; }
 
 private:
     void place(int screen_w, int screen_h) const;
@@ -71,11 +72,16 @@ private:
     bool enter();   // open the selected submenu, or activate
     [[nodiscard]] int item_at(int mx, int my) const;
     [[nodiscard]] std::vector<Rich> rows() const;
+    [[nodiscard]] int natural_width() const;
+    [[nodiscard]] int shown() const { return std::min(static_cast<int>(items_.size()), max_rows_); }
+    void keep_sel_visible() const;
 
     std::vector<MenuItem> items_;
     bool                  open_ = false;
     int                   sel_ = -1;
     mutable int           x_ = 0, y_ = 0;   // placed (clamped to the screen)
+    // a menu bigger than the screen is cut to fit and scrolls
+    mutable int           max_w_ = 1 << 20, max_rows_ = 1 << 20, top_ = 0;
     int                   want_x_ = 0, want_y_ = 0;
     int                   activated_ = 0;
     std::unique_ptr<Menu> child_;

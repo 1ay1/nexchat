@@ -87,6 +87,8 @@ std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
     const int n = std::min<int>(max_rows, static_cast<int>(hits_.size()));
     // Scroll the result list with the selection.
     const int top = std::clamp(static_cast<int>(sel_) - n + 1, 0, std::max(0, static_cast<int>(hits_.size()) - n));
+    top_ = top;
+    shown_ = n;
     const std::string q = query_.text();
     auto lower = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
     for (int r = 0; r < n; ++r) {
@@ -162,7 +164,33 @@ maya::Element Switcher::element(int w, int max_rows) const {
         card.push_back(std::move(row));
     }
     card.push_back(edge("╰", "", "╯"));
+    card_w_ = inner + 4;
+    card_h_ = static_cast<int>(card.size());
     return (v(stack_rows(card)) | width(w)).build();
+}
+
+Switcher::Outcome Switcher::mouse(const maya::MouseEvent& m, int x, int y) {
+    using maya::MouseButton;
+    using maya::MouseEventKind;
+    const bool inside = x >= 0 && x < card_w_ && y >= 0 && y < card_h_;
+    if (m.button == MouseButton::ScrollUp || m.button == MouseButton::ScrollDown) {
+        if (inside && m.kind == MouseEventKind::Press && !hits_.empty()) {
+            if (m.button == MouseButton::ScrollUp && sel_ > 0) --sel_;
+            if (m.button == MouseButton::ScrollDown && sel_ + 1 < hits_.size()) ++sel_;
+        }
+        return Outcome::Open;
+    }
+    if (m.kind != MouseEventKind::Press || m.button != MouseButton::Left) return Outcome::Open;
+    if (!inside) { open_ = false; return Outcome::Cancelled; }
+    // the card: border, query, gap, then the rows
+    const int r = y - 3;
+    if (r >= 0 && r < shown_ && static_cast<std::size_t>(top_ + r) < hits_.size()) {
+        sel_ = static_cast<std::size_t>(top_ + r);
+        picked_ = all_[hits_[sel_]].key;
+        open_ = false;
+        return Outcome::Picked;
+    }
+    return Outcome::Open;
 }
 
 }  // namespace nx::tui
