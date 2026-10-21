@@ -14,7 +14,10 @@ env -i HOME="$HOME" DYLD_PRINT_LIBRARIES=1 NEXCHAT_WINDOWS_DUMP=1 \
 	NEXCHAT_SHOT="$tmp/shot.png:3" \
 	"$tmp/nexchat.app/Contents/MacOS/nexchat" -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 p=$!
-sleep 5
+# the first start of a fresh bundle is slow on a CI runner (fonts,
+# icon caches): wait for the window dump, up to 30 s
+i=0; while ! grep -q '^window 0:' "$tmp/log" 2>/dev/null && [ $i -lt 60 ]; do sleep 0.5; i=$((i+1)); done
+sleep 1
 kill $p 2>/dev/null || true
 wait $p 2>/dev/null || true
 
