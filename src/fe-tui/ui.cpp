@@ -378,8 +378,14 @@ public:
             const char* br = nx_core_tui_get("brackets");
             chat_style.brackets = br && (br[0] == '1' || br[0] == 't' || br[0] == 'y');
             // on unless set off (links=0)
-            const char* ln = nx_core_tui_get("links");
-            chat_style.links = !(ln && (ln[0] == '0' || ln[0] == 'f' || ln[0] == 'n'));
+            auto on = [](const char* key) {
+                const char* v = nx_core_tui_get(key);
+                return !(v && (v[0] == '0' || v[0] == 'f' || v[0] == 'n'));
+            };
+            chat_style.links = on("links");
+            chat_style.quiet_status = on("quiet_status");
+            chat_style.quiet_own = on("quiet_own");
+            chat_style.markup = on("markup");
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));
@@ -2356,10 +2362,15 @@ void nx_ui_buffer_topic(nx_key k, const char* t) { if (Buffer* b = ui().buf(k)) 
 void nx_ui_buffer_modes(nx_key k, const char* m) { if (Buffer* b = ui().buf(k)) { b->modes = m ? m : ""; ui().dirty = true; } }
 void nx_ui_buffer_typing(nx_key k, const char* t) { if (Buffer* b = ui().buf(k)) { b->typing = t ? t : ""; ui().dirty = true; } }
 
-void nx_ui_print(nx_key k, const char* text, time_t stamp, int hilight) {
+void nx_ui_print(nx_key k, const char* text, time_t stamp, int kind) {
     if (Buffer* b = ui().buf(k)) {
         if (nx_core_pref_int("text_day_sep")) b->chat.add_day_if_new(stamp);
-        b->chat.add(text ? text : "", stamp, hilight != 0);
+        using K = ChatLine::Kind;
+        const K lk = kind & NX_LINE_ACTION ? K::Action
+                   : kind & NX_LINE_OWN    ? K::Own
+                   : kind & NX_LINE_MSG    ? K::Message
+                   : kind & NX_LINE_NOTICE ? K::Notice : K::Status;
+        b->chat.add(text ? text : "", stamp, (kind & NX_LINE_HILIGHT) != 0, lk);
         // the line a join/part run folds into
         if (b->joinpart.pending) { b->joinpart.pending = false; b->joinpart.line = b->chat[b->chat.size() - 1].id; }
         ui().dirty = true;
@@ -2460,7 +2471,7 @@ int nx_ui_joinpart(nx_key k, int kind, const char* nick, time_t stamp) {
     }
     if (jp.joined.empty() && jp.left.empty()) t += std::string("\00314") + nick + " came and went";
     if (ours) b->chat.replace_back(t);
-    else { b->chat.add(t, stamp); jp.line = b->chat[b->chat.size() - 1].id; }
+    else { b->chat.add(t, stamp, false, ChatLine::Kind::Status); jp.line = b->chat[b->chat.size() - 1].id; }
     ui().dirty = true;
     return 1;
 }

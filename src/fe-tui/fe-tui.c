@@ -564,17 +564,31 @@ fe_print_text (struct session *sess, char *text, time_t stamp, gboolean no_activ
 {
 	/* the core may print several lines in one call */
 	char *start = text, *nl;
-	const int hilight = (sess->tab_state & TAB_STATE_NEW_HILIGHT) && !no_activity && sess != current_tab;
+	/* what kind of line: a message, our own, an action, a notice, a
+	   highlight, or something that happened (bits, bridge.h NX_LINE_*) */
+	int kind = 0;
+	switch (text_event_now)
+	{
+	case XP_TE_CHANMSG: case XP_TE_PRIVMSG: case XP_TE_DPRIVMSG: kind = NX_LINE_MSG; break;
+	case XP_TE_HCHANMSG: kind = NX_LINE_MSG | NX_LINE_HILIGHT; break;
+	case XP_TE_UCHANMSG: case XP_TE_MSGSEND: kind = NX_LINE_OWN; break;
+	case XP_TE_CHANACTION: case XP_TE_PRIVACTION: case XP_TE_DPRIVACTION: kind = NX_LINE_ACTION; break;
+	case XP_TE_HCHANACTION: kind = NX_LINE_ACTION | NX_LINE_HILIGHT; break;
+	case XP_TE_UACTION: kind = NX_LINE_ACTION | NX_LINE_OWN; break;
+	case XP_TE_CHANNOTICE: case XP_TE_NOTICE: case XP_TE_NOTICESEND: kind = NX_LINE_NOTICE; break;
+	default: kind = 0;
+	}
+	(void) no_activity;
 
 	while ((nl = strchr (start, '\n')))
 	{
 		*nl = 0;
-		nx_ui_print ((nx_key) sess, start, stamp ? stamp : time (NULL), hilight);
+		nx_ui_print ((nx_key) sess, start, stamp ? stamp : time (NULL), kind);
 		*nl = '\n';
 		start = nl + 1;
 	}
 	if (*start)
-		nx_ui_print ((nx_key) sess, start, stamp ? stamp : time (NULL), hilight);
+		nx_ui_print ((nx_key) sess, start, stamp ? stamp : time (NULL), kind);
 
 	if (!no_activity)
 	{

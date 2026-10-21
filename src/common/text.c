@@ -68,6 +68,10 @@ static ca_context *ca_con;
 
 #define SCROLLBACK_MAX 32000
 
+/* the text event being printed (XP_TE_*), -1 for anything else: a
+   frontend may style what people said apart from what happened */
+int text_event_now = -1;
+
 static void mkdir_p (char *filename);
 static char *log_create_filename (char *channame);
 
@@ -1868,8 +1872,10 @@ display_event (session *sess, int event, char **args,
 {
 	char o[4096];
 	format_event (sess, event, args, o, sizeof (o), stripcolor_args);
+	text_event_now = event;
 	if (o[0])
 		PrintTextTimeStamp (sess, o, timestamp);
+	text_event_now = -1;
 }
 
 int

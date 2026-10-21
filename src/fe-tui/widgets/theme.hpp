@@ -105,6 +105,8 @@ namespace role {
 [[nodiscard]] inline Style hilight()  { return Style{}.with_fg(slot(ThemeSlot::Accent)).with_bold(); }
 
 [[nodiscard]] inline Style good()     { return Style{}.with_fg(slot(ThemeSlot::Success)); }
+/// `code` in a message.
+[[nodiscard]] inline Style code()     { return Style{}.with_fg(slot(ThemeSlot::Info)); }
 [[nodiscard]] inline Style warn()     { return Style{}.with_fg(slot(ThemeSlot::Warning)); }
 [[nodiscard]] inline Style bad()      { return Style{}.with_fg(slot(ThemeSlot::Error)); }
 

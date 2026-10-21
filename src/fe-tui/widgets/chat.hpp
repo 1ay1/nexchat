@@ -51,6 +51,9 @@ struct ChatLine {
     std::string right;         // the message, raw IRC text
     bool        hilight = false;
     bool        day = false;   // a day separator: `right` is the date, drawn centred
+    /// What the line is: people talking reads as text, what happened
+    /// (joins, modes, the MOTD, server notices) recedes.
+    enum class Kind : unsigned char { Message, Own, Action, Notice, Status } kind = Kind::Status;
     // Parsed + wrapped, per text width. Rebuilt when the width changes.
     mutable int               cached_cols = -1;
     mutable std::uint64_t     cached_style = 0;
@@ -67,14 +70,15 @@ public:
 
     /// Add a printed line. `text` is "left\tright" or just "right"; a
     /// trailing newline is dropped. Returns the line's id.
-    LineId add(std::string_view text, std::time_t stamp = 0, bool hilight = false);
+    LineId add(std::string_view text, std::time_t stamp = 0, bool hilight = false,
+               ChatLine::Kind kind = ChatLine::Kind::Message);
     /// Rewrite the newest line in place (same id): the folded join/part line
     /// grows as more people come and go.
     void replace_back(std::string_view text);
     /// A line older than all the others (history fetched while scrolled
     /// up): on top. Its id is one below the top line's, so ids stay dense
     /// and the view's anchor keeps it where it was. False when full.
-    bool add_older(std::string_view text, std::time_t stamp);
+    bool add_older(std::string_view text, std::time_t stamp, ChatLine::Kind kind = ChatLine::Kind::Message);
     /// A day separator before the first line of a new day (the GUI's
     /// text_day_sep): "── Tuesday, 14 October ──" across the view.
     /// Adds nothing when `stamp` is the same day as the last line's.
@@ -126,6 +130,9 @@ struct ChatStyle {
     bool        stamp_repeat = false;       // every line its time (else only when it changes)
     bool        brackets = false;           // <nick> (else just nick: the column says it)
     bool        links = true;               // URLs as OSC 8 links (clickable where the terminal can)
+    bool        quiet_status = true;        // joins, modes, server text in the muted colour
+    bool        quiet_own = true;           // our own nick dimmer than others'
+    bool        markup = true;              // *bold* _italic_ `code` drawn as such
     int         measure = 110;              // the text's widest line (0: the whole width)
     bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the

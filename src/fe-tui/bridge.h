@@ -62,7 +62,14 @@ void nx_ui_buffer_topic (nx_key buf, const char *topic);
 void nx_ui_buffer_modes (nx_key buf, const char *modes);
 void nx_ui_buffer_typing (nx_key buf, const char *text);
 
-void nx_ui_print (nx_key buf, const char *text, time_t stamp, int hilight);
+/* what a printed line is (bits): */
+#define NX_LINE_MSG     1   /* someone said it */
+#define NX_LINE_OWN     2   /* we did */
+#define NX_LINE_ACTION  4   /* a /me */
+#define NX_LINE_NOTICE  8
+#define NX_LINE_HILIGHT 16  /* it mentions us */
+/* 0: something that happened (joins, modes, server text) */
+void nx_ui_print (nx_key buf, const char *text, time_t stamp, int kind);
 void nx_ui_clear (nx_key buf, int lines);
 
 /* the input box, for scripts: the front buffer's line, any other's draft;

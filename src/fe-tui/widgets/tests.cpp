@@ -935,9 +935,52 @@ static void test_layout() {
     CHECK(narrow.find("<alice> │ hello") != std::string::npos);
 }
 
+// ── what a line is, and the marks people type ───────────────────────────
+
+static void test_readability() {
+    ChatStyle st;
+    st.show_stamp = false;
+    auto style_of = [&](const ChatLine& L, std::string_view word) {
+        const auto& rows = line_rows(L, st, 100);
+        for (const auto& r : rows) {
+            const auto at = r.text.find(word);
+            if (at == std::string::npos) continue;
+            for (const auto& run : r.runs)
+                if (at >= run.byte_offset && at < run.byte_offset + run.byte_length) return run.style;
+        }
+        return Style{};
+    };
+    ChatBuffer buf(100);
+    buf.add("alice\tthis is *really* it, `make test`, _so_ 2*3*4 snake_case a * b", 0, false, ChatLine::Kind::Message);
+    const ChatLine& m = buf[0];
+    CHECK(style_of(m, "really").bold);
+    CHECK(style_of(m, "so_").italic);
+    CHECK(style_of(m, "make test").fg.has_value());
+    CHECK(!style_of(m, "3*4").bold);                    // not inside a word
+    CHECK(!style_of(m, "case").italic);                 // snake_case
+    CHECK(line_rows(m, st, 100)[0].text.find("*really*") != std::string::npos);   // the marks stay
+    st.markup = false;
+    CHECK(!style_of(m, "really").bold);
+    st.markup = true;
+
+    // what happened goes muted, what people said doesn't
+    buf.add("•\tbob gives voice to carol", 0, false, ChatLine::Kind::Status);
+    buf.add("bob\thello there", 0, false, ChatLine::Kind::Message);
+    const Style status = style_of(buf[1], "gives voice");
+    CHECK(status.fg.has_value() && *status.fg == *role::muted().fg);
+    CHECK(!style_of(buf[2], "hello there").fg.has_value());
+    st.quiet_status = false;
+    CHECK(!style_of(buf[1], "gives voice").fg.has_value());
+    st.quiet_status = true;
+    // a /me reads as narration
+    buf.add("•\talice waves", 0, false, ChatLine::Kind::Action);
+    CHECK(style_of(buf[3], "waves").italic);
+}
+
 int main() {
     test_rich();
     test_ircfmt();
+    test_readability();
     test_theme();
     test_only_theme_colours();
     test_theming_rules();

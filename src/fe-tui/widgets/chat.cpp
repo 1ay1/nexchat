@@ -19,7 +19,7 @@ namespace nx::tui {
 
 // ── ChatBuffer ──────────────────────────────────────────────────────────
 
-LineId ChatBuffer::add(std::string_view text, std::time_t stamp, bool hilight) {
+LineId ChatBuffer::add(std::string_view text, std::time_t stamp, bool hilight, ChatLine::Kind kind) {
     while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.remove_suffix(1);
     const auto [l, r] = split_columns(text);
     ChatLine line;
@@ -28,13 +28,14 @@ LineId ChatBuffer::add(std::string_view text, std::time_t stamp, bool hilight) {
     line.left = std::string{l};
     line.right = std::string{r};
     line.hilight = hilight;
+    line.kind = kind;
     lines_.push_back(std::move(line));
     while (max_ && lines_.size() > max_) lines_.pop_front();
     ++version_;
     return lines_.back().id;
 }
 
-bool ChatBuffer::add_older(std::string_view text, std::time_t stamp) {
+bool ChatBuffer::add_older(std::string_view text, std::time_t stamp, ChatLine::Kind kind) {
     // full: older lines would only push newer ones out
     if (max_ && lines_.size() >= max_) return false;
     while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.remove_suffix(1);
@@ -42,6 +43,7 @@ bool ChatBuffer::add_older(std::string_view text, std::time_t stamp) {
     ChatLine line;
     line.id = lines_.empty() ? next_id_++ : lines_.front().id - 1;
     line.stamp = stamp;
+    line.kind = kind;
     line.left = std::string{l};
     line.right = std::string{r};
     lines_.push_front(std::move(line));
@@ -156,7 +158,7 @@ std::uint64_t style_key(const ChatStyle& st) {
     k = k * 31 + static_cast<std::uint64_t>(st.nick_width);
     k = k * 31 + static_cast<std::uint64_t>(st.measure);
     k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0)
-              + (st.links ? 16 : 0);
+              + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -199,6 +201,27 @@ static void tag_cells(std::vector<RowCell>& cells, const std::string& text, std:
 
 static void pad_cells(std::vector<RowCell>& cells, int n) {
     for (int i = 0; i < n; ++i) cells.push_back({});
+}
+
+// *bold*, _italic_, `code` as people type them: the text between gets the
+// style, the marks stay (dimmed) so a copy is what was said. Only at word
+// edges, so 2*3*4, snake_case and a lone * are left alone.
+static void apply_markup(Rich& r) {
+    const std::string& t = r.text;
+    auto edge_l = [&](std::size_t i) { return i == 0 || std::strchr(" ([{\"'", t[i - 1]); };
+    auto edge_r = [&](std::size_t i) { return i >= t.size() || std::strchr(" )]}\"'.,:;!?", t[i]); };
+    for (std::size_t i = 0; i < t.size(); ++i) {
+        const char m = t[i];
+        if ((m != '*' && m != '_' && m != '`') || !edge_l(i)) continue;
+        if (i + 1 >= t.size() || t[i + 1] == ' ' || t[i + 1] == m) continue;
+        const std::size_t j = t.find(m, i + 1);
+        if (j == std::string::npos || j == i + 1 || t[j - 1] == ' ' || !edge_r(j + 1)) continue;
+        const Style s = m == '*' ? Style{}.with_bold() : m == '_' ? Style{}.with_italic() : role::code();
+        r.overlay_range(i + 1, j, s);
+        r.overlay_range(i, i + 1, role::muted());
+        r.overlay_range(j, j + 1, role::muted());
+        i = j;
+    }
 }
 
 // http(s)://, ftp://, irc(s)://, mailto:, www. — up to a space, minus
@@ -272,6 +295,22 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
         left = left.slice(1, left.text.size() - 1);
     Rich right = parse_irc(line.right);
     if (line.hilight) right.overlay(Style{}.with_bold());
+    // what happened (joins, modes, the topic, server text) steps back so
+    // what people said reads first; its own colours (a nick, a channel)
+    // stay, just the plain words go muted
+    using K = ChatLine::Kind;
+    if (st.quiet_status && line.kind == K::Status && !line.hilight) {
+        // plain words take the muted colour; coloured ones keep theirs
+        for (auto& r : right.runs) if (!r.style.fg) r.style.fg = dim.fg;
+        for (auto& r : left.runs) if (!r.style.fg) r.style.fg = dim.fg;
+    }
+    // a /me: italic, as it's narrated
+    if (line.kind == K::Action) right.overlay(Style{}.with_italic());
+    // our own lines: the nick column quieter, so others' stand out
+    if (line.kind == K::Own && st.quiet_own) left.overlay(Style{}.with_dim());
+    // *bold*, _italic_ and `code` as people type them
+    if (st.markup && (line.kind == K::Message || line.kind == K::Own || line.kind == K::Action))
+        apply_markup(right);
     // URLs: an OSC 8 link each (and underlined), so a click in a terminal
     // that can opens it; other terminals see plain underlined text
     if (st.links) mark_urls(right);
@@ -587,8 +626,9 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
             const ChatLine& L = buf[c.li];
             const ChatLine& P = buf[c.li - 1];
             if (P.cached_cols < 0) (void)line_rows(P, st, w);
-            const bool msg = !L.plain_left.empty() && L.plain_left != "•" && L.plain_left.front() != '*';
-            if (msg && L.plain_left == P.plain_left && L.stamp - P.stamp < 300 && L.stamp >= P.stamp) {
+            using K = ChatLine::Kind;
+            const bool msg = L.kind == K::Message || L.kind == K::Own;
+            if (msg && P.kind == L.kind && L.plain_left == P.plain_left && L.stamp - P.stamp < 300 && L.stamp >= P.stamp) {
                 // the nick's cells (RowCell::Left) become blanks
                 std::size_t from = 0, to = 0;
                 for (std::size_t i = 0; i < src.cells.size(); ++i)

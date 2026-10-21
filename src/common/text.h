@@ -43,6 +43,8 @@ void scrollback_load (session *sess);
 int text_word_check (char *word, int len);
 void PrintText (session *sess, char *text);
 void PrintTextTimeStamp (session *sess, char *text, time_t timestamp);
+/* the text event being printed (XP_TE_*), -1 for other text */
+extern int text_event_now;
 void PrintTextf (session *sess, const char *format, ...) G_GNUC_PRINTF (2, 3);
 void PrintTextTimeStampf (session *sess, time_t timestamp, const char *format, ...) G_GNUC_PRINTF (3, 4);
 void log_close (session *sess);
