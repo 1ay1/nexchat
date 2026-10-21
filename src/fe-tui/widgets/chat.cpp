@@ -158,7 +158,9 @@ std::uint64_t style_key(const ChatStyle& st) {
     k = k * 31 + static_cast<std::uint64_t>(st.nick_width);
     k = k * 31 + static_cast<std::uint64_t>(st.measure);
     k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0)
-              + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0);
+              + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0)
+              + (st.my_nick ? 256 : 0);
+    k = k * 31 + std::hash<std::string>{}(st.nick);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -201,6 +203,26 @@ static void tag_cells(std::vector<RowCell>& cells, const std::string& text, std:
 
 static void pad_cells(std::vector<RowCell>& cells, int n) {
     for (int i = 0; i < n; ++i) cells.push_back({});
+}
+
+// every whole-word `word` in r (any case, IRC nicks are) in `s`
+static void mark_word(Rich& r, std::string_view word, const Style& s) {
+    const std::string& t = r.text;
+    auto nickch = [](unsigned char c) {
+        return std::isalnum(c) || std::strchr("-_[]\\`^{}|", c) || c >= 0x80;
+    };
+    auto lower = [](unsigned char c) { return static_cast<char>(std::tolower(c)); };
+    for (std::size_t i = 0; i + word.size() <= t.size(); ++i) {
+        if (i > 0 && nickch(static_cast<unsigned char>(t[i - 1]))) continue;
+        bool eq = true;
+        for (std::size_t k = 0; k < word.size() && eq; ++k)
+            eq = lower(static_cast<unsigned char>(t[i + k])) == lower(static_cast<unsigned char>(word[k]));
+        if (!eq) continue;
+        const std::size_t e = i + word.size();
+        if (e < t.size() && nickch(static_cast<unsigned char>(t[e]))) continue;
+        r.overlay_range(i, e, s);
+        i = e;
+    }
 }
 
 // *bold*, _italic_, `code` as people type them: the text between gets the
@@ -311,6 +333,10 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
     // *bold*, _italic_ and `code` as people type them
     if (st.markup && (line.kind == K::Message || line.kind == K::Own || line.kind == K::Action))
         apply_markup(right);
+    // your nick where someone else says it: in the accent colour, so a
+    // mention is found at a glance in a busy channel
+    if (st.my_nick && !st.nick.empty() && line.kind != K::Own && line.kind != K::Status)
+        mark_word(right, st.nick, role::hilight());
     // URLs: an OSC 8 link each (and underlined), so a click in a terminal
     // that can opens it; other terminals see plain underlined text
     if (st.links) mark_urls(right);
@@ -477,13 +503,28 @@ struct Cursor {
     Cursor(const ChatBuffer& b, const ChatStyle& s, int w_)
         : buf(b), st(s), w(w_), marker(s.show_marker ? b.marker_index() : std::nullopt) {}
 
+    // a blank row above a line that came after the talk paused (not the
+    // first, not after a day separator or under the read marker: those
+    // mark the break already)
+    bool gap(std::size_t i) const {
+        if (!st.pause_gap || i == 0 || marker == i) return false;
+        const ChatLine& L = buf[i];
+        const ChatLine& P = buf[i - 1];
+        return !L.day && !P.day && L.stamp && P.stamp && L.stamp - P.stamp >= st.pause_gap;
+    }
+    int extra(std::size_t i) const { return (marker == i ? 1 : 0) + (gap(i) ? 1 : 0); }
+
     int count(std::size_t i) const {
-        return static_cast<int>(line_rows(buf[i], st, w).size()) + (marker == i ? 1 : 0);
+        return static_cast<int>(line_rows(buf[i], st, w).size()) + extra(i);
     }
     Rich row() const {
         int r = ri;
         if (marker == li) {
             if (r == 0) return marker_row(w);
+            --r;
+        }
+        if (gap(li)) {
+            if (r == 0) return Rich{}.pad_right(w);
             --r;
         }
         return line_rows(buf[li], st, w)[static_cast<std::size_t>(r)];
@@ -598,7 +639,7 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         Rich row = c.row();
         RowSrc src;
         src.line = buf[c.li].id;
-        const int r = c.ri - (c.marker == c.li ? 1 : 0);
+        const int r = c.ri - c.extra(c.li);
         src.marker = r < 0;
         if (r >= 0) {
             const auto& cells = buf[c.li].cached_cells;

@@ -975,6 +975,45 @@ static void test_readability() {
     // a /me reads as narration
     buf.add("•\talice waves", 0, false, ChatLine::Kind::Action);
     CHECK(style_of(buf[3], "waves").italic);
+
+    // your nick where someone says it, whole words only, any case
+    st.nick = "Poke";
+    buf.add("bob\they poke, pokemon and poke_ aren't you", 0, false, ChatLine::Kind::Message);
+    CHECK(style_of(buf[4], "poke,").fg.has_value());
+    CHECK(!style_of(buf[4], "pokemon").fg.has_value());
+    buf.add("Poke\tI said poke", 0, false, ChatLine::Kind::Own);
+    CHECK(!style_of(buf[5], "poke").fg.has_value());     // not in your own lines
+
+    // a blank row where nobody spoke for a while
+    ChatBuffer talk(100);
+    talk.add("a\tone", 1000);
+    talk.add("b\ttwo", 1060);
+    talk.add("a\tthree", 1060 + 30 * 60);
+    ChatView view;
+    ChatStyle ps;
+    ps.show_stamp = false;
+    ps.pause_gap = 20 * 60;
+    auto rows = view.rows(talk, ps, 60, 6);
+    std::vector<std::string> texts;
+    for (auto& r : rows) texts.push_back(r.text);
+    int one = -1, two = -1, three = -1;
+    for (int i = 0; i < static_cast<int>(texts.size()); ++i) {
+        if (texts[i].find("one") != std::string::npos) one = i;
+        if (texts[i].find("two") != std::string::npos) two = i;
+        if (texts[i].find("three") != std::string::npos) three = i;
+    }
+    CHECK(two == one + 1);                                 // a minute: no gap
+    CHECK(three == two + 2);                               // half an hour: one blank row
+    ps.pause_gap = 0;
+    rows = view.rows(talk, ps, 60, 6);
+    texts.clear();
+    for (auto& r : rows) texts.push_back(r.text);
+    int t2 = -1, t3 = -1;
+    for (int i = 0; i < static_cast<int>(texts.size()); ++i) {
+        if (texts[i].find("two") != std::string::npos) t2 = i;
+        if (texts[i].find("three") != std::string::npos) t3 = i;
+    }
+    CHECK(t3 == t2 + 1);
 }
 
 int main() {

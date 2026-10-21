@@ -133,6 +133,9 @@ struct ChatStyle {
     bool        quiet_status = true;        // joins, modes, server text in the muted colour
     bool        quiet_own = true;           // our own nick dimmer than others'
     bool        markup = true;              // *bold* _italic_ `code` drawn as such
+    long        pause_gap = 20 * 60;        // a blank row where nobody spoke for this long (s; 0 = never)
+    bool        my_nick = true;             // your nick picked out where others mention it
+    std::string nick;                       // ...which is this (set by the owner)
     int         measure = 110;              // the text's widest line (0: the whole width)
     bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the

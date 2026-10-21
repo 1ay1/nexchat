@@ -386,6 +386,11 @@ public:
             chat_style.quiet_status = on("quiet_status");
             chat_style.quiet_own = on("quiet_own");
             chat_style.markup = on("markup");
+            chat_style.my_nick = on("my_nick");
+            // a blank row after pause_minutes (20) of quiet; pause_gap=0 turns it off
+            const char* pm = nx_core_tui_get("pause_minutes");
+            const long mins = pm && *pm ? std::max(1L, std::atol(pm)) : 20;
+            chat_style.pause_gap = on("pause_gap") ? mins * 60 : 0;
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));
@@ -2082,6 +2087,7 @@ public:
         parts.tree = &tree;
         parts.buffer = b ? &b->chat : nullptr;
         parts.view = b ? &b->view : nullptr;
+        chat_style.nick = n ? n->nick : std::string{};
         parts.chat_style = &chat_style;
         parts.users = b && b->kind == ChanKind::Channel ? &users : nullptr;
         parts.status = &status;
