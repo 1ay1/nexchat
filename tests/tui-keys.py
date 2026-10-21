@@ -132,6 +132,22 @@ def main():
         check("ok be right back" in open(log).read(), "no file: Return does too, before sending")
         t.send(b"\x1b[5~", 0.4)                                # PageUp: the TUI's own scroll
         check("pageup-bound" not in t.text(), "no file: PageUp is the TUI's own")
+
+        # the leader: Ctrl-X then a key is that key with Alt (for when tmux
+        # keeps the Alt keys)
+        t.send(b"\x1b", 0.2)
+        t.send(b"\x18", 0.3)
+        check("Ctrl-X …" in t.status_line(), "Ctrl-X says it's waiting for a key")
+        t.send(b"1", 0.4)
+        check("Message Fake" in input_line(t) or "/command" in input_line(t), "Ctrl-X 1 is Alt-1 (the first tab)")
+        check("1" not in input_line(t).replace("poke", ""), "...and the 1 isn't typed")
+        t.send(b"\x18", 0.2)
+        t.send(b"\x1b[C", 0.4)                                 # → after the leader: Alt-→
+        check("Message #demo" in input_line(t), "Ctrl-X → is Alt-→ (the next tab)")
+        t.send(b"\x18", 0.2)
+        t.send(b"\x1b", 0.3)
+        t.type("z", 0.3)
+        check(input_line(t).rstrip().endswith("z"), "Ctrl-X Esc: never mind, the next key types")
     finally:
         t.stop()
         ircd.terminate()

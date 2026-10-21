@@ -1214,9 +1214,14 @@ public:
     }
 
     void show_keys() {
+        // inside tmux (or screen) the Alt keys may be the multiplexer's: say so first
+        const bool muxed = std::getenv("TMUX") || std::getenv("STY");
+        const std::string head = muxed ? "In tmux? It may keep Alt-keys for itself: Ctrl-X then the key does\n"
+                                         "the same here (Ctrl-X 1 = Alt-1, Ctrl-X → = Alt-→).\n\n"
+                                       : "";
         // one key per line: reads the same at any width (the dialog wraps
         // and scrolls)
-        queue_dialog({0, "Keyboard Shortcuts",
+        queue_dialog({0, "Keyboard Shortcuts", head +
             "Alt-1…9        buffer N\n"
             "Alt-←/→        previous / next buffer (also Ctrl-PgUp/PgDn)\n"
             "Alt-A          next active buffer\n"
@@ -1237,13 +1242,50 @@ public:
             "Esc            back\n"
             "Ctrl-W         close buffer\n"
             "Ctrl-Q         quit\n"
+            "Ctrl-X then a key: the Alt key, for when tmux or the window\n"
+            "               manager takes Alt (Ctrl-X 1 = Alt-1, Ctrl-X → = Alt-→)\n"
             "\n"
             "Mouse: click, right-click menus, wheel, drag to select (copies), "
             "drag the │ dividers, middle-click pastes.", ""});
     }
 
     // ── keys ────────────────────────────────────────────────────────────
-    void key(const maya::KeyEvent& k) {
+    // the leader key is waiting for its key
+    bool leader_armed = false;
+    // tui.conf leader= a letter for Ctrl-letter (x by default), or "none"
+    char32_t leader_char() const {
+        const char* v = nx_core_tui_get("leader");
+        if (!v || !*v) return 'x';
+        if (!strcasecmp(v, "none") || !strcmp(v, "0")) return 0;
+        const char l = static_cast<char>(std::tolower(static_cast<unsigned char>(v[0])));
+        return l >= 'a' && l <= 'z' ? static_cast<char32_t>(l) : 'x';
+    }
+    void key(const maya::KeyEvent& k_in) {
+        // The leader key (Ctrl-X, or tui.conf leader=): the next key acts as
+        // if Alt were held. tmux, screen and window managers often take the
+        // Alt keys (Alt-1…9, Alt-arrows); "Ctrl-X 1" still gets there.
+        maya::KeyEvent k = k_in;
+        {
+            const auto* lc = std::get_if<maya::CharKey>(&k_in.key);
+            if (leader_armed) {
+                leader_armed = false;
+                flash("");
+                const auto* lsk = std::get_if<SpecialKey>(&k_in.key);
+                if (lsk && *lsk == SpecialKey::Escape) return;               // changed your mind
+                if (lc && k_in.mods.ctrl && lc->codepoint == leader_char()) {
+                    // twice: the key itself, for whatever else wants it
+                } else {
+                    k.mods.alt = true;
+                }
+            } else if (lc && k_in.mods.ctrl && !k_in.mods.alt && leader_char() && lc->codepoint == leader_char()
+                       && !dialog.is_open() && !user_bound(k_in)) {
+                leader_armed = true;
+                flash(std::string("Ctrl-") + static_cast<char>(std::toupper(static_cast<int>(leader_char())))
+                      + " … (a key, as with Alt; Esc: never mind)");
+                dirty = true;
+                return;
+            }
+        }
         const auto* sk = std::get_if<SpecialKey>(&k.key);
         const auto* ck = std::get_if<maya::CharKey>(&k.key);
         const char32_t c = ck ? ck->codepoint : 0;
@@ -1562,6 +1604,19 @@ public:
     }
 
     // true: a binding took the key (the TUI's own handling doesn't run)
+    // a keybindings.conf entry for exactly this key (and its modifiers)
+    bool user_bound(const maya::KeyEvent& k) const {
+        const std::string name = keyval_name(k);
+        if (name.empty()) return false;
+        const int mods = (k.mods.ctrl ? NX_KMOD_CTRL : 0) | (k.mods.alt ? NX_KMOD_ALT : 0);
+        for (int i = 0, n = nx_core_keybind_count(); i < n; ++i) {
+            nx_keybind kb;
+            nx_core_keybind_get(i, &kb);
+            if (kb.key && (kb.mods & ~NX_KMOD_SHIFT) == mods && !strcasecmp(kb.key, name.c_str())) return true;
+        }
+        return false;
+    }
+
     bool keybinding(const maya::KeyEvent& k) {
         const int n = nx_core_keybind_count();
         if (n == 0) {
