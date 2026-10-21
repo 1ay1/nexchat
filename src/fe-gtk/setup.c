@@ -2571,9 +2571,12 @@ setup_close_cb (GtkWidget *win, GtkWidget **swin)
 		g_source_remove (live_tag);
 		live_tag = 0;
 		setup_apply (&setup_prefs);
-		save_config ();
-		palette_save ();
 	}
+	/* and once more on close, changed or not: what's on disk is what's
+	   shown (tests/ux/colors-roundtrip.sh checks a load + this save
+	   leaves colors.conf as it was) */
+	save_config ();
+	palette_save ();
 	if (setup_needs_restart)
 		fe_message (_("Some settings you changed take full effect after a restart."), FE_MSG_INFO);
 }

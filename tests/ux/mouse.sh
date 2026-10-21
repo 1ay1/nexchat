@@ -26,7 +26,7 @@ trap cleanup EXIT
 start_xvfb "$xvfb" "$disp"
 mkdir -p "$tmp/cfg"
 # tree layout, userlist on the right; fixed geometry so coordinates hold
-printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ngui_tab_layout = 2\ngui_tab_scrollchans = 1\ngui_ulist_doubleclick = MSG %%s dbl\ngui_pane_left_size = 128\ngui_pane_right_size = 100\ntext_autocopy_text = 1\n' > "$tmp/cfg/hexchat.conf"
+printf 'net_throttle = 0\nirc_nick1 = smoke\ngui_slist_skip = 1\ngui_win_left = 0\ngui_win_top = 0\ngui_win_width = 900\ngui_win_height = 600\ngui_tab_layout = 2\ngui_tab_scrollchans = 1\ngui_ulist_doubleclick = MSG %%s dbl\ngui_pane_left_size = 128\ngui_pane_right_size = 100\ntext_autocopy_text = 1\nstamp_text_format = [%%H:%%M:%%S] \ntext_day_sep = 0\n' > "$tmp/cfg/hexchat.conf"
 python3 "$here/../fake_ircd.py" --demo --timeout 60 --log "$tmp/server.log" --portfile "$tmp/port" 2>/dev/null &
 ircd=$!
 i=0; while [ ! -s "$tmp/port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
