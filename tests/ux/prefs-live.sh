@@ -43,7 +43,8 @@ keys_run () # "keys" -> prints the picked label | saved id
 	NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_PREFS_PAGE=4 NEXCHAT_PREFS_KEYS="$1" \
 		"$bin" -n -d "$tmp/k" >"$tmp/k.log" 2>&1 &
 	app=$!
-	i=0; while ! grep -q '^prefs-scheme:' "$tmp/k.log" && [ $i -lt 40 ]; do sleep 0.25; i=$((i+1)); done
+	# up to 30 s: the first start on a cold Windows runner is slow
+	i=0; while ! grep -q '^prefs-scheme:' "$tmp/k.log" && [ $i -lt 120 ]; do sleep 0.25; i=$((i+1)); done
 	sleep 0.6	# the live apply settles and saves
 	kill $app 2>/dev/null || true; wait $app 2>/dev/null || true; app=
 	sed -n 's/^prefs-scheme: //p' "$tmp/k.log" | tail -1

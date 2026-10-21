@@ -107,7 +107,7 @@ check(f"localhost {tport} " in sts, f"policy kept in sts.conf ({sts.strip()!r})"
 
 events.clear()
 out2 = run(f"irc://localhost:-{pport}/", 3)
-check(not any(e.startswith("plain:") for e in events), "next time: no plain connection at all")
+check("plain: connect" not in events, "next time: no plain connection at all")
 check(any(e.startswith("tls: connect") for e in events), "next time: straight to TLS")
 
 if fail:

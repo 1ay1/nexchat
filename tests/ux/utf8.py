@@ -11,6 +11,10 @@ usage: tests/ux/utf8.py path/to/nexchat
 """
 import os, re, subprocess, sys, tempfile, time, unicodedata
 
+# the FAIL messages quote what was copied (U+FFFD and all): a Windows
+# console's cp1252 can't print it
+sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+
 bin_ = sys.argv[1]
 here = os.path.dirname(os.path.abspath(__file__))
 fake = os.path.join(here, "..", "fake_ircd.py")
@@ -118,6 +122,7 @@ if b"CRITICAL" in out:
     bad("GTK critical: %s" % re.findall(rb".*CRITICAL.*", out)[:2])
 if b"xdrag-diff" not in out:
     bad("didn't finish (crashed?)")
+    print(out[-1500:].decode("utf-8", "replace"))
 # the broken lines arrived readable: the bad bytes shown as � and the
 # good text after them whole
 for want in ("invalid \ufffd", "bytes then ok", "sequence then ok", "slash then ok", "continuation \ufffd"):
