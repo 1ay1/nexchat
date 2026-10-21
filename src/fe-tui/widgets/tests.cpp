@@ -521,6 +521,7 @@ static void test_chat() {
         ChatStyle rs;
         rs.show_stamp = false;
         rs.nick_width = 4;
+        rs.single_col_below = 0;   // the columns themselves, at any width
         ChatView rv;
         auto rr = rv.rows(run, rs, 50, 3);
         CHECK(rr[0].text.rfind("   a │ one", 0) == 0);
@@ -558,6 +559,7 @@ static void test_chat() {
     st.nick_width = 6;
     st.brackets = true;   // the columns below are counted with <> (the GUI's)
     st.fit_nicks = false; // a fixed 6-column nick column
+    st.single_col_below = 0;   // the columns themselves, at any width
 
     ChatBuffer buf(5);
     for (int i = 1; i <= 3; ++i) buf.add("<n" + std::to_string(i) + ">\tline " + std::to_string(i) + "\n");
@@ -662,11 +664,12 @@ static void test_chat() {
     auto crows = ChatView{}.rows(sb, ts, 60, 1);
     CHECK(crows[0].text[0] != '[' && crows[0].text.find(':') == 2);
 
-    // Responsive: the time goes before the nick gives way; then stacked.
+    // Responsive: the time goes before the nick gives way; then one column.
     {
         ChatStyle rs;
         rs.stamp_format = "%H:%M";
         rs.nick_width = 10;
+        rs.single_col_below = 50;
         ChatBuffer rb;
         rb.add("<alice>\thello there", 1700000000);
         auto wide = ChatView{}.rows(rb, rs, 70, 1);
@@ -674,10 +677,10 @@ static void test_chat() {
         auto mid = ChatView{}.rows(rb, rs, 52, 1);
         CHECK(mid[0].text.find(':') == std::string::npos);           // tight: the time goes first
         CHECK(mid[0].text.find("alice │ hello") != std::string::npos);
-        auto tiny = ChatView{}.rows(rb, rs, 30, 3);
-        // narrow: stacked, the nick (and its time) over the message
-        CHECK(tiny[1].text.rfind("alice", 0) == 0);
-        CHECK(tiny[2].text.rfind("  hello there", 0) == 0);
+        auto tiny = ChatView{}.rows(rb, rs, 30, 1);
+        // narrow: one column, "time nick text" from the left
+        CHECK(tiny[0].text.find(':') == 2);
+        CHECK(tiny[0].text.find("alice hello there") != std::string::npos);
     }
 
     // Too narrow for columns: flush left.
@@ -935,9 +938,9 @@ static void test_layout() {
     CHECK(mid.find("2 users") == std::string::npos);
     CHECK(mid.find("▾ Libera") != std::string::npos);
 
-    std::string narrow = frame(50);                                 // chat only
+    std::string narrow = frame(50);                                 // chat only, one column
     CHECK(narrow.find("▾ Libera") == std::string::npos);
-    CHECK(narrow.find("<alice> │ hello") != std::string::npos);
+    CHECK(narrow.find("<alice> hello") != std::string::npos);
 }
 
 // ── what a line is, and the marks people type ───────────────────────────
@@ -1020,27 +1023,39 @@ static void test_readability() {
     }
     CHECK(t3 == t2 + 1);
 
-    // a phone-width view: a run of one person's lines under one header,
-    // status lines flush left
+    // a thin view: one column, every line "time nick text" from column 0,
+    // wrapping at the full width; what happened is "time • text"
     ChatBuffer ph(100);
     ph.add("alice\tone", 2000);
     ph.add("alice\ttwo", 2010);
     ph.add("•\tbob joined", 2020, false, ChatLine::Kind::Status);
-    ph.add("bob\thi", 2030);
+    ph.add("bob\tthis line is long enough that it has to wrap onto the next", 2030);
     ChatStyle pst;
     pst.stamp_format = "[%H:%M:%S]";
-    auto prows = ChatView{}.rows(ph, pst, 30, 7);
+    auto prows = ChatView{}.rows(ph, pst, 30, 8);
     std::vector<std::string> pt;
     for (auto& r : prows) pt.push_back(r.text);
     auto at = [&](std::string_view s) {
         for (int i = 0; i < static_cast<int>(pt.size()); ++i) if (pt[i].find(s) != std::string::npos) return i;
         return -1;
     };
-    CHECK(at("alice · ") >= 0);
-    CHECK(pt[static_cast<std::size_t>(at("alice · "))].find('[') == std::string::npos);   // the short time
-    CHECK(at("  two") == at("  one") + 1);                     // no second "alice ·" between
-    CHECK(at("• bob joined") >= 0);                            // flush left, no column
-    CHECK(at("bob · ") == at("• bob joined") + 1);
+    const int a1 = at("alice one"), a2 = at("alice two"), jn = at("• bob joined"), bob = at("bob this");
+    CHECK(a1 >= 0 && a2 == a1 + 1);                          // every line says who
+    CHECK(jn == a2 + 1 && bob == jn + 1);
+    CHECK(pt[static_cast<std::size_t>(a1)].find('[') == std::string::npos);   // the short time, first
+    CHECK(pt[static_cast<std::size_t>(a1)][2] == ':');
+    CHECK(pt[static_cast<std::size_t>(bob) + 1][0] != ' ');  // the wrap starts at column 0
+    // a wide view keeps the columns
+    auto wrows = ChatView{}.rows(ph, pst, 100, 5);
+    bool cols = false;
+    for (auto& r : wrows) if (r.text.find("│ one") != std::string::npos) cols = true;
+    CHECK(cols);
+    // one_column_below=0: never
+    pst.single_col_below = 0;
+    auto nrows = ChatView{}.rows(ph, pst, 50, 8);
+    bool inl = false;
+    for (auto& r : nrows) if (r.text.find("alice one") != std::string::npos) inl = true;
+    CHECK(!inl);
 }
 
 int main() {

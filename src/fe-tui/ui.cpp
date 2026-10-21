@@ -391,6 +391,9 @@ public:
             const char* pm = nx_core_tui_get("pause_minutes");
             const long mins = pm && *pm ? std::max(1L, std::atol(pm)) : 20;
             chat_style.pause_gap = on("pause_gap") ? mins * 60 : 0;
+            // under this many columns the chat is one column (0: never)
+            const char* oc = nx_core_tui_get("one_column_below");
+            chat_style.single_col_below = oc && *oc ? std::max(0, std::atoi(oc)) : 60;
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));

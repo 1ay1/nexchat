@@ -97,11 +97,13 @@ def main():
             stacked = line.lstrip().startswith("morning everyone")
             if cols >= 120:
                 check(has_time and "alice" in line, f"{where}: time and nick in columns ({line.strip()[:40]!r})")
-            if cols <= 36:
-                # tiny: stacked, a nick on its own row and the text under it
-                notice = next((i for i, l in enumerate(d) if "private notice to you" in l), None)
-                check(notice is not None and "-bob-" in d[notice - 1] and d[notice].startswith("  "),
-                      f"{where}: stacked, the message under its nick")
+            if cols < 60:
+                # thin: one column, "time nick text" from the left edge, no │ column
+                notice = next((l for l in d if "private notice to you" in l), None)
+                check(notice is not None and re.match(r"\d\d:\d\d -bob- private notice", notice) is not None,
+                      f"{where}: one column, time and nick inline ({(notice or '').strip()[:40]!r})")
+                check(not any(re.match(r"\s*\S* │ ", l) for l in d[3:-5]),
+                      f"{where}: no side columns in the chat")
             # every popup at this size
             for name, keys in (("palette", b"\x10"), ("go to", b"\x07"), ("keys", b"\x1bOP"),
                                ("network list", b"\x13"), ("command popup", b"/"),

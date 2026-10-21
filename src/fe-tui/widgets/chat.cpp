@@ -161,6 +161,7 @@ std::uint64_t style_key(const ChatStyle& st) {
               + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0)
               + (st.my_nick ? 256 : 0);
     k = k * 31 + std::hash<std::string>{}(st.nick);
+    k = k * 31 + static_cast<std::uint64_t>(st.single_col_below);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -391,54 +392,25 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
     const int room_w = w - stamp_w - nick_w - sep_w;
     const int text_w = std::min(room_w, st.measure > 0 ? st.measure : w);
 
-    if (room_w < 28 && left.text == "•") {
-        // Stacked, a status line: "• what happened", wrapped under itself,
-        // no nick column to hold it in
-        bool first = true;
-        for (auto [a, b] : wrap_spans(right, std::max(w - 2, 1))) {
-            Rich row = first ? left : Rich{" "};
-            row.append(" ");
-            row.append(right.slice(a, b));
-            rows.push_back(std::move(row));
-            std::vector<RowCell> c;
-            if (first) tag_cells(c, left.text, 0, left.text.size(), RowCell::Left);
-            else pad_cells(c, 1);
-            pad_cells(c, 1);
-            tag_cells(c, right.text, a, b, RowCell::Right);
-            cells.push_back(std::move(c));
-            first = false;
+    // Thin terminal (a phone, a split pane): one column, no side columns at
+    // all. "16:04 alice hey there…" flows as running text and wraps at the
+    // full width, the nick bold and the time dim; what happened reads
+    // "16:05 • bob joined". Every line starts at column 0.
+    const bool one_col = st.single_col_below > 0 && w < st.single_col_below;
+    if (one_col || text_w < 12) {
+        Rich all;
+        std::size_t left_at = 0;
+        if (st.show_stamp && line.stamp) {
+            all.append(stamp_text(line.stamp, compact_stamp(st.stamp_format)), dim);
+            all.append(" ");
         }
-    } else if (room_w < 28 && !left.empty()) {
-        // Stacked: "nick · 14:04" on its own row, the message under it,
-        // indented two columns. A narrow phone-sized terminal still reads.
-        Rich head;
-        const std::size_t left_at = 0;
-        head.append(left.width() > w - 2 ? left.take(w - 3) : left);
-        const std::string when = st.show_stamp ? stamp_text(line.stamp, compact_stamp(st.stamp_format)) : std::string();
-        if (!when.empty() && head.width() + 3 + display_width(when) <= w) {
-            head.append(" · ", dim);
-            head.append(when, dim);
+        if (!left.empty()) {
+            left_at = all.text.size();
+            Rich nick = left;
+            if (left.text != "•") nick.overlay(Style{}.with_bold());
+            all.append(nick);
+            all.append(" ");
         }
-        rows.push_back(head);
-        {
-            std::vector<RowCell> c;
-            tag_cells(c, left.text, left_at, std::min(left.text.size(), head.text.size()), RowCell::Left);
-            cells.push_back(std::move(c));
-        }
-        for (auto [a, b] : wrap_spans(right, std::max(w - 2, 1))) {
-            Rich row{"  "};
-            row.append(right.slice(a, b));
-            rows.push_back(std::move(row));
-            std::vector<RowCell> c;
-            pad_cells(c, 2);
-            tag_cells(c, right.text, a, b, RowCell::Right);
-            cells.push_back(std::move(c));
-        }
-    } else if (text_w < 12) {
-        // Too narrow for columns: "stamp nick text", wrapped flush left.
-        Rich all = stamp;
-        const std::size_t left_at = all.text.size();
-        if (!left.empty()) { all.append(left); all.append(" "); }
         const std::size_t right_at = all.text.size();
         all.append(right);
         for (auto [a, b] : wrap_spans(all, std::max(w, 1))) {
@@ -447,7 +419,7 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
             for (std::size_t i = a; i < b;) {
                 RowCell rc;
                 if (i >= right_at) rc = {RowCell::Right, static_cast<std::uint32_t>(i - right_at)};
-                else if (i >= left_at && i < left_at + left.text.size())
+                else if (!left.empty() && i >= left_at && i < left_at + left.text.size())
                     rc = {RowCell::Left, static_cast<std::uint32_t>(i - left_at)};
                 for (int k = 0; k < std::max(glyph_width(all.text, i), 0); ++k) c.push_back(rc);
                 i += utf8_len(static_cast<unsigned char>(all.text[i]));
@@ -491,7 +463,7 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
             cells.push_back(std::move(c));
         }
     }
-    line.stacked = room_w < 28 && !left.empty() && left.text != "•";
+    line.stacked = false;
     line.cached_rows = std::move(rows);
     line.cached_cells = std::move(cells);
     line.cached_cols = w;
@@ -697,10 +669,13 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
             const auto& cells = buf[c.li].cached_cells;
             if (static_cast<std::size_t>(r) < cells.size()) src.cells = cells[static_cast<std::size_t>(r)];
         }
+        // (in the one-column view every line says when and who: a blank
+        // there would read as a stray indent)
+        const bool one_col = st.single_col_below > 0 && w < st.single_col_below;
         // the stamp only where it changes: a line in the same minute as
         // the one above shows a blank (quieter, and the times that do show
         // mark where the talk paused); a hovered line shows its own
-        if (r == 0 && st.show_stamp && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
+        if (!one_col && r == 0 && st.show_stamp && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
             && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
             // the format as drawn at this width (line_rows shortens it)
             const std::string fmt = w < 100 ? compact_stamp(st.stamp_format) : st.stamp_format;
@@ -719,7 +694,7 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         }
         // the same person again within 5 minutes: the nick goes blank too,
         // so a run of lines reads as one block (hover shows it)
-        if (r == 0 && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
+        if (!one_col && r == 0 && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
             && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
             const ChatLine& L = buf[c.li];
             const ChatLine& P = buf[c.li - 1];

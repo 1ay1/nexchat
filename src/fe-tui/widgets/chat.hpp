@@ -140,6 +140,7 @@ struct ChatStyle {
     bool        my_nick = true;             // your nick picked out where others mention it
     std::string nick;                       // ...which is this (set by the owner)
     int         measure = 110;              // the text's widest line (0: the whole width)
+    int         single_col_below = 60;      // under this many columns: one column, time + nick inline (0: never)
     bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the
     // nick already when hex_text_color_nicks is on.
