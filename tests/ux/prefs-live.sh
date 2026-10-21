@@ -22,7 +22,12 @@ NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_PREFS_PAGE=4 NEXCHAT_PREFS_
 	"$bin" -n -d "$tmp/cfg" >"$tmp/log" 2>&1 &
 app=$!
 i=0; while ! grep -q 'pair:Tokyo Night' "$tmp/cfg/colors.conf" 2>/dev/null && [ $i -lt 40 ]; do sleep 0.25; i=$((i+1)); done
-grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved the moment it's picked" || { bad "not saved"; cat "$tmp/cfg/colors.conf"; }
+grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved the moment it's picked" || {
+	bad "not saved"; cat "$tmp/cfg/colors.conf"
+	# nothing below can work then: say what the app did, and stop
+	sleep 3; echo "--- app log"; grep -av '^@\|^  \|^}\|^$' "$tmp/log" | tail -40
+	exit 1
+}
 sleep 1
 grep -q '@define-color theme_bg_color' "$tmp/log" && ok "the window's own colours follow the scheme" || bad "no UI colours"
 i=0; while ! grep -q '^window ' "$tmp/log" && [ $i -lt 30 ]; do sleep 0.25; i=$((i+1)); done
