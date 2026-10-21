@@ -100,7 +100,34 @@ enum Action : int {
     A_ChanJoin = 960, A_ChanCopy,
     A_TreeClose = 970, A_TreeFocus, A_TreeCollapse, A_TreeDisconnect, A_TreeReconnect,
     A_InputCut = 980, A_InputCopy, A_InputPaste, A_InputSelectAll, A_InputClear,
+    A_ViewPrefBase = 800,        // + kViewPrefs index
+    A_NarrowStacked = 850, A_NarrowGaps,
+    A_OneColBase = 860,          // + kOneColWidths index
 };
+
+// The chat's look, as View menu toggles: conf = a hexchat.conf int pref,
+// else tui.conf; def is what an unset tui.conf key means.
+struct ViewPref { const char* label; const char* key; bool conf; bool def; };
+constexpr ViewPref kViewPrefs[] = {
+    {"Colored Nick Names", "text_color_nicks", true, true},
+    {"Indent Nick Names", "text_indent", true, true},
+    {"Marker Line", "text_show_marker", true, true},
+    {"Day Separators", "text_day_sep", true, true},
+    {"Repeat the Time on Every Line", "stamp_repeat", false, false},
+    {"Nicks in <Brackets>", "brackets", false, false},
+    {"Quieter Joins and Server Text", "quiet_status", false, true},
+    {"Quieter Own Nick", "quiet_own", false, true},
+    {"*Bold* _Italic_ `Code` as Typed", "markup", false, true},
+    {"My Nick in Colour Where Mentioned", "my_nick", false, true},
+    {"Blank Line Where the Talk Paused", "pause_gap", false, true},
+};
+constexpr int kOneColWidths[] = {0, 40, 60, 80, 100, 120};
+
+inline bool tui_flag(const char* key, bool def) {
+    const char* v = nx_core_tui_get(key);
+    if (!v || !*v) return def;
+    return v[0] == '1' || v[0] == 't' || v[0] == 'y';
+}
 
 // Where something was drawn this frame, for the mouse.
 enum class Area { None, MenuBar, Topic, Tree, TreeDivider, Strip, Chat, UsersDivider, Users, Status, Input };
@@ -440,6 +467,8 @@ public:
                 {"User List", "^L", A_ToggleUsers, chk(layout.show_users)},
                 {"Timestamps", "", A_ToggleStamps, chk(chat_style.show_stamp)},
                 MenuItem::sep(),
+                {"Chat", "", A_None, -1, true, chat_view_items()},
+                {"Narrow Terminal", "", A_None, -1, true, narrow_items()},
                 {"Theme", "", A_None, -1, true, theme_items()},
             }},
             {"Server", {
@@ -528,6 +557,35 @@ public:
             }
             level->push_back({leaf, "", A_PluginMenuBase + i, state, enabled != 0});
         }
+    }
+
+    bool view_pref_on(const ViewPref& p) const {
+        return p.conf ? nx_core_pref_int(p.key) != 0 : tui_flag(p.key, p.def);
+    }
+
+    // View › Chat: every look-of-the-chat toggle Preferences has
+    std::vector<MenuItem> chat_view_items() {
+        std::vector<MenuItem> t;
+        for (int i = 0; i < static_cast<int>(std::size(kViewPrefs)); ++i) {
+            if (i == 4) t.push_back(MenuItem::sep());
+            t.push_back({kViewPrefs[i].label, "", A_ViewPrefBase + i, view_pref_on(kViewPrefs[i]) ? 1 : 0});
+        }
+        return t;
+    }
+
+    // View › Narrow Terminal: when the chat goes one column, and its look
+    std::vector<MenuItem> narrow_items() {
+        std::vector<MenuItem> t;
+        for (int i = 0; i < static_cast<int>(std::size(kOneColWidths)); ++i) {
+            const int c = kOneColWidths[i];
+            t.push_back({c ? "One Column Below " + std::to_string(c) : std::string("Never One Column"), "",
+                         A_OneColBase + i, chat_style.single_col_below == c ? 1 : 0});
+        }
+        t.push_back(MenuItem::sep());
+        t.push_back({"Nick and Time Above the Text", "", A_NarrowStacked,
+                     chat_style.one_col == ChatStyle::OneCol::Stacked ? 1 : 0});
+        t.push_back({"Blank Line Between People", "", A_NarrowGaps, chat_style.head_gaps ? 1 : 0});
+        return t;
     }
 
     std::vector<MenuItem> theme_items() {
@@ -667,6 +725,19 @@ public:
     void act(int a) {
         Buffer* b = current();
         Network* n = cur_net();
+        if (a >= A_ViewPrefBase && a < A_ViewPrefBase + static_cast<int>(std::size(kViewPrefs))) {
+            const ViewPref& p = kViewPrefs[a - A_ViewPrefBase];
+            const bool on = !view_pref_on(p);
+            if (p.conf) nx_core_pref_set_int(p.key, on ? 1 : 0);
+            else nx_core_tui_set(p.key, on ? "1" : "0");
+            apply_prefs();
+            return;
+        }
+        if (a >= A_OneColBase && a < A_OneColBase + static_cast<int>(std::size(kOneColWidths))) {
+            nx_core_tui_set("one_column_below", std::to_string(kOneColWidths[a - A_OneColBase]).c_str());
+            apply_prefs();
+            return;
+        }
         if (a >= A_PluginMenuBase) {
             nx_core_plugin_menu_run(cur, a - A_PluginMenuBase);
             build_menubar();   // a toggle's check moved
@@ -709,7 +780,18 @@ public:
         case A_ToggleUsers: layout.show_users = !layout.show_users; break;
         case A_ToggleTopic: show_topic = !show_topic; break;
         case A_ToggleMenu: show_menu = !show_menu; break;
-        case A_ToggleStamps: chat_style.show_stamp = !chat_style.show_stamp; break;
+        case A_ToggleStamps:
+            chat_style.show_stamp = !chat_style.show_stamp;
+            nx_core_pref_set_int("stamp_text", chat_style.show_stamp ? 1 : 0);
+            break;
+        case A_NarrowStacked:
+            nx_core_tui_set("one_column_stacked", chat_style.one_col == ChatStyle::OneCol::Stacked ? "0" : "1");
+            apply_prefs();
+            break;
+        case A_NarrowGaps:
+            nx_core_tui_set("one_column_gaps", chat_style.head_gaps ? "0" : "1");
+            apply_prefs();
+            break;
         case A_ClearText: if (b) b->chat.clear(); break;
         case A_ResetMarker: if (b) b->chat.clear_marker(); break;
         case A_JumpUnread:
