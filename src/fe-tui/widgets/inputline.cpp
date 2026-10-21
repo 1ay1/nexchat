@@ -73,10 +73,21 @@ void InputLine::insert(std::string_view s) {
     cur_ += s.size();
 }
 
+void InputLine::newline() {
+    insert("\n");
+    last_was_kill_ = false;
+}
+
 void InputLine::paste(std::string_view s) {
+    // newlines become spaces, unless keep_newlines (a message of several lines)
     std::string clean;
     clean.reserve(s.size());
-    for (char c : s) clean += (c == '\n' || c == '\r') ? ' ' : c;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        const char c = s[i];
+        if (c == '\r' && i + 1 < s.size() && s[i + 1] == '\n') continue;
+        if (c == '\n' || c == '\r') clean += keep_newlines ? '\n' : ' ';
+        else clean += c;
+    }
     insert(clean);
     last_was_kill_ = false;
 }
@@ -199,35 +210,44 @@ Rich InputLine::row(int w, bool focused) const {
     const int avail = std::max(1, w - prompt_.width());
 
     // Cursor column within the text; scroll so it's on screen with a
-    // little context on the left.
-    const int cur_col = display_width(std::string_view{text_}.substr(0, cur_));
+    // little context on the left. A \n draws as ↵, one cell.
+    auto cell = [&](std::size_t i) { return text_[i] == '\n' ? 1 : glyph_width(text_, i); };
+    int cur_col = 0;
+    for (std::size_t i = 0; i < cur_ && i < text_.size(); i += utf8_len(static_cast<unsigned char>(text_[i])))
+        cur_col += cell(i);
     if (cur_col < scroll_) scroll_ = std::max(0, cur_col - avail / 4);
     if (cur_col >= scroll_ + avail) scroll_ = cur_col - avail + 1;
 
     // Bytes from the scroll column on.
     std::size_t start = 0;
     for (int col = 0; start < text_.size() && col < scroll_;) {
-        col += glyph_width(text_, start);
+        col += cell(start);
         start += utf8_len(static_cast<unsigned char>(text_[start]));
     }
     const Style dim = role::muted();
     if (scroll_ > 0) out.append("…", dim);
     const int room = avail - (scroll_ > 0 ? 1 : 0);
 
-    // Text before the caret, the caret cell, text after.
+    // Text before the caret, the caret cell, text after. A new line in the
+    // message (Shift+Enter) shows as ↵.
+    auto shown = [](std::string_view s) {
+        std::string o;
+        for (char c : s) { if (c == '\n') o += "↵"; else o += c; }
+        return o;
+    };
     Rich body;
     const std::string_view t = text_;
-    if (cur_ >= start) body.append(t.substr(start, cur_ - start));
+    if (cur_ >= start) body.append(shown(t.substr(start, cur_ - start)));
     std::string caret_glyph = " ";
     std::size_t after = cur_;
     if (cur_ < text_.size()) {
         after = next_cp(cur_);
-        caret_glyph = text_.substr(cur_, after - cur_);
+        caret_glyph = shown(text_.substr(cur_, after - cur_));
     }
     Rich line = body;
     Style caret = focused ? role::caret() : Style{};
     line.append(caret_glyph, caret);
-    line.append(t.substr(after));
+    line.append(shown(t.substr(after)));
     // empty: a hint after the caret (what Enter will do), dim
     if (text_.empty() && !placeholder_.empty()) line.append(placeholder_, dim.with_italic());
     line = line.take(room);

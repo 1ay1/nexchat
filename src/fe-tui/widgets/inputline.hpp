@@ -46,7 +46,11 @@ public:
     enum class Result { Handled, Unhandled, Changed };
 
     Result key(const maya::KeyEvent& k);
-    void   paste(std::string_view s);        // newlines become spaces; the owner splits first if it wants
+    void   paste(std::string_view s);        // newlines become spaces (unless keep_newlines)
+    /// Shift+Enter: a new line in the same message (shown as ↵).
+    void   newline();
+    /// Pasted newlines stay (gui_multiline): the lines go as one message.
+    bool   keep_newlines = false;
 
     [[nodiscard]] const std::string& text() const noexcept { return text_; }
     [[nodiscard]] std::size_t cursor() const noexcept { return cur_; }

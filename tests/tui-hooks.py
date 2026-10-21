@@ -8,6 +8,7 @@
   * highlights and private messages become OSC 9 notifications
   * replies: Alt-R / /reply pick a message, the bar on the input, Enter
     sends it with +draft/reply
+  * Alt+Enter: a message of several lines; Alt-J: to the marker line
 
     tui-hooks.py NEXCHAT_TUI
 """
@@ -46,7 +47,8 @@ def main():
     os.makedirs(cfg)
     open(os.path.join(cfg, "hexchat.conf"), "w").write(
         "net_throttle = 0\nirc_nick1 = tester\ngui_slist_skip = 1\nirc_group_joinpart = 1\n"
-        "input_balloon_hilight = 1\ninput_balloon_priv = 1\ngui_focus_omitalerts = 0\ngui_replies = 1\n")
+        "input_balloon_hilight = 1\ninput_balloon_priv = 1\ngui_focus_omitalerts = 0\ngui_replies = 1\n"
+        "gui_multiline = 1\n")
     os.environ.pop("NO_COLOR", None)
     # a plain terminal: no tmux passthrough (pyte can't parse it), OSC 9
     for k in ("TMUX", "VTE_VERSION", "TERM_PROGRAM"):
@@ -142,6 +144,21 @@ def main():
         sent = open(log).read()
         check("@+draft/reply=m1 PRIVMSG #demo :sure thing" in sent, "Enter sends it as a reply")
         check("↳" not in t.text(), "and the bar goes")
+
+        # several lines in one message (gui_multiline): Alt+Enter, shown ↵
+        t.type("line one", 0.2)
+        t.send(b"\x1b\r", 0.3)
+        t.type("line two", 0.2)
+        check("line one↵line two" in t.input_line(), "Alt+Enter: a new line in the message")
+        t.send(b"\r", 0.6)
+        sent = open(log).read()
+        check("PRIVMSG #demo :line one" in sent and "PRIVMSG #demo :line two" in sent, "sent as its lines")
+
+        # Alt-J: to the marker line (back from (lastlog), what came since is new)
+        for _ in range(4):
+            t.send(b"\x1b[5~", 0.2)   # PgUp, away from it
+        t.send(b"\x1bj", 0.4)
+        check("─ new ─" in t.text() or "nothing unread" in t.status_line(), "Alt-J: to the marker line")
     finally:
         screen = t.text()
         t.stop()

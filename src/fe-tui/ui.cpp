@@ -87,7 +87,7 @@ enum Action : int {
     A_Prev, A_Next, A_NextActive, A_GoTo, A_Palette,
     A_BanList, A_Mentions, A_Plugins, A_UrlGrabber,
     A_Theme, A_ThemeNative, A_Keys, A_About,
-    A_Join, A_Part, A_Topic, A_Reply,
+    A_Join, A_Part, A_Topic, A_Reply, A_JumpUnread,
     // context menus
     A_NickPopupBase = 1000,      // + popup_list index
     A_PluginMenuBase = 100000,   // + /MENU item index
@@ -138,7 +138,7 @@ public:
     // a Raw Log buffer per network, made the first time it's opened
     std::map<nx_key, nx_key> rawlog_of;          // net → our own buffer key
     nx_key next_own_key = 1;                      // keys for UI-only buffers (odd: never a pointer)
-    struct PendingDialog { int kind; std::string title, text, initial; nx_str_done sd = nullptr; nx_yes_done yd = nullptr; void* ud = nullptr; bool error = false; };
+    struct PendingDialog { int kind; std::string title, text, initial; nx_str_done sd = nullptr; nx_yes_done yd = nullptr; void* ud = nullptr; bool error = false; std::function<void()> on_yes = nullptr; };
     std::deque<PendingDialog> dialogs;  // queued behind the open one
     PendingDialog dialog_now;
     WordCompleter completer{[this](std::string_view w, bool at_start) { return complete(w, at_start); }};
@@ -447,6 +447,7 @@ public:
                 MenuItem::sep(),
                 {"Search…", "^F", A_Search},
                 {"Copy Selection", "", A_Copy},
+                {"Move to Marker Line", "Alt-J", A_JumpUnread},
                 {"Reset Marker Line", "", A_ResetMarker},
                 {"Clear Text", "", A_ClearText},
                 MenuItem::sep(),
@@ -681,6 +682,12 @@ public:
         case A_ToggleStamps: chat_style.show_stamp = !chat_style.show_stamp; break;
         case A_ClearText: if (b) b->chat.clear(); break;
         case A_ResetMarker: if (b) b->chat.clear_marker(); break;
+        case A_JumpUnread:
+            if (b) {
+                if (auto i = b->chat.marker_index(); i && *i < b->chat.size()) b->view.reveal(b->chat, b->chat[*i].id);
+                else flash("nothing unread here");
+            }
+            break;
         case A_Copy: if (b) copy(b->view.selection_text(b->chat)); break;
         case A_Search: open_find(); break;
         case A_Prev: step_buffer(-1); break;
@@ -751,6 +758,7 @@ public:
         const std::string value = dialog.value();
         if (d.sd) d.sd(d.ud, ok, value.c_str());
         if (d.yd) d.yd(d.ud, ok);
+        if (d.on_yes && ok) d.on_yes();
         if (d.kind == 3 && ok) on_internal_prompt(d.title, value);   // our own prompts
         next_dialog();
         dirty = true;
@@ -1108,6 +1116,7 @@ public:
             "Ctrl-L         user list\n"
             "Ctrl-F         find (↑↓/Enter older/newer, Alt-C case, Alt-R regex, Alt-A all)\n"
             "Alt-R          reply to a message\n"
+            "Alt-J          move to the marker line (the first unread)\n"
             "Ctrl-B/I/U/R/O bold / italic / underline / reverse / reset\n"
             "Ctrl-K         colour\n"
             "Alt-K / Alt-U  kill to end / to start (readline's ^K ^U)\n"
@@ -1203,6 +1212,7 @@ public:
             // Help is last (a script's menu can sit before it)
             if (c == 'h') { menubar.open(static_cast<int>(menubar.entries().size()) - 1); return; }
             if (c == 'r') { if (b) open_reply_picker(core_key(cur)); return; }
+            if (c == 'j') { act(A_JumpUnread); return; }
         }
         if (sk) {
             switch (*sk) {
@@ -1256,7 +1266,17 @@ public:
         }
 
         // the input
-        if (sk && *sk == SpecialKey::Enter) { submit(); return; }
+        if (sk && *sk == SpecialKey::Enter) {
+            // Shift+Enter (or Alt+Enter, where the terminal can't tell
+            // Shift): a new line in the same message (gui_multiline)
+            if ((k.mods.shift || k.mods.alt) && nx_core_pref_int("gui_multiline")) {
+                focus = Pane::Input;
+                input.newline();
+                return;
+            }
+            submit();
+            return;
+        }
         focus = Pane::Input;
         input.key(k);
         refresh_cmdpopup();
@@ -1541,12 +1561,36 @@ public:
         if (chanlist.is_open()) { chanlist.paste(s); return; }
         if (people.is_open()) { people.paste(s); return; }
         if (bouncer.is_open()) { bouncer.paste(s); return; }
-        // A multi-line paste goes in as several lines, as the GUI does.
-        if (s.find('\n') != std::string::npos && input.text().empty()) {
+        // A paste of several lines: with gui_multiline it goes in the input
+        // (↵ between the lines) to look over and send with Enter; else it
+        // goes as several lines, asking first past gui_input_paste_max, as
+        // the GUI does.
+        if (s.find('\n') != std::string::npos) {
             std::string all = s;
             while (!all.empty() && (all.back() == '\n' || all.back() == '\r')) all.pop_back();
-            nx_core_input(core_key(cur), all.c_str());
-            return;
+            if (nx_core_pref_int("gui_multiline")) {
+                input.keep_newlines = true;
+                input.paste(all);
+                input.keep_newlines = false;
+                return;
+            }
+            if (input.text().empty()) {
+                int lines = 1;
+                for (std::size_t i = 0; i + 1 < all.size(); ++i)
+                    if (all[i] == '\n' && all[i + 1] != '\n') ++lines;
+                const int max = nx_core_pref_int("gui_input_paste_max");
+                const nx_key to = core_key(cur);
+                if (max > 0 && lines > max && all[0] != nx_core_cmd_char()) {
+                    Buffer* b = current();
+                    PendingDialog d{1, "Paste", "Send " + std::to_string(lines) + " lines to "
+                                        + (b ? b->name : std::string("the server")) + "?"};
+                    d.on_yes = [all, to] { nx_core_input(to, all.c_str()); };
+                    queue_dialog(std::move(d));
+                    return;
+                }
+                nx_core_input(to, all.c_str());
+                return;
+            }
         }
         input.paste(s);
     }
