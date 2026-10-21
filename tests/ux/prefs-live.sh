@@ -31,7 +31,7 @@ grep -q 'OK\b' "$tmp/log" && grep -q 'label="OK"' "$tmp/log" && bad "an OK butto
 n=$(grep -c CRITICAL "$tmp/log" || true)
 [ "$n" -eq 0 ] && ok "no criticals" || { bad "$n criticals"; grep CRITICAL "$tmp/log" | head -3; }
 [ -n "${KEEP:-}" ] && [ -f "$tmp/shot.png" ] && cp "$tmp/shot.png" "$KEEP/prefs-live.png"
-kill $app 2>/dev/null; wait $app 2>/dev/null || true; app=
+kill $app 2>/dev/null || true; wait $app 2>/dev/null || true; app=
 
 # arrow keys on the closed picker step through schemes, each applied
 # and saved; Home/End go to the ends; Up at the top stays there
@@ -45,7 +45,7 @@ keys_run () # "keys" -> prints the picked label | saved id
 	app=$!
 	i=0; while ! grep -q '^prefs-scheme:' "$tmp/k.log" && [ $i -lt 40 ]; do sleep 0.25; i=$((i+1)); done
 	sleep 0.6	# the live apply settles and saves
-	kill $app 2>/dev/null; wait $app 2>/dev/null || true; app=
+	kill $app 2>/dev/null || true; wait $app 2>/dev/null || true; app=
 	sed -n 's/^prefs-scheme: //p' "$tmp/k.log" | tail -1
 }
 r=$(keys_run "Down")
