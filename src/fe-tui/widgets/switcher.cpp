@@ -82,8 +82,12 @@ Switcher::Outcome Switcher::key(const maya::KeyEvent& k) {
 
 std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
     std::vector<Rich> rows;
+    // a short screen: no gap rows (max_rows < 0 asks for that: -n rows)
+    const bool compact = max_rows < 0;
+    if (compact) max_rows = -max_rows;
+    compact_ = compact;
     rows.push_back(query_.row(inner, true));
-    rows.push_back(Rich{}.pad_right(inner));
+    if (!compact) rows.push_back(Rich{}.pad_right(inner));
     const int n = std::min<int>(max_rows, static_cast<int>(hits_.size()));
     // Scroll the result list with the selection.
     const int top = std::clamp(static_cast<int>(sel_) - n + 1, 0, std::max(0, static_cast<int>(hits_.size()) - n));
@@ -121,7 +125,7 @@ std::vector<Rich> Switcher::rows(int inner, int max_rows) const {
     }
     if (hits_.empty()) rows.push_back(Rich{"  Nothing matches.", role::muted()}.fit(inner));
     // the count, and how to use it
-    rows.push_back(Rich{}.pad_right(inner));
+    if (!compact) rows.push_back(Rich{}.pad_right(inner));
     Rich foot;
     foot.append(std::to_string(hits_.size()) + (hits_.size() == 1 ? " match" : " matches"), role::muted());
     Rich keys;
@@ -182,8 +186,8 @@ Switcher::Outcome Switcher::mouse(const maya::MouseEvent& m, int x, int y) {
     }
     if (m.kind != MouseEventKind::Press || m.button != MouseButton::Left) return Outcome::Open;
     if (!inside) { open_ = false; return Outcome::Cancelled; }
-    // the card: border, query, gap, then the rows
-    const int r = y - 3;
+    // the card: border, query, gap (not when compact), then the rows
+    const int r = y - (compact_ ? 2 : 3);
     if (r >= 0 && r < shown_ && static_cast<std::size_t>(top_ + r) < hits_.size()) {
         sel_ = static_cast<std::size_t>(top_ + r);
         picked_ = all_[hits_[sel_]].key;

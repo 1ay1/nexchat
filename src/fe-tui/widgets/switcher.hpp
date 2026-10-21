@@ -71,6 +71,7 @@ public:
 private:
     void refilter();
     mutable int top_ = 0, shown_ = 0, card_w_ = 0, card_h_ = 0;
+    mutable bool compact_ = false;
     bool                       open_ = false;
     InputLine                  query_;
     std::vector<ChanEntry>     all_;
