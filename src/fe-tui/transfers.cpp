@@ -119,15 +119,23 @@ bool Transfers::body_key(const maya::KeyEvent& k) {
 
 std::vector<Rich> Transfers::draw(int w, int h, bool focused) const {
     std::vector<Rich> out;
-    const int fw = std::max(12, w - 2 - 10 - 22 - 10 - 8 - 14);
+    // narrow: ETA goes first, then speed, then the bar (the % stays), then
+    // the nick, so the file name keeps at least 12 columns
+    bool eta = true, speed = true, bar_on = true, nick = true;
+    auto fixed = [&] { return 2 + 10 + (bar_on ? 22 : 6) + (speed ? 10 : 0) + (eta ? 8 : 0) + (nick ? 14 : 0); };
+    if (w - fixed() < 12) eta = false;
+    if (w - fixed() < 12) speed = false;
+    if (w - fixed() < 12) bar_on = false;
+    if (w - fixed() < 12) nick = false;
+    const int fw = std::max(12, w - fixed());
     Rich head;
     head.append(Rich{"  ", role::column()});
     head.append(Rich{"Status", role::column()}.fit(10, role::column()));
     head.append(Rich{"File", role::column()}.fit(fw, role::column()));
-    head.append(Rich{"Progress", role::column()}.fit(22, role::column()));
-    head.append(Rich{"Speed", role::column()}.fit(10, role::column()));
-    head.append(Rich{"ETA", role::column()}.fit(8, role::column()));
-    head.append(Rich{"Nick", role::column()});
+    head.append(Rich{bar_on ? "Progress" : "Done", role::column()}.fit(bar_on ? 22 : 6, role::column()));
+    if (speed) head.append(Rich{"Speed", role::column()}.fit(10, role::column()));
+    if (eta) head.append(Rich{"ETA", role::column()}.fit(8, role::column()));
+    if (nick) head.append(Rich{"Nick", role::column()});
     out.push_back(head.fit(w, role::column()));
 
     const int body = h - 1;
@@ -146,21 +154,30 @@ std::vector<Rich> Transfers::draw(int w, int h, bool focused) const {
         line.append(Rich{t.file, role::text()}.fit(fw));
         // a bar: 12 cells, then the percentage
         const double frac = t.size ? std::min(1.0, static_cast<double>(t.pos) / static_cast<double>(t.size)) : 0.0;
-        const int filled = static_cast<int>(frac * 12 + 0.5);
-        std::string bar;
-        for (int c = 0; c < 12; ++c) bar += c < filled ? "█" : "░";
-        line.append(bar, t.state == 3 ? role::good() : role::new_data());
+        if (bar_on) {
+            const int filled = static_cast<int>(frac * 12 + 0.5);
+            std::string bar;
+            for (int c = 0; c < 12; ++c) bar += c < filled ? "█" : "░";
+            line.append(bar, t.state == 3 ? role::good() : role::new_data());
+        }
         char pct[16];
         std::snprintf(pct, sizeof pct, " %3d%%", static_cast<int>(frac * 100));
-        line.append(Rich{pct, role::muted()}.fit(10));
-        line.append(Rich{t.cps > 0 ? human(static_cast<unsigned long long>(t.cps)) + "/s" : "", role::muted()}.fit(10));
-        line.append(Rich{eta_text(t.eta), role::muted()}.fit(8));
-        line.append(Rich{t.nick, role::title()});
+        line.append(Rich{pct, role::muted()}.fit(bar_on ? 10 : 6));
+        if (speed) line.append(Rich{t.cps > 0 ? human(static_cast<unsigned long long>(t.cps)) + "/s" : "", role::muted()}.fit(10));
+        if (eta) line.append(Rich{eta_text(t.eta), role::muted()}.fit(8));
+        if (nick) line.append(Rich{t.nick, role::title()});
         line = line.fit(w);
         if (cur && focused) line.replace_colors(role::selected());
         out.push_back(std::move(line));
     }
-    if (rows_.empty() && body > 1) out[2] = Rich{"  Nothing here yet. Offers and sends show up as they come.", role::muted()}.fit(w);
+    if (rows_.empty() && body > 1) {
+        auto lines = wrap(Rich{"Nothing here yet. Offers and sends show up as they come.", role::muted()}, std::max(10, w - 4));
+        for (std::size_t k = 0; k < lines.size() && 2 + k < out.size(); ++k) {
+            Rich r{"  "};
+            r.append(lines[k]);
+            out[2 + k] = r.fit(w);
+        }
+    }
     add_scrollbar(out, w, 1, body, static_cast<int>(rows_.size()), top_, focused);
     return out;
 }

@@ -246,8 +246,14 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
 
         if (f.kind == Field::Kind::Heading) {
             if (!all.empty()) { all.push_back(Rich{}.pad_right(w)); map.push_back({}); }
-            // "Text Box ─────────": the section, then a rule to the edge
-            Rich head{f.label, role::title()};
+            // "Text Box ─────────": the section, then a rule to the edge;
+            // a heading too long for the row wraps, the rule on its last line
+            auto lines = wrap(Rich{f.label, role::title()}, std::max(4, w - 2));
+            for (std::size_t k = 0; k + 1 < lines.size(); ++k) {
+                all.push_back(lines[k].fit(w));
+                map.push_back({});
+            }
+            Rich head = lines.back();
             std::string rule = " ";
             for (int c = head.width() + 1; c < w; ++c) rule += "─";
             head.append(rule, role::border());
