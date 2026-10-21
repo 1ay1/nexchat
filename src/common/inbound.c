@@ -93,6 +93,7 @@ clear_channel (session *sess)
 	sess->doing_who = FALSE;
 	sess->done_away_check = FALSE;
 	sess->history_asked = FALSE;	/* rejoining asks for what was missed */
+	sess->history_older_pending = FALSE;
 
 	log_close (sess);
 

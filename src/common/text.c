@@ -872,7 +872,11 @@ PrintTextTimeStamp (session *sess, char *text, time_t timestamp)
 		log_write (sess, text, timestamp);
 		scrollback_save (sess, text, timestamp);
 	}
-	fe_print_text (sess, text, timestamp, FALSE);
+	/* older than anything shown (CHATHISTORY BEFORE): above the rest */
+	if (sess->server && sess->server->line_is_older)
+		fe_print_older (sess, text, timestamp);
+	else
+		fe_print_text (sess, text, timestamp, FALSE);
 	g_free (text);
 }
 

@@ -97,6 +97,12 @@ void fe_progressbar_start (struct session *sess);
 void fe_progressbar_end (struct server *serv);
 void fe_print_text (struct session *sess, char *text, time_t stamp,
 					gboolean no_activity);
+/* a line older than everything shown (scrolled-up history): goes on top,
+   above what an earlier fe_print_older put there. A frontend that can't
+   insert above may print it as fe_print_text does. */
+void fe_print_older (struct session *sess, char *text, time_t stamp);
+/* a CHATHISTORY BEFORE ended with n lines (0: nothing older) */
+void fe_history_older_done (struct session *sess, int n);
 /* a join (kind 0), part (1) or quit (2) of nick in a channel, already in
    the logs: the frontend may show runs of them as one line. FALSE: it
    didn't, print the event as usual */

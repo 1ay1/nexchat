@@ -1962,6 +1962,19 @@ fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stam
 	return TRUE;
 }
 
+/* the text view can't insert above: older history isn't asked for here
+   (nothing calls chathistory_older), so this only prints if it comes */
+void
+fe_print_older (struct session *sess, char *text, time_t stamp)
+{
+	PrintTextRaw (sess->res->buffer, (unsigned char *) text, prefs.hex_text_indent, stamp);
+}
+
+void
+fe_history_older_done (struct session *sess, int n)
+{
+}
+
 void
 fe_print_text (struct session *sess, char *text, time_t stamp,
 			   gboolean no_activity)

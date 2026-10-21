@@ -195,6 +195,10 @@ if host_machine.system() != 'windows'
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-live.py'],
     timeout: 90,
   )
+  test('tui-history', find_program('sh'),
+    args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-history.py'],
+    timeout: 90,
+  )
   test('tui-hooks', find_program('sh'),
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-hooks.py'],
     timeout: 90,

@@ -71,6 +71,10 @@ public:
     /// Rewrite the newest line in place (same id): the folded join/part line
     /// grows as more people come and go.
     void replace_back(std::string_view text);
+    /// A line older than all the others (history fetched while scrolled
+    /// up): on top. Its id is one below the top line's, so ids stay dense
+    /// and the view's anchor keeps it where it was. False when full.
+    bool add_older(std::string_view text, std::time_t stamp);
     /// A day separator before the first line of a new day (the GUI's
     /// text_day_sep): "── Tuesday, 14 October ──" across the view.
     /// Adds nothing when `stamp` is the same day as the last line's.
@@ -104,7 +108,8 @@ public:
 private:
     std::deque<ChatLine>   lines_;
     std::size_t            max_;
-    LineId                 next_id_ = 1;
+    // ids count up from here, and down from the top line for older history
+    LineId                 next_id_ = LineId{1} << 40;
     std::optional<LineId>  marker_;
     std::uint64_t          version_ = 0;
     mutable std::uint64_t  widest_at_ = ~std::uint64_t{0};
@@ -147,6 +152,13 @@ public:
 
     /// How many lines arrived below what's on screen (for "N new" hints).
     [[nodiscard]] std::size_t lines_below(const ChatBuffer& buf) const noexcept;
+    /// The first line of the buffer was on screen in the last frame (and
+    /// the view is scrolled up, or the text doesn't fill it).
+    [[nodiscard]] bool shows_top(const ChatBuffer& buf) const noexcept {
+        if (buf.empty()) return false;
+        for (const auto& r : drawn_) if (r.line == buf[0].id) return true;
+        return false;
+    }
 
     /// The scrollbar: with more than a screen of text, rows() draws a thumb
     /// in its last column, or, with bar_outside, leaves the width alone and

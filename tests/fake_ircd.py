@@ -28,6 +28,8 @@ p.add_argument("--caps", default="",
                help="capabilities to offer (echo-message makes it echo our PRIVMSGs back)")
 p.add_argument("--isupport", default="",
                help="more 005 tokens, e.g. soju.im/FILEHOST=http://127.0.0.1:8766/upload")
+p.add_argument("--history-pages", type=int, default=0,
+               help="answer CHATHISTORY BEFORE with this many pages of 3 older lines")
 a = p.parse_args()
 
 DEMO_USERS = ["~founder", "&admin", "@alice", "@carol", "%helper", "+bob", "+dave",
@@ -183,6 +185,17 @@ try:
                     echo = True
             elif cmd == "PRIVMSG" and echo:
                 send(f":{nick}!u@h {line}")
+            elif cmd == "CHATHISTORY" and len(parts) >= 3 and parts[1].upper() == "BEFORE":
+                # scrolled up: --history-pages pages of older lines, then none
+                target = parts[2]
+                send(f":fake BATCH +hb chathistory {target}")
+                if a.history_pages > 0:
+                    page = a.history_pages
+                    a.history_pages -= 1
+                    for i in range(3):
+                        t = f"2025-12-{page:02d}T10:0{i}:00.000Z"
+                        send(f"@batch=hb;time={t} :older!u@h PRIVMSG {target} :older-p{page}-{i}")
+                send(":fake BATCH -hb")
             elif cmd == "CHATHISTORY" and len(parts) >= 3:
                 # three old lines in a batch, the middle one naming us
                 target = parts[2]

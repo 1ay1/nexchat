@@ -622,6 +622,18 @@ fe_beep (session *sess)
 	putchar (7);
 }
 
+/* no inserting above: older history is printed as it comes */
+void
+fe_print_older (struct session *sess, char *text, time_t stamp)
+{
+	fe_print_text (sess, text, stamp, TRUE);
+}
+
+void
+fe_history_older_done (struct session *sess, int n)
+{
+}
+
 void
 fe_add_rawlog (struct server *serv, char *text, int len, int outbound)
 {

@@ -451,6 +451,9 @@ typedef struct session
 	unsigned int unread;		/* messages since the tab was last looked at */
 	unsigned int unread_hilight;	/* of those, highlights */
 	time_t history_until;	/* the newest message seen, to ask chathistory after it */
+	time_t history_oldest;	/* the oldest message seen, to ask for what came before it */
+	unsigned int history_older_pending:1;	/* a CHATHISTORY BEFORE is out */
+	unsigned int history_older_done:1;	/* the server had nothing older */
 	time_t read_until;		/* read up to here (draft/read-marker, any device) */
 	guint readmarker_tag;	/* a MARKREAD waiting to go (readmarker_soon) */
 	GHashTable *typers;	/* who's typing here: nick -> expiry (batch.c) */
@@ -624,6 +627,7 @@ typedef struct server
 	unsigned int have_multiline:1;	/* cap draft/multiline */
 	unsigned int have_redact:1;	/* cap draft/message-redaction */
 	unsigned int line_is_history:1;	/* the line being handled is from a chathistory batch */
+	unsigned int line_is_older:1;	/* ...from one asked BEFORE what's shown (goes on top) */
 	unsigned int have_sasl:1;		/* SASL capability */
 	unsigned int have_except:1;	/* ban exemptions +e */
 	unsigned int have_invite:1;	/* invite exemptions +I */

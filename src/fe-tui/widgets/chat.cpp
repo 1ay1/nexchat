@@ -33,6 +33,21 @@ LineId ChatBuffer::add(std::string_view text, std::time_t stamp, bool hilight) {
     return lines_.back().id;
 }
 
+bool ChatBuffer::add_older(std::string_view text, std::time_t stamp) {
+    // full: older lines would only push newer ones out
+    if (max_ && lines_.size() >= max_) return false;
+    while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.remove_suffix(1);
+    const auto [l, r] = split_columns(text);
+    ChatLine line;
+    line.id = lines_.empty() ? next_id_++ : lines_.front().id - 1;
+    line.stamp = stamp;
+    line.left = std::string{l};
+    line.right = std::string{r};
+    lines_.push_front(std::move(line));
+    ++version_;
+    return true;
+}
+
 void ChatBuffer::replace_back(std::string_view text) {
     if (lines_.empty()) return;
     while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.remove_suffix(1);

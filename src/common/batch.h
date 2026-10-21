@@ -31,6 +31,11 @@ gboolean batch_multiline_take (server *serv, const char *id, const char *tags,
 /* IRCv3 draft/chathistory: ask for the latest lines of a channel just
    joined (newer than what scrollback already shows) */
 void chathistory_request (session *sess);
+/* scrolled to the top: what came before oldest (its time; 0 = the latest);
+   FALSE if it can't be asked now */
+gboolean chathistory_older (session *sess, time_t oldest);
+/* the line with this batch id is from such a request (goes on top) */
+gboolean batch_is_older (server *serv, const char *id);
 /* a chathistory batch for target starts / ends */
 void chathistory_begin (server *serv, const char *target);
 void chathistory_end (server *serv, const char *target, int lines);

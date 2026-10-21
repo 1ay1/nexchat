@@ -71,6 +71,10 @@ struct Buffer {
     std::string draft;            // what was typed here when we switched away
     std::size_t draft_cursor = 0;
     std::string reply_to;         // the msgid the next line answers ("" = none)
+    // history from before the top line, collected until its batch ends
+    std::vector<std::pair<std::string, std::time_t>> older;
+    bool older_asked = false;     // a fetch is out (the "loading" line shows)
+    bool older_none = false;      // the server has nothing older
     // the join/part line being folded (nx_ui_joinpart)
     struct JoinPart {
         LineId line = 0;
@@ -2084,6 +2088,13 @@ public:
         if (!screen->ready() || screen->pending_output()) return false;
         const maya::Presented f = screen->present([&] { return view(); });
         dirty = f.redraw_now;
+        // scrolled up to the first line: ask the server for what came before
+        if (Buffer* b = current(); b && !b->older_asked && !b->older_none && b->view.lines_below(b->chat) > 0
+                                   && b->view.shows_top(b->chat)) {
+            std::time_t oldest = 0;
+            for (std::size_t i = 0; i < b->chat.size() && !oldest; ++i) oldest = b->chat[i].stamp;
+            if (nx_core_history_older(core_key(cur), oldest)) { b->older_asked = true; flash("loading older messages…"); }
+        }
         return f.redraw_now || f.redraw_at.has_value()
             || (!toast.empty() && std::chrono::steady_clock::now() < toast_until + std::chrono::milliseconds(50));
     }
@@ -2258,6 +2269,22 @@ void nx_ui_reply_pick(nx_key k, const char* msgid) {
     if (msgid && *msgid) u.set_reply(k, msgid);
     else if (k == u.cur) u.open_reply_picker(k);
     u.dirty = true;
+}
+
+void nx_ui_print_older(nx_key k, const char* text, time_t stamp) {
+    if (Buffer* b = ui().buf(k)) b->older.emplace_back(text ? text : "", stamp);
+}
+
+void nx_ui_older_done(nx_key k, int n) {
+    Buffer* b = ui().buf(k);
+    if (!b) return;
+    b->older_asked = false;
+    if (n <= 0 || b->older.empty()) { b->older_none = true; b->older.clear(); ui().dirty = true; return; }
+    // newest of the batch first, each on top of the last
+    for (auto it = b->older.rbegin(); it != b->older.rend(); ++it)
+        if (!b->chat.add_older(it->first, it->second)) { b->older_none = true; break; }
+    b->older.clear();
+    ui().dirty = true;
 }
 
 void nx_ui_menus_changed(void) {

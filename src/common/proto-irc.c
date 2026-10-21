@@ -1804,6 +1804,7 @@ irc_inline (server *serv, char *buf, int len)
 
 	/* a line from a chathistory batch: shown, not alerted or logged again */
 	serv->line_is_history = batch_is_history (serv, tags_data.batch);
+	serv->line_is_older = serv->line_is_history && batch_is_older (serv, tags_data.batch);
 
 	url_check_line (buf);
 
@@ -1863,6 +1864,7 @@ irc_inline (server *serv, char *buf, int len)
 
 xit:
 	serv->line_is_history = FALSE;
+	serv->line_is_older = FALSE;
 	batch_note_tags (NULL);
 	message_tags_data_free (&tags_data);
 	g_free (pdibuf);

@@ -597,6 +597,29 @@ fe_text_clear (struct session *sess, int lines)
 	ui_dirty ();
 }
 
+void
+fe_print_older (struct session *sess, char *text, time_t stamp)
+{
+	char *start = text, *nl;
+
+	while ((nl = strchr (start, '\n')))
+	{
+		*nl = 0;
+		nx_ui_print_older ((nx_key) sess, start, stamp);
+		*nl = '\n';
+		start = nl + 1;
+	}
+	if (*start)
+		nx_ui_print_older ((nx_key) sess, start, stamp);
+}
+
+void
+fe_history_older_done (struct session *sess, int n)
+{
+	nx_ui_older_done ((nx_key) sess, n);
+	ui_dirty ();
+}
+
 gboolean
 fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stamp)
 {
@@ -1261,6 +1284,13 @@ nx_core_focus (nx_key buf)
 }
 
 /* ── replies ── */
+
+int
+nx_core_history_older (nx_key buf, time_t oldest)
+{
+	session *sess = sess_of (buf);
+	return sess && sess == (session *) buf && chathistory_older (sess, oldest) ? 1 : 0;
+}
 
 static char *
 reply_plain (const char *line)

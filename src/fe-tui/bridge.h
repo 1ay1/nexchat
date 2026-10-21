@@ -89,6 +89,13 @@ int  nx_ui_focused (void);
 void nx_ui_bell (void);
 /* a script added, changed or removed a /MENU item */
 void nx_ui_menus_changed (void);
+/* history from before the top line (oldest first, a batch at a time);
+   older_done puts the batch on top: n lines, 0 = the server has no more */
+void nx_ui_print_older (nx_key buf, const char *text, time_t stamp);
+void nx_ui_older_done (nx_key buf, int n);
+/* scrolled to the top of buf: ask for what came before (oldest: the top
+   line's time). 0 if it can't (no chathistory, or nothing more) */
+int  nx_core_history_older (nx_key buf, time_t oldest);
 /* /reply on its own: choose the message to answer (msgid NULL), or reply
    to msgid; the bar over the input says so */
 void nx_ui_reply_pick (nx_key buf, const char *msgid);

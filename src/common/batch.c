@@ -34,6 +34,7 @@ typedef struct
 	char *head;			/* ":nick!u@h PRIVMSG #chan" of its first line */
 	GString *text;		/* the message so far, lines joined by \n */
 	int lines;			/* multiline: lines so far; history: messages in it */
+	session *older;	/* history: the window that asked BEFORE (lines go on top) */
 } irc_batch;
 
 /* tags of the line being handled (irc_inline), for a BATCH + line */
@@ -167,6 +168,8 @@ batch_command (server *serv, char *word[], char *word_eol[])
 	batch_line (serv, word[3], word[4], word[5], word_eol[5]);
 }
 
+static session *history_target (server *serv, const char *target);
+
 /* ref "+id"/"-id", then the type and its first parameter and all of them */
 void
 batch_line (server *serv, const char *ref, const char *type, const char *param1, const char *params)
@@ -181,7 +184,15 @@ batch_line (server *serv, const char *ref, const char *type, const char *param1,
 		b->nicks = g_hash_table_new_full (NULL, NULL, NULL, gstring_free);
 		g_hash_table_replace (batches (serv), g_strdup (ref + 1), b);
 		if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
+		{
+			session *s = history_target (serv, param1);
+			if (s && s->history_older_pending)
+			{
+				s->history_older_pending = FALSE;
+				b->older = s;
+			}
 			chathistory_begin (serv, param1);
+		}
 		else if (!g_ascii_strcasecmp (b->type, "soju.im/search"))
 			bouncer_search_batch (serv, ref + 1, TRUE);
 		else if (is_multiline_type (b->type))
@@ -197,6 +208,13 @@ batch_line (server *serv, const char *ref, const char *type, const char *param1,
 		{
 			if (is_split_type (b->type))
 				batch_end (serv, b);
+			else if (b->older)
+			{
+				if (is_session (b->older))
+					fe_history_older_done (b->older, b->lines);
+				if (is_session (b->older) && !b->lines)
+					b->older->history_older_done = TRUE;
+			}
 			else if (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type))
 				chathistory_end (serv, b->params, b->lines);
 			else if (!g_ascii_strcasecmp (b->type, "soju.im/search"))
@@ -227,7 +245,17 @@ batch_is_history (server *serv, const char *id)
 	return b && (!g_ascii_strcasecmp (b->type, "chathistory") || is_playback_type (b->type));
 }
 
-static session *history_target (server *serv, const char *target);
+/* ...and from one asked BEFORE what's shown: it goes on top */
+gboolean
+batch_is_older (server *serv, const char *id)
+{
+	irc_batch *b;
+
+	if (!id || !serv->batches)
+		return FALSE;
+	b = g_hash_table_lookup (serv->batches, id);
+	return b && b->older;
+}
 
 /* a message in a history batch, about to be shown in sess: the first one
    gets the marker above it, all are counted for the line at the end */
@@ -241,6 +269,12 @@ batch_history_count (server *serv, const char *id, session *sess)
 	b = g_hash_table_lookup (serv->batches, id);
 	if (!b || (g_ascii_strcasecmp (b->type, "chathistory") && !is_playback_type (b->type)))
 		return;
+	if (b->older)
+	{
+		/* older lines: just counted, no "while you were away" */
+		b->lines++;
+		return;
+	}
 	if (!b->lines++)
 		PrintTextf (sess, _("\00323*\t--- While you were away ---\n"));
 }
@@ -356,6 +390,37 @@ history_target (server *serv, const char *target)
 	if (!sess && target && *target)
 		sess = find_dialog (serv, (char *) target);
 	return sess;
+}
+
+/* scrolled to the top: ask for what came before the oldest line shown
+   (oldest: its time, 0 = from the newest). One at a time; nothing more
+   once the server has run out. FALSE if it can't be asked. */
+gboolean
+chathistory_older (session *sess, time_t oldest)
+{
+	server *serv = sess->server;
+	GDateTime *dt;
+	char *iso;
+
+	if (!serv || !serv->connected || !serv->have_chathistory || !serv->have_batch ||
+		 !prefs.hex_irc_chathistory || !sess->channel[0] ||
+		 (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG))
+		return FALSE;
+	if (sess->history_older_pending || sess->history_older_done)
+		return FALSE;
+	sess->history_older_pending = TRUE;
+	if (oldest <= 0)
+	{
+		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, HISTORY_LINES);
+		return TRUE;
+	}
+	dt = g_date_time_new_from_unix_utc (oldest);
+	/* BEFORE is exclusive: the line we have isn't sent again */
+	iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
+	tcp_sendf (serv, "CHATHISTORY BEFORE %s timestamp=%s %d\r\n", sess->channel, iso, HISTORY_LINES);
+	g_free (iso);
+	g_date_time_unref (dt);
+	return TRUE;
 }
 
 /* the start is only marked when something comes: an empty replay prints
@@ -658,6 +723,17 @@ reply_remember (session *sess, const char *msgid, const char *nick, const char *
 	s = reply_get (sess, TRUE);
 	if (g_hash_table_contains (s->byid, msgid))
 		return;
+	/* scrolled-up history: older than all we keep; only known for lookups
+	   (what a reply quotes), not the newest nor anyone's last line */
+	if (sess->server && sess->server->line_is_older)
+	{
+		if (g_queue_get_length (&s->order) >= REPLY_KEEP)
+			return;
+		id = g_strdup (msgid);
+		g_hash_table_insert (s->byid, id, g_strdup_printf ("%s\t%s", nick, text ? text : ""));
+		g_queue_push_head (&s->order, id);
+		return;
+	}
 	id = g_strdup (msgid);
 	g_hash_table_insert (s->byid, id, g_strdup_printf ("%s\t%s", nick, text ? text : ""));
 	g_queue_push_tail (&s->order, id);
