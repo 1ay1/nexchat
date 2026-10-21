@@ -368,8 +368,13 @@ maya::Element Panel::element(int sw, int sh) const {
         Rich row{"│", role::border()};
         // status left, the buttons at the right edge (their x is fixed above)
         const int lead = std::max(0, inner_w - total - 1);
-        Rich st{status.empty() ? std::string{} : " " + status, role::muted()};
-        if (st.width() > lead - 2) st = st.take(std::max(0, lead - 3)), st.append("…", role::muted());
+        // too long: keep the leading " · " parts that fit, never a stub like "En…"
+        std::string stx = status;
+        while (!stx.empty() && display_width(stx) + 1 > lead - 1) {
+            const auto cut = stx.rfind(" · ");
+            stx = cut == std::string::npos ? std::string{} : stx.substr(0, cut);
+        }
+        Rich st{stx.empty() ? std::string{} : " " + stx, role::muted()};
         row.append(st.fit(lead));
         for (std::size_t i = 0; i < parts.size(); ++i) {
             if (i) row.append(std::string(static_cast<std::size_t>(gap), ' '));

@@ -71,18 +71,28 @@ def main():
     run_env = {"TERM": "xterm-256color", "NEXCHAT_SOJU_DIR": env["SOJU_BIN_DIR"], "NEXCHAT_BOUNCER_NO_SYSTEMD": "1"}
     t = smoke.Tui([binary, "-n", "-d", cfg], run_env)
 
-    def click_text(s, dx=1, button=0):
+    # under parallel load the screen lags: wait for a button before clicking it
+    def click_text(s, dx=1, button=0, wait=5):
+        t.wait_for(s, wait)
         p = t.find(s)
         if p:
             t.click(p[0] + dx, p[1], button=button)
         return p is not None
 
+    # every string on screen at once, within t seconds
+    def wait_all(*ss, secs=5):
+        end = time.time() + secs
+        while time.time() < end:
+            if all(s in t.text() for s in ss):
+                return True
+            t.pump(0.2)
+        return False
+
     def open_bouncer():
-        p = t.find("Server")
-        t.click(p[0] + 1, p[1])
-        t.wait_for("Bouncer…", 2)
+        click_text("Server")
+        t.wait_for("Bouncer…", 5)
         click_text("Bouncer…", 2)
-        return t.wait_for("╭─ Bouncer", 3)
+        return t.wait_for("╭─ Bouncer", 5)
 
     try:
         t.pump(2.0)
@@ -98,18 +108,18 @@ def main():
         check(t.wait_for("Your bouncer is running", 15), "one press: running")
         check(t.wait_for("in 1 channel", 30), "Lab went on it by itself (opened from Lab), soju has it in 1 channel")
         check(t.wait_for("as dee", 10), "it shows who it's on there as")
-        check("[ Networks ]" in t.text() or " Networks " in t.text(), "the Networks / Channels / Access / Storage tabs")
+        check(t.wait_for(" Networks ", 5), "the Networks / Channels / Access / Storage tabs")
 
         # Nick and login...
         check(click_text("[ Nick and login... ]", 2), "Nick and login… for Lab")
-        check(t.wait_for("Your nick on Lab", 3), "the editor: Your nick on Lab")
-        check("With my account (SASL)" in t.text() and "Server password" in t.text(), "login and More, as the GUI")
+        check(t.wait_for("Your nick on Lab", 5), "the editor: Your nick on Lab")
+        check(wait_all("With my account (SASL)", "Server password"), "login and More, as the GUI")
         click_text("[ Cancel ]", 2)
-        check(t.wait_for("Your bouncer is running", 3), "Cancel: back to the window")
+        check(t.wait_for("Your bouncer is running", 5), "Cancel: back to the window")
 
         # the Channels tab lists #den
         click_text(" Channels ", 2)
-        check(t.wait_for("#den", 3) and "Detached" in t.text(), "Channels: #den, with Detached")
+        check(wait_all("#den", "Detached"), "Channels: #den, with Detached")
         click_text(" Networks ", 2)
 
         # switch Lab off: it connects directly again
@@ -124,7 +134,7 @@ def main():
         check(t.wait_for("Your bouncer is running", 10), "Start: running again")
         # Remove asks first
         click_text("[ Remove... ]", 2)
-        check(t.wait_for("Remove, sure?", 2), "Remove... asks: sure?")
+        check(t.wait_for("Remove, sure?", 5), "Remove... asks: sure?")
         click_text("[ Remove, sure? ]", 2)
         check(t.wait_for("Removed. Every network connects directly again", 8), "removed")
 
@@ -132,7 +142,7 @@ def main():
         click_text("[ Use another bouncer... ]", 2)
         check(t.wait_for("I have a bouncer", 5), "Use another bouncer… → Stay online")
         click_text("[ I have a bouncer ]", 2)
-        check(t.wait_for("Your bouncer", 2) and "Address" in t.text(), "the bouncer page: Address, User name, Password")
+        check(wait_all("Your bouncer", "Address"), "the bouncer page: Address, User name, Password")
         p = t.find("Address")
         t.click(p[0] + 12, p[1])
         t.type(f"irc://127.0.0.1:{env['SOJU_PORT']}\t", 0.3)
@@ -140,8 +150,9 @@ def main():
         t.type("secret123\t", 0.5)
         check(t.wait_for("It's soju, and the login works.", 15), "checked as you type: It's soju, and the login works.")
         click_text("[ Next ]", 2)
-        check(t.wait_for("Which networks should it stay on?", 3), "Next: which networks")
+        check(t.wait_for("Which networks should it stay on?", 5), "Next: which networks")
         # another one: the Ergo of the lab
+        t.wait_for("Another one", 5)
         p = t.find("Another one")
         t.click(p[0] + 14, p[1])
         t.type(f"irc://127.0.0.1:{env['ERGO_PORT']}\t", 0.3)
@@ -157,14 +168,12 @@ def main():
 
         # ── 3. the card ────────────────────────────────────────────────
         check(click_text("[ Add a network... ]", 2), "Add a network… on the card")
-        check(t.wait_for("Add a network to the bouncer", 3), "its page")
+        check(t.wait_for("Add a network to the bouncer", 5), "its page")
         click_text("[ OFTC ]", 2)
-        check("irc.oftc.net" in t.text(), "a popular one fills in the address")
+        check(t.wait_for("irc.oftc.net", 5), "a popular one fills in the address")
         click_text("[ Cancel ]", 2)
-        p = t.find("[ Forget ]")
-        if p:
-            t.click(p[0] + 2, p[1])
-        check(t.wait_for("Forget it, sure?", 2), "Forget asks: sure?")
+        click_text("[ Forget ]", 2)
+        check(t.wait_for("Forget it, sure?", 5), "Forget asks: sure?")
         t.send(b"\x1b", 0.5)
     finally:
         screen = t.text()
