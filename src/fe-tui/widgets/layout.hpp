@@ -37,6 +37,7 @@ struct MainParts {
     const UserList*   users = nullptr;     // null: not a channel
     const StatusBar*  status = nullptr;
     const InputLine*  input = nullptr;
+    const std::string* reply = nullptr;    // replying to ("nick: text"), shown on the input frame
     const Switcher*   switcher = nullptr;  // drawn when open
     Pane              focus = Pane::Input;
     const Rich*       find = nullptr;      // the find bar: drawn over the status row

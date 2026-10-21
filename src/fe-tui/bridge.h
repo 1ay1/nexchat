@@ -89,6 +89,17 @@ int  nx_ui_focused (void);
 void nx_ui_bell (void);
 /* a script added, changed or removed a /MENU item */
 void nx_ui_menus_changed (void);
+/* /reply on its own: choose the message to answer (msgid NULL), or reply
+   to msgid; the bar over the input says so */
+void nx_ui_reply_pick (nx_key buf, const char *msgid);
+
+/* replies (+draft/reply): the recent lines of buf one can answer, newest
+   first, as msgid + "nick\ttext" (colours stripped); 0 past the end */
+int  nx_core_reply_recent (nx_key buf, int i, const char **msgid, const char **line);
+/* who said msgid and what ("nick\ttext", stripped), NULL if gone */
+const char *nx_core_reply_lookup (nx_key buf, const char *msgid);
+/* send text in buf as a reply to msgid */
+void nx_core_reply_send (nx_key buf, const char *msgid, const char *text);
 
 /* The user list, as the core keeps it (sorted). */
 void nx_ui_users_clear (nx_key buf);

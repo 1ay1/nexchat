@@ -70,6 +70,7 @@ struct Buffer {
     bool joined = true;
     std::string draft;            // what was typed here when we switched away
     std::size_t draft_cursor = 0;
+    std::string reply_to;         // the msgid the next line answers ("" = none)
     // the join/part line being folded (nx_ui_joinpart)
     struct JoinPart {
         LineId line = 0;
@@ -86,11 +87,11 @@ enum Action : int {
     A_Prev, A_Next, A_NextActive, A_GoTo, A_Palette,
     A_BanList, A_Mentions, A_Plugins, A_UrlGrabber,
     A_Theme, A_ThemeNative, A_Keys, A_About,
-    A_Join, A_Part, A_Topic,
+    A_Join, A_Part, A_Topic, A_Reply,
     // context menus
     A_NickPopupBase = 1000,      // + popup_list index
     A_PluginMenuBase = 100000,   // + /MENU item index
-    A_NickQuery = 900, A_NickWhois, A_NickCopy, A_NickInsert, A_NickUnignore,
+    A_NickQuery = 900, A_NickWhois, A_NickCopy, A_NickInsert, A_NickUnignore, A_NickReply,
     A_UrlOpen = 950, A_UrlCopy,
     A_ChanJoin = 960, A_ChanCopy,
     A_TreeClose = 970, A_TreeFocus, A_TreeCollapse, A_TreeDisconnect, A_TreeReconnect,
@@ -424,6 +425,8 @@ public:
                 MenuItem::sep(),
                 {"Marked Away", "", A_Away, chk(cur_net() && cur_net()->away)},
                 {"Change Nick…", "", A_Nick},
+                MenuItem::sep(),
+                {"Reply to a Message…", "Alt-R", A_Reply},
             }},
             {"Window", {
                 {"Go to…", "^G", A_GoTo},
@@ -528,6 +531,8 @@ public:
         items.push_back(MenuItem::sep());
         items.push_back({"Insert in Input", "", A_NickInsert});
         items.push_back({"Copy Nick", "", A_NickCopy});
+        // answer their last message here (+draft/reply)
+        if (nx_core_pref_int("gui_replies")) items.push_back({"Reply", "", A_NickReply});
         items.push_back(MenuItem::sep());
         // popup.conf, the GUI's nick menu (SUB / ENDSUB / SEP / TOGGLE)
         std::vector<std::vector<MenuItem>*> stack{&items};
@@ -710,6 +715,8 @@ public:
         case A_TreeDisconnect: nx_core_command(ctx_buf, "discon"); break;
         case A_TreeReconnect: nx_core_command(ctx_buf, "reconnect"); break;
         case A_InputCopy: copy(input.text()); break;
+        case A_NickReply: nx_core_command(ctx_buf ? ctx_buf : cur, ("reply " + ctx_word).c_str()); break;
+        case A_Reply: if (b) open_reply_picker(core_key(cur)); break;
         case A_InputCut: copy(input.text()); input.clear(); break;
         case A_InputPaste: input.paste(clipboard); break;
         case A_InputClear: input.clear(); break;
@@ -919,6 +926,7 @@ public:
         }
         picking_theme = true;
         palette_open = false;
+        picking_reply = false;
         switcher.title = "Theme";
         // each scheme's own colours: its background with its accent, primary
         // and text on it (the schemes are in the maya table: literal colours)
@@ -938,6 +946,66 @@ public:
     }
     bool picking_theme = false;
     std::string theme_before;
+
+    // what the switcher was opened for decides what a pick does
+    void switcher_done(Switcher::Outcome o) {
+        if (o == Switcher::Outcome::Picked) {
+            if (picking_theme) set_theme(theme_of(*switcher.picked()));     // keep it (saved)
+            else if (palette_open) { palette_open = false; palette_pick(*switcher.picked()); }
+            else if (picking_reply) { picking_reply = false; reply_pick_done(*switcher.picked()); }
+            else switch_to(*switcher.picked());
+        } else if (picking_theme) {
+            if (o == Switcher::Outcome::Cancelled) set_theme(theme_before, false);   // back
+            else if (auto c = switcher.current()) set_theme(theme_of(*c), false);   // preview
+        } else if (o == Switcher::Outcome::Cancelled) {
+            picking_reply = false;
+        }
+    }
+
+    // ── replies (+draft/reply) ─────────────────────────────────────────────────
+    // /reply (or Alt-R): choose a recent message in a list, newest first; a
+    // bar over the input says who you answer, Esc drops it, Enter sends
+    bool picking_reply = false;
+    std::string reply_text;   // the bar, for this frame
+    std::vector<std::string> reply_ids;
+    void open_reply_picker(nx_key k) {
+        std::vector<ChanEntry> e;
+        std::vector<std::string> right;
+        reply_ids.clear();
+        const char *id = nullptr, *line = nullptr;
+        for (int i = 0; i < 100 && nx_core_reply_recent(k, i, &id, &line); ++i) {
+            std::string l = line ? line : "";
+            const auto tab = l.find('\t');
+            const std::string nick = tab == std::string::npos ? "" : l.substr(0, tab);
+            const std::string text = tab == std::string::npos ? l : l.substr(tab + 1);
+            reply_ids.emplace_back(id);
+            e.push_back({reply_ids.size() - 1, nick + ": " + text, ChanKind::Other});
+            right.push_back("");
+        }
+        if (e.empty()) { flash("nothing here to reply to yet"); return; }
+        picking_theme = false;
+        palette_open = false;
+        picking_reply = true;
+        switcher.swatch = nullptr;
+        switcher.title = "Reply to";
+        switcher.open(std::move(e), std::move(right));
+    }
+    void reply_pick_done(std::uintptr_t i) {
+        if (i < reply_ids.size()) set_reply(cur, reply_ids[i]);
+    }
+    void set_reply(nx_key k, std::string msgid) {
+        if (Buffer* b = buf(k)) { b->reply_to = std::move(msgid); focus = Pane::Input; dirty = true; }
+    }
+    // the bar's text ("" = not replying)
+    std::string reply_bar() {
+        Buffer* b = current();
+        if (!b || b->reply_to.empty()) return {};
+        const char* l = nx_core_reply_lookup(core_key(cur), b->reply_to.c_str());
+        std::string s = l ? l : "";
+        const auto tab = s.find('\t');
+        if (tab == std::string::npos) return "an earlier message";
+        return s.substr(0, tab) + ": " + s.substr(tab + 1);
+    }
     std::string theme_of(std::uintptr_t k) const {
         return k == 0 ? std::string("native") : std::string(maya::theme::schemes[k - 1].name);
     }
@@ -951,6 +1019,7 @@ public:
         }
         picking_theme = false;
         palette_open = false;
+        picking_reply = false;
         switcher.swatch = nullptr;
         switcher.title = "Go to";
         switcher.open(entries(), std::move(nn));
@@ -1002,6 +1071,7 @@ public:
         }
         picking_theme = false;
         palette_open = true;
+        picking_reply = false;
         switcher.swatch = nullptr;
         switcher.title = "Command Palette";
         switcher.open(std::move(e), std::move(right));
@@ -1037,6 +1107,7 @@ public:
             "Tab            complete\n"
             "Ctrl-L         user list\n"
             "Ctrl-F         find (↑↓/Enter older/newer, Alt-C case, Alt-R regex, Alt-A all)\n"
+            "Alt-R          reply to a message\n"
             "Ctrl-B/I/U/R/O bold / italic / underline / reverse / reset\n"
             "Ctrl-K         colour\n"
             "Alt-K / Alt-U  kill to end / to start (readline's ^K ^U)\n"
@@ -1083,15 +1154,7 @@ public:
             return;
         }
         if (switcher.is_open()) {
-            const auto o = switcher.key(k);
-            if (o == Switcher::Outcome::Picked) {
-                if (picking_theme) set_theme(theme_of(*switcher.picked()));     // keep it (saved)
-                else if (palette_open) { palette_open = false; palette_pick(*switcher.picked()); }
-                else switch_to(*switcher.picked());
-            } else if (picking_theme) {
-                if (o == Switcher::Outcome::Cancelled) set_theme(theme_before, false);   // back
-                else if (auto cur = switcher.current()) set_theme(theme_of(*cur), false);   // preview
-            }
+            switcher_done(switcher.key(k));
             return;
         }
 
@@ -1137,7 +1200,9 @@ public:
             if (c == 'v') { menubar.open(1); return; }
             if (c == 's') { menubar.open(2); return; }
             if (c == 'w') { menubar.open(3); return; }
-            if (c == 'h') { menubar.open(4); return; }
+            // Help is last (a script's menu can sit before it)
+            if (c == 'h') { menubar.open(static_cast<int>(menubar.entries().size()) - 1); return; }
+            if (c == 'r') { if (b) open_reply_picker(core_key(cur)); return; }
         }
         if (sk) {
             switch (*sk) {
@@ -1149,6 +1214,7 @@ public:
             case SpecialKey::F3: focus = Pane::Users; return;
             case SpecialKey::Escape:
                 if (b && b->view.has_selection()) b->view.select_clear();
+                else if (b && !b->reply_to.empty() && focus == Pane::Input) b->reply_to.clear();   // not replying any more
                 focus = Pane::Input;
                 return;
             case SpecialKey::PageUp:
@@ -1454,6 +1520,16 @@ public:
         input.commit_history(line);
         input.clear();
         if (b) b->view.to_bottom();
+        // a reply chosen: this line answers it (a /command goes on as one;
+        // "//text" is text that starts with a slash)
+        const char cc = nx_core_cmd_char();
+        if (b && !b->reply_to.empty() && line.find('\n') == std::string::npos
+            && !(line[0] == cc && (line.size() < 2 || line[1] != cc))) {
+            const std::string id = std::move(b->reply_to);
+            b->reply_to.clear();
+            nx_core_reply_send(core_key(cur), id.c_str(), line[0] == cc ? line.c_str() + 1 : line.c_str());
+            return;
+        }
         nx_core_input(core_key(cur), line.c_str());
         check_prefs();   // a /set shows at once
     }
@@ -1588,15 +1664,7 @@ public:
             }
         }
         if (switcher.is_open()) {
-            const auto o = switcher.mouse(m, x - r_chat.x - layout.switcher_at_x, y - r_chat.y - layout.switcher_at_y);
-            if (o == Switcher::Outcome::Picked) {
-                if (picking_theme) set_theme(theme_of(*switcher.picked()));     // keep it (saved)
-                else if (palette_open) { palette_open = false; palette_pick(*switcher.picked()); }
-                else switch_to(*switcher.picked());
-            } else if (picking_theme) {
-                if (o == Switcher::Outcome::Cancelled) set_theme(theme_before, false);   // back
-                else if (auto c = switcher.current()) set_theme(theme_of(*c), false);   // preview
-            }
+            switcher_done(switcher.mouse(m, x - r_chat.x - layout.switcher_at_x, y - r_chat.y - layout.switcher_at_y));
             return;
         }
 
@@ -1884,6 +1952,8 @@ public:
             parts.find = &find_r;
         }
         parts.input = &input;
+        reply_text = reply_bar();
+        parts.reply = &reply_text;
         parts.switcher = &switcher;
         parts.hover_div = hover_area == Area::TreeDivider || drag == Drag::TreeDiv ? MainParts::Div::Tree
                         : hover_area == Area::UsersDivider || drag == Drag::UsersDiv ? MainParts::Div::Users
@@ -2139,6 +2209,13 @@ void nx_ui_clear(nx_key k, int lines) { if (Buffer* b = ui().buf(k)) { b->chat.t
 
 int nx_ui_focused(void) { return ui().focused ? 1 : 0; }
 void nx_ui_bell(void) { if (ui().screen) ui().screen->emit_host_sequence("\a"); }
+void nx_ui_reply_pick(nx_key k, const char* msgid) {
+    Ui& u = ui();
+    if (msgid && *msgid) u.set_reply(k, msgid);
+    else if (k == u.cur) u.open_reply_picker(k);
+    u.dirty = true;
+}
+
 void nx_ui_menus_changed(void) {
     // rebuilt on the next tick: the core calls this before it frees the
     // entry (and its children), and not while a menu is open either

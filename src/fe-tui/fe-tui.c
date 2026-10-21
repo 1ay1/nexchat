@@ -609,7 +609,9 @@ fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stam
 gboolean
 fe_reply_pick (struct session *sess, const char *msgid)
 {
-	return FALSE;
+	nx_ui_reply_pick ((nx_key) sess, msgid);
+	ui_dirty ();
+	return TRUE;
 }
 
 void
@@ -1255,6 +1257,57 @@ nx_core_focus (nx_key buf)
 	session *sess = sess_of (buf);
 	if (sess)
 		focus_sess (sess);
+	ui_dirty ();
+}
+
+/* ── replies ── */
+
+static char *
+reply_plain (const char *line)
+{
+	return line ? strip_color ((char *) line, -1, STRIP_ALL) : NULL;
+}
+
+int
+nx_core_reply_recent (nx_key buf, int i, const char **msgid, const char **line)
+{
+	static char *plain;
+	session *sess = sess_of (buf);
+	GList *l;
+
+	if (!sess)
+		return 0;
+	l = reply_recent (sess, i + 1);
+	if ((int) g_list_length (l) <= i)
+	{
+		g_list_free (l);
+		return 0;
+	}
+	*msgid = g_list_nth_data (l, i);
+	g_list_free (l);
+	g_free (plain);
+	plain = reply_plain (reply_lookup (sess, *msgid));
+	*line = plain ? plain : "";
+	return 1;
+}
+
+const char *
+nx_core_reply_lookup (nx_key buf, const char *msgid)
+{
+	static char *plain;
+	session *sess = sess_of (buf);
+
+	g_free (plain);
+	plain = sess ? reply_plain (reply_lookup (sess, msgid)) : NULL;
+	return plain;
+}
+
+void
+nx_core_reply_send (nx_key buf, const char *msgid, const char *text)
+{
+	session *sess = sess_of (buf);
+	if (sess && msgid && *msgid)
+		reply_send (sess, msgid, text);
 	ui_dirty ();
 }
 

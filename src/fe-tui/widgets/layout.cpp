@@ -147,7 +147,23 @@ maya::Element MainLayout::element(const MainParts& p, int w, int ht) const {
             const Style edge = foc ? role::title() : role::border();
             std::string bar;
             for (int i = 0; i < w - 2; ++i) bar += "─";
-            rows.push_back(Rich{"╭" + bar + "╮", edge}.element());
+            if (p.reply && !p.reply->empty() && w > 16) {
+                // replying: on the frame's top edge, "↳ alice: what she said · Esc"
+                Rich top{"╭─ ", edge};
+                Rich what{"↳ " + *p.reply, role::text()};
+                const Rich tail{" · Esc ", role::muted()};
+                const int room = w - 3 - tail.width() - 2;
+                if (what.width() > room) { what = what.take(std::max(0, room - 1)); what.append("…", role::text()); }
+                top.append(what);
+                top.append(tail);
+                std::string fill;
+                for (int i = top.width(); i < w - 1; ++i) fill += "─";
+                top.append(fill, edge);
+                top.append("╮", edge);
+                rows.push_back(top.element());
+            } else {
+                rows.push_back(Rich{"╭" + bar + "╮", edge}.element());
+            }
             Rich mid{"│", edge};
             mid.append(p.input->row(std::max(1, w - 2), foc));
             mid.append("│", edge);

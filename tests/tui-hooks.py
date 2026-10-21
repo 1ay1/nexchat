@@ -6,6 +6,8 @@
   * /settext and /setcursor reach the input line (scripts use these)
   * /MENU items show in the menu bar and run their command
   * highlights and private messages become OSC 9 notifications
+  * replies: Alt-R / /reply pick a message, the bar on the input, Enter
+    sends it with +draft/reply
 
     tui-hooks.py NEXCHAT_TUI
 """
@@ -29,9 +31,12 @@ def main():
     open(script, "w").write(
         ":a1!u@h JOIN #demo\n:a2!u@h JOIN #demo\n:a3!u@h JOIN #demo\n"
         ":frank!f@example.org PART #demo :gone\n:a2!u@h QUIT :bye\n"
-        ":mallory!m@example.org PRIVMSG {nick} :psst private\n")
+        ":mallory!m@example.org PRIVMSG {nick} :psst private\n"
+        "@msgid=m1 :alice!a@example.org PRIVMSG #demo :the first question\n"
+        "@msgid=m2 :bob!b@example.org PRIVMSG #demo :a second thought\n")
     ircd = subprocess.Popen([sys.executable, os.path.join(smoke.HERE, "fake_ircd.py"), "--log", log,
-                             "--portfile", portfile, "--demo", "--script", script])
+                             "--portfile", portfile, "--demo", "--script", script,
+                             "--caps", "message-tags"])
     for _ in range(50):
         if os.path.exists(portfile) and open(portfile).read().strip():
             break
@@ -41,7 +46,7 @@ def main():
     os.makedirs(cfg)
     open(os.path.join(cfg, "hexchat.conf"), "w").write(
         "net_throttle = 0\nirc_nick1 = tester\ngui_slist_skip = 1\nirc_group_joinpart = 1\n"
-        "input_balloon_hilight = 1\ninput_balloon_priv = 1\ngui_focus_omitalerts = 0\n")
+        "input_balloon_hilight = 1\ninput_balloon_priv = 1\ngui_focus_omitalerts = 0\ngui_replies = 1\n")
     os.environ.pop("NO_COLOR", None)
     # a plain terminal: no tmux passthrough (pyte can't parse it), OSC 9
     for k in ("TMUX", "VTE_VERSION", "TERM_PROGRAM"):
@@ -120,6 +125,23 @@ def main():
                 break
             t.pump(0.2)
         check(" Tools " not in t.text().splitlines()[0], "/menu del takes it away")
+
+        # replies: Alt-R picks a recent message, the bar says who, Esc drops
+        # it, Enter sends with +draft/reply
+        t.send(b"\x1br", 0.5)
+        check(t.wait_for("Reply to", 2), "Alt-R: the reply picker")
+        check("bob: a second thought" in t.text(), "newest first, with who said it")
+        t.type("first", 0.3)
+        t.send(b"\r", 0.5)
+        check("↳ alice: the first question" in t.text(), "the bar on the input says who")
+        t.send(b"\x1b", 0.4)
+        check("↳" not in t.text(), "Esc: not replying any more")
+        run("/reply alice")
+        check("↳ alice: the first question" in t.text(), "/reply alice: her last message")
+        run("sure thing")
+        sent = open(log).read()
+        check("@+draft/reply=m1 PRIVMSG #demo :sure thing" in sent, "Enter sends it as a reply")
+        check("↳" not in t.text(), "and the bar goes")
     finally:
         screen = t.text()
         t.stop()
