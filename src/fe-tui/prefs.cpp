@@ -50,6 +50,7 @@ const std::vector<Page>& pages() {
             {T::TuiToggle, "My nick in colour where others mention it", "my_nick=1"},
             {T::TuiToggle, "A blank line where the talk paused", "pause_gap=1"},
             {T::TuiToggle, "Narrow terminal: nick and time above the text", "one_column_stacked=1"},
+            {T::TuiToggle, "Narrow terminal: a blank line between people", "one_column_gaps=0"},
             {T::TuiSlider, "Narrow terminal: one column below", "one_column_below=60", {},
              0, 160, 5, "columns", "never"},
             {T::Head, "Terminal"},

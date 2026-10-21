@@ -161,7 +161,8 @@ std::uint64_t style_key(const ChatStyle& st) {
               + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0)
               + (st.my_nick ? 256 : 0);
     k = k * 31 + std::hash<std::string>{}(st.nick);
-    k = k * 31 + static_cast<std::uint64_t>(st.single_col_below) * 2 + (st.one_col == ChatStyle::OneCol::Stacked ? 1 : 0);
+    k = k * 31 + static_cast<std::uint64_t>(st.single_col_below) * 4 + (st.one_col == ChatStyle::OneCol::Stacked ? 1 : 0)
+              + (st.head_gaps ? 2 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -576,10 +577,10 @@ struct Cursor {
         return !(P.stacked && P.kind == L.kind && (L.kind == K::Message || L.kind == K::Own)
                  && L.plain_left == P.plain_left && L.stamp >= P.stamp && L.stamp - P.stamp < 300);
     }
-    // the blank row above a header (not at the top, not under the marker or
-    // a day line, not when the pause gap is already there)
+    // the blank row above a header, when asked for (not at the top, not under
+    // the marker or a day line, not when the pause gap is already there)
     bool head_gap(std::size_t i) const {
-        return head(i) && i > 0 && marker != i && !buf[i - 1].day && !gap(i);
+        return st.head_gaps && head(i) && i > 0 && marker != i && !buf[i - 1].day && !gap(i);
     }
     Rich head_row(std::size_t i) const {
         const ChatLine& L = buf[i];

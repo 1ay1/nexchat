@@ -1096,8 +1096,14 @@ static void test_readability() {
     CHECK(s1 == sh + 1 && s2 == s1 + 1);                       // one header for the run
     CHECK(sj > s2);
     const int bh = sat("bob ─");
-    CHECK(bh > sj && sp[static_cast<std::size_t>(bh) - 1].find_first_not_of(' ') == std::string::npos);
+    CHECK(bh == sj + 1);                                         // no blank row by default
     CHECK(sp[static_cast<std::size_t>(bh) + 1].rfind("  this", 0) == 0);
+    pst.head_gaps = true;
+    sp.clear();
+    for (auto& r : ChatView{}.rows(ph, pst, 30, 12)) sp.push_back(r.text);
+    const int bh2 = sat("bob ─");
+    CHECK(bh2 > 0 && sp[static_cast<std::size_t>(bh2) - 1].find_first_not_of(' ') == std::string::npos);
+    pst.head_gaps = false;
     // one_column_below=0: never
     pst.single_col_below = 0;
     auto nrows = ChatView{}.rows(ph, pst, 50, 8);

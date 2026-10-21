@@ -396,6 +396,9 @@ public:
             chat_style.single_col_below = oc && *oc ? std::max(0, std::atoi(oc)) : 60;
             // one_column_stacked=0: "16:04 alice text" per line instead
             chat_style.one_col = on("one_column_stacked") ? ChatStyle::OneCol::Stacked : ChatStyle::OneCol::Inline;
+            // one_column_gaps=1: a blank row between people in the stacked view
+            const char* og = nx_core_tui_get("one_column_gaps");
+            chat_style.head_gaps = og && (og[0] == '1' || og[0] == 't' || og[0] == 'y');
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));
