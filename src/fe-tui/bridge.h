@@ -108,6 +108,15 @@ const char *nx_core_reply_lookup (nx_key buf, const char *msgid);
 /* send text in buf as a reply to msgid */
 void nx_core_reply_send (nx_key buf, const char *msgid, const char *text);
 
+/* Link previews (gui_url_preview): fetch url and decode it as an image,
+   scaled to fit cols x rows*2 pixels. done(ud, w, h, rgb, err) comes back
+   on the main loop with w*h RGB triples (NULL: not an image, or failed;
+   err says why). The core's httpget: public addresses only, 8 MB. */
+typedef void (*nx_image_done) (void *ud, int w, int h, const unsigned char *rgb, const char *err);
+void nx_core_image_fetch (const char *url, int cols, int rows, nx_image_done done, void *ud);
+/* a link that may be an image, by its name (the server still has to say) */
+int  nx_core_url_is_image (const char *url);
+
 /* The user list, as the core keeps it (sorted). */
 void nx_ui_users_clear (nx_key buf);
 void nx_ui_user_set (nx_key buf, const char *nick, char prefix, int away, int me, int pos);

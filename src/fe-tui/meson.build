@@ -123,6 +123,9 @@ endif
 # The frontend: nexchat-tui (`nexchat --tui` runs it). The core is C and
 # GLib; ui.cpp is the only C++ that talks to it, through bridge.h.
 if host_machine.system() != 'windows'
+  # link previews decode with gdk-pixbuf when it's there
+  tui_pixbuf_dep = dependency('gdk-pixbuf-2.0', required: false)
+  tui_c_args = tui_pixbuf_dep.found() ? ['-DHAVE_GDK_PIXBUF'] : []
   nexchat_tui = executable('nexchat-tui',
     'fe-tui.c',
     'networks.c',
@@ -131,6 +134,7 @@ if host_machine.system() != 'windows'
     'keys.c',
     'cmds.c',
     'notify.c',
+    'preview.c',
     '../fe-gtk/plugin-notification.c',
     'netlist.cpp',
     'prefs.cpp',
@@ -140,7 +144,8 @@ if host_machine.system() != 'windows'
     'tools.cpp',
     'bouncerwin.cpp',
     'ui.cpp',
-    dependencies: [hexchat_common_dep, tui_widgets_dep],
+    dependencies: [hexchat_common_dep, tui_widgets_dep, tui_pixbuf_dep],
+    c_args: tui_c_args,
     cpp_args: tui_cpp_args + ['-DNX_VERSION="' + meson.project_version() + '"'],
     override_options: ['cpp_std=none'],
     install: true,
@@ -199,6 +204,10 @@ if host_machine.system() != 'windows'
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-fuzz.py'],
     env: {'TUI_FUZZ_SEED': '3', 'TUI_FUZZ_STEPS': '300'},
     timeout: 180,
+  )
+  test('tui-preview', find_program('sh'),
+    args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-preview.py'],
+    timeout: 90,
   )
   test('tui-history', find_program('sh'),
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-history.py'],

@@ -96,7 +96,7 @@ enum Action : int {
     A_NickPopupBase = 1000,      // + popup_list index
     A_PluginMenuBase = 100000,   // + /MENU item index
     A_NickQuery = 900, A_NickWhois, A_NickCopy, A_NickInsert, A_NickUnignore, A_NickReply,
-    A_UrlOpen = 950, A_UrlCopy,
+    A_UrlOpen = 950, A_UrlCopy, A_UrlPreview,
     A_ChanJoin = 960, A_ChanCopy,
     A_TreeClose = 970, A_TreeFocus, A_TreeCollapse, A_TreeDisconnect, A_TreeReconnect,
     A_InputCut = 980, A_InputCopy, A_InputPaste, A_InputSelectAll, A_InputClear,
@@ -586,8 +586,12 @@ public:
 
     void open_url_menu(const std::string& url, int x, int y) {
         ctx_kind = 2; ctx_word = url;
-        ctx.open({{url.size() > 40 ? url.substr(0, 39) + "…" : url, "", A_None, -1, false}, MenuItem::sep(),
-                  {"Open Link in Browser", "", A_UrlOpen}, {"Copy Link Location", "", A_UrlCopy}}, x, y);
+        std::vector<MenuItem> items{{url.size() > 40 ? url.substr(0, 39) + "…" : url, "", A_None, -1, false}, MenuItem::sep(),
+                                    {"Open Link in Browser", "", A_UrlOpen}, {"Copy Link Location", "", A_UrlCopy}};
+        // an image link: look at it here (fetched only now, as the GUI's hover)
+        if (nx_core_pref_int("gui_url_preview") && nx_core_url_is_image(url.c_str()))
+            items.push_back({"Preview Image", "", A_UrlPreview});
+        ctx.open(std::move(items), x, y);
     }
 
     void open_chan_menu(const std::string& chan, int x, int y) {
@@ -721,6 +725,7 @@ public:
         }
         case A_UrlOpen: nx_core_open_url(ctx_word.c_str()); break;
         case A_UrlCopy: copy(ctx_word); break;
+        case A_UrlPreview: open_preview(ctx_word); break;
         case A_ChanJoin: command("join " + ctx_word); break;
         case A_ChanCopy: copy(ctx_word); break;
         case A_TreeFocus: switch_to(ctx_buf); break;
@@ -962,6 +967,92 @@ public:
     bool picking_theme = false;
     std::string theme_before;
 
+    // ── link preview (gui_url_preview): an image link, drawn in half blocks
+    // ▀ (top pixel the fg, bottom the bg), in a card over the chat. Fetched
+    // when asked (the menu), never on its own.
+    struct Preview {
+        bool open = false, loading = false;
+        std::string url, error;
+        int w = 0, h = 0;                  // pixels: w wide, h tall (2 per row)
+        std::vector<unsigned char> rgb;
+        unsigned gen = 0;                  // a late answer for an old preview is dropped
+    } preview;
+    void open_preview(const std::string& url) {
+        preview = Preview{true, true, url, {}, 0, 0, {}, preview.gen + 1};
+        struct Ask { unsigned gen; };
+        const int cols = std::clamp(W - 8, 10, 120), rows = std::clamp(H - 8, 4, 40);
+        nx_core_image_fetch(url.c_str(), cols, rows,
+            [](void* ud, int w, int h, const unsigned char* rgb, const char* err) {
+                auto* a = static_cast<Ask*>(ud);
+                Ui& u = ui();
+                if (u.preview.open && u.preview.gen == a->gen) {
+                    u.preview.loading = false;
+                    if (rgb && w > 0 && h > 0) {
+                        u.preview.w = w; u.preview.h = h;
+                        u.preview.rgb.assign(rgb, rgb + static_cast<std::size_t>(w) * h * 3);
+                    } else {
+                        u.preview.error = err ? err : "not an image";
+                    }
+                    u.dirty = true;
+                }
+                delete a;
+            }, new Ask{preview.gen});
+        dirty = true;
+    }
+    maya::Element preview_element(int sw, int sh) const {
+        using namespace maya::dsl;
+        const Preview& p = preview;
+        std::vector<Rich> body;
+        int inner = 0;
+        if (p.loading || !p.error.empty() || p.rgb.empty()) {
+            const std::string t = p.loading ? "loading…" : "can't show it: " + p.error;
+            inner = std::min(std::max(30, display_width(t) + 2), std::max(10, sw - 4));
+            body.push_back(Rich{t, role::muted()}.fit(inner));
+        } else {
+            inner = std::min(p.w, std::max(1, sw - 4));
+            const int rows = std::min((p.h + 1) / 2, std::max(1, sh - 4));
+            auto px = [&](int x, int y) {
+                if (y >= p.h) y = p.h - 1;
+                const unsigned char* c = &p.rgb[(static_cast<std::size_t>(y) * p.w + x) * 3];
+                return maya::Color::rgb(c[0], c[1], c[2]);
+            };
+            for (int r = 0; r < rows; ++r) {
+                Rich row;
+                for (int x = 0; x < inner; ++x)
+                    row.append("▀", Style{}.with_fg(px(x, r * 2)).with_bg(px(x, r * 2 + 1)));
+                body.push_back(std::move(row));
+            }
+        }
+        const int w = inner + 4;
+        std::vector<Rich> card;
+        Rich top{"╭─ ", role::border()};
+        std::string title = p.url;
+        if (display_width(title) > w - 8) title = Rich{title}.take(std::max(1, w - 9)).text + "…";
+        top.append(title, role::text());
+        top.append(" ", role::border());
+        std::string fill;
+        for (int i = top.width(); i < w - 1; ++i) fill += "─";
+        top.append(fill, role::border());
+        top.append("╮", role::border());
+        card.push_back(std::move(top));
+        for (auto& r : body) {
+            Rich row{"│ ", role::border()};
+            row.append(r);
+            row.append(" │", role::border());
+            card.push_back(std::move(row));
+        }
+        Rich foot{"╰", role::border()};
+        const Rich hint{" Esc close · Enter open ", role::muted()};
+        std::string f2;
+        for (int i = 1 + hint.width(); i < w - 2; ++i) f2 += "─";
+        foot.append(f2 + "─", role::border());
+        foot.append(hint);
+        foot.append("╯", role::border());
+        card.push_back(foot.fit(w));
+        const int x = std::max(0, (sw - w) / 2), y = std::max(0, (sh - static_cast<int>(card.size())) / 2);
+        return (v(stack_rows(card)) | padding(y, 0, 0, x)).build();
+    }
+
     // what the switcher was opened for decides what a pick does
     void switcher_done(Switcher::Outcome o) {
         if (o == Switcher::Outcome::Picked) {
@@ -1147,6 +1238,13 @@ public:
         if (dialog.is_open()) {
             const auto o = dialog.key(k);
             if (o != Dialog::Outcome::Open) dialog_done(o);
+            return;
+        }
+        if (preview.open) {
+            // Enter opens it in the browser, anything else closes the card
+            if (sk && *sk == SpecialKey::Enter) nx_core_open_url(preview.url.c_str());
+            preview.open = false;
+            dirty = true;
             return;
         }
         if (netlist.is_open()) {
@@ -1688,6 +1786,10 @@ public:
             if (o != Dialog::Outcome::Open) dialog_done(o);
             return;
         }
+        if (preview.open) {
+            if (m.kind == maya::MouseEventKind::Press) { preview.open = false; dirty = true; }
+            return;
+        }
         if (netlist.is_open()) {
             netlist.mouse(m);
             if (!netlist.flash.empty()) { flash(netlist.flash); netlist.flash.clear(); }
@@ -2078,6 +2180,7 @@ public:
         if (transfers.is_open()) layers.push_back(transfers.element(w, h));
         if (tools.is_open()) layers.push_back(tools.element(w, h));
         if (bouncer.is_open()) layers.push_back(bouncer.element(w, h));
+        if (preview.open) layers.push_back(preview_element(w, h));
         if (dialog.is_open()) layers.push_back(dialog.element(w, h));
         if (layers.size() == 1) return std::move(layers[0]);
         return maya::detail::zstack(std::move(layers));
