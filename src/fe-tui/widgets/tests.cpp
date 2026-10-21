@@ -578,7 +578,9 @@ static void test_chat() {
         lb.add("<a>\tx");
         lb.add("<averyveryverylongnickname>\ty");
         auto lr = ChatView{}.rows(lb, fs, 60, 2);
-        CHECK(lr[0].text.rfind(std::string(11, ' ') + "<a> │ x", 0) == 0);   // capped at nick_width (14)
+        CHECK(lr[0].text.rfind(std::string(9, ' ') + "<a> │ x", 0) == 0);   // capped at a fifth of 60 (12)
+        auto lw = ChatView{}.rows(lb, fs, 100, 2);
+        CHECK(lw[0].text.rfind(std::string(11, ' ') + "<a> │ x", 0) == 0);  // and at nick_width (14)
     }
 
     // Wrapping hangs under the text column (st.measure caps the text: 24).
@@ -653,9 +655,12 @@ static void test_chat() {
     ts.nick_width = 4;
     ChatBuffer sb;
     sb.add("*\tx", 1700000000);
-    auto srows = ChatView{}.rows(sb, ts, 60, 1);
+    auto srows = ChatView{}.rows(sb, ts, 120, 1);
     CHECK(srows[0].text.find("• │ x") != std::string::npos);   // a system line's * is a dot
     CHECK(srows[0].text[0] == '[');
+    // under 100 columns: no seconds, no brackets ("[%H:%M]" → "%H:%M")
+    auto crows = ChatView{}.rows(sb, ts, 60, 1);
+    CHECK(crows[0].text[0] != '[' && crows[0].text.find(':') == 2);
 
     // Responsive: the time goes before the nick gives way; then stacked.
     {
@@ -1014,6 +1019,28 @@ static void test_readability() {
         if (texts[i].find("three") != std::string::npos) t3 = i;
     }
     CHECK(t3 == t2 + 1);
+
+    // a phone-width view: a run of one person's lines under one header,
+    // status lines flush left
+    ChatBuffer ph(100);
+    ph.add("alice\tone", 2000);
+    ph.add("alice\ttwo", 2010);
+    ph.add("•\tbob joined", 2020, false, ChatLine::Kind::Status);
+    ph.add("bob\thi", 2030);
+    ChatStyle pst;
+    pst.stamp_format = "[%H:%M:%S]";
+    auto prows = ChatView{}.rows(ph, pst, 30, 7);
+    std::vector<std::string> pt;
+    for (auto& r : prows) pt.push_back(r.text);
+    auto at = [&](std::string_view s) {
+        for (int i = 0; i < static_cast<int>(pt.size()); ++i) if (pt[i].find(s) != std::string::npos) return i;
+        return -1;
+    };
+    CHECK(at("alice · ") >= 0);
+    CHECK(pt[static_cast<std::size_t>(at("alice · "))].find('[') == std::string::npos);   // the short time
+    CHECK(at("  two") == at("  one") + 1);                     // no second "alice ·" between
+    CHECK(at("• bob joined") >= 0);                            // flush left, no column
+    CHECK(at("bob · ") == at("• bob joined") + 1);
 }
 
 int main() {

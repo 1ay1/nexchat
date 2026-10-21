@@ -62,6 +62,9 @@ struct ChatLine {
     mutable std::vector<std::vector<RowCell>> cached_cells;
     // The columns with formatting stripped (what hits index into).
     mutable std::string       plain_left, plain_right;
+    // Laid out stacked: row 0 is "nick · time" (a run of the same person
+    // shows it once)
+    mutable bool              stacked = false;
 };
 
 class ChatBuffer {

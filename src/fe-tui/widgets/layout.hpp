@@ -75,9 +75,10 @@ struct MainLayout {
         auto grow = [w](int set) { return w >= 160 ? std::max(set, std::min(w / 9, 26)) : set; };
         p.tw = p.tree ? grow(tree_width) : 0;
         p.uw = p.users ? grow(users_width) : 0;
-        // the chat keeps ~60 columns: the user list goes first, then the tree
+        // the chat keeps ~60 columns: the user list goes first, then the
+        // tree (Ctrl-G and Alt-←/→ still switch tabs without it)
         if (p.users && w - p.tw - p.uw - 2 < 60) { p.users = false; p.uw = 0; }
-        if (p.tree && w - p.tw - p.uw - 1 < 40) { p.tree = false; p.tw = 0; }
+        if (p.tree && w - p.tw - p.uw - 1 < 56) { p.tree = false; p.tw = 0; }
         p.chat_w = std::max(1, w - p.tw - p.uw - (p.tree ? 1 : 0) - (p.users ? 1 : 0));
         return p;
     }
