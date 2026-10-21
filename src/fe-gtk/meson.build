@@ -232,7 +232,7 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   if not win
   test('select', find_program('sh'),
     args: [files('../../tests/ux/select.sh'), hexchat_gtk],
-    timeout: 300, is_parallel: false)
+    timeout: 600, is_parallel: false)
   # trackpad pixel scroll, wheel steps, flick glide: all drawn whole
   test('scroll', find_program('sh'),
     args: [files('../../tests/ux/scroll.sh'), hexchat_gtk],

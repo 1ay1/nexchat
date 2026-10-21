@@ -26,6 +26,11 @@ grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved 
 	bad "not saved"; cat "$tmp/cfg/colors.conf"
 	# nothing below can work then: say what the app did, and stop
 	sleep 3; echo "--- app log"; grep -a '^prefs-\|^window\|^focus\|WARN\|CRIT\|rror' "$tmp/log" | tail -40
+	# GitHub's macOS runner maps the Preferences window at 0x0 and never
+	# lays it out (no key window there): nothing to test on that desktop
+	if grep -q 'title="Preferences.* 0x0 ' "$tmp/log"; then
+		echo "SKIP: this desktop never laid the Preferences window out (0x0)"; exit 77
+	fi
 	exit 1
 }
 sleep 1

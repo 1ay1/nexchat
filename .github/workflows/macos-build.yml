@@ -54,11 +54,7 @@ jobs:
         run: ninja -C build
 
       - name: Test
-        # no App Nap: a test's nexchat is a background app to macOS, whose
-        # timers (the test hooks) it otherwise throttles to seconds apart
-        run: |
-          defaults write NSGlobalDomain NSAppSleepDisabled -bool YES
-          meson test -C build --print-errorlogs
+        run: meson test -C build --print-errorlogs
 
       - name: App bundle
         run: |
