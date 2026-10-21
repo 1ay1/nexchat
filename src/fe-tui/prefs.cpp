@@ -45,6 +45,7 @@ const std::vector<Page>& pages() {
             {T::TuiToggle, "Show *bold*, _italic_ and `code` as typed", "markup=1"},
             {T::TuiToggle, "My nick in colour where others mention it", "my_nick=1"},
             {T::TuiToggle, "A blank line where the talk paused", "pause_gap=1"},
+            {T::TuiToggle, "Narrow terminal: nick and time above the text", "one_column_stacked=1"},
             {T::Head, "Terminal"},
             {T::TuiToggle, "Underline what's under the mouse (restart)", "hover=1"},
             {T::TuiToggle, "Links you can click (OSC 8)", "links=1"},

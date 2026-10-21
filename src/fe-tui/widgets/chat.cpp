@@ -584,6 +584,8 @@ struct Cursor {
     Rich head_row(std::size_t i) const {
         const ChatLine& L = buf[i];
         Rich nick = parse_irc(L.left);
+        if (!st.brackets && nick.text.size() > 2 && nick.text.front() == '<' && nick.text.back() == '>')
+            nick = nick.slice(1, nick.text.size() - 1);
         nick.overlay(Style{}.with_bold());
         if (L.kind == ChatLine::Kind::Own && st.quiet_own) nick.overlay(Style{}.with_dim());
         const std::string when = st.show_stamp && L.stamp ? stamp_text(L.stamp, compact_stamp(st.stamp_format)) : "";
