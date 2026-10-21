@@ -95,6 +95,21 @@ void Rich::overlay(const Style& over) {
     for (auto& run : runs) run.style = run.style.merge(over);
 }
 
+void Rich::overlay_range(std::size_t a, std::size_t b, const Style& over) {
+    if (a >= b) return;
+    std::vector<StyledRun> out;
+    out.reserve(runs.size() + 2);
+    for (const auto& r : runs) {
+        const std::size_t s = r.byte_offset, e = r.byte_offset + r.byte_length;
+        const std::size_t ia = std::max(s, a), ib = std::min(e, b);
+        if (ia >= ib) { out.push_back(r); continue; }
+        if (s < ia) out.push_back({s, ia - s, r.style});
+        out.push_back({ia, ib - ia, r.style.merge(over)});
+        if (ib < e) out.push_back({ib, e - ib, r.style});
+    }
+    runs = std::move(out);
+}
+
 void Rich::underlay(const Style& under) {
     for (auto& run : runs) run.style = under.merge(run.style);
 }

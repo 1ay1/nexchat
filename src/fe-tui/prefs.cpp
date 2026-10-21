@@ -42,6 +42,7 @@ const std::vector<Page>& pages() {
             {T::TuiToggle, "Nicks in <brackets>", "brackets=0"},
             {T::Head, "Terminal"},
             {T::TuiToggle, "Underline what's under the mouse (restart)", "hover=1"},
+            {T::TuiToggle, "Links you can click (OSC 8)", "links=1"},
         }},
         {"Input box", {
             {T::Head, "Input Box"},

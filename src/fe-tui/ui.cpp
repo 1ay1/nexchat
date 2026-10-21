@@ -377,6 +377,9 @@ public:
             chat_style.stamp_repeat = sr && (sr[0] == '1' || sr[0] == 't' || sr[0] == 'y');
             const char* br = nx_core_tui_get("brackets");
             chat_style.brackets = br && (br[0] == '1' || br[0] == 't' || br[0] == 'y');
+            // on unless set off (links=0)
+            const char* ln = nx_core_tui_get("links");
+            chat_style.links = !(ln && (ln[0] == '0' || ln[0] == 'f' || ln[0] == 'n'));
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));

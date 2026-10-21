@@ -125,6 +125,7 @@ struct ChatStyle {
     bool        show_marker = true;         // the read marker (text_show_marker)
     bool        stamp_repeat = false;       // every line its time (else only when it changes)
     bool        brackets = false;           // <nick> (else just nick: the column says it)
+    bool        links = true;               // URLs as OSC 8 links (clickable where the terminal can)
     int         measure = 110;              // the text's widest line (0: the whole width)
     bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the

@@ -84,6 +84,10 @@ def main():
         check(re.search(r"\x1b\]9;Highlighted message from: bob", out) is not None, "a highlight notifies (OSC 9)")
         check(re.search(r"\x1b\]9;Private message from: mallory[^\x1b]*psst private", out) is not None,
               "a private message notifies")
+        # the demo's URL is an OSC 8 link, closed after it
+        check("\x1b]8;;https://hexchat.github.io\x1b\\" in out, "a URL is an OSC 8 link")
+        check(out.count("\x1b]8;;https://hexchat.github.io\x1b\\") <= out.count("\x1b]8;;\x1b\\"),
+              "every link is closed")
 
         # /lastlog
         run("/lastlog green")

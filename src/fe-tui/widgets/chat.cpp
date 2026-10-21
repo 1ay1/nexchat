@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <ctime>
+#include <cstring>
 #include <functional>
 #include <tuple>
 
@@ -154,7 +155,8 @@ std::uint64_t style_key(const ChatStyle& st) {
     std::uint64_t k = std::hash<std::string>{}(st.stamp_format);
     k = k * 31 + static_cast<std::uint64_t>(st.nick_width);
     k = k * 31 + static_cast<std::uint64_t>(st.measure);
-    k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0);
+    k = k * 31 + (st.show_stamp ? 1 : 0) + (st.separator ? 2 : 0) + (st.indent ? 4 : 0) + (st.brackets ? 8 : 0)
+              + (st.links ? 16 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -199,6 +201,39 @@ static void pad_cells(std::vector<RowCell>& cells, int n) {
     for (int i = 0; i < n; ++i) cells.push_back({});
 }
 
+// http(s)://, ftp://, irc(s)://, mailto:, www. — up to a space, minus
+// the punctuation that usually ends a sentence around it
+static void mark_urls(Rich& r) {
+    const std::string& t = r.text;
+    auto starts = [&](std::size_t i, std::string_view p) {
+        if (t.size() - i < p.size()) return false;
+        for (std::size_t k = 0; k < p.size(); ++k)
+            if (std::tolower(static_cast<unsigned char>(t[i + k])) != p[k]) return false;
+        return true;
+    };
+    for (std::size_t i = 0; i < t.size();) {
+        const bool word_start = i == 0 || t[i - 1] == ' ' || t[i - 1] == '(' || t[i - 1] == '<' || t[i - 1] == '"';
+        std::string_view scheme;
+        for (std::string_view p : {"https://", "http://", "ftp://", "ircs://", "irc://", "mailto:", "www."})
+            if (word_start && starts(i, p)) { scheme = p; break; }
+        if (scheme.empty()) { ++i; continue; }
+        std::size_t e = i;
+        while (e < t.size() && static_cast<unsigned char>(t[e]) > ' ' && t[e] != '"' && t[e] != '<' && t[e] != '>') ++e;
+        while (e > i && std::strchr(".,:;!?')]}", t[e - 1])) {
+            // keep a ) that closes a ( inside the URL (wikipedia)
+            if (t[e - 1] == ')' && std::count(t.begin() + static_cast<long>(i), t.begin() + static_cast<long>(e), '(')
+                                    >= std::count(t.begin() + static_cast<long>(i), t.begin() + static_cast<long>(e), ')')) break;
+            --e;
+        }
+        if (e > i + scheme.size()) {
+            std::string uri = t.substr(i, e - i);
+            if (scheme == "www.") uri = "http://" + uri;
+            if (const auto id = maya::link_id(uri)) r.overlay_range(i, e, Style{}.with_link(id).with_underline());
+        }
+        i = std::max(e, i + 1);
+    }
+}
+
 const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, int w) {
     const std::uint64_t key = style_key(st);
     if (line.cached_cols == w && line.cached_style == key) return line.cached_rows;
@@ -237,6 +272,9 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
         left = left.slice(1, left.text.size() - 1);
     Rich right = parse_irc(line.right);
     if (line.hilight) right.overlay(Style{}.with_bold());
+    // URLs: an OSC 8 link each (and underlined), so a click in a terminal
+    // that can opens it; other terminals see plain underlined text
+    if (st.links) mark_urls(right);
     line.plain_left = left.text;
     line.plain_right = right.text;
 

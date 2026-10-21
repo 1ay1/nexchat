@@ -56,6 +56,8 @@ struct Rich {
     /// Paint over every run (patch fields of `over` that are set: fg, bg,
     /// and any attribute flag that is on).
     void overlay(const Style& over);
+    /// The same, only over the bytes [a, b) of text (runs split as needed).
+    void overlay_range(std::size_t a, std::size_t b, const Style& over);
     /// Every run takes `st`'s colours (fg and bg) whatever it had, keeping
     /// its attributes (bold, underline …): a selected row.
     void replace_colors(const Style& st);
