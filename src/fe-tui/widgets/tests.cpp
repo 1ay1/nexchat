@@ -77,6 +77,15 @@ static void test_rich() {
 // ── IRC formatting ──────────────────────────────────────────────────────
 
 static void test_ircfmt() {
+    // emoji sequences fitted to the grid: one 2-column glyph each, as
+    // tmux and modern terminals draw them
+    CHECK_EQ(fit_emoji("a \U0001F468\u200d\U0001F4BB b"), std::string("a \U0001F468 b"));   // ZWJ: the first
+    CHECK_EQ(fit_emoji("\U0001F44D\U0001F3FD"), std::string("\U0001F44D"));                 // tone dropped
+    CHECK_EQ(fit_emoji("\U0001F1E9\U0001F1EA!"), std::string("DE!"));                        // a flag's letters
+    CHECK_EQ(fit_emoji("\u2764\ufe0f x"), std::string("\u2764  x"));                         // ❤️: 2 wide
+    CHECK_EQ(fit_emoji("plain text"), std::string("plain text"));
+    CHECK_EQ(display_width(fit_emoji("\u2764\ufe0f")), 2);
+    CHECK_EQ(display_width(fit_emoji("\U0001F468\u200d\U0001F469\u200d\U0001F467")), 2);   // a family: one glyph
     auto r = parse_irc("plain \002bold\002 \00304red\003 back \00312,01blue on black\017 reset");
     CHECK_EQ(r.text, std::string("plain bold red back blue on black reset"));
     CHECK(r.runs.size() >= 6);
@@ -1022,6 +1031,24 @@ static void test_readability() {
         if (texts[i].find("three") != std::string::npos) t3 = i;
     }
     CHECK(t3 == t2 + 1);
+
+    // a time is never shown without its nick: the same person in a new
+    // minute keeps the nick (a bare time read as a glitch)
+    {
+        ChatBuffer sm(100);
+        sm.add("adlai\tfirst", 60 * 1000 + 10);
+        sm.add("adlai\tsame minute", 60 * 1000 + 30);
+        sm.add("adlai\tnext minute", 60 * 1001 + 5);
+        ChatStyle ss;
+        ss.stamp_format = "%H:%M";
+        ss.single_col_below = 0;
+        auto r = ChatView{}.rows(sm, ss, 120, 3);
+        CHECK(r[0].text.find("adlai") != std::string::npos);
+        CHECK(r[1].text.find("adlai") == std::string::npos);    // same minute: both blank
+        CHECK(r[1].text.find(':') == std::string::npos);
+        CHECK(r[2].text.find("adlai") != std::string::npos);    // new minute: time AND nick
+        CHECK(r[2].text.find(':') != std::string::npos);
+    }
 
     // a thin view: one column, every line "time nick text" from column 0,
     // wrapping at the full width; what happened is "time • text"

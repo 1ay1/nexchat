@@ -188,6 +188,9 @@ int stamp_width(const std::string& fmt);
 // brackets ("[%H:%M:%S]" → "%H:%M"). Formats it doesn't know stay as they are.
 std::string compact_stamp(const std::string& fmt) {
     std::string f = fmt;
+    // "[%H:%M:%S] " is the default: the space after it is padding, not format
+    while (!f.empty() && f.back() == ' ') f.pop_back();
+    while (!f.empty() && f.front() == ' ') f.erase(0, 1);
     for (const char* sec : {":%S", ".%S"})
         if (auto p = f.find(sec); p != std::string::npos) f.erase(p, 3);
     if (f.size() >= 2 && ((f.front() == '[' && f.back() == ']') || (f.front() == '(' && f.back() == ')')))
@@ -675,6 +678,7 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         // the stamp only where it changes: a line in the same minute as
         // the one above shows a blank (quieter, and the times that do show
         // mark where the talk paused); a hovered line shows its own
+        bool stamp_blanked = !st.show_stamp;   // no stamps: nothing ties the nick
         if (!one_col && r == 0 && st.show_stamp && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
             && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
             // the format as drawn at this width (line_rows shortens it)
@@ -684,17 +688,19 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
             // with seconds would otherwise differ on almost every line
             const auto minute = [](std::time_t t) { return t / 60; };
             // (a narrow view drops the stamp column: then there's nothing to blank)
-            if (!here.empty() && row.text.rfind(here, 0) == 0
-                && minute(buf[c.li].stamp) == minute(buf[c.li - 1].stamp)) {
+            if (here.empty() || row.text.rfind(here, 0) != 0) stamp_blanked = true;
+            else if (minute(buf[c.li].stamp) == minute(buf[c.li - 1].stamp)) {
                 const int sw = stamp_width(fmt);
                 Rich blanked = Rich{}.pad_right(sw);
                 blanked.append(row.slice(row.take(sw).text.size()));
                 row = std::move(blanked);
+                stamp_blanked = true;
             }
         }
         // the same person again within 5 minutes: the nick goes blank too,
-        // so a run of lines reads as one block (hover shows it)
-        if (!one_col && r == 0 && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
+        // so a run of lines reads as one block (hover shows it). Not when
+        // the time shows: a time with no one next to it reads as a glitch
+        if (!one_col && stamp_blanked && r == 0 && !st.stamp_repeat && c.li > 0 && !buf[c.li].day && !buf[c.li - 1].day
             && (!hover_ || hover_->line != src.line) && c.marker != c.li) {
             const ChatLine& L = buf[c.li];
             const ChatLine& P = buf[c.li - 1];

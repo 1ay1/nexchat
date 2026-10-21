@@ -6,6 +6,7 @@
 #include <optional>
 
 #include <maya/style/theme.hpp>
+#include <maya/text/unicode_width.hpp>
 
 #include "theme.hpp"
 
@@ -82,7 +83,7 @@ Rich parse_irc(std::string_view s, Style base) {
     State st;
     std::size_t i = 0, plain = 0;   // plain: start of the pending run of text
     auto flush = [&](std::size_t end) {
-        if (end > plain) out.append(s.substr(plain, end - plain), st.style(base));
+        if (end > plain) out.append(fit_emoji(s.substr(plain, end - plain)), st.style(base));
     };
 
     while (i < s.size()) {
@@ -133,6 +134,93 @@ Rich parse_irc(std::string_view s, Style base) {
 
 std::string strip_irc(std::string_view s) {
     return parse_irc(s).text;
+}
+
+// Emoji sequences, as one cell pair each. tmux and modern terminals draw a
+// whole sequence (a flag, 👨‍💻, 👍🏽, ❤️) as ONE 2-column glyph; a grid that
+// measures code point by code point gets 4 or 1 instead, and everything
+// right of it on the row shifts. So, for the screen only:
+//   ZWJ sequence → its first emoji      👨‍💻 → 👨
+//   skin-tone modifier dropped          👍🏽 → 👍
+//   flag (two regional indicators) → its two letters, 🇩🇪 → DE
+//   emoji + U+FE0F → the emoji + a space (the selector makes it 2 wide)
+std::string fit_emoji(std::string_view s) {
+    auto dec = [&](std::size_t i, std::size_t& n) -> char32_t {
+        const unsigned char b = static_cast<unsigned char>(s[i]);
+        if (b < 0x80) { n = 1; return b; }
+        if (b < 0xE0 && i + 1 < s.size()) { n = 2; return ((b & 0x1F) << 6) | (s[i + 1] & 0x3F); }
+        if (b < 0xF0 && i + 2 < s.size()) {
+            n = 3; return ((b & 0x0F) << 12) | ((s[i + 1] & 0x3F) << 6) | (s[i + 2] & 0x3F);
+        }
+        if (i + 3 < s.size()) {
+            n = 4;
+            return ((b & 0x07) << 18) | ((s[i + 1] & 0x3F) << 12) | ((s[i + 2] & 0x3F) << 6) | (s[i + 3] & 0x3F);
+        }
+        n = 1; return b;
+    };
+    auto ri = [](char32_t c) { return c >= 0x1F1E6 && c <= 0x1F1FF; };
+    auto tone = [](char32_t c) { return c >= 0x1F3FB && c <= 0x1F3FF; };
+    // fast path: no 4-byte sequences and no U+FE0F / U+200D: nothing to do
+    bool any = false;
+    for (std::size_t i = 0; i < s.size() && !any; ++i) {
+        const unsigned char b = static_cast<unsigned char>(s[i]);
+        if (b >= 0xF0) any = true;
+        else if (b == 0xEF && i + 2 < s.size() && static_cast<unsigned char>(s[i + 1]) == 0xB8
+                 && static_cast<unsigned char>(s[i + 2]) == 0x8F) any = true;
+        else if (b == 0xE2 && i + 2 < s.size() && static_cast<unsigned char>(s[i + 1]) == 0x80
+                 && static_cast<unsigned char>(s[i + 2]) == 0x8D) any = true;
+    }
+    if (!any) return std::string(s);
+    std::string out;
+    out.reserve(s.size());
+    char32_t prev = 0;   // the last code point written to out
+    for (std::size_t i = 0; i < s.size();) {
+        std::size_t n = 1;
+        const char32_t c = dec(i, n);
+        if (ri(c)) {
+            std::size_t n2 = 0;
+            if (i + n < s.size() && ri(dec(i + n, n2))) {
+                // a flag: its letters
+                out += static_cast<char>('A' + (c - 0x1F1E6));
+                out += static_cast<char>('A' + (dec(i + n, n2) - 0x1F1E6));
+                prev = 'A';
+                i += n + n2;
+                continue;
+            }
+            out += static_cast<char>('A' + (c - 0x1F1E6));   // a lone half
+            prev = 'A';
+            i += n;
+            continue;
+        }
+        if (tone(c)) { i += n; continue; }                       // drop the modifier
+        if (c == 0x200D) {                                       // ZWJ: drop it and what it joins
+            i += n;
+            if (i < s.size()) {
+                std::size_t n2 = 1;
+                (void)dec(i, n2);
+                i += n2;
+                // and any selector / modifier after that
+                while (i < s.size()) {
+                    std::size_t n3 = 1;
+                    const char32_t d = dec(i, n3);
+                    if (d == 0xFE0F || tone(d)) i += n3; else break;
+                }
+            }
+            continue;
+        }
+        if (c == 0xFE0F) {
+            // the selector makes a narrow symbol before it 2 wide (❤️): a
+            // space keeps the columns where the terminal puts them
+            if (prev >= 0x80 && maya::unicode::char_width(prev, maya::unicode::WidthMode::Modern) == 1) out += ' ';
+            prev = ' ';
+            i += n;
+            continue;
+        }
+        out.append(s.substr(i, n));
+        prev = c;
+        i += n;
+    }
+    return out;
 }
 
 Columns2 split_columns(std::string_view line) noexcept {

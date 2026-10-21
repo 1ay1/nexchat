@@ -27,6 +27,12 @@ namespace nx::tui {
 /// The text with every formatting code removed (for search, widths, URLs).
 [[nodiscard]] std::string strip_irc(std::string_view s);
 
+/// Emoji sequences as the terminal draws them, one 2-column glyph each:
+/// ZWJ sequences cut to their first emoji, skin tones dropped, flags as
+/// their two letters, a narrow symbol + U+FE0F padded to 2. Only for
+/// the screen: the grid measures code points, the terminal clusters.
+[[nodiscard]] std::string fit_emoji(std::string_view s);
+
 /// A printed event line is "left\tright": the left column (nick, or an
 /// event's "-->" / "*") and the message. Lines without a tab are all right.
 struct Columns2 { std::string_view left, right; };
