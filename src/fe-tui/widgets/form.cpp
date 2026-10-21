@@ -224,7 +224,17 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
     // narrow: each label on its own row with the value under it, indented
     // (a cut label "Connect c…" is no use); wide: label | value
     const bool stacked = w < 44;
-    const int lw = stacked ? 2 : std::min(label_width, std::max(4, w / 3));
+    // the label column: as wide as the longest label when the values keep
+    // their room; otherwise a long label wraps
+    int longest = 0;
+    bool wide_values = false;
+    for (const Field& f : fields_) {
+        if (f.kind == Field::Kind::Heading || f.kind == Field::Kind::Button) continue;
+        longest = std::max(longest, display_width(f.label));
+        if (f.kind != Field::Kind::Toggle) wide_values = true;
+    }
+    const int value_min = wide_values ? 24 : 8;
+    const int lw = stacked ? 2 : std::clamp(longest + 2, 4, std::max({4, std::min(label_width, w / 2), w - value_min}));
     const int vw = std::max(4, w - lw - 1);
     int focus_row = 0;
 
@@ -249,21 +259,32 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
         Rich label{foc ? "▌" : " ", role::title()};
         const bool hov = static_cast<int>(i) == hover_ && !foc && f.enabled;
         const Style lstyle = foc ? role::text().with_bold() : (f.enabled ? (hov ? ink.with_underline() : ink) : role::muted());
+        std::vector<Rich> more;   // a long label's next rows
         if (stacked) {
             // the label's own row (not for a button: its label is the value)
             if (f.kind != Field::Kind::Button) {
-                Rich lrow = label;
-                lrow.append(Rich{f.label, lstyle});
-                all.push_back(lrow.fit(w));
-                // the label's row: the field, at a column past any value (a
-                // click focuses; a choice steps forward)
-                map.push_back({static_cast<int>(i), -1, 3});
+                bool first = true;
+                for (auto& part : wrap(Rich{f.label, lstyle}, std::max(1, w - 1))) {
+                    Rich lrow = first ? label : Rich{" "};
+                    lrow.append(part);
+                    all.push_back(lrow.fit(w));
+                    // the label's row: the field, at a column past any value (a
+                    // click focuses; a choice steps forward)
+                    map.push_back({static_cast<int>(i), -1, 3});
+                    first = false;
+                }
             }
             label = Rich{foc && f.kind == Field::Kind::Button ? "▌" : " ", role::title()};
             label.append("  ");
         } else {
-            label.append(Rich{f.label, lstyle}.fit(lw - 1));
+            auto lines = wrap(Rich{f.label, lstyle}, std::max(1, lw - 2));
+            label.append(lines.front().fit(lw - 1));
             label.append(" ");
+            for (std::size_t k = 1; k < lines.size(); ++k) {
+                Rich m{" "};
+                m.append(lines[k]);
+                more.push_back(m.fit(lw + 1));
+            }
         }
         Rich value;
         switch (f.kind) {
@@ -293,12 +314,15 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
         case Field::Kind::Button:
             value = Rich{"[ " + f.label + " ]", foc ? role::title() : ink};
             label = Rich{}.pad_right(stacked ? 3 : lw + 1);
+            more.clear();
             break;
         case Field::Kind::List: {
             for (std::size_t j = 0; j <= f.items.size(); ++j) {
                 const bool add = j == f.items.size();
                 const bool sel = foc && static_cast<int>(j) == f.item;
-                Rich row = j == 0 ? label : Rich{}.pad_right(stacked ? 3 : lw + 1);
+                Rich row = j == 0 ? label
+                         : j - 1 < more.size() ? more[j - 1]
+                         : Rich{}.pad_right(stacked ? 3 : lw + 1);
                 Rich v;
                 if (sel && editing_) v = editor_.row(vw, true);
                 else v = Rich{add ? "+ add…" : f.items[j], add ? role::muted() : ink}.fit(vw);
@@ -324,6 +348,10 @@ std::vector<Rich> Form::rows(int w, int h, bool active) const {
         row.append(value);
         all.push_back(row.fit(w));
         map.push_back({static_cast<int>(i), -1, stacked ? 3 : lw + 1});
+        for (auto& m : more) {
+            all.push_back(m.fit(w));
+            map.push_back({static_cast<int>(i), -1, lw + 1});
+        }
     }
 
     // Keep the focused row on screen.

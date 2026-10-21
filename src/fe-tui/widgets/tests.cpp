@@ -15,6 +15,7 @@
 #include "bars.hpp"
 #include "chantree.hpp"
 #include "chat.hpp"
+#include "form.hpp"
 #include "inputline.hpp"
 #include "ircfmt.hpp"
 #include "layout.hpp"
@@ -1105,10 +1106,42 @@ static void test_readability() {
     CHECK(!inl);
 }
 
+// modal text uses the width it has: long labels aren't cut in a wide form,
+// and wrap (not cut) when there's no room
+static void test_modal_text() {
+    const std::string lbl = "Joins, modes and server text in a quieter colour";
+    Form f;
+    Field a;
+    a.kind = Field::Kind::Toggle;
+    a.label = lbl;
+    Field b;
+    b.kind = Field::Kind::Toggle;
+    b.label = "Short";
+    f.set({a, b});
+    f.label_width = 40;
+    auto wide = f.rows(100, 6);
+    CHECK(wide[0].text.find(lbl) != std::string::npos);
+    CHECK(wide[0].text.find("…") == std::string::npos);
+    // narrow, side by side: the label wraps onto a second row
+    auto mid = f.rows(50, 6);
+    std::string all;
+    for (auto& r : mid) all += r.text + "\n";
+    CHECK(all.find("…") == std::string::npos);
+    CHECK(all.find("colour") != std::string::npos);
+    CHECK(mid[0].text.find("On") != std::string::npos || mid[0].text.find("Off") != std::string::npos);
+    // stacked
+    auto thin = f.rows(30, 8);
+    all.clear();
+    for (auto& r : thin) all += r.text + "\n";
+    CHECK(all.find("…") == std::string::npos);
+    CHECK(all.find("colour") != std::string::npos);
+}
+
 int main() {
     test_rich();
     test_ircfmt();
     test_readability();
+    test_modal_text();
     test_theme();
     test_only_theme_colours();
     test_theming_rules();

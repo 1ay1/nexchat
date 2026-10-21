@@ -615,7 +615,7 @@ public:
                 if (probe_checking_) s.append(probe_text_, role::text());
                 else if (!probe_kind_.empty()) { s.append("✓ ", role::good()); s.append(probe_text_, role::good()); }
                 else { s.append("✗ ", role::bad()); s.append(probe_text_, role::bad()); }
-                for (auto& l : wrap(s, 70)) sheet_.row(l, 2);
+                sheet_.row(s, -3);
             }
             if (cert_bad_) {
                 Sheet::Row& r = sheet_.row({}, 2);
@@ -680,7 +680,7 @@ public:
                 if (persist_kind_ == "persist") s.append("✓ " + persist_text_, role::good());
                 else if (persist_kind_.empty()) s.append(persist_text_, role::text());
                 else s.append("✗ " + persist_text_, role::bad());
-                for (auto& l : wrap(s, 70)) sheet_.row(l, 2);
+                sheet_.row(s, -3);
             }
             setup_buttons(persist_kind_ == "persist" && !sheet_.field_text(F_S_PACCOUNT).empty()
                           && !sheet_.field_text(F_S_PPASS).empty(), "Connect");

@@ -80,6 +80,16 @@ void Sheet::flatten(int w) const {
         }
         Rich left = Rich{}.pad_right(r.indent);
         left.append(r.text);
+        if (r.controls.empty() && left.width() > w) {
+            // too long and nothing to place: wrap under the indent
+            for (auto& line : wrap(r.text, std::max(10, w - r.indent))) {
+                Rich row = Rich{}.pad_right(r.indent);
+                row.append(line);
+                flat_.push_back(row.fit(w));
+                flat_hots_.emplace_back();
+            }
+            continue;
+        }
         // the controls: their text, then placed right (or after the text)
         std::vector<Rich> parts;
         int total = 0;

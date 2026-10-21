@@ -90,7 +90,33 @@ Dialog::Outcome Dialog::mouse(const maya::MouseEvent& m) {
 std::vector<Rich> Dialog::rows(int inner) const {
     std::vector<Rich> out;
     out.push_back(Rich{}.fit(inner));
-    for (auto& r : wrap(Rich{text_, error_ ? role::bad() : role::text()}, inner)) out.push_back(r.fit(inner));
+    // each line wraps on its own; a "key   what it does" line wraps under
+    // its text, not under the key
+    const Style ink = error_ ? role::bad() : role::text();
+    for (std::size_t a = 0; a <= text_.size();) {
+        std::size_t b = text_.find('\n', a);
+        if (b == std::string::npos) b = text_.size();
+        const std::string line = text_.substr(a, b - a);
+        a = b + 1;
+        int hang = 0;
+        std::size_t cut = 0;
+        if (auto gap = line.find("  "); gap != std::string::npos) {
+            const auto txt = line.find_first_not_of(' ', gap);
+            if (txt != std::string::npos) cut = txt, hang = display_width(std::string_view(line).substr(0, txt));
+        }
+        if (hang <= 0 || hang > inner / 2 || display_width(line) <= inner) {
+            for (auto& r : wrap(Rich{line, ink}, inner)) out.push_back(r.fit(inner));
+            continue;
+        }
+        const std::string key = line.substr(0, cut);
+        bool first = true;
+        for (auto& r : wrap(Rich{line.substr(cut), ink}, inner - hang)) {
+            Rich row{first ? key : std::string(static_cast<std::size_t>(hang), ' '), ink};
+            row.append(r);
+            out.push_back(row.fit(inner));
+            first = false;
+        }
+    }
     if (kind_ == Kind::Prompt) {
         out.push_back(Rich{}.fit(inner));
         // the entry: ▏ text ▕ in the border colour, so it reads as a field
