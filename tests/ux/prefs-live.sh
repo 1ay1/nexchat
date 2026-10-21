@@ -26,7 +26,7 @@ grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved 
 sleep 1
 grep -q '@define-color theme_bg_color' "$tmp/log" && ok "the window's own colours follow the scheme" || bad "no UI colours"
 i=0; while ! grep -q '^window ' "$tmp/log" && [ $i -lt 30 ]; do sleep 0.25; i=$((i+1)); done
-grep -q 'title="Preferences' "$tmp/log" && ok "Preferences still open (no OK needed)" || bad "prefs window"
+grep -q 'title="Preferences' "$tmp/log" && ok "Preferences still open (no OK needed)" || { bad "prefs window"; grep -v '^@\|^  \|^}\|^$' "$tmp/log" | tail -25; }
 grep -q 'OK\b' "$tmp/log" && grep -q 'label="OK"' "$tmp/log" && bad "an OK button" || ok "no OK button"
 n=$(grep -c CRITICAL "$tmp/log" || true)
 [ "$n" -eq 0 ] && ok "no criticals" || { bad "$n criticals"; grep CRITICAL "$tmp/log" | head -3; }

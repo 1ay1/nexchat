@@ -62,6 +62,12 @@ down=""; for y in 20 35 50 65 80 95 110 125 140 155 170 185 200 215 230; do down
 up=""; for y in 215 200 185 170 155 140 125 110 95 80 65 50 35 20 10; do up="$up;move $((400 - y)) $y"; done
 back=""; for y in 200 150 100 60 30 60 100 150; do back="$back;move 300 $y"; done
 run drag-down "press 120 15$down;release 360 230"
+# the very first start on a cold runner (font caches) can end before the
+# drag does: with no result at all (not a wrong one), run it once more
+if [ "$fail" = 1 ] && [ -z "$d" ]; then
+	fail=0; echo "(drag-down again: no result after a cold start)"
+	run drag-down "press 120 15$down;release 360 230"
+fi
 run drag-up "press 400 230$up;release 120 10"
 run drag-back "press 200 15$back;move 520 140;release 520 140"
 run word "dpress 220 50;release 220 50"
