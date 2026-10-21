@@ -57,6 +57,8 @@ foreach std : ['-std=gnu++26', '-std=gnu++2c', '-std=gnu++23', '-std=gnu++2b']
     break
   endif
 endforeach
+# maya's own warnings are maya's: keep them out of our build log
+maya_opts.append_compile_args('cpp', '-w', target: 'maya')
 maya_proj = cmake.subproject('maya', options: maya_opts)
 # Its include dirs by hand: an older meson's cmake module also lists
 # subprojects/maya/__CMake_build in the source tree, which doesn't exist, and

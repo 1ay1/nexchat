@@ -7,6 +7,8 @@
  * (at your option) any later version.
  */
 
+#include "config.h"   /* before glib: it sets GLIB_VERSION_* and G_LOG_DOMAIN */
+
 #include <string.h>
 #include <glib/gstdio.h>
 
