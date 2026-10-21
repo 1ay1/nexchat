@@ -141,6 +141,10 @@ struct ChatStyle {
     std::string nick;                       // ...which is this (set by the owner)
     int         measure = 110;              // the text's widest line (0: the whole width)
     int         single_col_below = 60;      // under this many columns: one column, time + nick inline (0: never)
+    /// The one-column view's look: Inline "16:04 alice text…" per line, or
+    /// Stacked: "alice ──── 16:04" over the text, a run of one person's
+    /// lines under one header, a blank row between people.
+    enum class OneCol : unsigned char { Inline, Stacked } one_col = OneCol::Stacked;
     bool        fit_nicks = true;           // the nick column as wide as the widest nick (≤ nick_width)
     // Nick colours aren't ours: the core's text events put \003NN on the
     // nick already when hex_text_color_nicks is on.

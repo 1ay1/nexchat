@@ -98,10 +98,12 @@ def main():
             if cols >= 120:
                 check(has_time and "alice" in line, f"{where}: time and nick in columns ({line.strip()[:40]!r})")
             if cols < 60:
-                # thin: one column, "time nick text" from the left edge, no │ column
-                notice = next((l for l in d if "private notice to you" in l), None)
-                check(notice is not None and re.match(r"\d\d:\d\d -bob- private notice", notice) is not None,
-                      f"{where}: one column, time and nick inline ({(notice or '').strip()[:40]!r})")
+                # thin: one column, "-bob- ─── time" over the text, no │ column
+                ni = next((i for i, l in enumerate(d) if "private notice to you" in l), None)
+                head = d[ni - 1] if ni else ""
+                check(ni is not None and d[ni].startswith("  private notice")
+                      and re.match(r"-bob- ─+ \d\d:\d\d", head) is not None,
+                      f"{where}: one column, nick and time stacked over the text ({head.strip()[:40]!r})")
                 check(not any(re.match(r"\s*\S* │ ", l) for l in d[3:-5]),
                       f"{where}: no side columns in the chat")
             # every popup at this size

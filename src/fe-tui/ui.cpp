@@ -394,6 +394,10 @@ public:
             // under this many columns the chat is one column (0: never)
             const char* oc = nx_core_tui_get("one_column_below");
             chat_style.single_col_below = oc && *oc ? std::max(0, std::atoi(oc)) : 60;
+            // one_column_style=inline: "16:04 alice text" per line (default: stacked)
+            const char* os = nx_core_tui_get("one_column_style");
+            chat_style.one_col = os && std::string_view(os) == "inline" ? ChatStyle::OneCol::Inline
+                                                                        : ChatStyle::OneCol::Stacked;
         }
         for (auto& [k, b] : bufs) {
             b->chat.set_max_lines(static_cast<std::size_t>(std::max(100, nx_core_pref_int("text_max_lines"))));

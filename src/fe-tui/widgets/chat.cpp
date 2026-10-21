@@ -161,7 +161,7 @@ std::uint64_t style_key(const ChatStyle& st) {
               + (st.links ? 16 : 0) + (st.quiet_status ? 32 : 0) + (st.quiet_own ? 64 : 0) + (st.markup ? 128 : 0)
               + (st.my_nick ? 256 : 0);
     k = k * 31 + std::hash<std::string>{}(st.nick);
-    k = k * 31 + static_cast<std::uint64_t>(st.single_col_below);
+    k = k * 31 + static_cast<std::uint64_t>(st.single_col_below) * 2 + (st.one_col == ChatStyle::OneCol::Stacked ? 1 : 0);
     // IRC colours resolve against the live theme when a line is parsed, so
     // a theme switch must reparse: the epoch is part of the key.
     k = k * 31 + maya::theme::live_epoch();
@@ -400,7 +400,44 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
     // full width, the nick bold and the time dim; what happened reads
     // "16:05 • bob joined". Every line starts at column 0.
     const bool one_col = st.single_col_below > 0 && w < st.single_col_below;
-    if (one_col || text_w < 12) {
+    if (one_col && st.one_col == ChatStyle::OneCol::Stacked && !left.empty() && left.text != "•") {
+        // Stacked: only the text here, indented 2 and wrapped under itself;
+        // the "nick ─── time" header above it is the view's (rows_at), so a
+        // run of one person's lines shares one
+        for (auto [a, b] : wrap_spans(right, std::max(w - 2, 1))) {
+            Rich row{"  "};
+            row.append(right.slice(a, b));
+            rows.push_back(std::move(row));
+            std::vector<RowCell> c;
+            pad_cells(c, 2);
+            tag_cells(c, right.text, a, b, RowCell::Right);
+            cells.push_back(std::move(c));
+        }
+    } else if (one_col && st.one_col == ChatStyle::OneCol::Stacked) {
+        // Stacked, what happened: "• text" dim, the time at the right edge
+        // of its first row
+        const std::string when = st.show_stamp && line.stamp ? stamp_text(line.stamp, compact_stamp(st.stamp_format)) : "";
+        const int tw = when.empty() ? 0 : display_width(when) + 1;
+        bool first = true;
+        for (auto [a, b] : wrap_spans(right, std::max(w - 2 - tw, 1))) {
+            Rich row = first ? (left.empty() ? Rich{" "} : left) : Rich{" "};
+            row.append(" ");
+            row.append(right.slice(a, b));
+            std::vector<RowCell> c;
+            if (first && !left.empty()) tag_cells(c, left.text, 0, left.text.size(), RowCell::Left);
+            else pad_cells(c, 1);
+            pad_cells(c, 1);
+            tag_cells(c, right.text, a, b, RowCell::Right);
+            if (first && tw) {
+                row = row.pad_right(w - tw + 1);
+                pad_cells(c, std::max(0, row.width() - static_cast<int>(c.size())));
+                row.append(when, dim);
+            }
+            rows.push_back(std::move(row));
+            cells.push_back(std::move(c));
+            first = false;
+        }
+    } else if (one_col || text_w < 12) {
         Rich all;
         std::size_t left_at = 0;
         if (st.show_stamp && line.stamp) {
@@ -466,7 +503,7 @@ const std::vector<Rich>& line_rows(const ChatLine& line, const ChatStyle& st, in
             cells.push_back(std::move(c));
         }
     }
-    line.stacked = false;
+    line.stacked = one_col && st.one_col == ChatStyle::OneCol::Stacked && !left.empty() && left.text != "•";
     line.cached_rows = std::move(rows);
     line.cached_cells = std::move(cells);
     line.cached_cols = w;
@@ -524,24 +561,49 @@ struct Cursor {
         const ChatLine& P = buf[i - 1];
         return !L.day && !P.day && L.stamp && P.stamp && L.stamp - P.stamp >= st.pause_gap;
     }
-    int extra(std::size_t i) const { return (marker == i ? 1 : 0) + (gap(i) ? 1 : 0); }
-
-    // a stacked line from the same person as the one above, within 5
-    // minutes: its "nick · time" row is left out, the text follows on
-    bool skip_head(std::size_t i) const {
-        if (st.stamp_repeat || i == 0 || marker == i) return false;
+    // Stacked one-column view: a stacked line that starts a new run (another
+    // person, or a pause of 5 minutes) gets a "nick ─── time" header row,
+    // and a blank row above it when something comes before
+    bool head(std::size_t i) const {
         const ChatLine& L = buf[i];
-        const ChatLine& P = buf[i - 1];
         (void)line_rows(L, st, w);
-        if (!L.stacked || L.day || P.day) return false;
+        if (!L.stacked) return false;
+        if (i == 0 || marker == i || st.stamp_repeat) return true;
+        const ChatLine& P = buf[i - 1];
+        if (P.day) return true;
         (void)line_rows(P, st, w);
         using K = ChatLine::Kind;
-        return (L.kind == K::Message || L.kind == K::Own) && P.kind == L.kind && P.stacked
-               && L.plain_left == P.plain_left && L.stamp >= P.stamp && L.stamp - P.stamp < 300;
+        return !(P.stacked && P.kind == L.kind && (L.kind == K::Message || L.kind == K::Own)
+                 && L.plain_left == P.plain_left && L.stamp >= P.stamp && L.stamp - P.stamp < 300);
+    }
+    // the blank row above a header (not at the top, not under the marker or
+    // a day line, not when the pause gap is already there)
+    bool head_gap(std::size_t i) const {
+        return head(i) && i > 0 && marker != i && !buf[i - 1].day && !gap(i);
+    }
+    Rich head_row(std::size_t i) const {
+        const ChatLine& L = buf[i];
+        Rich nick = parse_irc(L.left);
+        nick.overlay(Style{}.with_bold());
+        if (L.kind == ChatLine::Kind::Own && st.quiet_own) nick.overlay(Style{}.with_dim());
+        const std::string when = st.show_stamp && L.stamp ? stamp_text(L.stamp, compact_stamp(st.stamp_format)) : "";
+        const int tw = when.empty() ? 0 : display_width(when);
+        // "alice ───────────── 16:04": the rule ties the two ends together
+        if (nick.width() > w - tw - 4) nick = nick.take(std::max(1, w - tw - 5)), nick.append("…");
+        Rich row = nick;
+        row.append(" ");
+        std::string rule;
+        for (int k = row.width(); k < w - tw - 1; ++k) rule += "─";
+        row.append(rule, role::rule());
+        if (tw) { row.append(" "); row.append(when, role::muted()); }
+        return row.fit(w);
+    }
+    int extra(std::size_t i) const {
+        return (marker == i ? 1 : 0) + (gap(i) ? 1 : 0) + (head_gap(i) ? 1 : 0) + (head(i) ? 1 : 0);
     }
 
     int count(std::size_t i) const {
-        return static_cast<int>(line_rows(buf[i], st, w).size()) + extra(i) - (skip_head(i) ? 1 : 0);
+        return static_cast<int>(line_rows(buf[i], st, w).size()) + extra(i);
     }
     Rich row() const {
         int r = ri;
@@ -553,7 +615,14 @@ struct Cursor {
             if (r == 0) return Rich{}.pad_right(w);
             --r;
         }
-        if (skip_head(li)) ++r;
+        if (head_gap(li)) {
+            if (r == 0) return Rich{}.pad_right(w);
+            --r;
+        }
+        if (head(li)) {
+            if (r == 0) return head_row(li);
+            --r;
+        }
         return line_rows(buf[li], st, w)[static_cast<std::size_t>(r)];
     }
     bool up() {
@@ -666,7 +735,7 @@ std::vector<Rich> ChatView::rows_at(const ChatBuffer& buf, const ChatStyle& st, 
         Rich row = c.row();
         RowSrc src;
         src.line = buf[c.li].id;
-        const int r = c.ri - c.extra(c.li) + (c.skip_head(c.li) ? 1 : 0);
+        const int r = c.ri - c.extra(c.li);
         src.marker = r < 0;
         if (r >= 0) {
             const auto& cells = buf[c.li].cached_cells;

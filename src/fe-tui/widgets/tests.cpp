@@ -542,6 +542,7 @@ static void test_chat() {
         // fresh buffer that starts today, none twice for the same day
         ChatStyle ds;
         ds.show_stamp = false;
+        ds.single_col_below = 0;
         ChatBuffer b;
         const std::time_t now = std::time(nullptr);
         b.add_day_if_new(now);
@@ -679,6 +680,7 @@ static void test_chat() {
         rs.stamp_format = "%H:%M";
         rs.nick_width = 10;
         rs.single_col_below = 50;
+        rs.one_col = ChatStyle::OneCol::Inline;
         ChatBuffer rb;
         rb.add("<alice>\thello there", 1700000000);
         auto wide = ChatView{}.rows(rb, rs, 70, 1);
@@ -921,6 +923,7 @@ static void test_layout() {
     ChatStyle cs;
     cs.show_stamp = false;
     cs.brackets = true;
+    cs.one_col = ChatStyle::OneCol::Inline;
     UserList users;
     users.set({{"alice", '@'}, {"bob"}});
     StatusBar status;
@@ -1059,6 +1062,7 @@ static void test_readability() {
     ph.add("bob\tthis line is long enough that it has to wrap onto the next", 2030);
     ChatStyle pst;
     pst.stamp_format = "[%H:%M:%S]";
+    pst.one_col = ChatStyle::OneCol::Inline;
     auto prows = ChatView{}.rows(ph, pst, 30, 8);
     std::vector<std::string> pt;
     for (auto& r : prows) pt.push_back(r.text);
@@ -1077,6 +1081,22 @@ static void test_readability() {
     bool cols = false;
     for (auto& r : wrows) if (r.text.find("│ one") != std::string::npos) cols = true;
     CHECK(cols);
+    // stacked: "alice ─── time" over her run of lines, a gap between people
+    pst.one_col = ChatStyle::OneCol::Stacked;
+    auto srows = ChatView{}.rows(ph, pst, 30, 12);
+    std::vector<std::string> sp;
+    for (auto& r : srows) sp.push_back(r.text);
+    auto sat = [&](std::string_view s) {
+        for (int i = 0; i < static_cast<int>(sp.size()); ++i) if (sp[i].find(s) != std::string::npos) return i;
+        return -1;
+    };
+    const int sh = sat("alice"), s1 = sat("  one"), s2 = sat("  two"), sj = sat("• bob joined");
+    CHECK(sh >= 0 && sp[static_cast<std::size_t>(sh)].find("─") != std::string::npos);
+    CHECK(s1 == sh + 1 && s2 == s1 + 1);                       // one header for the run
+    CHECK(sj > s2);
+    const int bh = sat("bob ─");
+    CHECK(bh > sj && sp[static_cast<std::size_t>(bh) - 1].find_first_not_of(' ') == std::string::npos);
+    CHECK(sp[static_cast<std::size_t>(bh) + 1].rfind("  this", 0) == 0);
     // one_column_below=0: never
     pst.single_col_below = 0;
     auto nrows = ChatView{}.rows(ph, pst, 50, 8);
