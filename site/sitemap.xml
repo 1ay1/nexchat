@@ -12,5 +12,17 @@
     <image:image>
       <image:loc>https://1ay1.github.io/nexchat/img/nexchat-dark.webp</image:loc>
     </image:image>
+    <image:image>
+      <image:loc>https://1ay1.github.io/nexchat/img/nexchat-light.webp</image:loc>
+    </image:image>
+    <image:image>
+      <image:loc>https://1ay1.github.io/nexchat/img/tui-dark.webp</image:loc>
+    </image:image>
+    <image:image>
+      <image:loc>https://1ay1.github.io/nexchat/img/tui-light.webp</image:loc>
+    </image:image>
+    <image:image>
+      <image:loc>https://1ay1.github.io/nexchat/img/tui-commands.webp</image:loc>
+    </image:image>
   </url>
 </urlset>

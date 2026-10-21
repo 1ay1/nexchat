@@ -3,11 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nexchat — HexChat, continued. IRC client for Linux, Windows, macOS and the terminal</title>
-<meta name="description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop (GTK4) and in the terminal. HexChat, continued — your config, plugins and scripts carry over.">
+<title>nexchat — free IRC client for Linux, Windows & macOS | HexChat, continued</title>
+<meta name="description" content="Free, open source IRC client for Linux, BSD, Windows, macOS and the terminal. HexChat, continued: IRCv3, bouncers, scripts, and your HexChat setup carries over.">
+<meta name="keywords" content="IRC client, HexChat, HexChat alternative, HexChat replacement, XChat, GTK4, IRCv3, terminal IRC client, TUI, Linux, Windows, macOS, BSD, Libera.Chat, OFTC, soju, ZNC, bouncer">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <meta name="author" content="nexchat contributors">
+<meta name="application-name" content="nexchat">
+<meta name="apple-mobile-web-app-title" content="nexchat">
+<meta name="format-detection" content="telephone=no">
 <link rel="canonical" href="https://1ay1.github.io/nexchat/">
+<link rel="alternate" hreflang="en" href="https://1ay1.github.io/nexchat/">
+<link rel="alternate" hreflang="x-default" href="https://1ay1.github.io/nexchat/">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0e0f10" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
@@ -17,127 +24,210 @@
 <link rel="apple-touch-icon" href="img/icon-180.png">
 <link rel="manifest" href="site.webmanifest">
 <link rel="sitemap" type="application/xml" href="sitemap.xml">
+<!-- the hero is the largest paint: fetch it first, at the size it's shown -->
+<link rel="preload" as="image" type="image/webp" media="(prefers-color-scheme: dark)"
+      href="img/nexchat-dark-1180.webp" imagesrcset="img/nexchat-dark-1180.webp 1180w, img/nexchat-dark.webp 2360w" imagesizes="(max-width: 52rem) 100vw, 49.5rem">
+<link rel="preload" as="image" type="image/webp" media="(prefers-color-scheme: light)"
+      href="img/nexchat-light-1180.webp" imagesrcset="img/nexchat-light-1180.webp 1180w, img/nexchat-light.webp 2360w" imagesizes="(max-width: 52rem) 100vw, 49.5rem">
+<link rel="preconnect" href="https://github.com">
 <!-- link previews (Open Graph: Discord, Slack, Mastodon, Facebook...) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="nexchat">
-<meta property="og:title" content="nexchat — HexChat, continued">
-<meta property="og:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. HexChat, continued: same layout, your config and scripts carry over.">
+<meta property="og:title" content="nexchat — the free IRC client, HexChat continued">
+<meta property="og:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on GTK4 and in the terminal. HexChat's layout, your config and scripts carry over.">
 <meta property="og:url" content="https://1ay1.github.io/nexchat/">
 <meta property="og:image" content="https://1ay1.github.io/nexchat/img/og.png">
+<meta property="og:image:secure_url" content="https://1ay1.github.io/nexchat/img/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The nexchat window: channel tree, a conversation with coloured nicks, and the user list">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="nexchat — HexChat, continued">
-<meta name="twitter:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. HexChat, continued.">
+<meta name="twitter:title" content="nexchat — the free IRC client, HexChat continued">
+<meta name="twitter:description" content="Free, open source IRC client for Linux, BSD, Windows and macOS, on GTK4 and in the terminal. HexChat, continued.">
 <meta name="twitter:image" content="https://1ay1.github.io/nexchat/img/og.png">
 <meta name="twitter:image:alt" content="The nexchat window: channel tree, a conversation with coloured nicks, and the user list">
 
 <!-- structured data: what this is, for search engines' rich results -->
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "@id": "https://1ay1.github.io/nexchat/#app",
-      "name": "nexchat",
-      "alternateName": [
-        "HexChat, continued",
-        "nexchat IRC client"
-      ],
-      "description": "A free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. It continues HexChat on GTK4, keeping its layout, menus and keybindings; HexChat configs, plugins and scripts carry over.",
-      "applicationCategory": "CommunicationApplication",
-      "applicationSubCategory": "IRC client",
-      "operatingSystem": "Linux, BSD, Windows, macOS",
-      "url": "https://1ay1.github.io/nexchat/",
-      "image": "https://1ay1.github.io/nexchat/img/og.png",
-      "screenshot": [
-        "https://1ay1.github.io/nexchat/img/nexchat-light.webp",
-        "https://1ay1.github.io/nexchat/img/tui-dark.webp"
-      ],
-      "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
-      "isAccessibleForFree": true,
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "codeRepository": "https://github.com/1ay1/nexchat",
-      "programmingLanguage": ["C", "C++"],
-      "isBasedOn": {
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
         "@type": "SoftwareApplication",
-        "name": "HexChat",
-        "url": "https://hexchat.github.io/"
+        "@id": "https://1ay1.github.io/nexchat/#app",
+        "name": "nexchat",
+        "alternateName": [
+          "HexChat, continued",
+          "nexchat IRC client",
+          "NexChat"
+        ],
+        "description": "A free, open source IRC client for Linux, BSD, Windows and macOS, on the desktop and in the terminal. It continues HexChat on GTK4, keeping its layout, menus and keybindings; HexChat configs, plugins and scripts carry over.",
+        "applicationCategory": "CommunicationApplication",
+        "applicationSubCategory": "IRC client",
+        "operatingSystem": [
+          "Linux",
+          "BSD",
+          "Windows",
+          "macOS"
+        ],
+        "softwareVersion": "0.1.0",
+        "downloadUrl": "https://github.com/1ay1/nexchat/releases/latest",
+        "installUrl": "https://1ay1.github.io/nexchat/#install",
+        "softwareHelp": "https://1ay1.github.io/nexchat/#faq",
+        "url": "https://1ay1.github.io/nexchat/",
+        "image": "https://1ay1.github.io/nexchat/img/og.png",
+        "screenshot": [
+          "https://1ay1.github.io/nexchat/img/nexchat-light.webp",
+          "https://1ay1.github.io/nexchat/img/nexchat-dark.webp",
+          "https://1ay1.github.io/nexchat/img/tui-dark.webp"
+        ],
+        "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@id": "https://1ay1.github.io/nexchat/#org"
+        },
+        "publisher": {
+          "@id": "https://1ay1.github.io/nexchat/#org"
+        },
+        "codeRepository": "https://github.com/1ay1/nexchat",
+        "programmingLanguage": [
+          "C",
+          "C++"
+        ],
+        "keywords": "IRC, IRC client, HexChat, XChat, IRCv3, GTK4, terminal, TUI, bouncer, soju, ZNC",
+        "isBasedOn": {
+          "@type": "SoftwareApplication",
+          "name": "HexChat",
+          "url": "https://hexchat.github.io/"
+        },
+        "featureList": [
+          "Channel tree or tabs, user list with mode icons",
+          "GTK4 on every platform, HiDPI and Wayland",
+          "A full terminal client: nexchat --tui, keys and mouse",
+          "Follows the system light/dark mode; 800+ colour schemes",
+          "IRCv3: SASL, STS, chat history, multiline, replies, typing, read markers, message redaction",
+          "Bouncers: soju networks, history and search; ZNC playback",
+          "Native macOS menu bar and app bundle",
+          "Python, Perl and Lua scripting",
+          "FiSH encryption, DCC file transfers, logging",
+          "Imports HexChat configuration, plugins and scripts"
+        ]
       },
-      "featureList": [
-        "Channel tree or tabs, user list with mode icons",
-        "GTK4 on every platform, HiDPI and Wayland",
-        "A full terminal client: nexchat --tui, keys and mouse",
-        "Follows the system light/dark mode; 600 terminal themes",
-        "Native macOS menu bar and app bundle",
-        "Python, Perl and Lua scripting",
-        "FiSH encryption, DCC, logging, bouncers",
-        "Imports HexChat configuration, plugins and scripts"
-      ]
-    },
-    {
-      "@type": "WebSite",
-      "@id": "https://1ay1.github.io/nexchat/#site",
-      "name": "nexchat",
-      "url": "https://1ay1.github.io/nexchat/",
-      "inLanguage": "en"
-    },
-    {
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Is HexChat discontinued?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Can I keep my HexChat settings, plugins and scripts?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Can I use nexchat over SSH or without a desktop?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Which platforms does nexchat run on?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Linux, the BSDs, Windows and macOS. The terminal client runs on Linux, the BSDs and macOS."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Is nexchat free?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. It is free and open source software under the GPL v2, like HexChat and X-Chat before it."
-          }
+      {
+        "@type": "Organization",
+        "@id": "https://1ay1.github.io/nexchat/#org",
+        "name": "nexchat contributors",
+        "url": "https://1ay1.github.io/nexchat/",
+        "logo": "https://1ay1.github.io/nexchat/img/icon-512.png",
+        "sameAs": [
+          "https://github.com/1ay1/nexchat"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://1ay1.github.io/nexchat/#site",
+        "name": "nexchat",
+        "alternateName": "nexchat IRC client",
+        "url": "https://1ay1.github.io/nexchat/",
+        "inLanguage": "en",
+        "publisher": {
+          "@id": "https://1ay1.github.io/nexchat/#org"
         }
-      ]
-    }
-  ]
-}
-</script>
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://1ay1.github.io/nexchat/#page",
+        "url": "https://1ay1.github.io/nexchat/",
+        "name": "nexchat — free IRC client for Linux, Windows & macOS | HexChat, continued",
+        "isPartOf": {
+          "@id": "https://1ay1.github.io/nexchat/#site"
+        },
+        "about": {
+          "@id": "https://1ay1.github.io/nexchat/#app"
+        },
+        "primaryImageOfPage": "https://1ay1.github.io/nexchat/img/og.png",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://1ay1.github.io/nexchat/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is HexChat discontinued?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is a good HexChat alternative?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "nexchat is a drop-in HexChat replacement: the same window, menus and keybindings, your settings, plugins and scripts imported on first start, on GTK4 and kept up to date."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I keep my HexChat settings, plugins and scripts?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I use nexchat over SSH or without a desktop?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does nexchat support IRCv3?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. SASL, STS, server-time, chat history, multiline messages, replies, typing notices, read markers and message redaction, among others, wherever the network supports them."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does nexchat work with a bouncer like soju or ZNC?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. It lists a soju bouncer's networks and searches its history, plays back ZNC's buffer, and can set up a soju bouncer for you so you stay online."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which platforms does nexchat run on?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Linux, the BSDs, Windows and macOS. The terminal client runs on Linux, the BSDs and macOS."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is nexchat free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. It is free and open source software under the GPL v2, like HexChat and X-Chat before it."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 <style>
   /* Plain, like a project page should be: one readable column, the system
      font, real headings, a contents bar that follows you. Light and dark
@@ -180,6 +270,7 @@
   /* the opening */
   header.hero { padding: 3.5rem 0 1.5rem; }
   header.hero h1 { font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.1; margin: 0; letter-spacing: -.02em; }
+  header.hero h1 .what { font-size: .42em; font-weight: 500; color: var(--muted); letter-spacing: 0; vertical-align: .35em; margin-left: .2em; }
   header.hero .tag { font-size: 1.25rem; color: var(--muted); margin: .4rem 0 1.25rem; }
   header.hero .lede { font-size: 1.1rem; max-width: 40rem; }
   .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 .5rem; }
@@ -253,17 +344,18 @@
 <div class="wrap" id="top">
 
 <header class="hero">
-  <h1>nexchat</h1>
+  <h1>nexchat <span class="what">IRC client</span></h1>
   <p class="tag">HexChat, continued.</p>
-  <p class="lede">A free, open source IRC client for Linux, BSD, Windows and macOS — on the desktop and in the terminal. It continues <a href="https://hexchat.github.io/">HexChat</a>, whose repository was archived in 2024: the same layout, menus, dialogs and keybindings, on a current toolkit and kept working.</p>
+  <p class="lede">A free, open source IRC client for Linux, BSD, Windows and macOS — on the desktop and in the terminal. It continues <a href="https://hexchat.github.io/">HexChat</a>, whose repository was archived in 2024: the same layout, menus, dialogs and keybindings, on GTK4, with modern IRCv3 and bouncer support.</p>
   <div class="actions">
-    <a class="btn primary" href="https://github.com/1ay1/nexchat/releases/latest">Download</a>
+    <a class="btn primary" href="https://github.com/1ay1/nexchat/releases/latest">Download nexchat</a>
     <a class="btn" href="#terminal">The terminal client</a>
     <a class="btn" href="https://github.com/1ay1/nexchat">Source code</a>
   </div>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark.webp">
-    <img src="img/nexchat-light.webp" width="2360" height="1120" loading="eager"
+    <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark-1180.webp 1180w, img/nexchat-dark.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem">
+    <img src="img/nexchat-light-1180.webp" srcset="img/nexchat-light-1180.webp 1180w, img/nexchat-light.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem"
+         width="2360" height="1120" loading="eager" fetchpriority="high" decoding="async"
          alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
   </picture>
 </header>
@@ -271,26 +363,28 @@
 <main>
 
 <section id="desktop">
-  <h2>On the desktop</h2>
+  <h2>An IRC client on the desktop</h2>
   <p>The HexChat you know, moved onto GTK4. Nothing is redesigned for its own sake.</p>
   <div class="grid">
     <div class="card"><h3>GTK4 everywhere</h3><p>HiDPI and Wayland done properly, on Linux, the BSDs, Windows and macOS.</p></div>
-    <div class="card"><h3>Light and dark</h3><p>Colours follow the system's mode. Colours you set yourself stay as they are.</p></div>
+    <div class="card"><h3>Light and dark</h3><p>Colours follow the system's mode, with 800+ colour schemes to pick from. Colours you set yourself stay as they are.</p></div>
     <div class="card"><h3>At home on a Mac</h3><p>The system menu bar, &#8984; shortcuts, a menu bar icon, a self-contained <code>nexchat.app</code>.</p></div>
     <div class="card"><h3>A native tray</h3><p>StatusNotifierItem on Linux and BSD, the notification area on Windows, a menu bar item on macOS.</p></div>
-    <div class="card"><h3>Stay online</h3><p>Set up a bouncer (soju) in one click, or connect to the one you have; your networks keep going while you're away.</p></div>
+    <div class="card"><h3>Modern IRC (IRCv3)</h3><p>SASL and STS, chat history, multiline messages, replies, typing notices, read markers and message redaction, where the network offers them.</p></div>
+    <div class="card"><h3>Stay online</h3><p>Set up a bouncer (soju) in one click, or connect to the one you have (soju, ZNC); your networks, history and search keep going while you're away.</p></div>
     <div class="card"><h3>Scripting</h3><p>Python, Perl and Lua, plus C plugins — the HexChat API, unchanged.</p></div>
+    <div class="card"><h3>Everything HexChat had</h3><p>DCC file transfers, FiSH encryption, logs, notify lists, auto-replace, URL grabber and the network list, with Libera.Chat, OFTC and dozens more.</p></div>
   </div>
 </section>
 
 <section id="terminal">
-  <h2>In the terminal</h2>
+  <h2>A terminal IRC client too</h2>
   <p><code>nexchat --tui</code> runs the same client in a terminal: the same networks, settings, logs and scripts as the window, over SSH or in a tmux pane. It's the GUI's equal, not a cut-down version — every window is there, with the keyboard and the mouse.</p>
   <figure>
     <picture>
       <source media="(prefers-color-scheme: light)" srcset="img/tui-light.webp">
-      <img src="img/tui-dark.webp" width="1096" height="662" loading="lazy"
-           alt="nexchat in a terminal: the channel tree, a conversation with times shown only where they change, the user list grouped by rank, and a framed input line">
+      <img src="img/tui-dark.webp" width="1096" height="662" loading="lazy" decoding="async"
+           alt="nexchat, a terminal IRC client (TUI): the channel tree, a conversation with times shown only where they change, the user list grouped by rank, and a framed input line">
     </picture>
     <figcaption>nexchat --tui in a 120&times;34 terminal (Dracula; light scheme in light mode).</figcaption>
   </figure>
@@ -299,13 +393,13 @@
     <div class="card"><h3>Keys and mouse</h3><p>Click tabs and nicks, drag to select and copy, drag the dividers, hover to see what's clickable.</p></div>
     <div class="card"><h3>Commands as you type</h3><p>Type <code>/</code> for every command, what it takes and what it does; values for its arguments as you go.</p></div>
     <div class="card"><h3>Ctrl-P finds anything</h3><p>Every menu action, every tab, every command in one fuzzy list.</p></div>
-    <div class="card"><h3>600 themes</h3><p>Pick a scheme and see it as you move through the list, or keep your terminal's own colours.</p></div>
+    <div class="card"><h3>600+ themes</h3><p>Pick a scheme and see it as you move through the list, or keep your terminal's own colours.</p></div>
     <div class="card"><h3>Any size</h3><p>From a phone-sized corner to a wide monitor: columns give way in order, and a narrow screen stacks each message under its nick.</p></div>
     <div class="card"><h3>Everything live</h3><p>Preferences, <code>/set</code> and the theme apply at once; your <code>keybindings.conf</code> and <code>replace.conf</code> work here too.</p></div>
   </div>
 
   <figure>
-    <img src="img/tui-commands.webp" width="1096" height="662" loading="lazy"
+    <img src="img/tui-commands.webp" width="1096" height="662" loading="lazy" decoding="async"
          alt="The command popup in the terminal client: /kick with its usage, the argument being typed underlined, and the matching nicks to pick from">
     <figcaption>Typing <code>/kick ma</code>: the usage, the argument you're on, and the people it could be.</figcaption>
   </figure>
@@ -382,10 +476,16 @@ ninja -C build</code></pre>
   <dl>
     <dt>Is HexChat discontinued?</dt>
     <dd>Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings.</dd>
+    <dt>What is a good HexChat alternative?</dt>
+    <dd>nexchat is a drop-in HexChat replacement: the same window, menus and keybindings, your settings, plugins and scripts imported on first start, on GTK4 and kept up to date.</dd>
     <dt>Can I keep my HexChat settings, plugins and scripts?</dt>
     <dd>Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names.</dd>
     <dt>Can I use nexchat over SSH or without a desktop?</dt>
     <dd>Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window.</dd>
+    <dt>Does nexchat support IRCv3?</dt>
+    <dd>Yes. SASL, STS, server-time, chat history, multiline messages, replies, typing notices, read markers and message redaction, among others, wherever the network supports them.</dd>
+    <dt>Does nexchat work with a bouncer like soju or ZNC?</dt>
+    <dd>Yes. It lists a soju bouncer's networks and searches its history, plays back ZNC's buffer, and can set up a soju bouncer for you so you stay online.</dd>
     <dt>Which platforms does nexchat run on?</dt>
     <dd>Linux, the BSDs, Windows and macOS. The terminal client runs on Linux, the BSDs and macOS.</dd>
     <dt>Is nexchat free?</dt>

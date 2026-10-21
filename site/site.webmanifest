@@ -1,7 +1,9 @@
 {
   "name": "nexchat",
   "short_name": "nexchat",
-  "description": "IRC client for Linux, BSD, Windows and macOS: HexChat, continued on GTK4.",
+  "description": "Free, open source IRC client for Linux, BSD, Windows, macOS and the terminal: HexChat, continued on GTK4.",
+  "lang": "en",
+  "categories": ["social", "utilities", "productivity"],
   "start_url": "/nexchat/",
   "scope": "/nexchat/",
   "display": "browser",
@@ -11,5 +13,9 @@
     { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "screenshots": [
+    { "src": "img/nexchat-dark-1180.webp", "sizes": "1180x560", "type": "image/webp", "form_factor": "wide", "label": "nexchat on the desktop" },
+    { "src": "img/tui-dark.webp", "sizes": "1096x662", "type": "image/webp", "form_factor": "wide", "label": "nexchat in the terminal" }
   ]
 }

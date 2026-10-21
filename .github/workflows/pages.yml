@@ -41,8 +41,9 @@ jobs:
 
       - name: Check
         run: |
-          # every local file the page references exists
-          grep -oE '(src|href|srcset)="[^"#:]+"' _site/index.html | cut -d'"' -f2 | sort -u |
+          # every local file the page references exists (srcset lists too)
+          grep -oE '(src|href|srcset|imagesrcset)="[^"#:]+"' _site/index.html | cut -d'"' -f2 |
+            tr ',' '\n' | awk '{print $1}' | sort -u |
             while read -r f; do test -e "_site/$f" || { echo "missing: $f"; exit 1; }; done
           # the structured data parses, and its FAQ answers are the page's
           # own (Google ignores FAQ data that differs from the visible text)
