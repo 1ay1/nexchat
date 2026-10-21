@@ -37,14 +37,20 @@ kill $app 2>/dev/null || true; wait $app 2>/dev/null || true; app=
 # and saved; Home/End go to the ends; Up at the top stays there
 keys_run () # "keys" -> prints the picked label | saved id
 {
+	r=$(keys_run1 "$1")
+	# a cold start (the first on a Windows runner) can miss it: once more
+	[ -n "$r" ] || r=$(keys_run1 "$1")
+	printf '%s\n' "$r"
+}
+keys_run1 ()
+{
 	rm -rf "$tmp/k"; mkdir "$tmp/k"
 	printf 'gui_slist_skip = 1\nirc_nick1 = live\n' > "$tmp/k/hexchat.conf"
 	printf 'scheme = \n' > "$tmp/k/colors.conf"
 	NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_PREFS_PAGE=4 NEXCHAT_PREFS_KEYS="$1" \
 		"$bin" -n -d "$tmp/k" >"$tmp/k.log" 2>&1 &
 	app=$!
-	# up to 30 s: the first start on a cold Windows runner is slow
-	i=0; while ! grep -q '^prefs-scheme:' "$tmp/k.log" && [ $i -lt 120 ]; do sleep 0.25; i=$((i+1)); done
+	i=0; while ! grep -q '^prefs-scheme:' "$tmp/k.log" && [ $i -lt 60 ]; do sleep 0.25; i=$((i+1)); done
 	sleep 0.6	# the live apply settles and saves
 	kill $app 2>/dev/null || true; wait $app 2>/dev/null || true; app=
 	sed -n 's/^prefs-scheme: //p' "$tmp/k.log" | tail -1

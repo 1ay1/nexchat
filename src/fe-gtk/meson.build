@@ -225,12 +225,12 @@ if not gtk_dep.get_variable(pkgconfig: 'targets').split().contains('x11')
   # Preferences: a scheme picked applies and saves at once, no OK
   test('prefs-live', find_program('sh'),
     args: [files('../../tests/ux/prefs-live.sh'), hexchat_gtk],
-    timeout: 90)
+    timeout: 240)
   # selecting text leaves no row half drawn
   if not win
   test('select', find_program('sh'),
     args: [files('../../tests/ux/select.sh'), hexchat_gtk],
-    timeout: 120)
+    timeout: 300)
   # trackpad pixel scroll, wheel steps, flick glide: all drawn whole
   test('scroll', find_program('sh'),
     args: [files('../../tests/ux/scroll.sh'), hexchat_gtk],

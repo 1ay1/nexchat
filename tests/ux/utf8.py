@@ -95,8 +95,8 @@ try:
     r = subprocess.run([bin_, "-n", "-d", cfg, "irc://127.0.0.1:-%s/#u" % open(port).read().strip()],
                          env=env, capture_output=True, timeout=200)
     out = r.stderr
-    if r.returncode < 0:
-        bad("nexchat died with signal %d" % -r.returncode)
+    if r.returncode != 0:
+        bad("nexchat exited %d (0x%x)" % (r.returncode, r.returncode & 0xffffffff))
 except subprocess.TimeoutExpired as e:
     out = e.stderr or b""
     bad("timed out")
