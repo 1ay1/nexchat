@@ -25,7 +25,7 @@ i=0; while ! grep -q 'pair:Tokyo Night' "$tmp/cfg/colors.conf" 2>/dev/null && [ 
 grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved the moment it's picked" || {
 	bad "not saved"; cat "$tmp/cfg/colors.conf"
 	# nothing below can work then: say what the app did, and stop
-	sleep 3; echo "--- app log"; grep -av '^@\|^  \|^}\|^$' "$tmp/log" | tail -40
+	sleep 3; echo "--- app log"; grep -a '^prefs-\|^window\|^focus\|WARN\|CRIT\|rror' "$tmp/log" | tail -40
 	exit 1
 }
 sleep 1

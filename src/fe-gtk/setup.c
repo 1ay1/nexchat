@@ -1621,8 +1621,12 @@ setup_scheme_pick (gpointer d)
 	guint i;
 
 	if (!scheme_dd)
+	{
+		g_printerr ("prefs-pick: no picker\n");
 		return G_SOURCE_REMOVE;
+	}
 	m = gtk_drop_down_get_model (GTK_DROP_DOWN (scheme_dd));
+	g_printerr ("prefs-pick: %u schemes, want \"%s\"\n", g_list_model_get_n_items (m), want);
 	for (i = 0; i < g_list_model_get_n_items (m); i++)
 	{
 		GtkStringObject *s = g_list_model_get_item (m, i);
@@ -1630,6 +1634,7 @@ setup_scheme_pick (gpointer d)
 		g_object_unref (s);
 		if (hit)
 		{
+			g_printerr ("prefs-pick: row %u\n", i);
 			gtk_drop_down_set_selected (GTK_DROP_DOWN (scheme_dd), i);
 			break;
 		}
