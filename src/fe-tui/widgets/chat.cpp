@@ -33,6 +33,19 @@ LineId ChatBuffer::add(std::string_view text, std::time_t stamp, bool hilight) {
     return lines_.back().id;
 }
 
+void ChatBuffer::replace_back(std::string_view text) {
+    if (lines_.empty()) return;
+    while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.remove_suffix(1);
+    const auto [l, r] = split_columns(text);
+    ChatLine& line = lines_.back();
+    line.left = std::string{l};
+    line.right = std::string{r};
+    line.cached_cols = -1;
+    line.cached_rows.clear();
+    line.cached_cells.clear();
+    ++version_;
+}
+
 void ChatBuffer::clear() {
     lines_.clear();
     marker_.reset();

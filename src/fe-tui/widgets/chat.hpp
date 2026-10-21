@@ -68,6 +68,9 @@ public:
     /// Add a printed line. `text` is "left\tright" or just "right"; a
     /// trailing newline is dropped. Returns the line's id.
     LineId add(std::string_view text, std::time_t stamp = 0, bool hilight = false);
+    /// Rewrite the newest line in place (same id): the folded join/part line
+    /// grows as more people come and go.
+    void replace_back(std::string_view text);
     /// A day separator before the first line of a new day (the GUI's
     /// text_day_sep): "── Tuesday, 14 October ──" across the view.
     /// Adds nothing when `stamp` is the same day as the last line's.

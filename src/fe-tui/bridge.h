@@ -65,6 +65,31 @@ void nx_ui_buffer_typing (nx_key buf, const char *text);
 void nx_ui_print (nx_key buf, const char *text, time_t stamp, int hilight);
 void nx_ui_clear (nx_key buf, int lines);
 
+/* the input box, for scripts: the front buffer's line, any other's draft;
+   the cursor counts characters */
+const char *nx_ui_input_get (nx_key buf);
+int  nx_ui_input_cursor (nx_key buf);
+void nx_ui_input_set (nx_key buf, const char *text);
+void nx_ui_input_set_cursor (nx_key buf, int delta, int pos);
+
+/* a buffer's lines as printed ("left\tright", raw IRC text), for /lastlog;
+   NULL past the end. Valid until the next print. */
+int  nx_ui_line_count (nx_key buf);
+const char *nx_ui_line_get (nx_key buf, int i, time_t *stamp);
+
+/* a join (kind 0), part (1) or quit (2) folded into one line with the ones
+   just before it; 0 = print it the usual way */
+int  nx_ui_joinpart (nx_key buf, int kind, const char *nick, time_t stamp);
+
+/* a desktop notification through the terminal (OSC 777 / 9) */
+void nx_ui_notify (const char *title, const char *body);
+/* the terminal window has focus (as far as it reports, ?1004) */
+int  nx_ui_focused (void);
+/* BEL, in order with the frames */
+void nx_ui_bell (void);
+/* a script added, changed or removed a /MENU item */
+void nx_ui_menus_changed (void);
+
 /* The user list, as the core keeps it (sorted). */
 void nx_ui_users_clear (nx_key buf);
 void nx_ui_user_set (nx_key buf, const char *nick, char prefix, int away, int me, int pos);
@@ -111,6 +136,12 @@ void nx_core_nick_command (nx_key buf, const char *cmd, const char *nick);
 /* The nick menu (popup.conf): `n` entries of name/cmd pairs. */
 int  nx_core_popup_count (void);
 void nx_core_popup_get (int i, const char **name, const char **cmd);
+/* Menu items scripts added with /MENU (main menu only): its path
+   ("Sub/Item", the leading menu dropped), command, toggle state (-1 = not
+   a toggle), enabled. Returns 0 past the end. */
+int  nx_core_plugin_menu_get (int i, const char **path, const char **cmd, int *state, int *enabled);
+/* run the i'th one (a toggle flips) */
+void nx_core_plugin_menu_run (nx_key buf, int i);
 /* hex_gui_ulist_doubleclick */
 const char *nx_core_ulist_doubleclick (void);
 /* Classify a word as the core's url.c does: 0 none, 1 url, 2 channel,

@@ -37,6 +37,7 @@
 
 #include "bridge.h"
 #include "bridge-bnc.h"
+#include "../fe-gtk/plugin-notification.h"
 
 extern const struct prefs vars[];	/* cfgfiles.c */
 
@@ -254,6 +255,9 @@ tick_cb (gpointer data)
 void
 fe_main (void)
 {
+	/* desktop notifications: the GUI's plugin, through the terminal */
+	if (sess_list)
+		plugin_add (sess_list->data, NULL, NULL, notification_plugin_init, notification_plugin_deinit, NULL, FALSE);
 	main_loop = g_main_loop_new (NULL, FALSE);
 	g_unix_fd_add (nx_ui_input_fd (), G_IO_IN | G_IO_HUP | G_IO_ERR, in_cb, NULL);
 #ifndef WIN32
@@ -453,8 +457,8 @@ fe_ctrl_gui (session *sess, fe_gui_action action, int arg)
 int
 fe_gui_info (session *sess, int info_type)
 {
-	if (info_type == 0)		/* window status: we're always "active" while on screen */
-		return 1;
+	if (info_type == 0)		/* window status: active while the terminal has focus */
+		return nx_ui_focused () ? 1 : 0;
 	return -1;
 }
 
@@ -596,7 +600,10 @@ fe_text_clear (struct session *sess, int lines)
 gboolean
 fe_print_joinpart (struct session *sess, int kind, const char *nick, time_t stamp)
 {
-	return FALSE;
+	if (!nx_ui_joinpart ((nx_key) sess, kind, nick, stamp ? stamp : time (NULL)))
+		return FALSE;
+	ui_dirty ();
+	return TRUE;
 }
 
 gboolean
@@ -615,8 +622,7 @@ fe_message (char *msg, int flags)
 void
 fe_beep (session *sess)
 {
-	fputc (7, stdout);
-	fflush (stdout);
+	nx_ui_bell ();
 }
 
 void
@@ -1089,16 +1095,110 @@ void fe_pluginlist_update (void) { nx_ui_plugins_changed (); ui_dirty (); }
 void fe_buttons_update (struct session *sess) {}
 void fe_dlgbuttons_update (struct session *sess) {}
 void fe_ignore_update (int level) { nx_ui_lists_changed (); ui_dirty (); }
-void fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags) {}
-int fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags) { return 0; }
+
+/* /lastlog: sess's lines matching sstr (plain text, colours stripped;
+   case-insensitive unless -m; a regex with -r) copied into lastlog_sess */
+static int
+lastlog_copy (session *sess, session *lastlog_sess, const char *sstr, gtk_xtext_search_flags flags, gboolean head)
+{
+	GRegex *re = NULL;
+	char *nee = NULL;
+	GPtrArray *hits;
+	GArray *stamps;
+	int i, n;
+
+	if (flags & regexp)
+	{
+		GError *err = NULL;
+		re = g_regex_new (sstr, (flags & case_match) ? 0 : G_REGEX_CASELESS, 0, &err);
+		if (!re)
+		{
+			PrintText (lastlog_sess, err->message);
+			g_error_free (err);
+			return -1;
+		}
+	}
+	else
+		nee = (flags & case_match) ? g_strdup (sstr) : g_utf8_casefold (sstr, -1);
+
+	/* first collect, then print: the source may be the lastlog window */
+	hits = g_ptr_array_new_with_free_func (g_free);
+	stamps = g_array_new (FALSE, FALSE, sizeof (time_t));
+	n = nx_ui_line_count ((nx_key) sess);
+	for (i = 0; i < n; i++)
+	{
+		time_t st = 0;
+		const char *line = nx_ui_line_get ((nx_key) sess, i, &st);
+		char *plain, *hay;
+		gboolean hit;
+
+		if (!line || !*line)
+			continue;
+		plain = strip_color (line, -1, STRIP_ALL);
+		if (re)
+			hit = g_regex_match (re, plain, 0, NULL);
+		else
+		{
+			hay = (flags & case_match) ? g_strdup (plain) : g_utf8_casefold (plain, -1);
+			hit = strstr (hay, nee) != NULL;
+			g_free (hay);
+		}
+		g_free (plain);
+		if (hit)
+		{
+			g_ptr_array_add (hits, g_strdup (line));
+			g_array_append_val (stamps, st);
+		}
+	}
+	if (head && hits->len)
+	{
+		char *h = g_strdup_printf ("\002%s\002 (%s): %u", sess->channel,
+											server_get_network (sess->server, TRUE), hits->len);
+		nx_ui_print ((nx_key) lastlog_sess, h, time (NULL), 0);
+		g_free (h);
+	}
+	for (i = 0; i < (int) hits->len; i++)
+		nx_ui_print ((nx_key) lastlog_sess, g_ptr_array_index (hits, i), g_array_index (stamps, time_t, i), 0);
+	n = hits->len;
+	g_ptr_array_free (hits, TRUE);
+	g_array_free (stamps, TRUE);
+	if (re)
+		g_regex_unref (re);
+	g_free (nee);
+	ui_dirty ();
+	return n;
+}
+
+void
+fe_lastlog (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+{
+	if (!nx_ui_line_count ((nx_key) sess))
+	{
+		PrintText (lastlog_sess, _("Search buffer is empty.\n"));
+		return;
+	}
+	/* one window on screen at a time: go to the results */
+	fe_ctrl_gui (lastlog_sess, FE_GUI_FOCUS, 0);
+	if (lastlog_copy (sess, lastlog_sess, sstr, flags, FALSE) == 0)
+		PrintTextf (lastlog_sess, _("No matches for \"%s\".\n"), sstr);
+}
+
+int
+fe_lastlog_append (session *sess, session *lastlog_sess, char *sstr, gtk_xtext_search_flags flags)
+{
+	return lastlog_copy (sess, lastlog_sess, sstr, flags, TRUE);
+}
+
 void fe_serverlist_open (session *sess) { nx_ui_open_network_list (); ui_dirty (); }
-char *fe_get_inputbox_contents (struct session *sess) { return NULL; }
-int fe_get_inputbox_cursor (struct session *sess) { return 0; }
-void fe_set_inputbox_contents (struct session *sess, char *text) {}
-void fe_set_inputbox_cursor (struct session *sess, int delta, int pos) {}
-void fe_menu_del (menu_entry *me) {}
-char *fe_menu_add (menu_entry *me) { return NULL; }
-void fe_menu_update (menu_entry *me) {}
+/* the input box, for scripts and /settext: the front buffer's line, any
+   other's draft */
+char *fe_get_inputbox_contents (struct session *sess) { return (char *) nx_ui_input_get ((nx_key) sess); }
+int fe_get_inputbox_cursor (struct session *sess) { return nx_ui_input_cursor ((nx_key) sess); }
+void fe_set_inputbox_contents (struct session *sess, char *text) { nx_ui_input_set ((nx_key) sess, text); ui_dirty (); }
+void fe_set_inputbox_cursor (struct session *sess, int delta, int pos) { nx_ui_input_set_cursor ((nx_key) sess, delta, pos); ui_dirty (); }
+void fe_menu_del (menu_entry *me) { nx_ui_menus_changed (); ui_dirty (); }
+char *fe_menu_add (menu_entry *me) { nx_ui_menus_changed (); ui_dirty (); return NULL; }
+void fe_menu_update (menu_entry *me) { nx_ui_menus_changed (); ui_dirty (); }
 void fe_tray_set_flash (const char *filename1, const char *filename2, int timeout) {}
 void fe_tray_set_file (const char *filename) {}
 void fe_tray_set_icon (feicon icon) {}
@@ -1301,6 +1401,80 @@ nx_core_popup_get (int i, const char **name, const char **cmd)
 	struct popup *pop = g_slist_nth_data (popup_list, i);
 	*name = pop ? pop->name : "";
 	*cmd = pop ? pop->cmd : "";
+}
+
+/* /MENU items for the main menu, as "Path/To/Label" */
+int
+nx_core_plugin_menu_get (int i, const char **path, const char **cmd, int *state, int *enabled)
+{
+	static char *full;
+	GSList *l;
+	int n = 0;
+
+	for (l = menu_list; l; l = l->next)
+	{
+		menu_entry *me = l->data;
+		if (!me->is_main)
+			continue;
+		if (n++ != i)
+			continue;
+		g_free (full);
+		if (!me->label)
+			full = g_strdup_printf ("%s/-", me->path + me->root_offset);	/* a separator */
+		else if (me->path[me->root_offset])
+			full = g_strdup_printf ("%s/%s", me->path + me->root_offset, me->label);
+		else
+			full = g_strdup (me->label);
+		*path = full;
+		*cmd = me->cmd ? me->cmd : "";
+		*state = (me->ucmd || me->group) ? me->state : -1;
+		*enabled = me->enable;
+		return 1;
+	}
+	return 0;
+}
+
+void
+nx_core_plugin_menu_run (nx_key buf, int i)
+{
+	session *sess = sess_of (buf);
+	GSList *l;
+	int n = 0;
+
+	if (!sess)
+		sess = current_sess;
+
+	for (l = menu_list; l; l = l->next)
+	{
+		menu_entry *me = l->data;
+		if (!me->is_main || n++ != i)
+			continue;
+		if (!sess)
+			return;
+		if (me->ucmd)
+		{
+			/* a toggle: flip it, run the matching command */
+			me->state = !me->state;
+			handle_command (sess, me->state ? me->cmd : me->ucmd, FALSE);
+		}
+		else if (me->group)
+		{
+			/* a radio: this one on, the rest of its group off */
+			GSList *o;
+			for (o = menu_list; o; o = o->next)
+			{
+				menu_entry *m = o->data;
+				if (m->group && !g_strcmp0 (m->group, me->group) && !g_strcmp0 (m->path, me->path))
+					m->state = 0;
+			}
+			me->state = 1;
+			if (me->cmd)
+				handle_command (sess, me->cmd, FALSE);
+		}
+		else if (me->cmd)
+			handle_command (sess, me->cmd, FALSE);
+		return;
+	}
 }
 
 const char *

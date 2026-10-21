@@ -70,6 +70,12 @@ struct Buffer {
     bool joined = true;
     std::string draft;            // what was typed here when we switched away
     std::size_t draft_cursor = 0;
+    // the join/part line being folded (nx_ui_joinpart)
+    struct JoinPart {
+        LineId line = 0;
+        bool first = false, pending = false;
+        std::vector<std::string> joined, left;
+    } joinpart;
 };
 
 // Menu action ids.
@@ -83,6 +89,7 @@ enum Action : int {
     A_Join, A_Part, A_Topic,
     // context menus
     A_NickPopupBase = 1000,      // + popup_list index
+    A_PluginMenuBase = 100000,   // + /MENU item index
     A_NickQuery = 900, A_NickWhois, A_NickCopy, A_NickInsert, A_NickUnignore,
     A_UrlOpen = 950, A_UrlCopy,
     A_ChanJoin = 960, A_ChanCopy,
@@ -146,6 +153,10 @@ public:
 
     // geometry of the last frame
     int W = 80, H = 24;
+    // the terminal window has focus (?1004 reports; assumed until told)
+    bool focused = true;
+    // a script changed /MENU items while the menu bar was open
+    bool menus_stale = false;
     Rect r_menu, r_topic, r_tree, r_tree_div, r_strip, r_chat, r_users_div, r_users, r_status, r_input;
     // mouse state
     enum class Drag { None, Select, TreeDiv, UsersDiv, Input } drag = Drag::None;
@@ -443,6 +454,50 @@ public:
                 {"About", "", A_About},
             }},
         });
+        auto bar = menubar.entries();
+        add_plugin_menus(bar);
+        menubar.set(std::move(bar));
+    }
+
+    // /MENU items from scripts: "Window/Thing" goes into Window, a new
+    // top-level name becomes its own menu, deeper paths nest
+    void add_plugin_menus(std::vector<MenuBar::Entry>& bar) {
+        const std::size_t help_at = bar.empty() ? 0 : bar.size() - 1;   // new menus go before Help
+        auto strip = [](std::string s) { s.erase(std::remove(s.begin(), s.end(), '_'), s.end()); return s; };
+        for (int i = 0;; ++i) {
+            const char *path = nullptr, *cmd = nullptr;
+            int state = -1, enabled = 1;
+            if (!nx_core_plugin_menu_get(i, &path, &cmd, &state, &enabled)) break;
+            std::vector<std::string> parts;
+            for (std::string_view p = path; !p.empty();) {
+                const auto s = p.find('/');
+                parts.push_back(strip(std::string(p.substr(0, s))));
+                if (s == std::string_view::npos) break;
+                p.remove_prefix(s + 1);
+            }
+            if (parts.empty()) continue;
+            // the top level: an existing menu or a new one
+            auto it = std::find_if(bar.begin(), bar.end(), [&](const MenuBar::Entry& e) { return e.title == parts[0]; });
+            if (it == bar.end()) {
+                it = bar.insert(bar.begin() + static_cast<long>(std::min(help_at, bar.size())), MenuBar::Entry{parts[0], {}});
+            }
+            if (parts.size() == 1) continue;   // just the menu itself
+            std::vector<MenuItem>* level = &it->items;
+            for (std::size_t d = 1; d + 1 < parts.size(); ++d) {
+                auto sub = std::find_if(level->begin(), level->end(), [&](const MenuItem& m) { return m.label == parts[d]; });
+                if (sub == level->end()) { level->push_back({parts[d], "", A_None}); sub = level->end() - 1; }
+                level = &sub->sub;
+            }
+            const std::string& leaf = parts.back();
+            if (leaf == "-") { level->push_back(MenuItem::sep()); continue; }
+            // an item with no command is a submenu its children fill
+            if (!*cmd && state < 0) {
+                if (std::none_of(level->begin(), level->end(), [&](const MenuItem& m) { return m.label == leaf; }))
+                    level->push_back({leaf, "", A_None});
+                continue;
+            }
+            level->push_back({leaf, "", A_PluginMenuBase + i, state, enabled != 0});
+        }
     }
 
     std::vector<MenuItem> theme_items() {
@@ -576,6 +631,11 @@ public:
     void act(int a) {
         Buffer* b = current();
         Network* n = cur_net();
+        if (a >= A_PluginMenuBase) {
+            nx_core_plugin_menu_run(cur, a - A_PluginMenuBase);
+            build_menubar();   // a toggle's check moved
+            return;
+        }
         if (a >= A_NickPopupBase) {
             const char *name, *cmd;
             nx_core_popup_get(a - A_NickPopupBase, &name, &cmd);
@@ -1904,6 +1964,7 @@ public:
 
     bool present() {
         if (!screen) return false;
+        if (menus_stale && !menubar.is_open()) { menus_stale = false; build_menubar(); }
         const auto sz = screen->size();
         W = sz.width.value; H = sz.height.value;
         if (!screen->ready() || screen->pending_output()) return false;
@@ -1982,6 +2043,7 @@ void nx_ui_on_input(void) {
             u.dirty = true;   // hover states change on bare motion too
         }
         else if (auto* p = std::get_if<maya::PasteEvent>(&ev)) u.paste(p->content);
+        else if (auto* f = std::get_if<maya::FocusEvent>(&ev)) u.focused = f->focused;
         else if (std::holds_alternative<maya::ResizeEvent>(ev)) u.screen->on_resize();
     }
 }
@@ -2067,11 +2129,169 @@ void nx_ui_print(nx_key k, const char* text, time_t stamp, int hilight) {
     if (Buffer* b = ui().buf(k)) {
         if (nx_core_pref_int("text_day_sep")) b->chat.add_day_if_new(stamp);
         b->chat.add(text ? text : "", stamp, hilight != 0);
+        // the line a join/part run folds into
+        if (b->joinpart.pending) { b->joinpart.pending = false; b->joinpart.line = b->chat[b->chat.size() - 1].id; }
         ui().dirty = true;
     }
 }
 
 void nx_ui_clear(nx_key k, int lines) { if (Buffer* b = ui().buf(k)) { b->chat.trim(lines); ui().dirty = true; } }
+
+int nx_ui_focused(void) { return ui().focused ? 1 : 0; }
+void nx_ui_bell(void) { if (ui().screen) ui().screen->emit_host_sequence("\a"); }
+void nx_ui_menus_changed(void) {
+    // rebuilt on the next tick: the core calls this before it frees the
+    // entry (and its children), and not while a menu is open either
+    ui().menus_stale = true;
+    ui().dirty = true;
+}
+
+int nx_ui_line_count(nx_key k) {
+    Buffer* b = ui().buf(k);
+    return b ? static_cast<int>(b->chat.size()) : 0;
+}
+
+const char* nx_ui_line_get(nx_key k, int i, time_t* stamp) {
+    static std::string out;
+    Buffer* b = ui().buf(k);
+    if (!b || i < 0 || static_cast<std::size_t>(i) >= b->chat.size()) return nullptr;
+    const ChatLine& l = b->chat[static_cast<std::size_t>(i)];
+    if (l.day) return "";
+    out = l.left.empty() ? l.right : l.left + "\t" + l.right;
+    if (stamp) *stamp = l.stamp;
+    return out.c_str();
+}
+
+// Joins, parts and quits in a row fold into one line (the GUI's
+// fe_print_joinpart): "→ alice, bob joined · ← carol left". Anything else
+// printed in between starts a new one.
+int nx_ui_joinpart(nx_key k, int kind, const char* nick, time_t stamp) {
+    Buffer* b = ui().buf(k);
+    if (!b || !nick || !*nick) return 0;
+    auto& jp = b->joinpart;
+    const bool ours = jp.line && !b->chat.empty() && b->chat[b->chat.size() - 1].id == jp.line;
+    if (!ours) {
+        // the first of a run prints as the event itself
+        jp = {};
+        jp.first = true;
+    }
+    auto drop = [](std::vector<std::string>& v, const char* n) {
+        auto it = std::find_if(v.begin(), v.end(), [&](const std::string& s) { return !strcasecmp(s.c_str(), n); });
+        if (it == v.end()) return false;
+        v.erase(it);
+        return true;
+    };
+    if (kind == 0) { drop(jp.left, nick); drop(jp.joined, nick); jp.joined.emplace_back(nick); }
+    else if (!drop(jp.joined, nick)) { drop(jp.left, nick); jp.left.emplace_back(nick); }
+    if (jp.first && jp.joined.size() + jp.left.size() == 1) {
+        // one event prints as usual (reason, host, colours); nx_ui_print
+        // records its line so the next one replaces it
+        jp.first = false;
+        jp.pending = true;
+        return 0;
+    }
+    jp.first = false;
+    auto list = [](const std::vector<std::string>& v) {
+        std::string s;
+        const std::size_t shown = std::min<std::size_t>(v.size(), 12);
+        for (std::size_t i = 0; i < shown; ++i) { if (i) s += ", "; s += v[i]; }
+        if (v.size() > shown) s += " and " + std::to_string(v.size() - shown) + " more";
+        return s;
+    };
+    std::string t = "*\t";
+    if (!jp.joined.empty()) t += "\00303→\017 " + list(jp.joined) + " joined";
+    if (!jp.left.empty()) {
+        if (!jp.joined.empty()) t += "\u00a0\00314·\017  ";
+        t += "\00305←\017 " + list(jp.left) + " left";
+    }
+    if (jp.joined.empty() && jp.left.empty()) t += std::string("\00314") + nick + " came and went";
+    if (ours) b->chat.replace_back(t);
+    else { b->chat.add(t, stamp); jp.line = b->chat[b->chat.size() - 1].id; }
+    ui().dirty = true;
+    return 1;
+}
+
+// a desktop notification through the terminal: OSC 777 (VTE, foot,
+// WezTerm, Ghostty) or OSC 9 (iTerm2, kitty, Windows Terminal); inside tmux
+// wrapped for passthrough
+void nx_ui_notify(const char* title, const char* body) {
+    Ui& u = ui();
+    if (!u.screen) return;
+    auto clean = [](const char* s, std::size_t max) {
+        std::string o;
+        for (const char* p = s ? s : ""; *p && o.size() < max; ++p) {
+            const unsigned char c = static_cast<unsigned char>(*p);
+            if (c < 0x20 || c == 0x7f) continue;          // no ESC/BEL/IRC codes
+            o += (c == ';') ? ',' : static_cast<char>(c);   // ; splits OSC 777 fields
+        }
+        return o;
+    };
+    const std::string t = clean(title, 80), b = clean(body, 240);
+    auto env = [](const char* k) { const char* v = std::getenv(k); return std::string(v ? v : ""); };
+    const std::string term = env("TERM"), prog = env("TERM_PROGRAM");
+    const bool osc777 = !env("VTE_VERSION").empty() || term.rfind("foot", 0) == 0
+                        || prog == "WezTerm" || prog == "ghostty" || term == "xterm-ghostty";
+    std::string seq = osc777 ? "\x1b]777;notify;" + t + ";" + b + "\x1b\\"
+                             : "\x1b]9;" + t + (b.empty() ? "" : ": " + b) + "\x1b\\";
+    if (!env("TMUX").empty()) {
+        std::string w = "\x1bPtmux;";
+        for (char c : seq) { w += c; if (c == '\x1b') w += '\x1b'; }
+        seq = w + "\x1b\\";
+    }
+    u.screen->emit_host_sequence(seq);
+}
+
+// the input box, for scripts (fe_get/set_inputbox_*): the line on screen for
+// the front buffer, the remembered draft for any other; the cursor counts
+// characters, as the GUI's does
+namespace {
+std::size_t cp_to_byte(const std::string& s, int cp) {
+    std::size_t i = 0;
+    for (int n = 0; i < s.size() && n < cp; ++n) {
+        ++i;
+        while (i < s.size() && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) ++i;
+    }
+    return i;
+}
+int byte_to_cp(const std::string& s, std::size_t b) {
+    int n = 0;
+    for (std::size_t i = 0; i < b && i < s.size(); ++i)
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++n;
+    return n;
+}
+}  // namespace
+
+const char* nx_ui_input_get(nx_key k) {
+    Ui& u = ui();
+    if (k == u.cur) return u.input.text().c_str();
+    if (Buffer* b = u.buf(k)) return b->draft.c_str();
+    return "";
+}
+int nx_ui_input_cursor(nx_key k) {
+    Ui& u = ui();
+    if (k == u.cur) return byte_to_cp(u.input.text(), u.input.cursor());
+    if (Buffer* b = u.buf(k)) return byte_to_cp(b->draft, b->draft_cursor);
+    return 0;
+}
+void nx_ui_input_set(nx_key k, const char* text) {
+    Ui& u = ui();
+    std::string t = text ? text : "";
+    if (k == u.cur) u.input.set(std::move(t));
+    else if (Buffer* b = u.buf(k)) { b->draft_cursor = t.size(); b->draft = std::move(t); }
+    u.dirty = true;
+}
+void nx_ui_input_set_cursor(nx_key k, int delta, int pos) {
+    Ui& u = ui();
+    if (k == u.cur) {
+        const std::string& s = u.input.text();
+        const int p = std::max(0, pos + (delta ? byte_to_cp(s, u.input.cursor()) : 0));
+        u.input.set(s, cp_to_byte(s, p));
+    } else if (Buffer* b = u.buf(k)) {
+        const int p = std::max(0, pos + (delta ? byte_to_cp(b->draft, b->draft_cursor) : 0));
+        b->draft_cursor = cp_to_byte(b->draft, p);
+    }
+    u.dirty = true;
+}
 
 void nx_ui_users_clear(nx_key k) {
     if (Buffer* b = ui().buf(k)) { b->users.clear(); b->total = b->ops = 0; if (k == ui().cur) ui().sync_users(); ui().dirty = true; }
@@ -2229,6 +2449,7 @@ int nx_ui_anim(void) {
 int nx_ui_tick(void) {
     Ui& u = ui();
     if (u.bouncer.tick()) u.dirty = true;
+    if (u.menus_stale && !u.menubar.is_open()) { u.menus_stale = false; u.build_menubar(); u.dirty = true; }
     u.check_prefs();
     return u.dirty ? 1 : 0;
 }

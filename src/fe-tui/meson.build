@@ -130,6 +130,8 @@ if host_machine.system() != 'windows'
     'tools.c',
     'keys.c',
     'cmds.c',
+    'notify.c',
+    '../fe-gtk/plugin-notification.c',
     'netlist.cpp',
     'prefs.cpp',
     'chanlist.cpp',
@@ -191,6 +193,10 @@ if host_machine.system() != 'windows'
   )
   test('tui-live', find_program('sh'),
     args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-live.py'],
+    timeout: 90,
+  )
+  test('tui-hooks', find_program('sh'),
+    args: [files('../../tests/tui-smoke.sh'), nexchat_tui, 'tui-hooks.py'],
     timeout: 90,
   )
   test('tui-hover', find_program('sh'),
