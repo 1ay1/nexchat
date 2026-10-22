@@ -140,7 +140,12 @@ jobs:
         run: |
           mkdir -p t && cd t && 7z x -bso0 "../dist/nexchat-$V-windows-x64-portable.zip"
           exe="nexchat-$V-windows-x64-portable/bin/nexchat.exe"
-          missing=$(ntldd -R "$exe" 2>&1 | grep -i "not found" || true)
+          # each of our files' direct imports must resolve; not -R, which
+          # walks into Windows' own DLLs and their optional parts the runner
+          # image doesn't have
+          missing=$(for f in "$exe" nexchat-$V-windows-x64-portable/bin/*.dll; do
+                      ntldd "$f" 2>&1 | grep -i "not found" | sed "s|^|$(basename "$f"): |"
+                    done | grep -viE ": +(api|ext)-ms-" || true)
           if [ -n "$missing" ]; then echo "$missing"; exit 1; fi
           timeout 10 "$exe" --version || [ $? -eq 124 ]
       - uses: actions/upload-artifact@v4
