@@ -39,7 +39,7 @@ SolidCompression=yes
 ChangesAssociations=yes
 CloseApplications=yes
 RestartApplications=no
-VersionInfoProduct=nexchat
+VersionInfoProductName=nexchat
 VersionInfoDescription=nexchat setup
 VersionInfoVersion={#APPVER}
 
