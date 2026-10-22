@@ -26,6 +26,19 @@
     <binary>nexchat</binary>
   </provides>
   <releases>
+    <release date="2026-10-22" version="0.2.0">
+      <description>
+        <p>nexchat now runs in a terminal too: nexchat --tui.</p>
+        <ul>
+          <li>A terminal UI with the same networks, settings and scripts as the window</li>
+          <li>Menus, a command palette, Preferences and dialogs that fit any terminal size</li>
+          <li>Mouse support: click, right-click menus, hover, drag to select, clickable links</li>
+          <li>Replies, older history on scroll-up, image previews and notifications</li>
+          <li>A one-column chat on narrow terminals, with the width it starts at configurable</li>
+          <li>The window's colour scheme now wins over the desktop's gtk.css</li>
+        </ul>
+      </description>
+    </release>
     <release date="2026-10-20" version="0.1.0">
       <description>
         <p>The first nexchat release: HexChat, continued on GTK4.</p>
