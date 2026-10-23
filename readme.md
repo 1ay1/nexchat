@@ -53,7 +53,7 @@ Set the version in `meson.build`, commit, then tag and push it:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-`.github/workflows/release.yml` builds every package (`osx/make-dmg.sh`, `win32/package.sh` for the installer and the portable zip, the Flatpak and a source tarball) and publishes them as a GitHub Release with checksums.
+`.github/workflows/release.yml` builds every package (`osx/make-dmg.sh`, `win32/package.sh` for the installer and the portable zip, the Flatpak and a source tarball) and publishes them as a GitHub Release with checksums. The macOS DMG is ad hoc until the signing secrets in [osx/SIGNING.md](osx/SIGNING.md) are set; then a `v*` tag is Developer ID signed, notarized and stapled.
 
 The screenshot above is regenerated with `tests/ux/readme-shot.sh build/src/fe-gtk/nexchat docs/screenshots`, against a fake IRC server; nobody's real chat is in it.
 

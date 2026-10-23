@@ -11,6 +11,11 @@ Contents/Resources (GSettings schemas, the gdk-pixbuf loaders and their
 cache, hicolor icons); the binary finds it through macos_bundle_setup()
 in src/fe-gtk/platform-macos.m. Signed ad hoc unless --sign is given
 (Apple Silicon refuses unsigned code).
+
+A real Developer ID (see osx/SIGNING.md) signs every Mach-O inside out
+with the hardened runtime and a secure timestamp, then the bundle.
+Ad hoc stays `--sign -` with no runtime flag: check-app.sh depends on
+DYLD_PRINT_LIBRARIES, which the hardened runtime strips.
 """
 import argparse
 import os
@@ -19,9 +24,100 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ENTITLEMENTS = os.path.join(HERE, "nexchat.entitlements")
+
+# Mach-O and fat Mach-O magics. CAFEBABE is also a Java class file; a fat
+# header's arch count is tiny, a class file's version isn't.
+_MACHO = (
+    b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",
+    b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
+    b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",
+)
+
+
+def is_macho(path):
+    if os.path.islink(path) or not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "rb") as f:
+            magic = f.read(8)
+    except OSError:
+        return False
+    if len(magic) < 4:
+        return False
+    head = magic[:4]
+    if head in _MACHO:
+        return True
+    if head in (b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca") and len(magic) >= 8:
+        order = "big" if head == b"\xca\xfe\xba\xbe" else "little"
+        n = int.from_bytes(magic[4:8], order)
+        return 1 <= n <= 16
+    return False
+
+
+def sign_argv(identity, path, entitlements=None, keychain=None):
+    """codesign invocation. Ad hoc is exactly --force --sign - with nothing
+    else, which is what the bundle has always used. A Developer ID gets the
+    hardened runtime and a secure timestamp; entitlements go on executables
+    and the bundle, not on libraries."""
+    cmd = ["codesign", "--force"]
+    if identity != "-":
+        cmd += ["--options", "runtime", "--timestamp"]
+        if entitlements:
+            cmd += ["--entitlements", entitlements, "--generate-entitlement-der"]
+        if keychain:
+            cmd += ["--keychain", keychain]
+    cmd += ["--sign", identity, path]
+    return cmd
+
+
+def _selftest():
+    assert sign_argv("-", "a.dylib") == ["codesign", "--force", "--sign", "-", "a.dylib"]
+    assert sign_argv("-", "a.dylib", ENTITLEMENTS, "/tmp/k") == [
+        "codesign", "--force", "--sign", "-", "a.dylib"]
+    ident = "Developer ID Application: Example (TEAMID)"
+    lib = sign_argv(ident, "libgtk.dylib", keychain="/tmp/k")
+    assert lib == [
+        "codesign", "--force", "--options", "runtime", "--timestamp",
+        "--keychain", "/tmp/k", "--sign", ident, "libgtk.dylib"]
+    exe = sign_argv(ident, "nexchat.app", ENTITLEMENTS)
+    assert "--entitlements" in exe and exe[exe.index("--entitlements") + 1] == ENTITLEMENTS
+    assert "--generate-entitlement-der" in exe
+    assert "--options" in exe and exe[exe.index("--options") + 1] == "runtime"
+    assert "--timestamp" in exe
+    # libraries don't get the entitlements plist
+    assert "--entitlements" not in lib
+    d = tempfile.mkdtemp()
+    try:
+        thin = os.path.join(d, "thin")
+        with open(thin, "wb") as f:
+            f.write(b"\xfe\xed\xfa\xcf" + b"\0" * 4)
+        assert is_macho(thin)
+        fat = os.path.join(d, "fat")
+        with open(fat, "wb") as f:
+            f.write(b"\xca\xfe\xba\xbe" + (2).to_bytes(4, "big"))
+        assert is_macho(fat)
+        java = os.path.join(d, "java")
+        with open(java, "wb") as f:
+            f.write(b"\xca\xfe\xba\xbe" + (61).to_bytes(4, "big"))
+        assert not is_macho(java)
+        assert not is_macho(os.path.join(d, "missing"))
+        os.symlink(thin, os.path.join(d, "link"))
+        assert not is_macho(os.path.join(d, "link"))
+        with open(ENTITLEMENTS, "rb") as f:
+            ent = plistlib.load(f)
+        assert ent == {}
+    finally:
+        shutil.rmtree(d)
+    print("sign argv ok")
+
+
+if os.environ.get("NEXCHAT_SIGN_ARGV_TEST") == "1":
+    _selftest()
+    raise SystemExit(0)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("builddir")
@@ -275,16 +371,48 @@ with open(os.path.join(contents, "Info.plist"), "wb") as f:
     }, f)
 
 # Apple Silicon only runs signed code; install_name_tool broke the
-# original signatures, so sign everything again (inside out)
-for top, _, files in os.walk(contents):
-    for f in files:
-        p = os.path.join(top, f)
-        if f.endswith((".dylib", ".so")):
-            run("codesign", "--force", "--sign", a.sign, p)
-run("codesign", "--force", "--sign", a.sign, exe)
-if os.path.exists(os.path.join(macos, "nexchat-tui")):
-    run("codesign", "--force", "--sign", a.sign, os.path.join(macos, "nexchat-tui"))
-run("codesign", "--force", "--sign", a.sign, app)
+# original signatures, so sign everything again (inside out).
+# Ad hoc keeps the flags this bundle has always used. A Developer ID
+# signs every Mach-O (hardened runtime, timestamp), executables in
+# Contents/MacOS get osx/nexchat.entitlements, and the bundle is last
+# so its seal covers the signatures inside it.
+if a.sign in ("-", ""):
+    for top, _, files in os.walk(contents):
+        for f in files:
+            p = os.path.join(top, f)
+            if f.endswith((".dylib", ".so")):
+                run("codesign", "--force", "--sign", "-", p)
+    run("codesign", "--force", "--sign", "-", exe)
+    if os.path.exists(os.path.join(macos, "nexchat-tui")):
+        run("codesign", "--force", "--sign", "-", os.path.join(macos, "nexchat-tui"))
+    run("codesign", "--force", "--sign", "-", app)
+else:
+    with open(ENTITLEMENTS, "rb") as f:
+        plistlib.load(f)
+    # Homebrew libraries sometimes carry Finder info that codesign rejects
+    # once the signature has a timestamp ("detritus not allowed").
+    subprocess.run(["xattr", "-cr", app], capture_output=True, text=True)
+    keychain = os.environ.get("CODESIGN_KEYCHAIN") or None
+    machos = []
+    for top, _, files in os.walk(app):
+        for f in files:
+            p = os.path.join(top, f)
+            if is_macho(p):
+                machos.append(p)
+    machos.sort(key=lambda p: (-p.count(os.sep), p))
+    for p in machos:
+        ent = ENTITLEMENTS if os.path.dirname(p) == macos else None
+        print(f"sign {'executable' if ent else 'library'} {os.path.relpath(p, app)}")
+        run(*sign_argv(a.sign, p, ent, keychain))
+    print(f"sign bundle {os.path.basename(app)}")
+    run(*sign_argv(a.sign, app, ENTITLEMENTS, keychain))
+    r = subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", app])
+    if r.returncode:
+        sys.exit(f"codesign --verify --deep --strict {app} failed ({r.returncode})")
+    info = subprocess.run(["codesign", "-d", "--verbose=4", app], capture_output=True, text=True)
+    sys.stdout.write(info.stderr)
+    if info.returncode or "(runtime)" not in info.stderr or "Developer ID Application" not in info.stderr:
+        sys.exit(f"{app} is not a hardened-runtime Developer ID signature")
 
 size = run("du", "-sh", app).split()[0]
 print(f"{app}: {len(copied)} libraries, {size}")

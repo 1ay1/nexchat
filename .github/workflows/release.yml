@@ -6,9 +6,11 @@ name: Release
 #                nexchat-<v>-windows-x64-portable.zip
 #   Linux        nexchat-<v>-linux-x86_64.flatpak
 #   source       nexchat-<v>.tar.xz
-# Unsigned for now: macOS asks to confirm the first open (right-click >
-# Open), Windows SmartScreen says "unrecognized app" until the installer
-# has a reputation or a signing certificate.
+# macOS is Developer ID signed, notarized and stapled when the `release`
+# environment has the secrets in osx/SIGNING.md. With those secrets absent
+# the DMG stays ad hoc, and the first open needs a right-click > Open.
+# Windows is still unsigned: SmartScreen says "unrecognized app" until the
+# installer has a reputation or a signing certificate.
 on:
   push:
     tags: ['v*']
@@ -60,6 +62,11 @@ jobs:
   macos:
     needs: source
     runs-on: macos-latest
+    # Secrets live on this environment, not on the repository. With none of
+    # them set, ci-keychain.sh leaves the build ad hoc. See osx/SIGNING.md.
+    environment: release
+    outputs:
+      signing: ${{ steps.package.outputs.signing }}
     env:
       V: ${{ needs.source.outputs.version }}
     steps:
@@ -77,14 +84,38 @@ jobs:
       - name: GTK
         if: steps.gtk.outputs.cache-hit != 'true'
         run: sh osx/build-gtk.sh
+      - name: Signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: sh osx/ci-keychain.sh import
       - name: Build
+        id: package
         run: |
           meson setup build -Ddbus=disabled -Dwith-perl=false -Dwith-python=false -Dwith-lua=false -Dtui=enabled \
             "-Dpkg_config_path=$HOME/.cache/nexchat-gtk/lib/pkgconfig"
           ninja -C build
           ninja -C build app
+          # check-app.sh reads DYLD_PRINT_LIBRARIES. The hardened runtime
+          # strips that, so the check runs on the ad hoc bundle, then a
+          # Developer ID (when the release environment has one) re-signs.
           sh osx/check-app.sh build/nexchat.app
+          if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+            echo "Re-signing with $CODESIGN_IDENTITY (hardened runtime, timestamp)."
+            python3 osx/make-app.py build --sign "$CODESIGN_IDENTITY"
+            echo "signing=notarized" >> "$GITHUB_OUTPUT"
+          else
+            echo "Ad hoc signature: the release environment has no Developer ID."
+            echo "signing=ad-hoc" >> "$GITHUB_OUTPUT"
+          fi
           sh osx/make-dmg.sh build/nexchat.app "$V"
+      - name: Remove signing keychain
+        if: always()
+        run: sh osx/ci-keychain.sh delete
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -197,7 +228,7 @@ jobs:
 
             | | |
             |---|---|
-            | **macOS** (Apple Silicon) | `nexchat-${{ needs.source.outputs.version }}-macos-arm64.dmg`: open it, drag nexchat to Applications. First launch: right-click nexchat > Open (the app isn't notarized yet). |
+            | **macOS** (Apple Silicon) | `nexchat-${{ needs.source.outputs.version }}-macos-arm64.dmg`: open it, drag nexchat to Applications. ${{ needs.macos.outputs.signing == 'notarized' && 'Signed with a Developer ID and notarized.' || 'Ad hoc build (the release environment had no signing secrets): right-click nexchat and choose Open the first time.' }} |
             | **Windows** installer | `nexchat-${{ needs.source.outputs.version }}-windows-x64-setup.exe`: Start menu entry, uninstaller, irc:// links. |
             | **Windows** portable | `nexchat-${{ needs.source.outputs.version }}-windows-x64-portable.zip`: unzip anywhere, run `nexchat.bat`; settings stay in the folder. |
             | **Linux** | `nexchat-${{ needs.source.outputs.version }}-linux-x86_64.flatpak`: `flatpak install --user nexchat-*.flatpak` |

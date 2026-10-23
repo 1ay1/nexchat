@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for the nexchat executable and nexchat-tui.
+  The dict is empty on purpose; osx/SIGNING.md says why each usual key is absent.
+
+  Not sandboxed, so no App Sandbox keys. Apple Silicon libffi (GObject signal
+  closures) uses signed trampoline pages inside libffi, not RWX or MAP_JIT.
+  Every Mach-O we ship is signed with the same Developer ID, so library
+  validation already allows it. Unsigned plugins a user adds later will not
+  load; that is deliberate.
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
