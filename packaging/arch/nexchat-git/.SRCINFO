@@ -1,6 +1,6 @@
 pkgbase = nexchat-git
-	pkgdesc = IRC client: HexChat continued on GTK4 (git master)
-	pkgver = 0.1.0.r0.g0000000
+	pkgdesc = IRC client: HexChat continued on GTK4, with a terminal UI (git master)
+	pkgver = 0.2.1.r2.g25eb9e05
 	pkgrel = 1
 	epoch = 1
 	url = https://github.com/1ay1/nexchat
@@ -10,6 +10,7 @@ pkgbase = nexchat-git
 	makedepends = git
 	makedepends = meson
 	makedepends = ninja
+	makedepends = cmake
 	makedepends = python
 	makedepends = perl
 	makedepends = luajit
@@ -32,6 +33,8 @@ pkgbase = nexchat-git
 	provides = nexchat
 	conflicts = nexchat
 	source = git+https://github.com/1ay1/nexchat.git
+	source = git+https://github.com/1ay1/maya.git
+	sha256sums = SKIP
 	sha256sums = SKIP
 
 pkgname = nexchat-git
