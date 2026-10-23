@@ -110,15 +110,16 @@ def main():
             t.pump(0.2)
         check("héllo wörld" in t.input_line(), "/settext fills the input line")
         t.send(b"\r", 0.4)   # sent: the line is empty again
-        # typing a command replaces the line: both run later, from timers
-        run("/timer 1 settext abcdef")
-        run("/timer 2 setcursor 2")
-        # a slow runner fires the timers late: wait for the text, then past
-        # the second timer
-        end = time.time() + 6
+        # typing a command replaces the line: both run later, from timers.
+        # Long enough that neither fires while the other is being typed (a
+        # slow runner types slowly too)
+        run("/timer 4 settext abcdef")
+        run("/timer 6 setcursor 2")
+        end = time.time() + 10
         while "abcdef" not in t.input_line() and time.time() < end:
             t.pump(0.2)
-        t.pump(2.0)
+        # then past the second timer
+        t.pump(3.0)
         t.type("X", 0.3)
         end = time.time() + 3
         while "X" not in t.input_line() and time.time() < end:
