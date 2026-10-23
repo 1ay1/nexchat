@@ -97,6 +97,8 @@ Settings → Rules → Rulesets → New ruleset → New tag ruleset.
 
 The release notes say "notarized" only when an identity was present. They say "ad hoc" when the secrets were absent.
 
+The app's ticket is a file inside the bundle, so it survives being copied into the DMG and uploaded as a release asset. The DMG's own ticket is attached to the image file. `actions/upload-artifact` packs that file in a zip; if `stapler validate` fails on the downloaded DMG but the app inside the image still validates, the image ticket was dropped in transit and Gatekeeper will fetch it. The app ticket is the one that matters after the drag to Applications.
+
 ## Sign on your own Mac
 
 Same build the release job uses (GTK from `osx/build-gtk.sh`, dbus and the scripting plugins off):
