@@ -1,5 +1,5 @@
 project('nexchat', 'c',
-  version: '0.2.1',
+  version: '0.2.2',
   meson_version: '>= 0.61.0',
   default_options: [
     'c_std=gnu11',

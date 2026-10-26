@@ -26,6 +26,15 @@
     <binary>nexchat</binary>
   </provides>
   <releases>
+    <release date="2026-10-26" version="0.2.2">
+      <description>
+        <p>A clean build: no compiler or build warnings.</p>
+        <ul>
+          <li>Config files, logs and keybindings are written and read in full, even on short writes</li>
+          <li>The terminal UI is built in the AUR package too</li>
+        </ul>
+      </description>
+    </release>
     <release date="2026-10-22" version="0.2.1">
       <description>
         <p>nexchat now runs in a terminal too: nexchat --tui.</p>
