@@ -66,6 +66,8 @@ int strip_color2 (const char *src, int len, char *dst, int flags);
 int strip_hidden_attribute (char *src, char *dst);
 char *errorstring (int err);
 int waitline (int sok, char *buf, int bufsize, int);
+gboolean write_all (int fd, const void *buf, size_t len);
+size_t read_all (int fd, void *buf, size_t len);
 #ifdef WIN32
 int waitline2 (GIOChannel *source, char *buf, int bufsize);
 int get_cpu_arch (void);

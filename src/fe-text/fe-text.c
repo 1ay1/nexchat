@@ -315,7 +315,7 @@ fe_print_text (struct session *sess, char *text, time_t stamp,
 		newtext[j++] = '\n';
 
 	newtext[j] = 0;
-	write (STDOUT_FILENO, newtext, j);
+	write_all (STDOUT_FILENO, newtext, j);
 	g_free (newtext);
 }
 #else
@@ -410,7 +410,7 @@ fe_print_text (struct session *sess, char *text, time_t stamp,
 		newtext[j++] = '\n';
 
 	newtext[j] = 0;
-	write (STDOUT_FILENO, newtext, j);
+	write_all (STDOUT_FILENO, newtext, j);
 	g_free (newtext);
 }
 #endif

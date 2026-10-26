@@ -1,6 +1,6 @@
 project('nexchat', 'c',
   version: '0.2.1',
-  meson_version: '>= 0.59.0',
+  meson_version: '>= 0.61.0',
   default_options: [
     'c_std=gnu11',
     'buildtype=debugoptimized',
@@ -114,7 +114,6 @@ test_cflags = [
   '-Wno-padded',
   '-Wno-unused-parameter',
   '-Wno-missing-prototypes',
-  '-Winline',
   '-Wstrict-prototypes',
   '-Werror=implicit-function-declaration',
   '-Werror=pointer-arith',

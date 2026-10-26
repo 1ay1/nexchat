@@ -665,7 +665,7 @@ palette_load (void)
 	}
 	fstat (fh, &st);
 	cfg = g_malloc0 (st.st_size + 1);
-	read (fh, cfg, st.st_size);
+	read_all (fh, cfg, st.st_size);
 
 	if (!cfg_get_str (cfg, "scheme", scheme, sizeof scheme))
 		scheme[0] = 0;

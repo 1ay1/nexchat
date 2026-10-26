@@ -268,8 +268,7 @@ char *decrypt_raw_message(const char *message, const char *key) {
                 g_string_append(message_decrypted, right);
             }
 
-            result = message_decrypted->str;
-            g_string_free(message_decrypted, FALSE);
+            result = g_string_free(message_decrypted, FALSE);
             return result;
         }
     }

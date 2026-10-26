@@ -860,7 +860,7 @@ key_save_kbs (void)
 									 0x180, XOF_DOMODE);
 	if (fd < 0)
 		return 1;
-	write (fd, buf, g_snprintf (buf, 510, "# HexChat key bindings config file\n\n"));
+	write_all (fd, buf, g_snprintf (buf, 510, "# HexChat key bindings config file\n\n"));
 
 	while (list)
 	{
@@ -869,20 +869,20 @@ key_save_kbs (void)
 		accel_text = gtk_accelerator_name (kb->keyval, kb->mod);
 
 		g_snprintf (buf, 510, "ACCEL=%s\n%s\n", accel_text, key_actions[kb->action].name);
-		write (fd, buf, strlen (buf));
+		write_all (fd, buf, strlen (buf));
 		g_free (accel_text);
 
 		if (kb->data1 && kb->data1[0])
-			write (fd, buf, g_snprintf (buf, 510, "D1:%s\n", kb->data1));
+			write_all (fd, buf, g_snprintf (buf, 510, "D1:%s\n", kb->data1));
 		else
-			write (fd, "D1!\n", 4);
+			write_all (fd, "D1!\n", 4);
 
 		if (kb->data2 && kb->data2[0])
-			write (fd, buf, g_snprintf (buf, 510, "D2:%s\n", kb->data2));
+			write_all (fd, buf, g_snprintf (buf, 510, "D2:%s\n", kb->data2));
 		else
-			write (fd, "D2!\n", 4);
+			write_all (fd, "D2!\n", 4);
 
-		write (fd, "\n", 1);
+		write_all (fd, "\n", 1);
 
 		list = g_slist_next (list);
 	}
@@ -968,8 +968,7 @@ key_load_kbs (void)
 		}
 
 		ibuf = g_malloc(st.st_size);
-		read (fd, ibuf, st.st_size);
-		size = st.st_size;
+		size = read_all (fd, ibuf, st.st_size);
 		close (fd);
 	}
 

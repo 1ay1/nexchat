@@ -87,7 +87,7 @@ cache_put (const char *url, gpointer v)
 }
 
 /* links that may well be images: by the name's ending (the server still
-   has to say image/*). Pages aren't fetched at all. */
+   has to say image/ anything). Pages aren't fetched at all. */
 static gboolean
 looks_like_image (const char *url)
 {

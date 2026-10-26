@@ -135,7 +135,7 @@ list_loadconf (char *file, GSList ** list, char *defaultconf)
 	}
 
 	ibuf = g_malloc (st.st_size);
-	read (fd, ibuf, st.st_size);
+	st.st_size = read_all (fd, ibuf, st.st_size);
 	close (fd);
 
 	list_load_from_data (list, ibuf, st.st_size);

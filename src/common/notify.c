@@ -135,13 +135,13 @@ notify_save (void)
 		while (list)
 		{
 			notify = (struct notify *) list->data;
-			write (fh, notify->name, strlen (notify->name));
+			write_all (fh, notify->name, strlen (notify->name));
 			if (notify->networks)
 			{
-				write (fh, " ", 1);
-				write (fh, notify->networks, strlen (notify->networks));
+				write_all (fh, " ", 1);
+				write_all (fh, notify->networks, strlen (notify->networks));
 			}
-			write (fh, "\n", 1);
+			write_all (fh, "\n", 1);
 			list = list->next;
 		}
 		close (fh);

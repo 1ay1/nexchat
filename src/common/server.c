@@ -1053,8 +1053,8 @@ server_disconnect (session * sess, int sendquit, int err)
 static void
 proxy_error (int fd, char *msg)
 {
-	write (fd, "0\n", 2);
-	write (fd, msg, strlen (msg));
+	write_all (fd, "0\n", 2);
+	write_all (fd, msg, strlen (msg));
 }
 
 struct sock_connect
@@ -1293,16 +1293,16 @@ http_read_line (int print_fd, int sok, char *buf, int len)
 	if (len >= 1)
 	{
 		/* print the message out (send it to the parent process) */
-		write (print_fd, "0\n", 2);
+		write_all (print_fd, "0\n", 2);
 
 		if (buf[len-1] == '\r')
 		{
 			buf[len-1] = '\n';
-			write (print_fd, buf, len);
+			write_all (print_fd, buf, len);
 		} else
 		{
-			write (print_fd, buf, len);
-			write (print_fd, "\n", 1);
+			write_all (print_fd, buf, len);
+			write_all (print_fd, "\n", 1);
 		}
 	}
 
@@ -1396,12 +1396,12 @@ server_child (server * serv)
 		if (local_ip != NULL)
 		{
 			g_snprintf (buf, sizeof (buf), "5\n%s\n", local_ip);
-			write (serv->childwrite, buf, strlen (buf));
+			write_all (serv->childwrite, buf, strlen (buf));
 			net_bind (ns_local, serv->sok4, serv->sok6);
 			bound = 1;
 		} else
 		{
-			write (serv->childwrite, "7\n", 2);
+			write_all (serv->childwrite, "7\n", 2);
 		}
 		net_store_destroy (ns_local);
 	}
@@ -1463,12 +1463,12 @@ server_child (server * serv)
 	if (proxy_type > 0)
 	{
 		g_snprintf (buf, sizeof (buf), "9\n%s\n", proxy_host);
-		write (serv->childwrite, buf, strlen (buf));
+		write_all (serv->childwrite, buf, strlen (buf));
 		ip = net_resolve (ns_server, proxy_host, proxy_port, &real_hostname);
 		g_free (proxy_host);
 		if (!ip)
 		{
-			write (serv->childwrite, "1\n", 2);
+			write_all (serv->childwrite, "1\n", 2);
 			goto xit;
 		}
 		connect_port = proxy_port;
@@ -1480,7 +1480,7 @@ server_child (server * serv)
 			proxy_ip = net_resolve (ns_proxy, hostname, port, &real_hostname);
 			if (!proxy_ip)
 			{
-				write (serv->childwrite, "1\n", 2);
+				write_all (serv->childwrite, "1\n", 2);
 				goto xit;
 			}
 		} else						  /* otherwise we can just use the hostname */
@@ -1490,7 +1490,7 @@ server_child (server * serv)
 		ip = net_resolve (ns_server, hostname, port, &real_hostname);
 		if (!ip)
 		{
-			write (serv->childwrite, "1\n", 2);
+			write_all (serv->childwrite, "1\n", 2);
 			goto xit;
 		}
 		connect_port = port;
@@ -1498,7 +1498,7 @@ server_child (server * serv)
 
 	g_snprintf (buf, sizeof (buf), "3\n%s\n%s\n%d\n",
 				 real_hostname, ip, connect_port);
-	write (serv->childwrite, buf, strlen (buf));
+	write_all (serv->childwrite, buf, strlen (buf));
 
 	if (!serv->dont_use_proxy && (proxy_type == 5))
 		error = net_connect (ns_server, serv->proxy_sok4, serv->proxy_sok6, &psok);
@@ -1511,7 +1511,7 @@ server_child (server * serv)
 	if (error != 0)
 	{
 		g_snprintf (buf, sizeof (buf), "2\n%d\n", sock_error ());
-		write (serv->childwrite, buf, strlen (buf));
+		write_all (serv->childwrite, buf, strlen (buf));
 	} else
 	{
 		/* connect succeeded */
@@ -1521,16 +1521,16 @@ server_child (server * serv)
 			{
 			case 0:	/* success */
 				g_snprintf (buf, sizeof (buf), "4\n%d\n", sok);	/* success */
-				write (serv->childwrite, buf, strlen (buf));
+				write_all (serv->childwrite, buf, strlen (buf));
 				break;
 			case 1:	/* socks traversal failed */
-				write (serv->childwrite, "8\n", 2);
+				write_all (serv->childwrite, "8\n", 2);
 				break;
 			}
 		} else
 		{
 			g_snprintf (buf, sizeof (buf), "4\n%d\n", sok);	/* success */
-			write (serv->childwrite, buf, strlen (buf));
+			write_all (serv->childwrite, buf, strlen (buf));
 		}
 	}
 
@@ -1683,7 +1683,8 @@ server_connect (server *serv, char *hostname, int port, int no_login)
 
 	case 0:
 		/* this is the child */
-		setuid (getuid ());
+		if (setuid (getuid ()) != 0)
+			_exit (1);
 		server_child (serv);
 		_exit (0);
 	}

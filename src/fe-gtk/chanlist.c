@@ -522,7 +522,7 @@ chanlist_filereq_done (server *serv, char *file)
 
 	g_snprintf (buf, sizeof buf, "HexChat Channel List: %s - %s\n",
 				 serv->servername, ctime (&t));
-	write (fh, buf, strlen (buf));
+	write_all (fh, buf, strlen (buf));
 
 	for (row = nx_store_first (GET_STORE (serv)); row; row = nx_row_next (row))
 	{
@@ -533,7 +533,7 @@ chanlist_filereq_done (server *serv, char *file)
 		g_snprintf (buf, sizeof buf, "%-16s %-5d%s\n", chan, users, topic);
 		g_free (chan);
 		g_free (topic);
-		write (fh, buf, strlen (buf));
+		write_all (fh, buf, strlen (buf));
 	}
 
 	close (fh);

@@ -36,6 +36,7 @@
 #include "../common/cfgfiles.h"
 #include "../common/hexchatc.h"
 #include "../common/fe.h"
+#include "../common/util.h"
 #include "menu.h"
 #include "gtkutil.h"
 #include "nxlist.h"
@@ -75,7 +76,7 @@ editlist_save (GtkWidget *igad, gchar *file)
 			cmd = NULL;
 			nx_row_get (row, NAME_COLUMN, &name, CMD_COLUMN, &cmd, -1);
 			g_snprintf (buf, sizeof (buf), "NAME %s\nCMD %s\n\n", name, cmd);
-			write (fh, buf, strlen (buf));
+			write_all (fh, buf, strlen (buf));
 			g_free (name);
 			g_free (cmd);
 		}

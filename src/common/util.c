@@ -84,6 +84,44 @@ file_part (char *file)
 	}
 }
 
+/* write() all of buf, retrying short writes and EINTR */
+gboolean
+write_all (int fd, const void *buf, size_t len)
+{
+	const char *p = buf;
+
+	while (len > 0)
+	{
+		ssize_t n = write (fd, p, len);
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n <= 0)
+			return FALSE;
+		p += n;
+		len -= n;
+	}
+	return TRUE;
+}
+
+/* read() up to len bytes, retrying short reads and EINTR; returns bytes read */
+size_t
+read_all (int fd, void *buf, size_t len)
+{
+	char *p = buf;
+	size_t got = 0;
+
+	while (got < len)
+	{
+		ssize_t n = read (fd, p + got, len - got);
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n <= 0)
+			break;
+		got += n;
+	}
+	return got;
+}
+
 void
 path_part (char *file, char *path, int pathlen)
 {

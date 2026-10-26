@@ -3983,8 +3983,8 @@ gtk_xtext_save (GtkXText * xtext, int fh)
 	{
 		buf = gtk_xtext_strip_color (ent->str, ent->str_len, NULL,
 											  &newlen, NULL, FALSE);
-		write (fh, buf, newlen);
-		write (fh, "\n", 1);
+		write_all (fh, buf, newlen);
+		write_all (fh, "\n", 1);
 		g_free (buf);
 		ent = ent->next;
 	}

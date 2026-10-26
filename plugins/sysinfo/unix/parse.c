@@ -279,23 +279,30 @@ static void strip_quotes(char *string)
 		memmove(string, string + 1, len);
 }
 
+/* first line of fp, or empty if there isn't one */
+static void read_first_line(char *buf, FILE *fp)
+{
+	if (fgets(buf, bsize, fp) == NULL)
+		buf[0] = '\0';
+}
+
 int xs_parse_distro(char *name)
 {
 	FILE *fp = NULL;
 	char buffer[bsize], *pos = NULL;
 
 	if((fp = fopen("/etc/redhat-release", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/mageia-release", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/slackware-version", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/mandrake-release", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/SuSE-release", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/turbolinux-release", "r")) != NULL)
-		fgets(buffer, bsize, fp);
+		read_first_line(buffer, fp);
 	else if((fp = fopen("/etc/arch-release", "r")) != NULL)
 		g_snprintf(buffer, bsize, "ArchLinux");
 	else if((fp = fopen("/etc/lsb-release", "r")) != NULL)
@@ -315,7 +322,7 @@ int xs_parse_distro(char *name)
 	else if((fp = fopen("/etc/debian_version", "r")) != NULL)
 	{
 		char release[bsize];
-		fgets(release, bsize, fp);
+		read_first_line(release, fp);
 		g_snprintf(buffer, bsize, "Debian %s", release);
 	}
 	else if((fp = fopen("/etc/portage/make.conf", "r")) != NULL ||

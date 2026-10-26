@@ -287,7 +287,7 @@ ignore_load (void)
 		if (st.st_size)
 		{
 			cfg = g_malloc0 (st.st_size + 1);
-			read (fh, cfg, st.st_size);
+			read_all (fh, cfg, st.st_size);
 			my_cfg = cfg;
 			while (my_cfg)
 			{
@@ -321,7 +321,7 @@ ignore_save (void)
 			{
 				g_snprintf (buf, sizeof (buf), "mask = %s\ntype = %u\n\n",
 							 ig->mask, ig->type);
-				write (fh, buf, strlen (buf));
+				write_all (fh, buf, strlen (buf));
 			}
 			temp = temp->next;
 		}

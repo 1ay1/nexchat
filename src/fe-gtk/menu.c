@@ -2562,6 +2562,7 @@ win_next_unread (GtkWidget *w, GVariant *args, gpointer d)
 	return TRUE;
 }
 
+#ifdef __APPLE__
 static gboolean
 win_tab_n (GtkWidget *w, GVariant *args, gpointer d)
 {
@@ -2585,6 +2586,7 @@ win_jump (GtkWidget *w, GVariant *args, gpointer d)
 	jumpto_open ();
 	return TRUE;
 }
+#endif
 
 static gboolean
 win_emoji (GtkWidget *w, GVariant *args, gpointer d)

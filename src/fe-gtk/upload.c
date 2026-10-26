@@ -212,7 +212,7 @@ upload_file (session *sess, GFile *file)
 		char *ct = g_content_type_guess (base, (guchar *) contents, MIN (len, 4096), &uncertain);
 		type = g_content_type_get_mime_type (ct);
 		g_free (ct);
-		/* a family ("text/*") isn't a type: say what it most likely is */
+		/* a bare family ("text/") isn't a type: say what it most likely is */
 		if (!type || strchr (type, '*'))
 		{
 			gboolean text = (type && g_str_has_prefix (type, "text/")) ||

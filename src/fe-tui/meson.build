@@ -66,7 +66,7 @@ maya_proj = cmake.subproject('maya', options: maya_opts)
 maya_dep = declare_dependency(
   dependencies: maya_proj.dependency('maya').partial_dependency(
     compile_args: true, link_args: true, links: true, sources: true),
-  include_directories: include_directories('../../subprojects/maya/include'),
+  compile_args: '-I' + (meson.project_source_root() / 'subprojects/maya/include'),
 )
 
 tui_cpp_args = []

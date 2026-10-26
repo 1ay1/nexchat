@@ -109,7 +109,6 @@ static guchar *
 dh1080_decode_b64 (const char *data, gsize *out_len)
 {
 	GString *str = g_string_new (data);
-	guchar *ret;
 
 	if (str->len % 4 == 1 && str->str[str->len - 1] == 'A')
 		g_string_truncate (str, str->len - 1);
@@ -117,9 +116,9 @@ dh1080_decode_b64 (const char *data, gsize *out_len)
 	while (str->len % 4 != 0)
 		g_string_append_c (str, '=');
 
-	ret = g_base64_decode_inplace (str->str, out_len);
-	g_string_free (str, FALSE);
-  	return ret;
+	/* decodes in place, so the result is str's own buffer */
+	g_base64_decode_inplace (str->str, out_len);
+	return (guchar *) g_string_free (str, FALSE);
 }
 
 static char *

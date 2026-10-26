@@ -376,7 +376,7 @@ log_close (session *sess)
 	if (sess->logfd != -1)
 	{
 		currenttime = time (NULL);
-		write (sess->logfd, obuf,
+		write_all (sess->logfd, obuf,
 			 g_snprintf (obuf, sizeof (obuf) - 1, _("**** ENDING LOGGING AT %s\n"),
 						  ctime (&currenttime)));
 		close (sess->logfd);
@@ -588,7 +588,7 @@ log_open_file (char *servname, char *channame, char *netname)
 	if (fd == -1)
 		return -1;
 	currenttime = time (NULL);
-	write (fd, buf,
+	write_all (fd, buf,
 			 g_snprintf (buf, sizeof (buf), _("**** BEGIN LOGGING AT %s\n"),
 						  ctime (&currenttime)));
 
@@ -718,17 +718,17 @@ log_write (session *sess, char *text, time_t ts)
 		len = get_stamp_str (prefs.hex_stamp_log_format, ts, &stamp);
 		if (len)
 		{
-			write (sess->logfd, stamp, len);
+			write_all (sess->logfd, stamp, len);
 			g_free (stamp);
 		}
 	}
 
 	temp = strip_color (text, -1, STRIP_ALL);
 	len = strlen (temp);
-	write (sess->logfd, temp, len);
+	write_all (sess->logfd, temp, len);
 	/* lots of scripts/plugins print without a \n at the end */
 	if (temp[len - 1] != '\n')
-		write (sess->logfd, "\n", 1);	/* emulate what xtext would display */
+		write_all (sess->logfd, "\n", 1);	/* emulate what xtext would display */
 	g_free (temp);
 }
 
@@ -1686,7 +1686,7 @@ pevent_load (char *filename)
 		return 1;
 	}
 	ibuf = g_malloc (st.st_size);
-	read (fd, ibuf, st.st_size);
+	st.st_size = read_all (fd, ibuf, st.st_size);
 	close (fd);
 
 	while (buf_get_line (ibuf, &buf, &pnt, st.st_size))
@@ -2284,9 +2284,9 @@ pevent_save (char *fn)
 
 	for (i = 0; i < NUM_XP; i++)
 	{
-		write (fd, buf, g_snprintf (buf, sizeof (buf),
+		write_all (fd, buf, g_snprintf (buf, sizeof (buf),
 										  "event_name=%s\n", te[i].name));
-		write (fd, buf, g_snprintf (buf, sizeof (buf),
+		write_all (fd, buf, g_snprintf (buf, sizeof (buf),
 										  "event_text=%s\n\n", pntevts_text[i]));
 	}
 
@@ -2457,9 +2457,9 @@ sound_save (void)
 	{
 		if (sound_files[i] && sound_files[i][0])
 		{
-			write (fd, buf, g_snprintf (buf, sizeof (buf),
+			write_all (fd, buf, g_snprintf (buf, sizeof (buf),
 											  "event=%s\n", te[i].name));
-			write (fd, buf, g_snprintf (buf, sizeof (buf),
+			write_all (fd, buf, g_snprintf (buf, sizeof (buf),
 											  "sound=%s\n\n", sound_files[i]));
 		}
 	}
