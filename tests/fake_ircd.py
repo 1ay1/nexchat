@@ -30,6 +30,9 @@ p.add_argument("--isupport", default="",
                help="more 005 tokens, e.g. soju.im/FILEHOST=http://127.0.0.1:8766/upload")
 p.add_argument("--history-pages", type=int, default=0,
                help="answer CHATHISTORY BEFORE with this many pages of 3 older lines")
+p.add_argument("--after-lines", type=int, default=0,
+               help="CHATHISTORY AFTER: this many missed lines in all, sent a page (the"
+                    " limit asked for) at a time, each with a msgid")
 a = p.parse_args()
 
 DEMO_USERS = ["~founder", "&admin", "@alice", "@carol", "%helper", "+bob", "+dave",
@@ -196,6 +199,16 @@ try:
                         t = f"2025-12-{page:02d}T10:0{i}:00.000Z"
                         send(f"@batch=hb;time={t} :older!u@h PRIVMSG {target} :older-p{page}-{i}")
                 send(":fake BATCH -hb")
+            elif cmd == "CHATHISTORY" and len(parts) >= 5 and parts[1].upper() == "AFTER" and a.after_lines:
+                # missed lines m0..mN-1, a page at a time from the msgid (or the
+                # start, for a timestamp) as many as asked
+                target, ref, limit = parts[2], parts[3], int(parts[4])
+                start = int(ref.split("=m", 1)[1]) + 1 if ref.startswith("msgid=m") else 0
+                send(f":fake BATCH +ha chathistory {target}")
+                for n in range(start, min(start + limit, a.after_lines)):
+                    t = "2026-01-02T%02d:%02d:%02d.000Z" % (n // 3600 % 24, n // 60 % 60, n % 60)
+                    send(f"@batch=ha;time={t};msgid=m{n} :bob!u@h PRIVMSG {target} :missed-{n}")
+                send(":fake BATCH -ha")
             elif cmd == "CHATHISTORY" and len(parts) >= 3:
                 # three old lines in a batch, the middle one naming us
                 target = parts[2]
@@ -257,6 +270,9 @@ try:
                     if a.demo:
                         for l in demo_chatter(nick, chan):
                             send(l)
+            elif cmd == "PART" and len(parts) >= 2:
+                for chan in parts[1].split(","):
+                    send(f":{nick}!u@h PART {chan} :bye")
             elif cmd == "MODE" and len(parts) == 2 and parts[1].startswith("#"):
                 send(f":fake 324 {nick} {parts[1]} +nt")
             elif cmd == "MODE" and len(parts) == 3 and parts[2] in ("+b", "b"):

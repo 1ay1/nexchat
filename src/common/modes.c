@@ -863,7 +863,11 @@ inbound_005 (server * serv, char *word[], const message_tags_data *tags_data)
 		bouncer_isupport (serv, word[w]);
 
 		parse_005_token(word[w], &tokname, &tokvalue, &tokadding);
-		if (g_strcmp0 (tokname, "MODES") == 0)
+		if (g_strcmp0 (tokname, "CHATHISTORY") == 0)
+		{
+			/* how many lines one CHATHISTORY may ask for */
+			serv->chathistory_max = atoi (tokvalue);
+		} else if (g_strcmp0 (tokname, "MODES") == 0)
 		{
 			serv->modes_per_line = atoi (tokvalue);
 		} else if (g_strcmp0 (tokname, "CHANTYPES") == 0)

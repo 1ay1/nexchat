@@ -260,7 +260,7 @@ batch_is_older (server *serv, const char *id)
 /* a message in a history batch, about to be shown in sess: the first one
    gets the marker above it, all are counted for the line at the end */
 void
-batch_history_count (server *serv, const char *id, session *sess)
+batch_history_count (server *serv, const char *id, session *sess, const char *msgid)
 {
 	irc_batch *b;
 
@@ -275,7 +275,12 @@ batch_history_count (server *serv, const char *id, session *sess)
 		b->lines++;
 		return;
 	}
-	if (!b->lines++)
+	/* catching up: where the next page starts */
+	if (sess->history_paging)
+		g_strlcpy (sess->history_page_last,
+					  msgid && strlen (msgid) < sizeof sess->history_page_last ? msgid : "",
+					  sizeof sess->history_page_last);
+	if (!b->lines++ && !(sess->history_paging && sess->history_caught > 0))
 		PrintTextf (sess, _("\00323*\t--- While you were away ---\n"));
 }
 
@@ -358,10 +363,51 @@ batch_multiline_take (server *serv, const char *id, const char *tags,
 
 /* ---- draft/chathistory ---- */
 
-#define HISTORY_LINES 100
+/* lines per request: what the server says one may ask for (ISUPPORT
+   CHATHISTORY, soju: 1000), up to 1000; 100 if it doesn't say */
+#define HISTORY_LINES_DEFAULT 100
+#define HISTORY_LINES_MAX 1000
+/* catching up after being away stops after this many pages (the text
+   box keeps only so many lines anyway) */
+#define HISTORY_PAGES_MAX 20
 
-/* on joining: what was said since the last line we have, or the last
-   HISTORY_LINES if we have nothing (a new channel, scrollback off) */
+static int
+history_page (server *serv)
+{
+	if (serv->chathistory_max > 0)
+		return MIN (serv->chathistory_max, HISTORY_LINES_MAX);
+	return HISTORY_LINES_DEFAULT;
+}
+
+static void
+history_after (session *sess, time_t from)
+{
+	server *serv = sess->server;
+
+	sess->history_page_from = from;
+	sess->history_pages++;
+	/* right after the last line we have: by its msgid, exact; a timestamp
+	   in whole seconds would repeat the lines of that second */
+	if (sess->history_page_last[0])
+	{
+		tcp_sendf (serv, "CHATHISTORY AFTER %s msgid=%s %d\r\n", sess->channel,
+					  sess->history_page_last, history_page (serv));
+		return;
+	}
+	{
+		GDateTime *dt = g_date_time_new_from_unix_utc (from);
+		/* AFTER is exclusive: the line we have isn't sent again */
+		char *iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
+
+		tcp_sendf (serv, "CHATHISTORY AFTER %s timestamp=%s %d\r\n", sess->channel, iso, history_page (serv));
+		g_free (iso);
+		g_date_time_unref (dt);
+	}
+}
+
+/* on joining: what was said since the last line we have, page after page
+   until it's all here; or the latest page if we have nothing (a new
+   channel, scrollback off) */
 void
 chathistory_request (session *sess)
 {
@@ -371,15 +417,14 @@ chathistory_request (session *sess)
 		return;
 	if (sess->history_until > 0)
 	{
-		GDateTime *dt = g_date_time_new_from_unix_utc (sess->history_until);
-		/* AFTER is exclusive: the line we have isn't sent again */
-		char *iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
-		tcp_sendf (serv, "CHATHISTORY AFTER %s timestamp=%s %d\r\n", sess->channel, iso, HISTORY_LINES);
-		g_free (iso);
-		g_date_time_unref (dt);
+		sess->history_paging = TRUE;
+		sess->history_pages = 0;
+		sess->history_caught = 0;
+		sess->history_page_last[0] = 0;	/* the first page: from our newest line's time */
+		history_after (sess, sess->history_until);
 	}
 	else
-		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, HISTORY_LINES);
+		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, history_page (serv));
 }
 
 static session *
@@ -411,13 +456,13 @@ chathistory_older (session *sess, time_t oldest)
 	sess->history_older_pending = TRUE;
 	if (oldest <= 0)
 	{
-		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, HISTORY_LINES);
+		tcp_sendf (serv, "CHATHISTORY LATEST %s * %d\r\n", sess->channel, history_page (serv));
 		return TRUE;
 	}
 	dt = g_date_time_new_from_unix_utc (oldest);
 	/* BEFORE is exclusive: the line we have isn't sent again */
 	iso = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S.000Z");
-	tcp_sendf (serv, "CHATHISTORY BEFORE %s timestamp=%s %d\r\n", sess->channel, iso, HISTORY_LINES);
+	tcp_sendf (serv, "CHATHISTORY BEFORE %s timestamp=%s %d\r\n", sess->channel, iso, history_page (serv));
 	g_free (iso);
 	g_date_time_unref (dt);
 	return TRUE;
@@ -437,7 +482,23 @@ chathistory_end (server *serv, const char *target, int lines)
 {
 	session *sess = history_target (serv, target);
 
-	if (!sess || lines <= 0)
+	if (!sess)
+		return;
+	/* catching up: a full page means there's more; ask from the newest line
+	   it brought. The marker comes once, when it's all here */
+	if (sess->history_paging)
+	{
+		sess->history_caught += MAX (lines, 0);
+		if (lines >= history_page (serv) && sess->history_pages < HISTORY_PAGES_MAX &&
+			 (sess->history_page_last[0] || sess->history_until > sess->history_page_from))
+		{
+			history_after (sess, sess->history_until);
+			return;
+		}
+		sess->history_paging = FALSE;
+		lines = sess->history_caught;
+	}
+	if (lines <= 0)
 		return;
 	PrintTextf (sess, g_dngettext (GETTEXT_PACKAGE,
 				"\00323*\t--- %d message you missed, up to here ---\n",

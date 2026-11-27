@@ -41,6 +41,12 @@ test('chathistory', find_program('sh'),
   timeout: 60,
 )
 
+# catching up pages through everything missed, not just the first 100
+test('chathistory-pages', find_program('sh'),
+  args: [files('../../tests/chathistory-pages.sh'), hexchat_text],
+  timeout: 60,
+)
+
 test('lastlog-logs', find_program('sh'),
   args: [files('../../tests/lastlog-logs.sh'), hexchat_text],
   timeout: 30,

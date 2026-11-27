@@ -40,7 +40,7 @@ gboolean batch_is_older (server *serv, const char *id);
 void chathistory_begin (server *serv, const char *target);
 void chathistory_end (server *serv, const char *target, int lines);
 /* a message of a history batch about to be shown in sess (marks the start) */
-void batch_history_count (server *serv, const char *id, session *sess);
+void batch_history_count (server *serv, const char *id, session *sess, const char *msgid);
 
 /* IRCv3 draft/read-marker: the server says target was read up to t (on
    another device, or what it remembers from before): clear its unread

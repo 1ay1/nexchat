@@ -454,6 +454,11 @@ typedef struct session
 	time_t history_oldest;	/* the oldest message seen, to ask for what came before it */
 	unsigned int history_older_pending:1;	/* a CHATHISTORY BEFORE is out */
 	unsigned int history_older_done:1;	/* the server had nothing older */
+	unsigned int history_paging:1;	/* catching up: CHATHISTORY AFTER, page after page */
+	int history_pages;			/* ...pages asked so far */
+	int history_caught;			/* ...messages they brought */
+	time_t history_page_from;	/* ...where the last page was asked from */
+	char history_page_last[96];	/* ...the msgid of the last line it brought ("" none) */
 	time_t read_until;		/* read up to here (draft/read-marker, any device) */
 	guint readmarker_tag;	/* a MARKREAD waiting to go (readmarker_soon) */
 	GHashTable *typers;	/* who's typing here: nick -> expiry (batch.c) */
@@ -622,6 +627,7 @@ typedef struct server
 	unsigned int have_echo:1;	/* cap echo-message: our own lines come back from the server */
 	unsigned int have_batch:1;	/* cap batch */
 	unsigned int have_chathistory:1;	/* cap draft/chathistory */
+	int chathistory_max;		/* ISUPPORT CHATHISTORY=n: most lines per request (0 unknown) */
 	unsigned int have_readmarker:1;	/* cap draft/read-marker */
 	unsigned int have_message_tags:1;	/* cap message-tags: we may send client tags */
 	unsigned int have_multiline:1;	/* cap draft/multiline */
