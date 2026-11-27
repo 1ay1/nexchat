@@ -58,6 +58,7 @@
 #include "cmdinfo.h"
 #include "batch.h"
 #include "bouncer.h"
+#include "nickcomp.h"
 
 #define TBUFSIZE 4096
 
@@ -4858,75 +4859,28 @@ check_special_chars (char *cmd, int do_ascii) /* check for %X */
 	g_free (buf);
 }
 
-typedef struct
-{
-	char *nick;
-	int len;
-	struct User *best;
-	int bestlen;
-	char *space;
-	char *tbuf;
-} nickdata;
-
-static int
-nick_comp_cb (struct User *user, nickdata *data)
-{
-	int lenu;
-
-	if (!rfc_ncasecmp (user->nick, data->nick, data->len))
-	{
-		lenu = strlen (user->nick);
-		if (lenu == data->len)
-		{
-			g_snprintf (data->tbuf, TBUFSIZE, "%s%s", user->nick, data->space);
-			data->len = -1;
-			return FALSE;
-		} else if (lenu < data->bestlen)
-		{
-			data->bestlen = lenu;
-			data->best = user;
-		}
-	}
-
-	return TRUE;
-}
-
+/* completion_auto: "ni: hi" is sent as "nick: hi", the person nickcomp
+   ranks first for "ni" (the same one Tab would give); only a plain
+   prefix or its letters, never a guess from the middle of a nick */
 static void
 perform_nick_completion (struct session *sess, char *cmd, char *tbuf)
 {
-	int len;
 	char *space = strchr (cmd, ' ');
-	if (space && space != cmd)
+
+	if (space && space != cmd && space[-1] == prefs.hex_completion_suffix[0] && space - 1 != cmd &&
+		 space - cmd - 1 < NICKLEN)
 	{
-		if (space[-1] == prefs.hex_completion_suffix[0] && space - 1 != cmd)
+		char *nick = g_strndup (cmd, space - cmd - 1);
+		GPtrArray *c = userlist_complete (sess, nick, NICKCOMP_LOOSE);
+
+		g_free (nick);
+		if (c->len)
 		{
-			len = space - cmd - 1;
-			if (len < NICKLEN)
-			{
-				char nick[NICKLEN];
-				nickdata data;
-
-				memcpy (nick, cmd, len);
-				nick[len] = 0;
-
-				data.nick = nick;
-				data.len = len;
-				data.bestlen = INT_MAX;
-				data.best = NULL;
-				data.tbuf = tbuf;
-				data.space = space - 1;
-				tree_foreach (sess->usertree, (tree_traverse_func *)nick_comp_cb, &data);
-
-				if (data.len == -1)
-					return;
-
-				if (data.best)
-				{
-					g_snprintf (tbuf, TBUFSIZE, "%s%s", data.best->nick, space - 1);
-					return;
-				}
-			}
+			g_snprintf (tbuf, TBUFSIZE, "%s%s", ((nickcomp_cand *) c->pdata[0])->nick, space - 1);
+			g_ptr_array_unref (c);
+			return;
 		}
+		g_ptr_array_unref (c);
 	}
 
 	strcpy (tbuf, cmd);

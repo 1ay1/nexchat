@@ -36,12 +36,6 @@
 #include "sexy-iso-codes.h"
 
 #ifdef WIN32
-#include "marshal.h"
-#else
-#include "../common/marshal.h"
-#endif
-
-#ifdef WIN32
 #include "../common/typedef.h"
 #include <io.h>
 #else
@@ -119,6 +113,20 @@ static void sexy_spell_entry_menu_init (SexySpellEntry *entry);
 static void sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot);
 static void cursor_notify_cb (GObject *o, GParamSpec *ps, gpointer entry);
 static void cursor_focus_cb (GtkEventControllerFocus *c, gpointer entry);
+
+/* the window it's in became active or not: the caret follows */
+static void
+cursor_root_cb (GObject *o, GParamSpec *ps, gpointer unused)
+{
+	GtkRoot *root = gtk_widget_get_root (GTK_WIDGET (o));
+
+	if (GTK_IS_WINDOW (root) && !g_object_get_data (o, "nx-active-hooked"))
+	{
+		g_object_set_data (o, "nx-active-hooked", GINT_TO_POINTER (1));
+		g_signal_connect_object (root, "notify::is-active", G_CALLBACK (gtk_widget_queue_draw),
+										 o, G_CONNECT_SWAPPED);
+	}
+}
 
 /* GtkEditable handlers */
 static void sexy_spell_entry_changed(GtkEditable *editable, gpointer data);
@@ -289,7 +297,7 @@ sexy_spell_entry_class_init(SexySpellEntryClass *klass)
 					   G_SIGNAL_RUN_LAST,
 					   G_STRUCT_OFFSET(SexySpellEntryClass, word_check),
 					   (GSignalAccumulator) spell_accumulator, NULL,
-					   _hexchat_marshal_BOOLEAN__STRING,
+					   NULL, /* generic marshaller */
 					   G_TYPE_BOOLEAN,
 					   1, G_TYPE_STRING);
 
@@ -828,8 +836,11 @@ sexy_spell_entry_init(SexySpellEntry *entry)
 	{
 		GtkEventController *fc = gtk_event_controller_focus_new ();
 		g_signal_connect (fc, "enter", G_CALLBACK (cursor_focus_cb), entry);
+		/* leaving the box or the window: the caret goes (or turns hollow) */
+		g_signal_connect_swapped (fc, "leave", G_CALLBACK (gtk_widget_queue_draw), entry);
 		gtk_widget_add_controller (GTK_WIDGET (entry), fc);
 	}
+	g_signal_connect (entry, "notify::root", G_CALLBACK (cursor_root_cb), NULL);
 }
 
 static void
@@ -958,37 +969,63 @@ cursor_focus_cb (GtkEventControllerFocus *c, gpointer entry)
 	cursor_wake (entry);
 }
 
-static void
-sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
+/* where the cursor is drawn and how: FALSE when it isn't (GTK draws its
+   own, a selection, blinked out, no focus). r in the entry's coordinates;
+   *style the shape drawn (4 hollow when the window lost focus); *pos and
+   *clen the characters under it. The snapshot and the tests both ask
+   here, so what's tested is what's drawn. */
+static gboolean
+cursor_geometry (SexySpellEntry *entry, graphene_rect_t *r, int *style, int *pos, int *clen)
 {
-	SexySpellEntry *entry = SEXY_SPELL_ENTRY (widget);
 	SexySpellEntryPriv *p = entry->priv;
-	GtkWidget *text;
-	graphene_rect_t cur, next, clip;
+	GtkWidget *text = cursor_text (entry);
+	graphene_rect_t cur, next;
 	graphene_point_t at;
-	GdkRGBA fg;
 	const char *str;
-	int pos, len, start, end;
+	int len, start, end;
 	float w, h;
+	GtkRoot *root;
+	gboolean inactive = FALSE;
 
-	GTK_WIDGET_CLASS (parent_class)->snapshot (widget, snapshot);
-
-	text = cursor_text (entry);
-	if (!cursor_own (entry) || p->cursor_off || !text || !gtk_widget_has_focus (text) ||
+	if (!cursor_own (entry) || !text ||
 		 gtk_editable_get_selection_bounds (GTK_EDITABLE (entry), &start, &end))
-		return;
+		return FALSE;
+	/* the box has the keyboard but the window doesn't: a block or box shows
+	   hollow (as terminals do), so you still see where you were; other
+	   styles, like GTK's own, go away */
+	root = gtk_widget_get_root (text);
+	if (!gtk_widget_has_focus (text))
+	{
+		if (!root || gtk_root_get_focus (root) != text || (p->cursor_style != 2 && p->cursor_style != 4))
+			return FALSE;
+		inactive = TRUE;
+	}
+	else if (p->cursor_off)
+		return FALSE;
 
 	str = gtk_editable_get_text (GTK_EDITABLE (entry));
 	len = g_utf8_strlen (str, -1);
-	pos = gtk_editable_get_position (GTK_EDITABLE (entry));
-	gtk_text_compute_cursor_extents (GTK_TEXT (text), pos, &cur, NULL);
+	*pos = gtk_editable_get_position (GTK_EDITABLE (entry));
+	gtk_text_compute_cursor_extents (GTK_TEXT (text), *pos, &cur, NULL);
 	h = cur.size.height;
 
-	/* the character under the cursor; past the end, a digit's width */
+	/* the character under the cursor as a reader sees it: a whole grapheme
+	   cluster ("👍🏽", "e" + accent), where the next cursor stop is; past
+	   the end, a digit's width */
 	w = 0;
-	if (pos < len)
+	*clen = 0;
+	if (*pos < len)
 	{
-		gtk_text_compute_cursor_extents (GTK_TEXT (text), pos + 1, &next, NULL);
+		PangoLayout *l = gtk_widget_create_pango_layout (text, str);
+		const PangoLogAttr *a;
+		int n, k;
+
+		a = pango_layout_get_log_attrs_readonly (l, &n);
+		for (k = *pos + 1; k < n && !a[k].is_cursor_position; k++)
+			;
+		*clen = MIN (k, len) - *pos;
+		g_object_unref (l);
+		gtk_text_compute_cursor_extents (GTK_TEXT (text), *pos + *clen, &next, NULL);
 		w = next.origin.x - cur.origin.x;
 	}
 	if (w <= 0)
@@ -999,17 +1036,65 @@ sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 		g_object_unref (l);
 		w = lw;
 	}
+	if (!gtk_widget_compute_point (text, GTK_WIDGET (entry), &GRAPHENE_POINT_INIT (cur.origin.x, cur.origin.y), &at))
+		return FALSE;
+	*style = inactive ? 4 : p->cursor_style;
+	switch (*style)
+	{
+	case 1:	w = MAX (2, h / 8); break;					/* thick bar */
+	case 2: case 4: break;								/* block, hollow box */
+	case 3:	at.y += h - MAX (2, h / 10); h = MAX (2, h / 10); break;	/* underline */
+	default: w = MAX (1, h * 0.04f); break;			/* GTK's line */
+	}
+	graphene_rect_init (r, at.x, at.y, w, h);
+	return TRUE;
+}
 
-	if (!gtk_widget_compute_point (text, widget, &GRAPHENE_POINT_INIT (cur.origin.x, cur.origin.y), &at) ||
+/* tests: the cursor's box relative to rel and its shape; FALSE if none */
+gboolean
+sexy_spell_entry_cursor_rect (SexySpellEntry *entry, GtkWidget *rel, graphene_rect_t *out, int *style)
+{
+	graphene_rect_t r;
+	graphene_point_t at;
+	int pos, clen;
+
+	if (!cursor_geometry (entry, &r, style, &pos, &clen) ||
+		 !gtk_widget_compute_point (GTK_WIDGET (entry), rel, &r.origin, &at))
+		return FALSE;
+	graphene_rect_init (out, at.x, at.y, r.size.width, r.size.height);
+	return TRUE;
+}
+
+static void
+sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
+{
+	SexySpellEntry *entry = SEXY_SPELL_ENTRY (widget);
+	GtkWidget *text;
+	graphene_rect_t rect, clip;
+	graphene_point_t at;
+	GdkRGBA fg;
+	const char *str;
+	int pos, len, clen, style;
+	float w, h;
+
+	GTK_WIDGET_CLASS (parent_class)->snapshot (widget, snapshot);
+
+	text = cursor_text (entry);
+	if (!cursor_geometry (entry, &rect, &style, &pos, &clen) ||
 		 !gtk_widget_compute_bounds (text, widget, &clip))
 		return;
+	at = rect.origin;
+	w = rect.size.width;
+	h = rect.size.height;
+	str = gtk_editable_get_text (GTK_EDITABLE (entry));
+	len = g_utf8_strlen (str, -1);
 	gtk_widget_get_color (text, &fg);
 
 	gtk_snapshot_push_clip (snapshot, &clip);
-	switch (p->cursor_style)
+	switch (style)
 	{
 	case 1:	/* thick bar */
-		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, MAX (2, h / 8), h));
+		gtk_snapshot_append_color (snapshot, &fg, &rect);
 		break;
 	case 2:	/* block, the character drawn over it in the background colour */
 	{
@@ -1020,8 +1105,10 @@ sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, w, h));
 		if (pos < len)
 		{
+			/* the cluster again on top, in the background colour (colour
+			   emoji keep theirs: they just show on the block) */
 			const char *c = g_utf8_offset_to_pointer (str, pos);
-			char *ch = g_strndup (c, g_utf8_next_char (c) - c);
+			char *ch = g_strndup (c, g_utf8_offset_to_pointer (c, clen) - c);
 			PangoLayout *l = gtk_widget_create_pango_layout (text, ch);
 			gtk_snapshot_save (snapshot);
 			gtk_snapshot_translate (snapshot, &at);
@@ -1033,7 +1120,7 @@ sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 		break;
 	}
 	case 3:	/* underline */
-		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y + h - 2, w, 2));
+		gtk_snapshot_append_color (snapshot, &fg, &rect);
 		break;
 	case 4:	/* hollow box */
 	{
@@ -1045,7 +1132,7 @@ sexy_spell_entry_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 		break;
 	}
 	default:	/* GTK's thin line, just not blinking */
-		gtk_snapshot_append_color (snapshot, &fg, &GRAPHENE_RECT_INIT (at.x, at.y, MAX (1, h * 0.04f), h));
+		gtk_snapshot_append_color (snapshot, &fg, &rect);
 		break;
 	}
 	gtk_snapshot_pop (snapshot);

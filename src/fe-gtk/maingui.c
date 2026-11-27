@@ -2616,7 +2616,7 @@ mg_xtext_zoom_cb (GtkWidget *xtext, int step)
 static void
 mg_create_textarea (session *sess, GtkWidget *box)
 {
-	GtkWidget *inbox, *vbox, *frame;
+	GtkWidget *inbox, *vbox, *sw;
 	GtkXText *xtext;
 	session_gui *gui = sess->gui;
 
@@ -2625,9 +2625,19 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	inbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
 	gtkutil_container_add (GTK_WIDGET (vbox), inbox);
 
-	frame = gtk_frame_new (NULL);
-	nx_frame_set_shadow (frame, GTK_SHADOW_IN);
-	gtkutil_container_add (GTK_WIDGET (inbox), frame);
+	/* the chat scrolls in a scrolled window like the user list and every
+	   other list: the same framed box and the same scrollbar (overlay or
+	   classic, as the theme and gtk-overlay-scrolling have it). The text
+	   widget is a GtkScrollable and drives it; wheel, trackpad and glide
+	   stay its own (it scrolls by lines), and so do touch drags, which
+	   select text */
+	sw = gtk_scrolled_window_new ();
+	gtk_scrolled_window_set_has_frame (GTK_SCROLLED_WINDOW (sw), TRUE);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_scrolled_window_set_kinetic_scrolling (GTK_SCROLLED_WINDOW (sw), FALSE);
+	gtk_widget_set_hexpand (sw, TRUE);
+	gtk_widget_set_vexpand (sw, TRUE);
+	gtkutil_container_add (GTK_WIDGET (inbox), mg_drop_overlay (sw));
 
 	gui->xtext = gtk_xtext_new (colors, TRUE);
 	xtext = GTK_XTEXT (gui->xtext);
@@ -2636,7 +2646,7 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	gtk_xtext_set_urlcheck_function (xtext, mg_word_check);
 	xtext->zoom_cb = mg_xtext_zoom_cb;
 	gtk_xtext_set_max_lines (xtext, prefs.hex_text_max_lines);
-	gtkutil_container_add (GTK_WIDGET (frame), GTK_WIDGET (xtext));
+	gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (sw), GTK_WIDGET (xtext));
 
 	mg_update_xtext (GTK_WIDGET (xtext));
 
@@ -2646,13 +2656,12 @@ mg_create_textarea (session *sess, GtkWidget *box)
 	urlpreview_attach (GTK_WIDGET (xtext));
 #endif
 
-	gui->vscrollbar = gtk_scrollbar_new (GTK_ORIENTATION_VERTICAL, GTK_XTEXT (xtext)->adj);
-	gtk_widget_set_name (gui->vscrollbar, "hexchat-scrollbar");
-	nx_box_pack_start (inbox, mg_drop_overlay (gui->vscrollbar), FALSE, TRUE, 0);
-
-	/* flags 5 (motion|drop) as before: no theme highlight, we paint our own */
-	mg_layout_drop_dest (gui->vscrollbar,
-								NX_DND_CHANVIEW | NX_DND_USERLIST | NX_DND_NO_THEME_HIGHLIGHT);
+	/* the channel tree and user list dropped on the chat go to the right
+	   (top or bottom half); the whole box takes them, not just a thin,
+	   fading overlay scrollbar. Layout drags carry their own types, so the
+	   text's file drop below doesn't see them.
+	   flags 5 (motion|drop) as before: no theme highlight, we paint our own */
+	mg_layout_drop_dest (sw, NX_DND_CHANVIEW | NX_DND_USERLIST | NX_DND_NO_THEME_HIGHLIGHT);
 
 	nx_dnd_file_dest (gui->xtext, mg_dialog_dnd_drop, NULL, NULL, NULL);
 }
@@ -4298,7 +4307,7 @@ mg_drag_motion_cb (GtkWidget *widget, double y, nx_dnd_kind kind, gpointer unuse
 }
 
 /* the channel tree and user list take each other's layout drags (and the
-   chat scrollbar takes both): drop on a pane half to move them there */
+   chat box takes both): drop on a pane half to move them there */
 void
 mg_layout_drop_dest (GtkWidget *widget, guint kinds)
 {

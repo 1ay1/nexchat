@@ -24,6 +24,7 @@
 #include "../common/hexchatc.h"
 #include "../common/cmdinfo.h"
 #include "../common/userlist.h"
+#include "../common/nickcomp.h"
 #include "../common/servlist.h"
 #include "gtkcompat.h"
 #include "gtkutil.h"
@@ -64,6 +65,10 @@ typedef struct
 	int word_start;		/* byte offset in the text of the word they replace */
 	gboolean suppress;	/* Escape: stay closed for this command */
 	char *suppressed_for;	/* ...the command it was closed on */
+	int suppressed_at;	/* ...or the mention (byte offset of its @) */
+	gboolean nicks;		/* the list is people for "@ni" or Tab */
+	gboolean tab_open;	/* Tab opened it on the word at tab_start */
+	int tab_start;
 	guint focus_tag;		/* the focus-out check pending */
 } cmdpopup;
 
@@ -155,44 +160,45 @@ current_arg (const char *text, int cursor_chars, int *start, char **word)
 static void
 add_nicks (GPtrArray *out, const char *prefix)
 {
-	GList *users, *l;
-	gsize plen = strlen (prefix);
+	GPtrArray *c;
+	guint i;
 
-	if (!current_sess || current_sess->type != SESS_CHANNEL)
-	{
-		/* a query: the other person */
-		if (current_sess && current_sess->type == SESS_DIALOG &&
-			 !g_ascii_strncasecmp (current_sess->channel, prefix, plen))
-			g_ptr_array_add (out, item_new (current_sess->channel, NULL, NULL, NULL, current_sess->channel));
+	if (!current_sess || (current_sess->type != SESS_CHANNEL && current_sess->type != SESS_DIALOG))
 		return;
-	}
-	/* most recently talking first, then the rest by name (as Tab completes) */
-	users = userlist_double_list (current_sess);
-	for (l = users; l; l = l->next)
+	/* who, best first: common/nickcomp.c, the same order as Tab */
+	c = userlist_complete (current_sess, prefix, NICKCOMP_LETTERS);
+	for (i = 0; i < c->len; i++)
 	{
-		struct User *u = l->data;
-		char mode[2] = { u->prefix[0], 0 };
-		if (u->me || g_ascii_strncasecmp (u->nick, prefix, plen))
-			continue;
-		g_ptr_array_add (out, item_new (u->nick, mode, u->away ? _("away") : NULL,
-												  u->hostname, u->nick));
+		nickcomp_cand *n = c->pdata[i];
+		struct User *u = n->data;
+		char mode[2] = { u ? u->prefix[0] : 0, 0 };
+		g_ptr_array_add (out, item_new (n->nick, mode, n->away ? _("away") : NULL,
+											  u ? u->hostname : NULL, n->nick));
 	}
-	g_list_free (users);
+	g_ptr_array_unref (c);
 }
 
-static int
-by_lasttalk (gconstpointer a, gconstpointer b)
+/* "@ni" being typed anywhere in a line (not a command): the word from the
+   "@" to the cursor, and where it starts; NULL when the cursor isn't on
+   one. A lone "@" counts: it lists everyone. */
+static char *
+mention_word (const char *text, int cursor_chars, int *start)
 {
-	const item *x = *(item **) a, *y = *(item **) b;
-	struct User *ux = current_sess ? userlist_find (current_sess, x->name) : NULL;
-	struct User *uy = current_sess ? userlist_find (current_sess, y->name) : NULL;
-	time_t tx = ux ? ux->lasttalk : 0, ty = uy ? uy->lasttalk : 0;
+	const char *cur = g_utf8_offset_to_pointer (text, cursor_chars);
+	const char *p = cur;
 
-	if (tx != ty)
-		return tx > ty ? -1 : 1;
-	return g_ascii_strcasecmp (x->name, y->name);
+	if (*cur && *cur != ' ')
+		return NULL;	/* in the middle of a word */
+	while (p > text && p[-1] != ' ' && p[-1] != '@')
+		p--;
+	if (p == text || p[-1] != '@')
+		return NULL;
+	/* the @ starts its word: "me@host" isn't a mention */
+	if (p - 1 > text && p[-2] != ' ')
+		return NULL;
+	*start = p - 1 - text;
+	return g_strndup (p, cur - p);
 }
-
 static void
 add_channels (GPtrArray *out, const char *prefix)
 {
@@ -637,6 +643,81 @@ set_hint (cmdpopup *p, cmdinfo *c, int n)
 	g_string_free (m, TRUE);
 }
 
+/* the people list for word, replacing text from byte start: a typed "@",
+   or Tab on a word that fits more than one person */
+static void
+popup_nicks (cmdpopup *p, const char *word, int start)
+{
+	GPtrArray *items = g_ptr_array_new_with_free_func ((GDestroyNotify) item_free);
+
+	add_nicks (items, word);
+	p->args = TRUE;
+	p->nicks = TRUE;
+	p->word_start = start;
+	gtk_widget_set_visible (p->hint, FALSE);
+	gtk_widget_set_visible (p->details, FALSE);
+	popup_set_items (p, items);
+	gtk_label_set_text (GTK_LABEL (p->keys), _("↑↓ choose   Tab or Enter fill in   Esc close"));
+	if (items->len)
+		popup_show (p);
+	else
+		popup_hide (p);
+}
+
+/* the word the cursor ends (from its start to the cursor), or NULL */
+static char *
+word_before (const char *text, int cursor_chars, int *start)
+{
+	const char *cur = g_utf8_offset_to_pointer (text, cursor_chars);
+	const char *p = cur;
+
+	if (*cur && *cur != ' ')
+		return NULL;
+	while (p > text && p[-1] != ' ')
+		p--;
+	if (p == cur)
+		return NULL;
+	*start = p - text;
+	return g_strndup (p, cur - p);
+}
+
+/* a line that isn't a command, with the cursor on "@ni" (or on the word
+   Tab opened the list for): show the people. TRUE if this was that */
+static gboolean
+popup_update_nicks (cmdpopup *p, const char *text, int cursor)
+{
+	char *word = NULL, *key;
+	int start = 0;
+
+	if (!prefs.hex_gui_input_cmdhelp || (is_cmd_char (text[0]) && !is_cmd_char (text[1])))
+		return FALSE;
+	if (!(word = mention_word (text, cursor, &start)) &&
+		 (!p->tab_open || !(word = word_before (text, cursor, &start)) || start != p->tab_start))
+	{
+		g_free (word);
+		p->tab_open = FALSE;
+		return FALSE;
+	}
+	key = g_strdup_printf ("n:%d:%s", start, word);
+	if (p->query && !strcmp (p->query, key) && (p->want_open || p->suppress))
+		g_free (key);	/* nothing it depends on changed */
+	else
+	{
+		g_free (p->query);
+		p->query = key;
+		/* Escape keeps this mention closed; another one opens again */
+		if (p->suppress && start == p->suppressed_at)
+			popup_hide (p);
+		else
+		{
+			p->suppress = FALSE;
+			popup_nicks (p, word + (word[0] == '@'), start);
+		}
+	}
+	g_free (word);
+	return TRUE;
+}
+
 /* the text or cursor changed: decide what to show. The list is only rebuilt
    when what it's for changes (the command typed, the argument and its word);
    a cursor move that leaves those alone keeps the list, its selection and
@@ -648,6 +729,10 @@ popup_update (cmdpopup *p)
 	int cursor = gtk_editable_get_position (GTK_EDITABLE (p->entry));
 	gboolean has_space;
 	char *cmd, *key;
+
+	if (popup_update_nicks (p, text, cursor))
+		return;
+	p->nicks = FALSE;
 
 	if (!prefs.hex_gui_input_cmdhelp || !(cmd = typed_command (text, cursor, &has_space)))
 	{
@@ -727,7 +812,6 @@ popup_update (cmdpopup *p)
 			{
 			case ARG_NICK:
 				add_nicks (items, word);
-				g_ptr_array_sort (items, by_lasttalk);
 				break;
 			case ARG_CHANNEL:
 				add_channels (items, word);
@@ -828,13 +912,22 @@ popup_complete (cmdpopup *p, item *it)
 	else
 	{
 		/* keep what's after the cursor; add a space unless one follows. The
-		   item goes away when setting the text rebuilds the list: copy it */
+		   item goes away when setting the text rebuilds the list: copy it.
+		   A person at the start of the line is being spoken to: "bob: "
+		   (completion_suffix); "@bob" keeps its @ */
 		gboolean space_after = *cur == ' ';
 		char *before = g_strndup (text, p->word_start);
 		int pos;
-		ins = g_strdup (it->insert);
+
+		if (p->nicks && text[p->word_start] == '@')
+			ins = g_strdup_printf ("@%s", it->insert);
+		else if (p->nicks && p->word_start == 0 && prefs.hex_completion_suffix[0])
+			ins = g_strdup_printf ("%s%s", it->insert, prefs.hex_completion_suffix);
+		else
+			ins = g_strdup (it->insert);
 		pos = g_utf8_strlen (before, -1) + g_utf8_strlen (ins, -1) + 1;
 		t = g_strdup_printf ("%s%s%s%s", before, ins, space_after ? "" : " ", cur);
+		p->tab_open = FALSE;
 		gtk_editable_set_text (GTK_EDITABLE (p->entry), t);
 		gtk_editable_set_position (GTK_EDITABLE (p->entry), pos);
 		g_free (before);
@@ -907,11 +1000,13 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 	{
 	case GDK_KEY_Escape:
 		p->suppress = TRUE;
+		p->tab_open = FALSE;
+		p->suppressed_at = p->nicks ? p->word_start : -1;
 		g_free (p->suppressed_for);
 		{
 			gboolean sp;
 			p->suppressed_for = typed_command (gtk_editable_get_text (GTK_EDITABLE (entry)),
-														  gtk_editable_get_position (GTK_EDITABLE (entry)), &sp);
+													  gtk_editable_get_position (GTK_EDITABLE (entry)), &sp);
 		}
 		popup_hide (p);
 		return TRUE;
@@ -939,7 +1034,12 @@ cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state)
 	case GDK_KEY_KP_Enter:
 		/* Enter sends the line as it is once it's whole: a full command name
 		   (/away), or arguments being typed; on part of a command name it
-		   fills in the pick first */
+		   fills in the pick first, and on a person being picked too */
+		if (it && p->nicks)
+		{
+			popup_complete (p, it);
+			return TRUE;
+		}
 		if (!it || p->args)
 		{
 			popup_hide (p);
@@ -1012,6 +1112,23 @@ cmdpopup_free (cmdpopup *p)
 	g_free (p->suppressed_for);
 	g_free (p->query);
 	g_free (p);
+}
+
+/* Tab on a plain word that fits several people (fkeys.c): the list for
+   it, the best first. FALSE when the list is off (gui_input_cmdhelp). */
+gboolean
+cmdpopup_tab (GtkWidget *entry, int word_start)
+{
+	cmdpopup *p = g_object_get_data (G_OBJECT (entry), "nx-cmdpopup");
+
+	if (!p || !prefs.hex_gui_input_cmdhelp)
+		return FALSE;
+	p->tab_open = TRUE;
+	p->tab_start = word_start;
+	p->suppress = FALSE;
+	g_clear_pointer (&p->query, g_free);
+	popup_update (p);
+	return p->nicks && gtk_widget_get_visible (p->popover);
 }
 
 void

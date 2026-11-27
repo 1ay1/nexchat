@@ -18,6 +18,9 @@
 void cmdpopup_attach (GtkWidget *entry, GtkWidget *host);
 /* a key in the entry: TRUE if the list used it (Up/Down/Tab/Enter/Escape) */
 gboolean cmdpopup_key (GtkWidget *entry, guint keyval, GdkModifierType state);
+/* Tab on a word (from byte word_start) that fits several people: list
+   them over the input row. FALSE if the list is turned off */
+gboolean cmdpopup_tab (GtkWidget *entry, int word_start);
 /* tests: what it shows now, "" when closed (g_free it) */
 char *cmdpopup_describe (GtkWidget *entry);
 /* tests: the popover itself, for a screenshot */

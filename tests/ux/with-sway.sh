@@ -22,6 +22,11 @@ i=0; while ! ls "$rt"/wayland-* >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; 
 sock=$(cd "$rt" && ls wayland-* 2>/dev/null | grep -v lock | head -1)
 [ -n "$sock" ] || { echo "sway did not start"; cat "$rt/sway.log"; exit 1; }
 export SWAYSOCK=$(ls "$rt"/sway-ipc.*.sock)
+# SWAY_FLOAT=1: windows float, so they take the size they ask for (tiled
+# they get the output's)
+if [ -n "${SWAY_FLOAT:-}" ]; then
+	swaymsg -q 'for_window [app_id=".*"] floating enable'
+fi
 export GSETTINGS_BACKEND=memory GIO_USE_VFS=local GDK_DEBUG=no-portals
 export NX_WAYLAND=1 NX_IN_BUS=1
 cat >"$rt/bus.conf" <<EOF

@@ -27,7 +27,47 @@
 #include "tree.h"
 #include "hexchatc.h"
 #include "util.h"
+#include "nickcomp.h"
 
+/* the people word could mean in sess, best first (nickcomp.c decides):
+   GPtrArray of nickcomp_cand, each ->data the struct User. In a query the
+   one other person. Free with g_ptr_array_unref. */
+GPtrArray *
+userlist_complete (session *sess, const char *word, int worst)
+{
+	GPtrArray *out = g_ptr_array_new_with_free_func (g_free);
+	GList *users, *l;
+
+	if (!sess)
+		return out;
+	if (sess->type == SESS_DIALOG)
+	{
+		nickcomp_cand *c = g_new0 (nickcomp_cand, 1);
+		c->nick = sess->channel;
+		g_ptr_array_add (out, c);
+	}
+	else
+	{
+		users = userlist_double_list (sess);
+		for (l = users; l; l = l->next)
+		{
+			struct User *u = l->data;
+			nickcomp_cand *c = g_new0 (nickcomp_cand, 1);
+
+			c->nick = u->nick;
+			c->lasttalk = u->lasttalk;
+			c->lastmention = u->lastmention;
+			c->lastaddressed = u->lastaddressed;
+			c->away = u->away;
+			c->me = u->me;
+			c->data = u;
+			g_ptr_array_add (out, c);
+		}
+		g_list_free (users);
+	}
+	nickcomp_rank (out, word, worst, prefs.hex_completion_sort == 1);
+	return out;
+}
 
 int
 nick_cmp_az_ops (server *serv, struct User *user1, struct User *user2)

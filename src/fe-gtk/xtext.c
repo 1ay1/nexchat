@@ -38,12 +38,6 @@
 #include "../common/hexchatc.h"
 #include "../common/url.h"
 
-#ifdef WIN32
-#include "marshal.h"
-#else
-#include "../common/marshal.h"
-#endif
-
 #include "fe-gtk.h"
 #include "xtext.h"
 #include "fkeys.h"
@@ -157,9 +151,6 @@ xtext_cluster_len (const unsigned char *str, const unsigned char *end)
 #define is_del(c) \
 	(c == ' ' || c == '\n' || c == '>' || c == '<' || c == 0)
 
-/* force scrolling off */
-#define dontscroll(buf) (buf)->last_pixel_pos = 0x7fffffff
-
 static GtkWidgetClass *parent_class = NULL;
 
 struct textentry
@@ -222,6 +213,8 @@ static void gtk_xtext_adjustment_changed (GtkAdjustment * adj,
 static void gtk_xtext_recalc_widths (xtext_buffer *buf, int);
 static void gtk_xtext_fix_indent (xtext_buffer *buf);
 static int gtk_xtext_find_subline (GtkXText *xtext, textentry *ent, int line);
+static int gtk_xtext_lines_taken (xtext_buffer *buf, textentry * ent);
+static void xtext_set_vadjustment (GtkXText *xtext, GtkAdjustment *adj);
 /* static char *gtk_xtext_conv_color (unsigned char *text, int len, int *newlen); */
 /* For use by gtk_xtext_strip_color() and its callers -- */
 struct offlen_s {
@@ -246,40 +239,27 @@ static gboolean gtk_xtext_search_init (xtext_buffer *buf, const gchar *text, gtk
 static char * gtk_xtext_get_word (GtkXText * xtext, int x, int y, textentry ** ret_ent, int *ret_off, int *ret_len, GSList **slp);
 
 /* ======================================= */
-/* ========== CAIRO DRAWING ============== */
+/* ========== RENDER NODES =============== */
 /* ======================================= */
 
-/* GTK2 xtext drew straight onto its GdkWindow with GCs, outside of any
-   expose. GTK3 only lets you draw inside ::draw, so every one of those
-   draws now lands on ->backing (an image surface the size of the widget)
-   and ::draw just copies it out. The render code above this layer is
-   unchanged. */
-
-static void
-xtext_damage (GtkXText *xtext)
-{
-	if (!xtext->in_draw)
-		xtext_queue_draw (xtext);
-}
-
-static void
-xtext_source_color (cairo_t *cr, const GdkRGBA *col)
-{
-	cairo_set_source_rgb (cr, col->red, col->green, col->blue);
-}
+/* The page is described to GTK, not painted: ::snapshot walks the visible
+   rows and adds a colour node per filled box and a text node per run of
+   text to xtext->snap, and GSK draws them (on the GPU where there is one,
+   glyphs from its atlas). Nothing is kept between frames: every frame is
+   built from the current state, so there is no half-drawn picture to
+   patch up and no image to copy around. These three are the only calls
+   the row renderer below makes; outside a snapshot (xtext->snap NULL)
+   they do nothing. */
 
 static void
 xtext_fill_rect (GtkXText *xtext, const GdkRGBA *col, int x, int y, int w, int h)
 {
-	if (!xtext->cr || w <= 0 || h <= 0)
+	if (!xtext->snap || w <= 0 || h <= 0)
 		return;
-	xtext_source_color (xtext->cr, col);
-	cairo_rectangle (xtext->cr, x, y, w, h);
-	cairo_fill (xtext->cr);
-	xtext_damage (xtext);
+	gtk_snapshot_append_color (xtext->snap, col, &GRAPHENE_RECT_INIT (x, y, w, h));
 }
 
-/* gdk_draw_line() with a 1px GC, for the horizontal/vertical lines we use */
+/* a 1px line (horizontal or vertical): the separator, the marker */
 static void
 xtext_draw_line (GtkXText *xtext, const GdkRGBA *col, int x1, int y1, int x2, int y2)
 {
@@ -288,85 +268,30 @@ xtext_draw_line (GtkXText *xtext, const GdkRGBA *col, int x1, int y1, int x2, in
 	xtext_fill_rect (xtext, col, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
 }
 
-/* fill with the background colour, or the tiled background image */
+/* the background colour, or the background image tiled from the widget's
+   top left (a repeat node: one texture, however much it covers) */
 static void
 xtext_draw_bg (GtkXText *xtext, int x, int y, int w, int h)
 {
-	if (!xtext->cr || w <= 0 || h <= 0)
+	if (!xtext->snap || w <= 0 || h <= 0)
 		return;
-	if (xtext->pixmap)
+	if (xtext->bg_texture)
 	{
-		cairo_set_source (xtext->cr, xtext->pixmap);
-		cairo_rectangle (xtext->cr, x, y, w, h);
-		cairo_fill (xtext->cr);
-		xtext_damage (xtext);
+		graphene_rect_t tile = GRAPHENE_RECT_INIT (0, 0, gdk_texture_get_width (xtext->bg_texture),
+														 gdk_texture_get_height (xtext->bg_texture));
+		gtk_snapshot_push_repeat (xtext->snap, &GRAPHENE_RECT_INIT (x, y, w, h), &tile);
+		gtk_snapshot_append_texture (xtext->snap, xtext->bg_texture, &tile);
+		gtk_snapshot_pop (xtext->snap);
 	} else
 		xtext_fill_rect (xtext, &xtext->bgc.fg, x, y, w, h);
 }
 
-/* (re)create the backing surface when the widget's size changes */
-static void
-xtext_backing_update (GtkXText *xtext);
-
 static void
 xtext_scale_changed (GObject *o, GParamSpec *ps, gpointer d)
 {
-	GtkXText *xtext = GTK_XTEXT (o);
-
-	/* the separator, marker and text widths are in points and stay; only
-	   the pixels behind them change */
-	gtk_widget_queue_draw (GTK_WIDGET (xtext));
-	xtext->redraw_pending = TRUE;
+	/* sizes are in points; GSK draws the nodes at the new scale */
+	xtext_queue_draw (GTK_XTEXT (o));
 }
-
-/* (re)create the backing surface when the widget's size changes */
-static void
-xtext_backing_update (GtkXText *xtext)
-{
-	GtkWidget *widget = GTK_WIDGET (xtext);
-	int w = MAX (1, nx_widget_get_allocated_width (widget));
-	int h = MAX (1, nx_widget_get_allocated_height (widget));
-	int scale;
-
-	if (!gtk_widget_get_realized (widget))
-		return;
-	scale = MAX (1, gtk_widget_get_scale_factor (widget));
-	if (xtext->backing && xtext->backing_scale == scale &&
-		 cairo_image_surface_get_width (xtext->backing) == w * scale &&
-		 cairo_image_surface_get_height (xtext->backing) == h * scale)
-		return;
-
-	if (xtext->cr)
-		cairo_destroy (xtext->cr);
-	if (xtext->backing)
-		cairo_surface_destroy (xtext->backing);
-
-	/* an image surface at the widget's scale, made by hand: GTK3's
-	   gdk_window_create_similar_image_surface() sizes it in points on
-	   Quartz, so Retina only filled the top-left quarter of the view */
-	xtext->backing_scale = scale;
-	xtext->backing = cairo_image_surface_create (CAIRO_FORMAT_RGB24, w * scale, h * scale);
-	cairo_surface_set_device_scale (xtext->backing, scale, scale);
-	xtext->cr = cairo_create (xtext->backing);
-	xtext->backing_stale = TRUE;
-	xtext_draw_bg (xtext, 0, 0, w, h);
-}
-
-static void
-xtext_backing_free (GtkXText *xtext)
-{
-	if (xtext->cr)
-	{
-		cairo_destroy (xtext->cr);
-		xtext->cr = NULL;
-	}
-	if (xtext->backing)
-	{
-		cairo_surface_destroy (xtext->backing);
-		xtext->backing = NULL;
-	}
-}
-
 /* ======================================= */
 /* ============ PANGO BACKEND ============ */
 /* ======================================= */
@@ -636,34 +561,26 @@ static void
 backend_draw_text_emph (GtkXText *xtext, int dofill, xtext_gc *gc, int x, int y,
 						 char *str, int len, int str_width, int emphasis)
 {
-	PangoLayoutLine *line;
+	if (dofill)
+		xtext_fill_rect (xtext, &gc->bg, x, y - xtext->font->ascent,
+							  str_width, xtext->fontsize);
+	if (!xtext->snap)
+		return;
 
 	pango_layout_set_attributes (xtext->layout, attr_lists[emphasis]);
 	pango_layout_set_text (xtext->layout, str, len);
 
-	if (dofill)
-		xtext_fill_rect (xtext, &gc->bg, x, y - xtext->font->ascent,
-							  str_width, xtext->fontsize);
-
-	if (!xtext->cr)
-		return;
-
-	line = pango_layout_get_lines (xtext->layout)->data;
-
-	/* inside this row only: a glyph taller than the row (emoji, accents,
-	   a fallback font) would otherwise paint into the rows above and below,
-	   and when one row is redrawn alone (selecting, a link under the
-	   mouse) the neighbours' leftovers stay on it */
-	cairo_save (xtext->cr);
-	cairo_rectangle (xtext->cr, 0, y - xtext->font->ascent,
-	                 nx_widget_get_width (GTK_WIDGET (xtext)), xtext->fontsize);
-	cairo_clip (xtext->cr);
-	/* y is the baseline, same as gdk_draw_glyphs() took */
-	xtext_source_color (xtext->cr, &gc->fg);
-	cairo_move_to (xtext->cr, x, y);
-	pango_cairo_show_layout_line (xtext->cr, line);
-	cairo_restore (xtext->cr);
-	xtext_damage (xtext);
+	/* inside its row: a glyph taller than the row (emoji, stacked accents,
+	   a fallback font) stays out of the rows above and below. y is the
+	   baseline; the layout is placed by its top */
+	gtk_snapshot_push_clip (xtext->snap, &GRAPHENE_RECT_INIT (0, y - xtext->font->ascent,
+								gtk_widget_get_width (GTK_WIDGET (xtext)), xtext->fontsize));
+	gtk_snapshot_save (xtext->snap);
+	gtk_snapshot_translate (xtext->snap, &GRAPHENE_POINT_INIT (x,
+								y - (float) pango_layout_get_baseline (xtext->layout) / PANGO_SCALE));
+	gtk_snapshot_append_layout (xtext->snap, xtext->layout, &gc->fg);
+	gtk_snapshot_restore (xtext->snap);
+	gtk_snapshot_pop (xtext->snap);
 }
 
 static void
@@ -681,7 +598,7 @@ xtext_set_bg (GtkXText *xtext, xtext_gc *gc, int index)
 static void
 gtk_xtext_init (GtkXText * xtext)
 {
-	xtext->pixmap = NULL;
+	xtext->bg_texture = NULL;
 	xtext->io_tag = 0;
 	xtext->add_io_tag = 0;
 	xtext->scroll_tag = 0;
@@ -698,16 +615,10 @@ gtk_xtext_init (GtkXText * xtext)
 	xtext->urlcheck_function = NULL;
 	xtext->color_paste = FALSE;
 	xtext->dont_render = FALSE;
-	xtext->backing = NULL;
-	xtext->cr = NULL;
-	xtext->backing_scale = 1;
 
-	/* GTK2 handed us an adjustment through set_scroll_adjustments; GTK3 dropped
-	   that, and nothing ever passed one in anyway. Own it from the start. */
-	xtext->adj = gtk_adjustment_new (0, 0, 1, 1, 1, 1);
-	g_object_ref_sink (xtext->adj);
-	xtext->vc_signal_tag = g_signal_connect (xtext->adj, "value-changed",
-							G_CALLBACK (gtk_xtext_adjustment_changed), xtext);
+	/* our own adjustment until a GtkScrolledWindow hands us its own (see
+	   GtkScrollable below) */
+	xtext_set_vadjustment (xtext, NULL);
 
 	gtk_widget_set_overflow (GTK_WIDGET (xtext), GTK_OVERFLOW_HIDDEN);
 
@@ -893,11 +804,8 @@ gtk_xtext_destroy (GObject * object)
 	}
 	g_clear_object (&xtext->primary_content);
 
-	if (xtext->pixmap)
-	{
-		cairo_pattern_destroy (xtext->pixmap);
-		xtext->pixmap = NULL;
-	}
+	g_clear_object (&xtext->bg_texture);
+	g_clear_pointer (&xtext->last_node, gsk_render_node_unref);
 
 	if (xtext->font)
 	{
@@ -913,8 +821,7 @@ gtk_xtext_destroy (GObject * object)
 		xtext->adj = NULL;
 		xtext->vc_signal_tag = 0;
 	}
-
-	xtext_backing_free (xtext);
+	g_clear_object (&xtext->hadj);
 
 	if (xtext->orig_buffer)
 	{
@@ -936,7 +843,7 @@ static void
 gtk_xtext_unrealize (GtkWidget * widget)
 {
 	backend_deinit (GTK_XTEXT (widget));
-	xtext_backing_free (GTK_XTEXT (widget));
+	g_clear_pointer (&GTK_XTEXT (widget)->last_node, gsk_render_node_unref);
 	/* the cursor is the widget's (GTK4), it stays across unrealize */
 
 	/* GTK3: GtkWidget's unrealize unregisters and destroys our GdkWindow */
@@ -961,8 +868,6 @@ gtk_xtext_realize (GtkWidget * widget)
 	xtext_set_bg (xtext, &xtext->fgc, XTEXT_BG);
 	xtext_set_fg (xtext, &xtext->bgc, XTEXT_BG);
 
-	xtext_backing_update (xtext);
-
 	backend_init (xtext);
 }
 
@@ -983,33 +888,95 @@ gtk_xtext_size_allocate (GtkWidget * widget, int width, int height, int baseline
 	gtk_xtext_resized (GTK_XTEXT (widget), width, height);
 }
 
+/* Where the view is, in terms of text rather than line numbers: the entry
+   at the top of the page, the byte its row starts at and how far into that
+   row the view is scrolled. A rewrap changes every line number above, so
+   restoring the old number put other text at the top: the view jumped on
+   every width change while reading back. */
+typedef struct
+{
+	textentry *ent;
+	int off;
+	double frac;
+} xtext_anchor;
+
+static void
+xtext_anchor_get (GtkXText *xtext, xtext_anchor *a)
+{
+	double v = gtk_adjustment_get_value (xtext->adj);
+	int line = (int) v, sub = 0;
+
+	a->ent = NULL;
+	a->frac = v - line;
+	if (xtext->buffer->scrollbar_down || !xtext->buffer->text_first)
+		return;
+	a->ent = gtk_xtext_nth (xtext, line, &sub);
+	if (a->ent)
+		a->off = gtk_xtext_find_subline (xtext, a->ent, sub);
+}
+
+static void
+xtext_anchor_set (GtkXText *xtext, const xtext_anchor *a)
+{
+	textentry *ent;
+	GSList *s;
+	int line = 0;
+
+	if (!a->ent)
+		return;
+	for (ent = xtext->buffer->text_first; ent && ent != a->ent; ent = ent->next)
+		line += g_slist_length (ent->sublines);
+	if (!ent)
+		return;		/* gone meanwhile */
+	/* the row that now holds that byte: rows end at the offsets listed */
+	for (s = ent->sublines; s && s->next && GPOINTER_TO_INT (s->data) <= a->off; s = s->next)
+		line++;
+	/* the rewrap may have clamped the old line number past the new end and
+	   called that "at the bottom"; the value decides it again below */
+	xtext->buffer->scrollbar_down = FALSE;
+	gtk_adjustment_set_value (xtext->adj, line + a->frac);
+	if (gtk_adjustment_get_value (xtext->adj) >=
+		 gtk_adjustment_get_upper (xtext->adj) - gtk_adjustment_get_page_size (xtext->adj))
+		xtext->buffer->scrollbar_down = TRUE;
+	gtk_xtext_render_page (xtext);
+}
+
+/* The one place the shown buffer is laid out for a size: a new width
+   rewraps every entry and keeps the same text at the top (or the bottom in
+   view); a new height only changes the page. Both a resize and showing a
+   buffer last laid out at another size come through here. */
+static void
+xtext_fit (GtkXText *xtext, int width, int height)
+{
+	xtext_buffer *buf = xtext->buffer;
+	xtext_anchor anchor;
+
+	if (width != buf->window_width)
+	{
+		xtext_anchor_get (xtext, &anchor);
+		buf->window_width = width;
+		buf->window_height = height;
+		gtk_xtext_calc_lines (buf, FALSE);
+		xtext_anchor_set (xtext, &anchor);	/* only if it wasn't at the bottom */
+	}
+	else
+	{
+		buf->window_height = height;
+		buf->pagetop_ent = NULL;
+		gtk_xtext_adjustment_set (buf, FALSE);
+	}
+	if (buf->scrollbar_down)
+		gtk_adjustment_set_value (xtext->adj, gtk_adjustment_get_upper (xtext->adj) -
+										  gtk_adjustment_get_page_size (xtext->adj));
+	gtk_xtext_render_page (xtext);
+}
+
 /* the widget got a new size: relayout the text for it */
 static void
 gtk_xtext_resized (GtkXText *xtext, int width, int height)
 {
-	int height_only = FALSE;
-
-	if (width == xtext->buffer->window_width)
-		height_only = TRUE;
-
 	if (gtk_widget_get_realized (GTK_WIDGET (xtext)))
-	{
-		xtext->buffer->window_width = width;
-		xtext->buffer->window_height = height;
-
-		xtext_backing_update (xtext);
-		dontscroll (xtext->buffer);	/* force scrolling off */
-		if (!height_only)
-			gtk_xtext_calc_lines (xtext->buffer, FALSE);
-		else
-		{
-			xtext->buffer->pagetop_ent = NULL;
-			gtk_xtext_adjustment_set (xtext->buffer, FALSE);
-		}
-		if (xtext->buffer->scrollbar_down)
-			gtk_adjustment_set_value (xtext->adj, gtk_adjustment_get_upper (xtext->adj) -
-											  gtk_adjustment_get_page_size (xtext->adj));
-	}
+		xtext_fit (xtext, width, height);
 }
 
 static int
@@ -1263,6 +1230,27 @@ xtext_jump_visible (GtkXText *xtext)
 			 gtk_adjustment_get_upper (xtext->adj) > gtk_adjustment_get_page_size (xtext->adj);
 }
 
+/* how far from the right edge the boxes we float over the text sit: clear
+   of the scrolled window's scrollbar when it's an overlay drawn on us */
+static int
+xtext_right_inset (GtkXText *xtext)
+{
+	GtkWidget *sw = gtk_widget_get_parent (GTK_WIDGET (xtext));
+	GtkWidget *bar;
+	gboolean overlay = FALSE;
+	int w = 0;
+
+	if (!GTK_IS_SCROLLED_WINDOW (sw) ||
+		 !gtk_scrolled_window_get_overlay_scrolling (GTK_SCROLLED_WINDOW (sw)))
+		return 4;
+	g_object_get (gtk_widget_get_settings (sw), "gtk-overlay-scrolling", &overlay, NULL);
+	bar = gtk_scrolled_window_get_vscrollbar (GTK_SCROLLED_WINDOW (sw));
+	if (!overlay || !bar)
+		return 4;
+	gtk_widget_measure (bar, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &w, NULL, NULL);
+	return 4 + w;
+}
+
 /* in the chat's own font, like everything else drawn here */
 static PangoLayout *
 xtext_overlay_layout (GtkXText *xtext, const char *text)
@@ -1277,21 +1265,27 @@ xtext_overlay_layout (GtkXText *xtext, const char *text)
 /* a plain box like the rest of the classic UI: chat colours, square
    corners, a 1px border, no shadow */
 static void
-xtext_draw_box (GtkXText *xtext, cairo_t *cr, GdkRectangle *r, gboolean hot)
+xtext_draw_box (GtkXText *xtext, GtkSnapshot *s, GdkRectangle *r, gboolean hot)
 {
 	GdkRGBA bg = xtext->palette[hot ? XTEXT_MARK_BG : XTEXT_BG];
 	GdkRGBA border = xtext->palette[XTEXT_FG];
+	GskRoundedRect rr;
+	float bw[4] = { 1, 1, 1, 1 };
 
 	border.alpha = 0.5;
-	cairo_save (cr);
-	gdk_cairo_set_source_rgba (cr, &bg);
-	cairo_rectangle (cr, r->x, r->y, r->width, r->height);
-	cairo_fill (cr);
-	gdk_cairo_set_source_rgba (cr, &border);
-	cairo_set_line_width (cr, 1);
-	cairo_rectangle (cr, r->x + 0.5, r->y + 0.5, r->width - 1, r->height - 1);
-	cairo_stroke (cr);
-	cairo_restore (cr);
+	gtk_snapshot_append_color (s, &bg, &GRAPHENE_RECT_INIT (r->x, r->y, r->width, r->height));
+	gsk_rounded_rect_init_from_rect (&rr, &GRAPHENE_RECT_INIT (r->x, r->y, r->width, r->height), 0);
+	gtk_snapshot_append_border (s, &rr, bw, (GdkRGBA[4]) { border, border, border, border });
+}
+
+/* a label in a box (the jump button, the toast) */
+static void
+xtext_draw_label (GtkSnapshot *s, PangoLayout *layout, int x, int y, const GdkRGBA *fg)
+{
+	gtk_snapshot_save (s);
+	gtk_snapshot_translate (s, &GRAPHENE_POINT_INIT (x, y));
+	gtk_snapshot_append_layout (s, layout, fg);
+	gtk_snapshot_restore (s);
 }
 
 static PangoLayout *
@@ -1319,12 +1313,12 @@ xtext_jump_rect (GtkXText *xtext, PangoLayout *layout, GdkRectangle *r)
 	pango_layout_get_pixel_size (layout, &tw, &th);
 	r->width = tw + 2 * 6;
 	r->height = th + 2 * 2;
-	r->x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r->width - 4;
+	r->x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r->width - xtext_right_inset (xtext);
 	r->y = nx_widget_get_allocated_height (GTK_WIDGET (xtext)) - r->height - 4;
 }
 
 static void
-xtext_draw_jump (GtkXText *xtext, cairo_t *cr)
+xtext_draw_jump (GtkXText *xtext, GtkSnapshot *s)
 {
 	PangoLayout *layout;
 	GdkRectangle r;
@@ -1333,12 +1327,9 @@ xtext_draw_jump (GtkXText *xtext, cairo_t *cr)
 		return;
 	layout = xtext_jump_layout (xtext);
 	xtext_jump_rect (xtext, layout, &r);
-	xtext_draw_box (xtext, cr, &r, xtext->jump_hover);
-	cairo_save (cr);
-	gdk_cairo_set_source_rgba (cr, &xtext->palette[xtext->jump_hover ? XTEXT_MARK_FG : XTEXT_FG]);
-	cairo_move_to (cr, r.x + 6, r.y + 2);
-	pango_cairo_show_layout (cr, layout);
-	cairo_restore (cr);
+	xtext_draw_box (xtext, s, &r, xtext->jump_hover);
+	xtext_draw_label (s, layout, r.x + 6, r.y + 2,
+						&xtext->palette[xtext->jump_hover ? XTEXT_MARK_FG : XTEXT_FG]);
 	g_object_unref (layout);
 }
 
@@ -1416,7 +1407,7 @@ gtk_xtext_show_toast (GtkXText *xtext, const char *text, int ms)
 }
 
 static void
-xtext_draw_toast (GtkXText *xtext, cairo_t *cr)
+xtext_draw_toast (GtkXText *xtext, GtkSnapshot *s)
 {
 	PangoLayout *layout;
 	GdkRectangle r;
@@ -1429,71 +1420,85 @@ xtext_draw_toast (GtkXText *xtext, cairo_t *cr)
 	/* top right, same box as the jump button */
 	r.width = tw + 2 * 6;
 	r.height = th + 2 * 2;
-	r.x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r.width - 4;
+	r.x = nx_widget_get_allocated_width (GTK_WIDGET (xtext)) - r.width - xtext_right_inset (xtext);
 	r.y = 4;
-	xtext_draw_box (xtext, cr, &r, FALSE);
-	cairo_save (cr);
-	gdk_cairo_set_source_rgba (cr, &xtext->palette[XTEXT_FG]);
-	cairo_move_to (cr, r.x + 6, r.y + 2);
-	pango_cairo_show_layout (cr, layout);
-	cairo_restore (cr);
+	xtext_draw_box (xtext, s, &r, FALSE);
+	xtext_draw_label (s, layout, r.x + 6, r.y + 2, &xtext->palette[XTEXT_FG]);
 	g_object_unref (layout);
 }
 
-/* tests: what's in the backing now (drawn bit by bit as things changed)
-   against the same page rendered from scratch; the number of pixels that
-   differ. Anything but 0 is a row left half-drawn. */
+/* the whole frame as a render node: the visible rows (the renderer below,
+   through the three node calls at the top), then the jump button and the
+   toast on top */
+static GskRenderNode *
+xtext_page_node (GtkXText *xtext)
+{
+	GtkSnapshot *s = gtk_snapshot_new ();
+
+	xtext->snap = s;
+	gtk_xtext_render_page_now (xtext);
+	xtext->snap = NULL;
+	xtext_draw_jump (xtext, s);
+	xtext_draw_toast (xtext, s);
+	return gtk_snapshot_free_to_node (s);
+}
+
+/* tests: a node tree drawn to pixels, as GSK would put it on screen */
+static GdkTexture *
+xtext_node_texture (GtkXText *xtext, GskRenderNode *node)
+{
+	GtkNative *nat = gtk_widget_get_native (GTK_WIDGET (xtext));
+	GskRenderer *r = nat ? gtk_native_get_renderer (nat) : NULL;
+
+	if (!r || !node)
+		return NULL;
+	return gsk_renderer_render_texture (r, node, &GRAPHENE_RECT_INIT (0, 0,
+					gtk_widget_get_width (GTK_WIDGET (xtext)), gtk_widget_get_height (GTK_WIDGET (xtext))));
+}
+
+/* tests: the frame last put on screen against the same state built again
+   from scratch, both drawn by GSK; the number of pixels that differ. 0
+   unless drawing depends on anything but the current state. */
 int
 gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_full)
 {
-	cairo_surface_t *now;
-	unsigned char *a, *b;
-	int w, h, stride, x, y, diff = 0;
-	GdkRectangle all;
+	GskRenderNode *full;
+	GdkTexture *ta, *tb;
+	guchar *a, *b;
+	int w, h, x, y, diff = 0;
+	gsize stride;
 
-	if (!xtext->backing)
+	if (!xtext->last_node)
 		return -1;
-	cairo_surface_flush (xtext->backing);
-	w = cairo_image_surface_get_width (xtext->backing);
-	h = cairo_image_surface_get_height (xtext->backing);
-	now = cairo_image_surface_create (CAIRO_FORMAT_RGB24, w, h);
+	full = xtext_page_node (xtext);
+	ta = xtext_node_texture (xtext, xtext->last_node);
+	tb = xtext_node_texture (xtext, full);
+	gsk_render_node_unref (full);
+	if (!ta || !tb)
 	{
-		cairo_t *c = cairo_create (now);
-		cairo_surface_set_device_scale (xtext->backing, 1, 1);
-		cairo_set_source_surface (c, xtext->backing, 0, 0);
-		cairo_paint (c);
-		cairo_destroy (c);
-		cairo_surface_set_device_scale (xtext->backing, xtext->backing_scale, xtext->backing_scale);
+		g_clear_object (&ta);
+		g_clear_object (&tb);
+		return -1;
 	}
 	if (png_now)
-		cairo_surface_write_to_png (now, png_now);
-
-	all.x = all.y = 0;
-	all.width = nx_widget_get_allocated_width (GTK_WIDGET (xtext));
-	all.height = nx_widget_get_allocated_height (GTK_WIDGET (xtext));
-	/* "now" is what the last frame drew; the reference is the same state
-	   drawn again onto a cleared backing. Equal unless drawing depends on
-	   anything but the current state. */
-	{
-		cairo_t *c = cairo_create (xtext->backing);
-		cairo_set_source_rgb (c, 1, 0, 1);
-		cairo_paint (c);
-		cairo_destroy (c);
-	}
-	gtk_xtext_render_page_now (xtext);
-	(void) all;
-	cairo_surface_flush (xtext->backing);
+		gdk_texture_save_to_png (ta, png_now);
 	if (png_full)
-		cairo_surface_write_to_png (xtext->backing, png_full);
-
-	a = cairo_image_surface_get_data (now);
-	b = cairo_image_surface_get_data (xtext->backing);
-	stride = cairo_image_surface_get_stride (now);
+		gdk_texture_save_to_png (tb, png_full);
+	w = gdk_texture_get_width (ta);
+	h = gdk_texture_get_height (ta);
+	stride = w * 4;
+	a = g_malloc (stride * h);
+	b = g_malloc (stride * h);
+	gdk_texture_download (ta, a, stride);
+	gdk_texture_download (tb, b, stride);
 	for (y = 0; y < h; y++)
 		for (x = 0; x < w; x++)
-			if ((((guint32 *) (a + y * stride))[x] & 0xffffff) != (((guint32 *) (b + y * stride))[x] & 0xffffff))
+			if (((guint32 *) (a + y * stride))[x] != ((guint32 *) (b + y * stride))[x])
 				diff++;
-	cairo_surface_destroy (now);
+	g_free (a);
+	g_free (b);
+	g_object_unref (ta);
+	g_object_unref (tb);
 	return diff;
 }
 
@@ -1533,6 +1538,37 @@ gtk_xtext_scroll_value (GtkXText *xtext)
 	return gtk_adjustment_get_value (xtext->adj);
 }
 
+/* tests: entries whose wrap points (or the line total) differ from what
+   wrapping again at the current width gives -- 0 when the layout is
+   right for the size the widget has now */
+int
+gtk_xtext_layout_diff (GtkXText *xtext)
+{
+	xtext_buffer *buf = xtext->buffer;
+	textentry *ent;
+	int bad = 0, lines = 0;
+
+	for (ent = buf->text_first; ent; ent = ent->next)
+	{
+		GSList *old = ent->sublines, *a, *b;
+
+		ent->sublines = NULL;
+		lines += gtk_xtext_lines_taken (buf, ent);
+		for (a = old, b = ent->sublines; a && b; a = a->next, b = b->next)
+			if (a->data != b->data)
+				break;
+		if (a || b)
+			bad++;
+		g_slist_free (ent->sublines);
+		ent->sublines = old;
+	}
+	if (lines != buf->num_lines)
+		bad += 1000;
+	if (buf->window_width != gtk_widget_get_width (GTK_WIDGET (xtext)))
+		bad += 100000;
+	return bad;
+}
+
 char *
 gtk_xtext_selection_text (GtkXText *xtext, int *len)
 {
@@ -1567,50 +1603,25 @@ gtk_xtext_stray_marks (GtkXText *xtext)
 	return stray;
 }
 
-/* GTK4: draw from the current state, every frame, in ::snapshot. State
-   changes (a line appended, a scroll, a selection, a link under the
-   pointer, a resize) only call gtk_widget_queue_draw(); the whole page is
-   rendered here into the backing image and put on screen. GTK2's way, kept
-   until now, was to paint the change straight away into a persistent
-   image and patch it up piece by piece (shifted for scrolls, a few rows
-   or characters redrawn), which is where half-drawn rows came from when
-   any one of those patches was off. A page is a few dozen rows: Pango
-   draws that well within a frame. */
-static gboolean
-gtk_xtext_draw (GtkWidget * widget, cairo_t * cr)
-{
-	GtkXText *xtext = GTK_XTEXT (widget);
-
-	xtext_backing_update (xtext);
-	if (!xtext->backing)
-		return FALSE;
-
-	xtext->in_draw = TRUE;
-	xtext->redraw_pending = FALSE;
-	gtk_xtext_render_page_now (xtext);
-	xtext->in_draw = FALSE;
-
-	cairo_surface_flush (xtext->backing);
-	cairo_save (cr);
-	cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
-	cairo_set_source_surface (cr, xtext->backing, 0, 0);
-	cairo_paint (cr);
-	cairo_restore (cr);
-	xtext_draw_jump (xtext, cr);
-	xtext_draw_toast (xtext, cr);
-	return FALSE;
-}
-
+/* GTK4: the frame is built from the current state in ::snapshot as render
+   nodes (xtext_page_node); state changes (a line appended, a scroll, a
+   selection, a link under the pointer, a resize) only queue a draw. GSK
+   draws and caches the nodes; nothing here keeps pixels. */
 static void
 gtk_xtext_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 {
-	graphene_rect_t r;
-	cairo_t *cr;
+	GtkXText *xtext = GTK_XTEXT (widget);
+	GskRenderNode *node;
 
-	graphene_rect_init (&r, 0, 0, gtk_widget_get_width (widget), gtk_widget_get_height (widget));
-	cr = gtk_snapshot_append_cairo (snapshot, &r);
-	gtk_xtext_draw (widget, cr);
-	cairo_destroy (cr);
+	xtext->redraw_pending = FALSE;
+	node = xtext_page_node (xtext);
+	if (!node)
+		return;
+	gtk_snapshot_append_node (snapshot, node);
+	/* kept for the tests' redraw check (append took its own reference) */
+	if (xtext->last_node)
+		gsk_render_node_unref (xtext->last_node);
+	xtext->last_node = node;
 }
 
 /* how rows look changed without anything moving (the selection, a link
@@ -1622,14 +1633,9 @@ xtext_render_visible (GtkXText *xtext)
 }
 
 /* the selection changed from last_ent_start..last_ent_end to start..end:
-   repaint what's on screen, every row whole. GTK2 redrew only the
-   characters that changed (jump_in/jump_out offsets, no background fills)
-   straight onto the window; with proportional fonts, colour runs and
-   HiDPI that left slivers of old glyphs. Redrawing a span of entries
-   instead missed the part of a selection scrolled above the page (the
-   range walk starts at the page top), leaving rows highlighted that
-   weren't selected any more. The visible page is a few dozen rows into
-   our own backing: cheap, and always right. */
+   the frame is rebuilt from the marks on the next tick, every row whole
+   (GTK2 patched only the characters that changed, which left slivers of
+   old glyphs and stale highlights above the page top). */
 static void
 gtk_xtext_selection_render (GtkXText *xtext, textentry *start_ent, textentry *end_ent)
 {
@@ -2357,7 +2363,6 @@ gtk_xtext_select_all (GtkXText *xtext)
 	buf->last_offset_start = 0;
 	buf->last_offset_end = buf->text_last->str_len;
 	xtext->selection_buffer = buf;
-	dontscroll (buf);	/* nothing moved: a full render, not a scroll copy */
 	gtk_xtext_refresh (xtext);
 	if (prefs.hex_text_autocopy_text)
 		gtk_xtext_set_clip_owner (GTK_WIDGET (xtext), GDK_CURRENT_TIME);
@@ -2758,6 +2763,100 @@ gtk_xtext_smooth_scroll (GtkWidget *widget, double dx, double dy, GdkScrollUnit 
 }
 
 
+/* GtkScrollable: inside a GtkScrolledWindow the chat scrolls with the
+   same scrollbar every other list has (overlay indicator or classic,
+   whatever the theme and gtk-overlay-scrolling say). The scrolled window
+   hands us its vertical adjustment; we adopt it, keeping where we were.
+   The value is in lines, the page in rows: a scrollbar only needs ratios.
+   Nothing scrolls sideways (we wrap), so the horizontal one is just kept. */
+enum
+{
+	PROP_0,
+	PROP_HADJUSTMENT,
+	PROP_VADJUSTMENT,
+	PROP_HSCROLL_POLICY,
+	PROP_VSCROLL_POLICY
+};
+
+static void
+xtext_set_vadjustment (GtkXText *xtext, GtkAdjustment *adj)
+{
+	GtkAdjustment *old = xtext->adj;
+
+	if (adj && adj == old)
+		return;
+	if (!adj)
+		adj = gtk_adjustment_new (0, 0, 1, 1, 1, 1);
+	g_object_ref_sink (adj);
+	if (old)
+	{
+		g_signal_handlers_disconnect_matched (old, G_SIGNAL_MATCH_DATA, 0, 0, NULL, NULL, xtext);
+		/* before our handler is on it: moving it isn't a scroll */
+		gtk_adjustment_configure (adj, gtk_adjustment_get_value (old), gtk_adjustment_get_lower (old),
+										  gtk_adjustment_get_upper (old), gtk_adjustment_get_step_increment (old),
+										  gtk_adjustment_get_page_increment (old), gtk_adjustment_get_page_size (old));
+		g_object_unref (old);
+	}
+	xtext->adj = adj;
+	xtext->vc_signal_tag = g_signal_connect (adj, "value-changed",
+							G_CALLBACK (gtk_xtext_adjustment_changed), xtext);
+	if (old)
+		g_object_notify (G_OBJECT (xtext), "vadjustment");
+}
+
+static void
+gtk_xtext_set_property (GObject *obj, guint id, const GValue *v, GParamSpec *ps)
+{
+	GtkXText *xtext = GTK_XTEXT (obj);
+
+	switch (id)
+	{
+	case PROP_HADJUSTMENT:
+		g_set_object (&xtext->hadj, g_value_get_object (v));
+		break;
+	case PROP_VADJUSTMENT:
+		xtext_set_vadjustment (xtext, g_value_get_object (v));
+		break;
+	case PROP_HSCROLL_POLICY:
+		xtext->hscroll_policy = g_value_get_enum (v);
+		break;
+	case PROP_VSCROLL_POLICY:
+		xtext->vscroll_policy = g_value_get_enum (v);
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, ps);
+	}
+}
+
+static void
+gtk_xtext_get_property (GObject *obj, guint id, GValue *v, GParamSpec *ps)
+{
+	GtkXText *xtext = GTK_XTEXT (obj);
+
+	switch (id)
+	{
+	case PROP_HADJUSTMENT:
+		g_value_set_object (v, xtext->hadj);
+		break;
+	case PROP_VADJUSTMENT:
+		g_value_set_object (v, xtext->adj);
+		break;
+	case PROP_HSCROLL_POLICY:
+		g_value_set_enum (v, xtext->hscroll_policy);
+		break;
+	case PROP_VSCROLL_POLICY:
+		g_value_set_enum (v, xtext->vscroll_policy);
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, ps);
+	}
+}
+
+static void
+gtk_xtext_scrollable_init (GtkScrollableInterface *iface)
+{
+}
+
 static void
 gtk_xtext_class_init (GtkXTextClass * class)
 {
@@ -2783,11 +2882,18 @@ gtk_xtext_class_init (GtkXTextClass * class)
 							G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION,
 							G_STRUCT_OFFSET (GtkXTextClass, word_click),
 							NULL, NULL,
-							_hexchat_marshal_VOID__POINTER_POINTER,
+							NULL, /* generic marshaller */
 							G_TYPE_NONE,
 							2, G_TYPE_POINTER, G_TYPE_POINTER);
 
 	object_class->dispose = gtk_xtext_destroy;
+	object_class->set_property = gtk_xtext_set_property;
+	object_class->get_property = gtk_xtext_get_property;
+	g_object_class_override_property (object_class, PROP_HADJUSTMENT, "hadjustment");
+	g_object_class_override_property (object_class, PROP_VADJUSTMENT, "vadjustment");
+	g_object_class_override_property (object_class, PROP_HSCROLL_POLICY, "hscroll-policy");
+	g_object_class_override_property (object_class, PROP_VSCROLL_POLICY, "vscroll-policy");
+
 	widget_class->realize = gtk_xtext_realize;
 	widget_class->unrealize = gtk_xtext_unrealize;
 	widget_class->measure = gtk_xtext_measure;
@@ -2816,9 +2922,14 @@ gtk_xtext_get_type (void)
 			0,		/* n_preallocs */
 			(GInstanceInitFunc) gtk_xtext_init,
 		};
+		static const GInterfaceInfo scrollable_info =
+		{
+			(GInterfaceInitFunc) gtk_xtext_scrollable_init, NULL, NULL
+		};
 
 		xtext_type = g_type_register_static (GTK_TYPE_WIDGET, "GtkXText",
 														 &xtext_info, 0);
+		g_type_add_interface_static (xtext_type, GTK_TYPE_SCROLLABLE, &scrollable_info);
 	}
 
 	return xtext_type;
@@ -3011,7 +3122,7 @@ gtk_xtext_render_flush (GtkXText * xtext, int x, int y, unsigned char *str,
 	dofill = TRUE;
 
 	/* a background image behind text that has no colour of its own */
-	if (!xtext->backcolor && xtext->pixmap)
+	if (!xtext->backcolor && xtext->bg_texture)
 	{
 		xtext_draw_bg (xtext, x, y - xtext->font->ascent, str_width,
 							xtext->fontsize);
@@ -3117,6 +3228,13 @@ gtk_xtext_search_offset (xtext_buffer *buf, textentry *ent, unsigned int off)
 	return flags;
 }
 
+/* does this entry get the time drawn in the stamp column in front of it */
+static inline gboolean
+xtext_draws_stamp (GtkXText *xtext, textentry *ent)
+{
+	return xtext->auto_indent && xtext->buffer->time_stamp && !ent->no_stamp;
+}
+
 /* render a single line, which WONT wrap, and parse mIRC colors */
 
 #define RENDER_FLUSH x += gtk_xtext_render_flush (xtext, x, y, pstr, j, gc, emphasis)
@@ -3160,8 +3278,9 @@ gtk_xtext_render_str (GtkXText * xtext, int y, textentry * ent,
 
 	if (!xtext->dont_render)
 	{
-		/* draw background to the left of the text */
-		if (str == ent->str && indent > MARGIN && xtext->buffer->time_stamp)
+		/* draw background to the left of the text; the stamp column only
+		   when render_line draws a stamp in it (else it kept old pixels) */
+		if (str == ent->str && indent > MARGIN && xtext_draws_stamp (xtext, ent))
 		{
 			/* don't overwrite the timestamp */
 			if (indent > xtext->stamp_width)
@@ -3707,7 +3826,7 @@ gtk_xtext_render_line (GtkXText * xtext, textentry * ent, int line,
 	start_subline = subline;
 
 	/* draw the timestamp */
-	if (xtext->auto_indent && xtext->buffer->time_stamp && !ent->no_stamp)
+	if (xtext_draws_stamp (xtext, ent))
 	{
 		char *time_str;
 		int len;
@@ -3802,7 +3921,6 @@ gtk_xtext_fix_indent (xtext_buffer *buf)
 		buf->indent = j;
 	}
 
-	dontscroll (buf);	/* force scrolling off */
 }
 
 /* The separator column (buf->indent) is in pixels and auto-indent only
@@ -3899,75 +4017,22 @@ gtk_xtext_set_font (GtkXText *xtext, char *name)
 	return TRUE;
 }
 
-/* c * a / 255, rounded */
-static inline guint
-premul (guint c, guint a)
-{
-	guint t = c * a + 0x80;
-	return ((t >> 8) + t) >> 8;
-}
-
-/* GdkPixbuf -> cairo image surface, the same conversion (and rounding)
-   as GDK's own, whose helpers are deprecated in GTK4 */
-static cairo_surface_t *
-xtext_surface_from_pixbuf (GdkPixbuf *pixbuf)
-{
-	int w = gdk_pixbuf_get_width (pixbuf);
-	int h = gdk_pixbuf_get_height (pixbuf);
-	int n = gdk_pixbuf_get_n_channels (pixbuf);
-	int sstride = gdk_pixbuf_get_rowstride (pixbuf);
-	const guchar *src = gdk_pixbuf_read_pixels (pixbuf);
-	cairo_surface_t *surf;
-	guchar *dst;
-	int dstride, x, y;
-
-	surf = cairo_image_surface_create (n == 4 ? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24, w, h);
-	cairo_surface_flush (surf);
-	dst = cairo_image_surface_get_data (surf);
-	dstride = cairo_image_surface_get_stride (surf);
-
-	for (y = 0; y < h; y++)
-	{
-		const guchar *s = src + y * sstride;
-		guint32 *d = (guint32 *) (dst + y * dstride);
-
-		for (x = 0; x < w; x++, s += n)
-		{
-			if (n == 4)
-			{
-				guint a = s[3];
-				d[x] = (a << 24) | (premul (s[0], a) << 16) | (premul (s[1], a) << 8) | premul (s[2], a);
-			}
-			else
-				d[x] = 0xff000000u | (s[0] << 16) | (s[1] << 8) | s[2];
-		}
-	}
-	cairo_surface_mark_dirty (surf);
-	return surf;
-}
 
 /* the pixbuf is tiled from the widget's top-left corner, like GDK_TILED
-   with ts_origin 0,0 was */
+   with ts_origin 0,0 was: one texture, a repeat node over the page */
 void
 gtk_xtext_set_background (GtkXText * xtext, GdkPixbuf * pixbuf)
 {
-	if (xtext->pixmap)
-	{
-		cairo_pattern_destroy (xtext->pixmap);
-		xtext->pixmap = NULL;
-	}
-
-	dontscroll (xtext->buffer);
-
+	g_clear_object (&xtext->bg_texture);
 	if (pixbuf)
 	{
-		cairo_surface_t *surf = xtext_surface_from_pixbuf (pixbuf);
-		xtext->pixmap = cairo_pattern_create_for_surface (surf);
-		cairo_pattern_set_extend (xtext->pixmap, CAIRO_EXTEND_REPEAT);
-		cairo_surface_destroy (surf);
+		/* the pixbuf's bytes as they are: RGB or straight-alpha RGBA */
+		GBytes *px = gdk_pixbuf_read_pixel_bytes (pixbuf);
+		xtext->bg_texture = gdk_memory_texture_new (gdk_pixbuf_get_width (pixbuf), gdk_pixbuf_get_height (pixbuf),
+				gdk_pixbuf_get_has_alpha (pixbuf) ? GDK_MEMORY_R8G8B8A8 : GDK_MEMORY_R8G8B8,
+				px, gdk_pixbuf_get_rowstride (pixbuf));
+		g_bytes_unref (px);
 	}
-
-	xtext->backing_stale = TRUE;
 	xtext_queue_draw (xtext);
 }
 
@@ -4153,7 +4218,6 @@ gtk_xtext_render_page_now (GtkXText * xtext)
 	int height;
 	int subline;
 	int startline = gtk_adjustment_get_value (xtext->adj);
-	int pos;
 
 	if(!gtk_widget_get_realized(GTK_WIDGET(xtext)))
 	  return;
@@ -4164,6 +4228,9 @@ gtk_xtext_render_page_now (GtkXText * xtext)
 	width = nx_widget_get_allocated_width (GTK_WIDGET (xtext));
 	height = nx_widget_get_allocated_height (GTK_WIDGET (xtext));
 
+	/* the background under everything: a page too small to lay out (or a
+	   row the renderer leaves) still shows the chat colour, not the window */
+	xtext_draw_bg (xtext, 0, 0, width, height);
 	if (width < 34 || height < xtext->fontsize || width < xtext->buffer->indent + 32)
 		return;
 
@@ -4179,11 +4246,6 @@ gtk_xtext_render_page_now (GtkXText * xtext)
 	xtext->buffer->pagetop_subline = subline;
 	xtext->buffer->pagetop_line = startline;
 
-	if (xtext->buffer->num_lines <= gtk_adjustment_get_page_size (xtext->adj))
-		dontscroll (xtext->buffer);
-
-	pos = gtk_adjustment_get_value (xtext->adj) * xtext->fontsize;
-	xtext->buffer->last_pixel_pos = pos;
 
 	width -= MARGIN;
 	lines_max = ((height + xtext->pixel_offset) / xtext->fontsize) + 1;
@@ -4274,7 +4336,6 @@ gtk_xtext_remove_top (xtext_buffer *buffer)
 		return;
 	buffer->num_lines -= g_slist_length (ent->sublines);
 	buffer->pagetop_line -= g_slist_length (ent->sublines);
-	buffer->last_pixel_pos -= (g_slist_length (ent->sublines) * buffer->xtext->fontsize);
 	buffer->text_first = ent->next;
 	if (buffer->text_first)
 		buffer->text_first->prev = NULL;
@@ -4391,7 +4452,6 @@ gtk_xtext_clear (xtext_buffer *buf, int lines)
 		buf->marker_pos = NULL;
 		if (buf->text_first)
 			marker_reset = TRUE;
-		dontscroll (buf);
 
 		while (buf->text_first)
 		{
@@ -4929,7 +4989,6 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 	{
 		buf->marker_pos = ent;
 		buf->marker_state = MARKER_IS_SET;
-		dontscroll (buf); /* force scrolling off */
 		buf->marker_seen = FALSE;
 	}
 
@@ -4942,7 +5001,6 @@ gtk_xtext_append_entry (xtext_buffer *buf, textentry * ent, time_t stamp)
 	{
 		/* this could be improved */
 		if ((buf->num_lines - 1) <= gtk_adjustment_get_page_size (buf->xtext->adj))
-			dontscroll (buf);
 
 		if (!buf->scrollbar_down)
 		{
@@ -5006,7 +5064,9 @@ gtk_xtext_append_indent (xtext_buffer *buf,
 	if (right_text[right_len-1] == '\n')
 		right_len--;
 
-	ent = g_malloc (left_len + right_len + 2 + sizeof (textentry));
+	/* zeroed: tag and no_stamp aren't set below, and a no_stamp left from
+	   freed memory dropped the time from random lines */
+	ent = g_malloc0 (left_len + right_len + 2 + sizeof (textentry));
 	str = (unsigned char *) ent + sizeof (textentry);
 
 	if (left_len)
@@ -5072,7 +5132,7 @@ gtk_xtext_append (xtext_buffer *buf, unsigned char *text, int len, time_t stamp)
 		truncate = TRUE;
 	}
 
-	ent = g_malloc (len + 1 + sizeof (textentry));
+	ent = g_malloc0 (len + 1 + sizeof (textentry));
 	ent->str = (unsigned char *) ent + sizeof (textentry);
 	ent->str_len = len;
 	if (len)
@@ -5243,7 +5303,6 @@ gtk_xtext_reset_marker_pos (GtkXText *xtext)
 	if (xtext->buffer->marker_pos)
 	{
 		xtext->buffer->marker_pos = NULL;
-		dontscroll (xtext->buffer); /* force scrolling off */
 		gtk_xtext_render_page (xtext);
 		xtext->buffer->marker_state = MARKER_RESET_MANUALLY;
 	}
@@ -5330,7 +5389,6 @@ gtk_xtext_buffer_show (GtkXText *xtext, xtext_buffer *buf, int render)
 
 	/* now change to the new buffer */
 	xtext->buffer = buf;
-	dontscroll (buf);	/* force scrolling off */
 	{
 		gdouble value = buf->old_value;
 		gdouble upper = buf->num_lines;
@@ -5354,26 +5412,11 @@ gtk_xtext_buffer_show (GtkXText *xtext, xtext_buffer *buf, int render)
 
 	if (render)
 	{
-		/* did the window change size since this buffer was last shown? */
-		if (buf->window_width != w)
-		{
-			buf->window_width = w;
-			buf->window_height = h;
-			gtk_xtext_calc_lines (buf, FALSE);
-			if (buf->scrollbar_down)
-				gtk_adjustment_set_value (xtext->adj, gtk_adjustment_get_upper (xtext->adj) -
-												  gtk_adjustment_get_page_size (xtext->adj));
-		} else if (buf->window_height != h)
-		{
-			buf->window_height = h;
-			buf->pagetop_ent = NULL;
-			if (buf->scrollbar_down)
-				xtext_adj_set_silent (xtext, gtk_adjustment_get_upper (xtext->adj),
-											 gtk_adjustment_get_upper (xtext->adj));
-			gtk_xtext_adjustment_set (buf, FALSE);
-		}
-
-		gtk_xtext_render_page (xtext);
+		/* laid out for the size it was last shown at */
+		if (buf->window_width != w || buf->window_height != h)
+			xtext_fit (xtext, w, h);
+		else
+			gtk_xtext_render_page (xtext);
 		g_signal_emit_by_name (xtext->adj, "changed");
 	}
 }
@@ -5388,7 +5431,6 @@ gtk_xtext_buffer_new (GtkXText *xtext)
 	buf->xtext = xtext;
 	buf->scrollbar_down = TRUE;
 	buf->indent = xtext->space_width * 2;
-	dontscroll (buf);
 
 	return buf;
 }

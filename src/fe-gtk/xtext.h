@@ -96,7 +96,6 @@ typedef struct {
 	int last_offset_start;
 	int last_offset_end;
 
-	int last_pixel_pos;
 
 	int pagetop_line;
 	int pagetop_subline;
@@ -140,10 +139,12 @@ struct _GtkXText
 	xtext_buffer *selection_buffer;
 
 	GtkAdjustment *adj;
-	cairo_pattern_t *pixmap;		/* tiled background image, NULL = use palette[XTEXT_BG] */
-	cairo_surface_t *backing;		/* everything is rendered here, draw() copies it out */
-	cairo_t *cr;						/* drawing context on ->backing */
-	int backing_scale;				/* HiDPI scale ->backing was made for */
+	GtkAdjustment *hadj;			/* GtkScrollable's; we never scroll sideways */
+	guint hscroll_policy : 1;
+	guint vscroll_policy : 1;
+	GdkTexture *bg_texture;		/* tiled background image, NULL = use palette[XTEXT_BG] */
+	GtkSnapshot *snap;				/* while a frame is being built: where rows go */
+	GskRenderNode *last_node;	/* the last frame (tests compare it with a fresh one) */
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 	int click_x, click_y;			/* where the last press was */
 	const char *cursor_name;		/* pointer shape now (static string), NULL: default */
@@ -244,8 +245,6 @@ struct _GtkXText
 	double glide_v;				/* its velocity, px/s */
 	gint64 glide_time;
 	double zoom_accum;			/* Ctrl/Cmd+scroll: pixels toward the next zoom step */
-	unsigned int backing_stale:1;	/* backing surface needs a full render_page */
-	unsigned int in_draw:1;			/* inside draw(): don't queue more redraws */
 
 	/* settings/prefs */
 	unsigned int auto_indent:1;
@@ -284,8 +283,8 @@ void gtk_xtext_set_palette (GtkXText * xtext, GdkRGBA palette[]);
 void gtk_xtext_clear (xtext_buffer *buf, int lines);
 void gtk_xtext_save (GtkXText * xtext, int fh);
 void gtk_xtext_refresh (GtkXText * xtext);
-/* tests: pixels that differ between the backing as drawn so far and a
-   full redraw (0: nothing left half-drawn); PNGs of both if named */
+/* tests: pixels that differ between the last frame and the same state
+   built again (0: drawing depends only on the state); PNGs of both if named */
 int gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_full);
 /* tests: a mouse event as GTK would deliver it (press/dpress/move/hover/release) */
 void gtk_xtext_test_event (GtkXText *xtext, const char *what, double x, double y);
@@ -297,6 +296,8 @@ int gtk_xtext_stray_marks (GtkXText *xtext);
 gboolean gtk_xtext_redraw_pending (GtkXText *xtext);
 /* tests: the scroll position, in lines (fractional while between rows) */
 double gtk_xtext_scroll_value (GtkXText *xtext);
+/* tests: entries wrapped for some other width than the current one (0: right) */
+int gtk_xtext_layout_diff (GtkXText *xtext);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);
 int gtk_xtext_lastlog_count (xtext_buffer *out, xtext_buffer *search_area);
 textentry *gtk_xtext_search (GtkXText * xtext, const gchar *text, gtk_xtext_search_flags flags, GError **err);

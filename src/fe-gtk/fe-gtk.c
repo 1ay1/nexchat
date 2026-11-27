@@ -55,6 +55,7 @@
 #include "../common/servlist.h"
 #include "chanview.h"
 #include "cmdpopup.h"
+#include "sexy-spell-entry.h"
 #include "pixmaps.h"
 #include "chanlist.h"
 #include "joind.h"
@@ -121,18 +122,23 @@ create_msg_dialog (gchar *title, gchar *message)
 }
 #endif
 
-#if defined(__APPLE__)
-/* GTK's macOS backend, not nexchat, logs these:
-   - "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count >
-     0' failed": _gdk_macos_surface_show() thaws a surface each time it's
-     mapped, but hiding never re-freezes it, so every popover, tooltip or
-     dialog shown a second time thaws a count already at 0 (reproduced in a
-     40-line GTK-only program; fixed by osx/gtk-patches/0001, sent upstream);
-   - "Duplicate call to gdk_frame_timings_presented()" / "called on skipped
-     frame": 4.24's frame presentation, rewritten in GTK 4.25.
-   nexchat built against osx/build-gtk.sh's GTK has neither, and nothing
-   is hidden there. With an unpatched GTK those exact lines are dropped so
-   real warnings stay visible; NEXCHAT_GDK_NOISE=1 shows them anyway. */
+/* GTK, not nexchat, logs these; nothing we call sets them off:
+   - "Duplicate call to gdk_frame_timings_presented() with different
+     values" and "gdk_frame_timings_presented() called on skipped /
+     discarded frame": GTK < 4.25's frame clock is strict about the
+     backend reporting a frame once. Wayland's presentation feedback (and
+     macOS's display link) report a frame late or twice, e.g. when the
+     window is covered or a frame is dropped, so these come now and then on
+     any GTK 4.24 app. GTK 4.25 reworked it (frameclock: Rework presented()
+     / discarded()) and accepts that, so on 4.25+ nothing is dropped.
+   - macOS only: "gdk_surface_thaw_updates: assertion ... failed":
+     _gdk_macos_surface_show() thaws on every map but hiding never
+     re-freezes (osx/gtk-patches/0001, sent upstream; not dropped when
+     running on a GTK with those patches).
+   Only those exact lines go, so real warnings stay visible;
+   NEXCHAT_GDK_NOISE=1 shows them anyway. */
+static gboolean quiet_frame_timings, quiet_macos_thaw;
+
 static GLogWriterOutput
 quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpointer data)
 {
@@ -145,13 +151,16 @@ quiet_gdk_writer (GLogLevelFlags level, const GLogField *fields, gsize n, gpoint
 		else if (!strcmp (fields[i].key, "MESSAGE"))
 			msg = fields[i].value;
 	if (domain && msg && !strcmp (domain, "Gdk") &&
-		 (strstr (msg, "called on skipped frame") ||
-		  strstr (msg, "Duplicate call to gdk_frame_timings_presented") ||
-		  strstr (msg, "gdk_surface_thaw_updates: assertion")))
+		 ((quiet_frame_timings &&
+			(strstr (msg, "Duplicate call to gdk_frame_timings_") ||
+			 (g_str_has_prefix (msg, "gdk_frame_timings_") &&
+			  (strstr (msg, "on skipped frame") || strstr (msg, "on discarded frame"))))) ||
+		  (quiet_macos_thaw && strstr (msg, "gdk_surface_thaw_updates: assertion"))))
 		return G_LOG_WRITER_HANDLED;
 	return g_log_writer_default (level, fields, n, data);
 }
 
+#if defined(__APPLE__)
 /* the GTK we run on has osx/gtk-patches applied: osx/build-gtk.sh leaves
    share/nexchat/gtk-patched in its prefix, next to lib/libgtk-4 */
 static gboolean
@@ -357,11 +366,17 @@ fe_args (int argc, char *argv[])
 	}
 #endif
 
+	/* GTK's own noise (see quiet_gdk_writer): the GTK we run on decides,
+	   not the one we were built against */
+	if (!(g_getenv ("NEXCHAT_GDK_NOISE") && *g_getenv ("NEXCHAT_GDK_NOISE")))
+	{
+		quiet_frame_timings = gtk_get_major_version () == 4 && gtk_get_minor_version () < 25;
 #if defined(__APPLE__)
-	/* NEXCHAT_GDK_NOISE=1: show them anyway (to find what sets them off) */
-	if (!g_getenv ("NEXCHAT_GDK_NOISE") && !gtk_has_macos_fixes ())
-		g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
+		quiet_macos_thaw = !gtk_has_macos_fixes ();
 #endif
+		if (quiet_frame_timings || quiet_macos_thaw)
+			g_log_set_writer_func (quiet_gdk_writer, NULL, NULL);
+	}
 
 #if defined(WIN32)
 	/* the real Windows title bar, borders, snap and shadow instead of
@@ -549,12 +564,6 @@ fe_apply_css (void)
 		g_string_append (css, "}\n");
 	}
 
-	/* the chat view scrollbar: GTK3 themes make it a thin overlay-looking
-	   slider; GTK2 had a full-width trough with stepper arrows. The arrows
-	   are a style property, set below; this keeps the slider full width.
-	   (GTK4 scrollbars have no steppers.) */
-	g_string_append (css,
-		"#hexchat-scrollbar slider { min-width: 10px; min-height: 24px; }\n");
 	/* lag and throttle meters under the user list: GTK4's progress bar is
 	   a rounded trough with its own minimum sizes, which at this size drew
 	   as two hollow outlines with a speck of colour. Flat 4px bars: a
@@ -719,6 +728,71 @@ fe_apply_css (void)
 			g_printerr ("---- nexchat scheme css ----\n%s\n----\n", sc->str);
 		gtk_css_provider_load_from_string (scheme_provider, sc->str);
 		g_string_free (sc, TRUE);
+	}
+
+	/* HexChat's widgets: whatever the colours (a scheme, the system theme),
+	   the controls keep HexChat's shapes, not GTK4/libadwaita's. Small
+	   square check boxes with a tick, sunken bordered entries, framed
+	   buttons with normal-weight labels, a default button that's only
+	   outlined, a dotted focus line. Shapes only: every colour is a named
+	   one, so the scheme (or the theme) still decides those. Its own
+	   provider above the other two, so neither GTK's theme nor a scheme's
+	   fills get the last word on how a control is built. */
+	{
+		static GtkCssProvider *classic_provider;
+		static const char classic_css[] =
+			/* buttons (not the channel tabs, flat or title-bar ones) */
+			"button.text-button:not(.flat):not(#hexchat-tab), button.image-button:not(.flat),"
+			" button.nx-image-text:not(.flat), dropdown > button, combobox > box > button,"
+			" menubutton > button:not(.flat), filechooserbutton > button"
+			" { font-weight: normal; border: 1px solid @borders; border-radius: 3px; box-shadow: none;"
+			" padding: 2px 8px; min-height: 19px;"
+			" background-image: linear-gradient(to bottom, alpha(white, 0.07), alpha(black, 0.05)); }\n"
+			"button.text-button:not(.flat):not(#hexchat-tab):hover, dropdown > button:hover,"
+			" combobox > box > button:hover, menubutton > button:not(.flat):hover"
+			" { background-image: linear-gradient(to bottom, alpha(white, 0.12), alpha(black, 0.02)); }\n"
+			"button.text-button:not(.flat):not(#hexchat-tab):active, button.text-button:not(.flat):not(#hexchat-tab):checked,"
+			" dropdown > button:active, dropdown > button:checked"
+			" { background-image: linear-gradient(to bottom, alpha(black, 0.12), alpha(black, 0.04)); }\n"
+			"headerbar button { border-color: transparent; background-image: none; }\n"
+			/* the default button: outlined in the accent, not a slab of it */
+			"button.default, button.suggested-action { background-color: @theme_bg_color; color: @theme_fg_color;"
+			" border-color: @theme_selected_bg_color; box-shadow: inset 0 0 0 1px alpha(@theme_selected_bg_color, 0.35); }\n"
+			"button:focus-visible, checkbutton:focus-visible"
+			" { outline: 1px dotted alpha(currentColor, 0.7); outline-offset: -4px; }\n"
+			"checkbutton:focus-visible { outline-offset: 0; }\n"
+			/* entries: a sunken box with an edge you can see (not the topic and
+			   input boxes, which the main window styles itself) */
+			"entry:not(#hexchat-inputbox), spinbutton { border: 1px solid @borders; border-radius: 2px; min-height: 22px;"
+			" box-shadow: inset 0 1px alpha(black, 0.14); background-color: @theme_base_color; background-image: none; }\n"
+			"entry:not(#hexchat-inputbox) { padding: 0 5px; }\n"
+			"entry:not(#hexchat-inputbox):focus-within, spinbutton:focus-within { outline: none; border-color: @theme_selected_bg_color; }\n"
+			/* spin buttons: GTK4 only has the side-by-side - +; narrow, inside the box */
+			"spinbutton > text { padding: 0 5px; min-width: 3em; }\n"
+			"spinbutton > button.image-button.up, spinbutton > button.image-button.down"
+			" { border: none; border-left: 1px solid @borders; border-radius: 0;"
+			" background: none; box-shadow: none; padding: 0 3px; min-width: 14px; min-height: 0; -gtk-icon-size: 10px; }\n"
+			"spinbutton > button.image-button.up:hover, spinbutton > button.image-button.down:hover"
+			" { background-color: alpha(currentColor, 0.08); }\n"
+			/* check boxes and radios: 13px, a 1px edge, a tick in the text colour */
+			"checkbutton > check, checkbutton > radio, check, radio { min-width: 13px; min-height: 13px;"
+			" border: 1px solid alpha(@theme_text_color, 0.55); border-radius: 2px; box-shadow: none;"
+			" background-image: none; background-color: @theme_base_color; color: @theme_text_color;"
+			" -gtk-icon-size: 11px; padding: 0; }\n"
+			"checkbutton > radio, radio { border-radius: 50%; }\n"
+			"check:checked, radio:checked, check:indeterminate, radio:indeterminate"
+			" { background-color: @theme_base_color; color: @theme_text_color; border-color: alpha(@theme_text_color, 0.7); }\n"
+			"checkbutton:hover > check, checkbutton:hover > radio { border-color: @theme_selected_bg_color; }\n"
+			"check:disabled, radio:disabled { opacity: 0.5; }\n";
+
+		if (!classic_provider)
+		{
+			classic_provider = gtk_css_provider_new ();
+			g_signal_connect (classic_provider, "parsing-error", G_CALLBACK (css_parsing_error), NULL);
+			gtk_style_context_add_provider_for_display (screen, GTK_STYLE_PROVIDER (classic_provider),
+						GTK_STYLE_PROVIDER_PRIORITY_USER + 2);
+			gtk_css_provider_load_from_string (classic_provider, classic_css);
+		}
 	}
 
 	/* GTK4 loads what it can and reports errors through a signal */
@@ -1296,6 +1370,59 @@ fe_xdrag_step (gpointer data)
 				return G_SOURCE_CONTINUE;
 			waited = 0;
 		}
+		/* "size W H": the main window resized, through GTK, so the same
+		   steps run on any backend; the next step waits for the new size
+		   to arrive (up to ~3 s: a compositor may refuse it) */
+		else if (sscanf (steps[i], "size %lf %lf", &x, &y) == 2)
+		{
+			GtkWidget *top = GTK_WIDGET (gtk_widget_get_root (GTK_WIDGET (xt)));
+
+			if (waited == 0)
+				gtk_window_set_default_size (GTK_WINDOW (top), (int) x, (int) y);
+			/* below the window's minimum it stops at the minimum */
+			if (((gtk_widget_get_width (top) != (int) x && gtk_widget_get_width (top) > (int) x) ||
+				  gtk_widget_get_width (top) < (int) x ||
+				  gtk_widget_get_height (top) != (int) y)
+				 && ++waited < 100)
+				return G_SOURCE_CONTINUE;
+			waited = 0;
+		}
+		/* "text …": the input box holds that (focused); "caret N": the
+		   cursor N characters in, -1 the end */
+		else if (g_str_has_prefix (steps[i], "text "))
+		{
+			GtkWidget *in = current_sess->gui->input_box;
+			gtk_widget_grab_focus (in);
+			gtk_editable_set_text (GTK_EDITABLE (in), steps[i] + 5);
+			gtk_editable_set_position (GTK_EDITABLE (in), -1);
+		}
+		else if (sscanf (steps[i], "caret %lf", &x) == 1)
+			gtk_editable_set_position (GTK_EDITABLE (current_sess->gui->input_box), (int) x);
+		/* "lay N": the layout and the pixels, checked now. "xlay: N W H BAD
+		   VALUE BOTTOM TOP DIFF": W H the window, BAD entries wrapped for
+		   another width, TOP the message at the top, DIFF pixels unlike a
+		   full redraw */
+		else if (sscanf (steps[i], "lay %lf", &x) == 1)
+		{
+			GtkWidget *top = GTK_WIDGET (gtk_widget_get_root (GTK_WIDGET (xt)));
+			char *t = gtk_xtext_line_text_at (xt, 200, 2);
+
+			g_printerr ("xlay: %d %d %d %d %.3f %.0f %.12s %d\n", (int) x,
+						gtk_widget_get_width (top), gtk_widget_get_height (top),
+						gtk_xtext_layout_diff (xt), gtk_xtext_scroll_value (xt),
+						gtk_adjustment_get_upper (xt->adj) - gtk_adjustment_get_page_size (xt->adj),
+						t ? g_strdelimit (t, " ", '_') : "-", gtk_xtext_backing_diff (xt, NULL, NULL));
+			g_free (t);
+			{
+				graphene_rect_t cr;
+				int cs;
+				if (sexy_spell_entry_cursor_rect (SEXY_SPELL_ENTRY (current_sess->gui->input_box), top, &cr, &cs))
+					g_printerr ("xcaret: %d %d %d %d %d %d\n", (int) x, cs, (int) cr.origin.x, (int) cr.origin.y,
+								(int) (cr.size.width + .5), (int) (cr.size.height + .5));
+				else
+					g_printerr ("xcaret: %d none\n", (int) x);
+			}
+		}
 		else if (sscanf (steps[i], "%15s %lf %lf", what, &x, &y) == 3)
 		{
 			gtk_xtext_test_event (xt, what, x, y);
@@ -1386,7 +1513,22 @@ fe_xcheck_poll (gpointer data)
 	g_unlink (f);
 	xt = GTK_XTEXT (current_sess->gui->xtext);
 	sel = gtk_xtext_selection_text (xt, &n);
-	g_printerr ("xcheck: %d ", gtk_xtext_backing_diff (xt, NULL, NULL));
+	{
+		/* the message at the top of the view, by its leading number */
+		char *top = gtk_xtext_line_text_at (xt, 200, 2);
+		g_printerr ("xlayout: %d %.3f %.0f %.12s\n", gtk_xtext_layout_diff (xt), gtk_xtext_scroll_value (xt),
+					gtk_adjustment_get_upper (xt->adj) - gtk_adjustment_get_page_size (xt->adj),
+					top ? g_strdelimit (top, " ", '_') : "-");
+		g_free (top);
+	}
+	{
+		const char *p = g_getenv ("NEXCHAT_XDRAG_PNG");
+		char *a = p ? g_strdup_printf ("%s-now.png", p) : NULL;
+		char *b = p ? g_strdup_printf ("%s-full.png", p) : NULL;
+		g_printerr ("xcheck: %d ", gtk_xtext_backing_diff (xt, a, b));
+		g_free (a);
+		g_free (b);
+	}
 	if (sel)
 		fwrite (sel, 1, n > 0 ? n : strlen (sel), stderr);
 	g_printerr ("\n");

@@ -9,7 +9,7 @@
 #   - chat view (xtext): drag-select and double-click-word copy the text
 #     (text_autocopy_text=1); pasted and sent, it shows up at the ircd
 #   - layout drag and drop: user list onto the left pane, channel tree onto
-#     the chat scrollbar; checked in the saved gui_ulist_pos / gui_tab_pos
+#     the chat box; checked in the saved gui_ulist_pos / gui_tab_pos
 # usage: tests/ux/mouse.sh BIN   (needs Xvfb + XTest)
 set -eu
 . "$(dirname "$0")/isolate.sh"
@@ -135,8 +135,8 @@ x --click 450,580
 x --type "/set -quiet gui_tab_small 0" Return
 wait_for conf '^gui_ulist_pos = 2$' && ok "drag user list to left-bottom" \
 	|| bad "drag user list: $(grep '^gui_ulist_pos' "$tmp/cfg/hexchat.conf")"
-# the tree onto the chat scrollbar's bottom half (a drop target on the
-# right side): it goes right-bottom
+# the tree onto the chat box's bottom half (a drop target on the right
+# side): it goes right-bottom
 x --drag 60,58:890,450
 sleep 0.8
 x --click 450,580

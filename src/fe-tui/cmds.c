@@ -16,6 +16,7 @@
 #include "../common/cmdinfo.h"
 #include "../common/cmddocs.h"
 #include "../common/userlist.h"
+#include "../common/nickcomp.h"
 #include "../common/servlist.h"
 
 #include "bridge.h"
@@ -127,50 +128,24 @@ current_arg (const char *text, int cursor, int *start, char **word)
 	return n;
 }
 
-static int
-by_lasttalk (gconstpointer a, gconstpointer b)
-{
-	const nx_cmd_item *x = *(nx_cmd_item **) a, *y = *(nx_cmd_item **) b;
-	struct User *ux = current_sess ? userlist_find (current_sess, x->name) : NULL;
-	struct User *uy = current_sess ? userlist_find (current_sess, y->name) : NULL;
-	time_t tx = ux ? ux->lasttalk : 0, ty = uy ? uy->lasttalk : 0;
-	if (tx != ty)
-		return tx > ty ? -1 : 1;
-	return g_ascii_strcasecmp (x->name, y->name);
-}
-
 static void
 add_nicks (GPtrArray *out, session *sess, const char *prefix)
 {
-	gsize plen = strlen (prefix);
-	GList *users, *l;
-	guint first = out->len;
+	GPtrArray *c;
+	guint i;
 
-	if (!sess || sess->type != SESS_CHANNEL)
-	{
-		if (sess && sess->type == SESS_DIALOG && !g_ascii_strncasecmp (sess->channel, prefix, plen))
-			add (out, sess->channel, NULL, NULL, sess->channel, NULL, NULL);
+	if (!sess || (sess->type != SESS_CHANNEL && sess->type != SESS_DIALOG))
 		return;
-	}
-	users = userlist_double_list (sess);
-	for (l = users; l; l = l->next)
+	/* best first: common/nickcomp.c, the same order as Tab */
+	c = userlist_complete (sess, prefix, NICKCOMP_LETTERS);
+	for (i = 0; i < c->len; i++)
 	{
-		struct User *u = l->data;
-		char mode[2] = { u->prefix[0], 0 };
-		if (u->me || g_ascii_strncasecmp (u->nick, prefix, plen))
-			continue;
-		add (out, u->nick, mode, u->away ? _("away") : NULL, u->nick, NULL, NULL);
+		nickcomp_cand *n = c->pdata[i];
+		struct User *u = n->data;
+		char mode[2] = { u ? u->prefix[0] : 0, 0 };
+		add (out, n->nick, mode, n->away ? _("away") : NULL, n->nick, NULL, NULL);
 	}
-	g_list_free (users);
-	/* most recently talking first */
-	if (out->len > first)
-	{
-		session *was = current_sess;
-		current_sess = sess;
-		qsort (out->pdata + first, out->len - first, sizeof (gpointer),
-				 (int (*) (const void *, const void *)) by_lasttalk);
-		current_sess = was;
-	}
+	g_ptr_array_unref (c);
 }
 
 static void

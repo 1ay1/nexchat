@@ -15,7 +15,8 @@ export XDG_CONFIG_HOME
 unset GTK_THEME
 for v in gtk-3.0 gtk-4.0; do
 	mkdir -p "$XDG_CONFIG_HOME/$v"
-	printf '[Settings]\ngtk-theme-name=Adwaita\ngtk-icon-theme-name=Adwaita\ngtk-font-name=DejaVu Sans 10\ngtk-application-prefer-dark-theme=0\n' \
+	printf '[Settings]\ngtk-theme-name=Adwaita\ngtk-icon-theme-name=Adwaita\ngtk-font-name=DejaVu Sans 10\ngtk-application-prefer-dark-theme=0\n%s' \
+		"$([ -n "${NX_CLASSIC_SCROLLBARS:-}" ] && printf 'gtk-overlay-scrolling=0\n')" \
 		> "$XDG_CONFIG_HOME/$v/settings.ini"
 done
 # "Monospace 9" (the chat font) is DejaVu Sans Mono on Ubuntu, not everywhere

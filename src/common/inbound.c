@@ -51,6 +51,7 @@
 #include "batch.h"
 #include "bouncer.h"
 #include "mybouncer.h"
+#include "nickcomp.h"
 
 #ifdef USE_OPENSSL
 typedef struct { server *serv; int port; } sts_upgrade;
@@ -452,6 +453,8 @@ inbound_action (session *sess, char *chan, char *from, char *ip, char *text,
 	{
 		if (is_hilight (from, text, sess, serv))
 		{
+			if (user && !serv->line_is_history)
+				user->lastmention = time (0);
 			EMIT_SIGNAL_TIMESTAMP (XP_TE_HCHANACTION, sess, from, text, nickchar,
 										  idtext, 0, tags_data->timestamp);
 			return;
@@ -533,6 +536,16 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 
 	if (fromme)
 	{
+		/* "bob: ...", "@bob ...": you're talking to bob (live lines only;
+		   ranks bob up in nick completion) */
+		if (!serv->line_is_history)
+		{
+			char *to = nickcomp_addressee (text, prefs.hex_completion_suffix);
+			struct User *u = to ? userlist_find (sess, to) : NULL;
+			if (u && !u->me)
+				u->lastaddressed = time (0);
+			g_free (to);
+		}
 		if (prefs.hex_away_auto_unmark && serv->is_away && !tags_data->timestamp && !serv->line_is_history)
 			sess->server->p_set_back (sess->server);
 		EMIT_SIGNAL_TIMESTAMP (XP_TE_UCHANMSG, sess, from, text, nickchar, NULL,
@@ -543,7 +556,11 @@ inbound_chanmsg (server *serv, session *sess, char *chan, char *from,
 	inbound_make_idtext (serv, idtext, sizeof (idtext), id);
 
 	if (is_hilight (from, text, sess, serv))
+	{
 		hilight = TRUE;
+		if (user && !serv->line_is_history)
+			user->lastmention = time (0);
+	}
 
 	if (sess->type == SESS_DIALOG)
 		EMIT_SIGNAL_TIMESTAMP (XP_TE_DPRIVMSG, sess, from, text, idtext, NULL, 0,

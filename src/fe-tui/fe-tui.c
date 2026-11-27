@@ -29,6 +29,7 @@
 #include "../common/text.h"
 #include "../common/url.h"
 #include "../common/userlist.h"
+#include "../common/nickcomp.h"
 #include "../common/server.h"
 #include "../common/servlist.h"
 #include "../common/plugin.h"
@@ -1442,16 +1443,12 @@ nx_core_complete (nx_key buf, const char *word, int at_start, char *out, int out
 	}
 	else
 	{
-		GList *users = userlist_double_list (sess), *u;
-		for (u = users; u; u = u->next)
-		{
-			struct User *user = u->data;
-			if (!user->me && !rfc_ncasecmp (user->nick, (char *) word, wl))
-				count += complete_add (&p, &left, user->nick);
-		}
-		g_list_free (users);
-		if (sess->type == SESS_DIALOG && !rfc_ncasecmp (sess->channel, (char *) word, wl))
-			count += complete_add (&p, &left, sess->channel);
+		/* people, best first: common/nickcomp.c, as in the GTK front end */
+		GPtrArray *c = userlist_complete (sess, word, NICKCOMP_LETTERS);
+		guint k;
+		for (k = 0; k < c->len; k++)
+			count += complete_add (&p, &left, ((nickcomp_cand *) c->pdata[k])->nick);
+		g_ptr_array_unref (c);
 	}
 	*p = 0;
 	return count;

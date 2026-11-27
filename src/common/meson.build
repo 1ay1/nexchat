@@ -9,6 +9,7 @@ common_sources = [
   'inbound.c',
   'modes.c',
   'network.c',
+  'nickcomp.c',
   'notify.c',
   'outbound.c',
   'plugin.c',
@@ -29,6 +30,7 @@ common_sources = [
   'tree.c',
   'url.c',
   'userlist.c',
+  'rfccase.c',
   'util.c'
 ]
 
@@ -60,12 +62,6 @@ if host_machine.system() == 'windows'
   common_sources += 'sysinfo/win32/backend.c'
   common_includes += include_directories('sysinfo')
 endif
-
-marshal = gnome.genmarshal('marshal',
-  sources: 'marshalers.list',
-  prefix: '_hexchat_marshal',
-  internal: true
-)
 
 make_te = find_program('make-te.py')
 
@@ -103,7 +99,7 @@ if get_option('plugin')
 endif
 
 hexchat_common = static_library('hexchatcommon',
-  sources: [textevents] + marshal + common_sources,
+  sources: [textevents] + common_sources,
   include_directories: config_h_include,
   dependencies: common_deps + common_sysinfo_deps,
   c_args: common_cflags,
@@ -111,7 +107,7 @@ hexchat_common = static_library('hexchatcommon',
 )
 
 hexchat_common_dep = declare_dependency(
-  sources: [textevents] + marshal,
+  sources: [textevents],
   link_with: hexchat_common,
   include_directories: common_includes,
   compile_args: common_cflags,
@@ -119,6 +115,13 @@ hexchat_common_dep = declare_dependency(
   # path too (Homebrew keeps OpenSSL out of the default search path)
   dependencies: libssl_dep.found() ? [libgio_dep, libssl_dep] : [libgio_dep],
 )
+
+# which person a few letters mean (no server, no GTK)
+test('nickcomp', executable('nickcomp-test',
+  sources: ['../../tests/nickcomp-test.c', 'nickcomp.c', 'rfccase.c'],
+  include_directories: include_directories('.'),
+  dependencies: libgio_dep,
+))
 
 hexchat_plugin_dep = declare_dependency(
   include_directories: common_includes,

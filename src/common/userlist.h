@@ -31,6 +31,8 @@ struct User
 	char *servername;
 	char *account;
 	time_t lasttalk;
+	time_t lastmention;	/* said your name (nick completion ranks them up) */
+	time_t lastaddressed;	/* you said theirs: "bob: ...", "@bob ..." */
 	unsigned int access;	/* axs bit field */
 	char prefix[2]; /* @ + % */
 	unsigned int op:1;
@@ -49,6 +51,8 @@ int userlist_add_hostname (session *sess, char *nick,
 void userlist_set_away (session *sess, char *nick, unsigned int away);
 void userlist_set_account (session *sess, char *nick, char *account);
 struct User *userlist_find (session *sess, const char *name);
+/* nickcomp_cand * for word, best first; worst: a nickcomp_match_t */
+GPtrArray *userlist_complete (session *sess, const char *word, int worst);
 struct User *userlist_find_global (server *serv, char *name);
 void userlist_clear (session *sess);
 void userlist_free (session *sess);

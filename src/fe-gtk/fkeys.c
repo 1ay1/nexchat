@@ -38,6 +38,7 @@
 #include "../common/cfgfiles.h"
 #include "../common/fe.h"
 #include "../common/userlist.h"
+#include "../common/nickcomp.h"
 #include "../common/outbound.h"
 #include "../common/util.h"
 #include "../common/text.h"
@@ -1274,7 +1275,7 @@ key_action_scroll_page (GtkWidget * wid, gpointer evt, char *d1,
 	if (!sess)
 		return 0;
 
-	adj = gtk_range_get_adjustment (GTK_RANGE (sess->gui->vscrollbar));
+	adj = GTK_XTEXT (sess->gui->xtext)->adj;
 	end = gtk_adjustment_get_upper (adj) - gtk_adjustment_get_lower (adj) - gtk_adjustment_get_page_size (adj);
 
 	switch (type)
@@ -1364,6 +1365,113 @@ key_action_history_down (GtkWidget * wid, gpointer  ent, char *d1,
 /* old data that we reuse */
 static struct gcomp_data old_gcomp;
 
+/* Tab cycling through people when the list over the input is off: the
+   ranked names for the word typed, which one is in the box now */
+static struct
+{
+	session *sess;
+	int start;			/* byte offset of what Tab put in */
+	char *shown;		/* what Tab put there last ("bob: ") */
+	GPtrArray *nicks;	/* char *, best first */
+	int at;
+} nick_cycle;
+
+static void
+nick_cycle_clear (void)
+{
+	g_clear_pointer (&nick_cycle.shown, g_free);
+	g_clear_pointer (&nick_cycle.nicks, g_ptr_array_unref);
+	nick_cycle.sess = NULL;
+}
+
+/* put nick in place of text[start..end); at the start of the line with
+   completion_suffix ("bob: "), else "bob "; the cursor after the space.
+   Remembers what went in, for the next Tab */
+static void
+nick_put (GtkWidget *t, const char *text, int start, int end, const char *nick, gboolean at_sign)
+{
+	GString *buf = g_string_new (NULL);
+	const char *after = text + end;
+
+	if (*after == ' ')
+		after++;	/* the space goes back in below, once */
+	g_string_append_len (buf, text, start);
+	if (at_sign)
+		g_string_append_c (buf, '@');
+	g_string_append (buf, nick);
+	if (start == 0 && !at_sign && prefs.hex_completion_suffix[0])
+		g_string_append (buf, prefs.hex_completion_suffix);
+	g_string_append_c (buf, ' ');
+	g_free (nick_cycle.shown);
+	nick_cycle.shown = g_strdup (buf->str + start);
+	nick_cycle.start = start;
+	g_string_append (buf, after);
+	SPELL_ENTRY_SET_TEXT (t, buf->str);
+	SPELL_ENTRY_SET_POS (t, g_utf8_strlen (buf->str, start + strlen (nick_cycle.shown)));
+	g_string_free (buf, TRUE);
+}
+
+/* Tab on a word that isn't a command or a channel: the person it means,
+   ranked by common/nickcomp.c (the same as the "@" list and on send).
+   One fits: it goes in. Several: the list over the input box, best
+   first; or, with that off, Tab steps through them best first (Shift+Tab
+   back). 2 = handled */
+static int
+nick_tab (GtkWidget *t, session *sess, gboolean back)
+{
+	const char *text = SPELL_ENTRY_GET_TEXT (t);
+	int cursor = g_utf8_offset_to_pointer (text, SPELL_ENTRY_GET_POS (t)) - text;
+	int start, skip;
+	gboolean at_sign;
+	char *word, *copy;
+	GPtrArray *c;
+
+	/* Tab again, the box as the last Tab left it: the next one */
+	if (nick_cycle.nicks && nick_cycle.sess == sess && nick_cycle.shown &&
+		 cursor == nick_cycle.start + (int) strlen (nick_cycle.shown) &&
+		 !strncmp (text + nick_cycle.start, nick_cycle.shown, strlen (nick_cycle.shown)))
+	{
+		int n = nick_cycle.nicks->len;
+
+		nick_cycle.at = (nick_cycle.at + (back ? n - 1 : 1)) % n;
+		copy = g_strdup (text);
+		nick_put (t, copy, nick_cycle.start, cursor - 1, nick_cycle.nicks->pdata[nick_cycle.at],
+					copy[nick_cycle.start] == '@');
+		g_free (copy);
+		return 2;
+	}
+	nick_cycle_clear ();
+
+	for (start = cursor; start > 0 && text[start - 1] != ' '; start--)
+		;
+	at_sign = text[start] == '@';
+	/* "@ni", and "@op"/"+voice" typed in front: not part of the name */
+	skip = at_sign || (start < cursor && strchr (sess->server->nick_prefixes, text[start])) ? 1 : 0;
+	word = g_strndup (text + start + skip, cursor - start - skip);
+	if (!*word && !at_sign)
+	{
+		g_free (word);
+		return 2;
+	}
+	c = userlist_complete (sess, word, NICKCOMP_LETTERS);
+	if (c->len == 1 || (c->len > 1 && !cmdpopup_tab (t, start)))
+	{
+		guint i;
+
+		nick_cycle.sess = sess;
+		nick_cycle.nicks = g_ptr_array_new_with_free_func (g_free);
+		nick_cycle.at = 0;
+		for (i = 0; i < c->len; i++)
+			g_ptr_array_add (nick_cycle.nicks, g_strdup (((nickcomp_cand *) c->pdata[i])->nick));
+		copy = g_strdup (text);
+		nick_put (t, copy, start, cursor, nick_cycle.nicks->pdata[0], at_sign);
+		g_free (copy);
+	}
+	g_ptr_array_unref (c);
+	g_free (word);
+	return 2;
+}
+
 /* work on the data, ie return only channels */
 static int
 double_chan_cb (session *lsess, GList **list)
@@ -1399,13 +1507,6 @@ cmdlist_double_list (GSList *inlist)
 	return list;
 }
 
-static char *
-gcomp_nick_func (char *data)
-{
-	if (data)
-		return ((struct User *)data)->nick;
-	return "";
-}
 
 void
 key_action_tab_clean(void)
@@ -1417,29 +1518,6 @@ key_action_tab_clean(void)
 	}
 }
 
-/* For use in sorting the user list for completion
-
-This sorts everyone by the last talked time except your own nick
-which is forced to the bottom of the list to avoid completing your
-own name, which is very unlikely.
-*/
-static int
-talked_recent_cmp (struct User *a, struct User *b)
-{
-	if (a->me)
-		return -1;
-
-	if (b->me)
-		return 1;
-
-	if (a->lasttalk < b->lasttalk)
-		return -1;
-
-	if (a->lasttalk > b->lasttalk)
-		return 1;
-
-	return 0;
-}
 
 #define COMP_BUF 2048
 
@@ -1520,42 +1598,15 @@ key_action_tab_comp (GtkWidget *t, gpointer entry, char *d1, char *d2,
 		is_cmd = TRUE;
 	}
 	else if (strchr (sess->server->chantypes, text[ent_start]) == NULL)
-	{
-		is_nick = TRUE;
-		if (strchr (sess->server->nick_prefixes, text[ent_start]) != NULL)
-		{
-			if (ent_start == 0)
-				has_nick_prefix = TRUE;
-			ent_start++;
-		}
-	}
+		return nick_tab (t, sess, d1 && d1[0]);
 
 	prefix_len = ent_start;
 	elen = cursor_pos - ent_start;
 
 	g_utf8_strncpy (ent, g_utf8_offset_to_pointer (text, prefix_len), elen);
 	
-	if (sess->type == SESS_DIALOG && is_nick)
+	/* commands and channels (people: nick_tab, above) */
 	{
-		/* tab in a dialog completes the other person's name */
-		if (rfc_ncasecmp (sess->channel, ent, elen) == 0)
-		{
-			result =  sess->channel;
-			is_nick = FALSE;
-		}
-		else
-			return 2;
-	}
-	else
-	{
-		if (is_nick)
-		{
-			gcomp = g_completion_new((GCompletionFunc)gcomp_nick_func);
-			tmp_list = userlist_double_list(sess); /* create a temp list so we can free the memory */
-			if (prefs.hex_completion_sort == 1)	/* sort in last-talk order? */
-				tmp_list = g_list_sort (tmp_list, (void *)talked_recent_cmp);
-		}
-		else
 		{
 			gcomp = g_completion_new (NULL);
 			if (is_cmd)

@@ -89,6 +89,8 @@ void       sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntry
 /* the text cursor: 0 GTK's line, 1 thick bar, 2 block, 3 underline,
    4 hollow box; blink or stay on */
 void       sexy_spell_entry_set_cursor (SexySpellEntry *entry, int style, gboolean blink);
+/* tests: where the cursor is drawn (relative to rel) and its shape */
+gboolean   sexy_spell_entry_cursor_rect (SexySpellEntry *entry, GtkWidget *rel, graphene_rect_t *out, int *style);
 
 G_END_DECLS
 

@@ -134,7 +134,6 @@ typedef struct session_gui
 {
 	GtkWidget
 		*xtext,
-		*vscrollbar,
 		*chat_overlay,	/* the chat column; the "/" list floats over it */
 		*typing_label,	/* "alice is typing..." under the input row */
 		*reply_bar,		/* "Replying to alice: ..." over the input row */

@@ -23,6 +23,7 @@ hexchat_gtk_sources = [
   'notifygui.c',
   'palette.c',
   'palette-c16.c',
+  'palette-schemes.c',
   'pixmaps.c',
   'plugin-tray.c',
   'plugin-notification.c',
@@ -171,6 +172,13 @@ test('palette-roundtrip', executable('palette-roundtrip',
   dependencies: libgio_dep,
 ))
 
+# every colour scheme readable once palette_make_readable has had it
+test('palette-contrast', executable('palette-contrast',
+  sources: ['../../tests/palette-contrast.c', 'palette-schemes.c', 'palette-c16.c'],
+  include_directories: include_directories('.'),
+  dependencies: [gtk_dep, cc.find_library('m', required: false)],
+))
+
 # gtkcompat.h's packing helpers must keep their semantics
 gtkcompat_test = executable('gtkcompat-test',
   sources: ['../../tests/gtkcompat-test.c'],
@@ -273,6 +281,9 @@ if weston.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contain
       # no seat: a focused window doesn't blink the tray
       env: wl_env + ['NX_NO_SEAT=1'], timeout: 60)
   endif
+  test('wayland-resize', find_program('sh'),
+    args: [wl_with, sh, files('../../tests/ux/resize.sh'), hexchat_gtk],
+    env: wl_env, timeout: 120, is_parallel: false)
 endif
 
 # Urgency on Wayland: sway reports it over IPC, weston doesn't
@@ -282,6 +293,14 @@ if sway.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
     args: [files('../../tests/ux/with-sway.sh'), find_program('sh').full_path(),
       files('../../tests/ux/wl-urgency.sh'), hexchat_gtk],
     env: ['SWAY=' + sway.full_path(), 'G_DEBUG=fatal-criticals'], timeout: 60)
+endif
+# the chat box through resizes on wlroots too (floating: tiled, the window
+# takes no size it's asked for)
+if sway.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains('wayland')
+  test('sway-resize', find_program('sh'),
+    args: [files('../../tests/ux/with-sway.sh'), find_program('sh').full_path(),
+      files('../../tests/ux/resize.sh'), hexchat_gtk],
+    env: ['SWAY=' + sway.full_path(), 'SWAY_FLOAT=1'], timeout: 120, is_parallel: false)
 endif
 
 # GUI tests: drive the real binary on a private Xvfb with XTest keys.
@@ -387,4 +406,20 @@ if xvfb.found() and gtk_dep.get_variable(pkgconfig: 'targets').split().contains(
   test('gui-schemes', find_program('sh'),
     args: [files('../../tests/ux/schemes.sh'), hexchat_gtk],
     env: gui_env + ['DISP=:86'], timeout: 180)
+  # resizing: rewrapped for the new width, drawn whole, the view kept on
+  # the same text (or at the bottom); also wayland-resize, sway-resize
+  test('gui-resize', find_program('sh'),
+    args: [files('../../tests/ux/resize.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:67'], timeout: 120, is_parallel: false)
+  # nick completion: "@" list, Tab, ranked by the conversation, on send
+  test('gui-nickcomp', find_program('sh'),
+    args: [files('../../tests/ux/nickcomp.sh'), hexchat_gtk],
+    env: gui_env + ['DISP=:68'], timeout: 150, is_parallel: false)
+  # the input box's block cursor: over the whole character (an emoji with
+  # its skin tone too), the letter showing through, hollow when unfocused
+  if find_program('xdotool', required: false).found()
+  test('gui-caret', find_program('sh'),
+    args: [files('../../tests/ux/caret.sh'), hexchat_gtk],
+    env: gui_env, timeout: 90, is_parallel: false)
+  endif
 endif
