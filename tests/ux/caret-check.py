@@ -1,8 +1,26 @@
 #!/usr/bin/env python3
 """tests/ux/caret.sh's checks: the cursor box the app reports (xcaret:
 lines) against the pixels it drew. usage: caret-check.py DIR NAME ..."""
+import os
 import sys
-from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pngtext import load as png_load  # stdlib only, like the other tests
+
+
+class Pixels:
+    """p[x, y] -> (r, g, b), the way the checks below index a picture"""
+    def __init__(self, path):
+        self.w, self.h, self.bpp, self.rows = png_load(path)
+
+    def __getitem__(self, xy):
+        x, y = xy
+        o = x * self.bpp
+        return tuple(self.rows[y][o:o + 3])
+
+
+def pixels(path):
+    return Pixels(path)
 
 bad = 0
 
@@ -43,7 +61,7 @@ def check(d, name):
         if not r or r[0] != 2:
             continue
         _, x, y, w, h = r
-        p = Image.open("%s/%s.png" % (d, s)).convert("RGB").load()
+        p = pixels("%s/%s.png" % (d, s))
         inside = [p[i, j] for i in range(x + 1, x + w - 1) for j in range(y + 1, y + h - 1)]
         bg = bg_of(p, x, y, h)
         # the box's colour: what its top and bottom rows (above and below
@@ -69,7 +87,7 @@ def check(d, name):
         chk(rect[4][1] < rect[2][1] < rect[3][1] < rect[1][1], "%s: it moves with the cursor" % name)
         # unfocused: the same place, an outline (all four edges) and not filled
         _, x, y, w, h = rect[4]
-        p = Image.open("%s/inactive.png" % d).convert("RGB").load()
+        p = pixels("%s/inactive.png" % d)
         bgc = bg_of(p, x, y, h)
         ink = lambda c: cr(c, bgc) > 2
         edges = [p[x + w // 2, y], p[x + w // 2, y + h - 1], p[x, y + h // 2], p[x + w - 1, y + h // 2]]

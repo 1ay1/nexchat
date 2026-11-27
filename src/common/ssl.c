@@ -329,6 +329,24 @@ _SSL_close (SSL * ssl)
 	SSL_free (ssl);
 }
 
+/* the certificate names no DNS host in subjectAltName: then (RFC 6125
+   6.4.4) its subject CN is the name. OpenSSL 3 did that by itself;
+   OpenSSL 4 only when asked, and older servers' self-signed certs (and
+   tests/sts.py's) have just a CN */
+static gboolean
+cert_has_dns_san (X509 *cert)
+{
+	GENERAL_NAMES *names = X509_get_ext_d2i (cert, NID_subject_alt_name, NULL, NULL);
+	gboolean dns = FALSE;
+	int i;
+
+	for (i = 0; names && i < sk_GENERAL_NAME_num (names); i++)
+		if (sk_GENERAL_NAME_value (names, i)->type == GEN_DNS)
+			dns = TRUE;
+	GENERAL_NAMES_free (names);
+	return dns;
+}
+
 /* 0 when cert matches host, -1 when it doesn't, -2 on a malformed (e.g.
    NUL-embedded) name. OpenSSL does the RFC 6125 matching: SANs first, the
    CN only when there are no DNS SANs, no partial wildcards. */
@@ -352,7 +370,8 @@ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 	}
 	else
 		rv = X509_check_host (cert, host, 0,
-							 X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS, NULL);
+							 X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS |
+							 (cert_has_dns_san (cert) ? 0 : X509_CHECK_FLAG_ALWAYS_CHECK_SUBJECT), NULL);
 G_GNUC_END_IGNORE_DEPRECATIONS
 
 	return rv == 1 ? 0 : rv == 0 ? -1 : -2;
