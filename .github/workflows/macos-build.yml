@@ -72,6 +72,15 @@ jobs:
           NEXCHAT_CRASH_TRACE: 1
         run: meson test -C build --print-errorlogs
 
+      # the step log above is cut short; the whole thing (every test's
+      # output, untrimmed) to download from the run page
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: macos-testlog
+          path: build/meson-logs/testlog.txt
+          retention-days: 7
+
       - name: Crash reports
         if: failure()
         run: |

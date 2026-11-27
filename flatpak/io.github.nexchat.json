@@ -2,7 +2,7 @@
   "app-id": "io.github.nexchat",
   "branch": "stable",
   "runtime": "org.gnome.Platform",
-  "runtime-version": "47",
+  "runtime-version": "51",
   "sdk": "org.gnome.Sdk",
   "command": "nexchat",
   "finish-args": [
