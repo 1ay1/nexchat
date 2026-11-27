@@ -242,6 +242,8 @@ On Linux (GTK 4.24, Xvfb, default renderer) the first frame is ~245 ms. Of that,
 - [ ] The GTK renderer: on Linux the default (Vulkan here) takes ~120 ms longer to the first frame than `gl`; on macOS the GL renderer compiles its shaders on every start (~220 ms of samples, through Apple's deprecated OpenGL) and `cairo` reached idle in ~450 ms instead of ~680 ms. Tried `GSK_RENDERER=gl` on Linux: stress, keys, popup and smoke pass, but `gui-mouse`'s user-list drag failed 2 times in 3 (the default passed 5 of 5), so it isn't the default. Needs a look at drag-and-drop timing under GL first.
 - [x] Build the main window in less than ~150 ms: measured, it's ~30 ms of nexchat (topic bar, chat, menu bar) plus GTK's renderer set-up; nothing of ours left to defer.
 - [x] Show the window first, load the rest after: measured, there's nothing to move. Text events, sounds, notify, ignore, the menu/button/command lists and the server list take ~0.3 ms together, and autoloading plugins (none by default) ~0.1 ms, all before the window.
+- [x] Spell checking's dictionaries load after the window is drawn (or on first use), not while it's built: enchant's broker and dictionaries were ~10-17 ms per spell box (the topic box and the input box), before the window, and the topic box never checks. Window built 331 → 317 ms (median of 4, patched GTK 4.25, M-series Mac).
+- [x] `NEXCHAT_TIMING` tells a frame started from a frame painted ("first frame started" / "first frame painted"): on macOS's GL renderer ~175 ms sit between the two, GTK compiling its 5 shader programs (~35 ms each, Apple's OpenGL has no program binaries to cache them), which the old "first frame drawn" mark didn't show.
 
 ## Phase 8: the best IRC client, with HexChat's soul
 

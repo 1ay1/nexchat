@@ -275,6 +275,7 @@ fe_args (int argc, char *argv[])
 	char *buffer;
 
 	crash_trace_init ();
+	nx_mark ("    TMP crash_trace_init");
 
 #ifndef WIN32
 	{
@@ -294,6 +295,7 @@ fe_args (int argc, char *argv[])
 	/* inside nexchat.app: plugins, translations, icons, schemas and pixbuf
 	   loaders come from the bundle, wherever it was copied to */
 	macos_bundle_setup (GETTEXT_PACKAGE);
+	nx_mark ("    TMP bundle setup");
 #endif
 
 	context = g_option_context_new (NULL);
@@ -420,6 +422,7 @@ fe_args (int argc, char *argv[])
 #endif
 	nx_gtk_init (&argc, &argv);
 	platform_style_init ();
+	nx_mark ("    TMP platform_style_init");
 
 
 	return -1;
@@ -1367,12 +1370,22 @@ fe_shot_on (gpointer f)
 	return G_SOURCE_CONTINUE;
 }
 
-/* NEXCHAT_TIMING: the first frame GTK drew for a window (what the user
-   sees), and the first time the main loop had nothing else to do */
+/* NEXCHAT_TIMING: the first frame GTK started for a window, when it was
+   painted (what the user sees: layout, snapshot and the renderer, whose
+   first frame compiles its shaders), and the first time the main loop
+   had nothing else to do */
+static void
+fe_timing_painted (GdkFrameClock *clock, gpointer d)
+{
+	nx_mark ("first frame painted");
+	g_signal_handlers_disconnect_by_func (clock, fe_timing_painted, d);
+}
+
 static gboolean
 fe_timing_first_frame (GtkWidget *w, GdkFrameClock *clock, gpointer d)
 {
-	nx_mark ("first frame drawn");
+	nx_mark ("first frame started");
+	g_signal_connect (clock, "after-paint", G_CALLBACK (fe_timing_painted), NULL);
 	return G_SOURCE_REMOVE;
 }
 
@@ -1474,6 +1487,32 @@ fe_xdrag_step (gpointer data)
 		}
 		else if (sscanf (steps[xdrag_at], "caret %lf", &x) == 1)
 			gtk_editable_set_position (GTK_EDITABLE (current_sess->gui->input_box), (int) x);
+		/* "spell": the input box's words marked misspelled, now:
+		   "xspell: N word,word" */
+		else if (!strcmp (steps[xdrag_at], "spell"))
+		{
+			GtkWidget *in = current_sess->gui->input_box;
+			PangoAttrList *al = gtk_entry_get_attributes (GTK_ENTRY (in));
+			const char *txt = gtk_editable_get_text (GTK_EDITABLE (in));
+			GSList *l, *all = al ? pango_attr_list_get_attributes (al) : NULL;
+			GString *s = g_string_new (NULL);
+			int n = 0;
+
+			for (l = all; l; l = l->next)
+			{
+				PangoAttribute *a = l->data;
+				if (a->klass->type == PANGO_ATTR_UNDERLINE &&
+					 ((PangoAttrInt *) a)->value == PANGO_UNDERLINE_ERROR &&
+					 a->end_index <= strlen (txt))
+				{
+					g_string_append_printf (s, "%s%.*s", n++ ? "," : "",
+											  (int) (a->end_index - a->start_index), txt + a->start_index);
+				}
+			}
+			g_slist_free_full (all, (GDestroyNotify) pango_attribute_destroy);
+			g_printerr ("xspell: %d %s\n", n, s->str);
+			g_string_free (s, TRUE);
+		}
 		/* "lay N": the layout and the pixels, checked now. "xlay: N W H BAD
 		   VALUE BOTTOM TOP DIFF": W H the window, BAD entries wrapped for
 		   another width, TOP the message at the top, DIFF pixels unlike a

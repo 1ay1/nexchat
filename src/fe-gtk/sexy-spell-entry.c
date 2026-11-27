@@ -102,6 +102,12 @@ struct _SexySpellEntryPriv
 	gboolean              cursor_off;	/* blinked out */
 	guint                 blink_id;
 	gint64                blink_start;
+	/* the default languages' dictionaries aren't loaded yet: they load
+	   when the box first needs them, or on an idle once startup has drawn
+	   (enchant and its dictionaries were ~10-17 ms per box, before the
+	   window, and the topic box never spell-checks) */
+	gboolean              langs_pending;
+	guint                 langs_idle;
 };
 
 static void sexy_spell_entry_class_init(SexySpellEntryClass *klass);
@@ -142,6 +148,7 @@ static gboolean   sexy_spell_entry_activate_language_internal (SexySpellEntry   
                                                                GError              **error);
 static gchar     *get_lang_from_dict                          (struct EnchantDict   *dict);
 static void       sexy_spell_entry_recheck_all                (SexySpellEntry       *entry);
+static void       spell_ensure_langs                          (SexySpellEntry       *entry);
 static void       entry_strsplit_utf8                         (GtkEntry             *entry,
                                                                gchar              ***set,
                                                                gint                **starts,
@@ -685,6 +692,7 @@ sexy_spell_entry_add_spelling (SexySpellEntry *entry, nx_menu *menu)
 	if ((have_enchant == FALSE) || (entry->priv->checked == FALSE))
 		return;
 
+	spell_ensure_langs (entry);
 	if (g_slist_length(entry->priv->dict_list) == 0)
 		return;
 
@@ -807,6 +815,28 @@ sexy_spell_entry_set_menu_hook (SexySpellEntry *entry, SexySpellEntryMenuHook ho
 	entry->priv->menu_hook_data = data;
 }
 
+/* a box that still spell-checks once startup is done: its dictionaries,
+   now, rather than on the first key typed */
+static gboolean
+spell_langs_idle (gpointer data)
+{
+	SexySpellEntry *entry = data;
+
+	entry->priv->langs_idle = 0;
+	if (entry->priv->checked)
+		spell_ensure_langs (entry);
+	return G_SOURCE_REMOVE;
+}
+
+static void
+spell_ensure_langs (SexySpellEntry *entry)
+{
+	if (!entry->priv->langs_pending)
+		return;
+	entry->priv->langs_pending = FALSE;
+	sexy_spell_entry_activate_default_languages (entry);
+}
+
 static void
 sexy_spell_entry_init(SexySpellEntry *entry)
 {
@@ -821,7 +851,8 @@ sexy_spell_entry_init(SexySpellEntry *entry)
 			codetable_init ();
 		codetable_ref++;
 #endif
-		sexy_spell_entry_activate_default_languages(entry);
+		entry->priv->langs_pending = TRUE;
+		entry->priv->langs_idle = g_idle_add_full (G_PRIORITY_LOW, spell_langs_idle, entry, NULL);
 	}
 
 	entry->priv->attr_list = pango_attr_list_new();
@@ -853,6 +884,8 @@ sexy_spell_entry_finalize(GObject *obj)
 
 	entry = SEXY_SPELL_ENTRY(obj);
 
+	if (entry->priv->langs_idle)
+		g_source_remove (entry->priv->langs_idle);
 	if (entry->priv->attr_list)
 		pango_attr_list_unref(entry->priv->attr_list);
 	if (entry->priv->dict_hash)
@@ -1408,6 +1441,12 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 	int length, i, text_len;
 	const char *text;
 
+	/* dictionaries still to load: before the attributes are rebuilt, as
+	   loading them rechecks too (here, inside, it would mark every word
+	   twice) */
+	if (have_enchant && entry->priv->checked && entry->priv->words && entry->priv->words[0])
+		spell_ensure_langs (entry);
+
 	/* Remove all existing pango attributes.  These will get readded as we check */
 	pango_attr_list_unref(entry->priv->attr_list);
 	entry->priv->attr_list = pango_attr_list_new();
@@ -1420,7 +1459,9 @@ sexy_spell_entry_recheck_all(SexySpellEntry *entry)
 		check_attributes (entry, text, text_len);
 	}
 
-	if (have_enchant && entry->priv->checked
+	/* words: NULL until the text first changes (a box nobody typed in yet,
+	   when its dictionaries load on idle) */
+	if (have_enchant && entry->priv->checked && entry->priv->words
 		&& g_slist_length (entry->priv->dict_list) != 0)
 	{
 		/* Loop through words */
@@ -1545,6 +1586,7 @@ sexy_spell_entry_activate_default_languages(SexySpellEntry *entry)
 	if (!have_enchant)
 		return;
 
+	entry->priv->langs_pending = FALSE;
 	if (!entry->priv->broker)
 		entry->priv->broker = enchant_broker_init();
 
@@ -1741,6 +1783,7 @@ sexy_spell_entry_activate_language(SexySpellEntry *entry, const gchar *lang, GEr
 	if (error)
 		g_return_val_if_fail(*error == NULL, FALSE);
 
+	spell_ensure_langs (entry);
 	ret = sexy_spell_entry_activate_language_internal(entry, lang, error);
 
 	if (ret) {
@@ -1773,6 +1816,8 @@ sexy_spell_entry_deactivate_language(SexySpellEntry *entry, const gchar *lang)
 	if (!have_enchant)
 		return;
 
+	/* whatever is (or would be) loaded goes; the next ask loads afresh */
+	entry->priv->langs_pending = FALSE;
 	if (!entry->priv->dict_list)
 		return;
 
