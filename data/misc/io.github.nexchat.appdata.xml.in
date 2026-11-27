@@ -26,6 +26,20 @@
     <binary>nexchat</binary>
   </provides>
   <releases>
+    <release date="2026-11-27" version="0.3.0">
+      <description>
+        <p>A new chat area drawn by GTK 4, every colour scheme readable, and smarter nick completion.</p>
+        <ul>
+          <li>The chat is drawn by GTK's renderer; resizing keeps your place and never leaves stray pixels</li>
+          <li>Its scrollbar is the same as every other list's</li>
+          <li>All colour schemes are readable: text, nicks, the selection and the window around them</li>
+          <li>Buttons, check boxes and fields keep HexChat's shapes in every scheme</li>
+          <li>Type @ to pick someone; Tab ranks people by who you're talking to, and matches words inside a nick and initials</li>
+          <li>The block cursor covers a whole emoji and shows hollow when the window isn't focused</li>
+          <li>Needs GLib 2.76 and OpenSSL 3.0 or newer</li>
+        </ul>
+      </description>
+    </release>
     <release date="2026-10-26" version="0.2.2">
       <description>
         <p>A clean build: no compiler or build warnings.</p>
