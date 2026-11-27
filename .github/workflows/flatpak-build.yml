@@ -13,7 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
-      options: --privileged
+      # /var/lib/flatpak on its own volume (filled from the image): on some
+      # runner hosts the overlay filesystem returns EXDEV when flatpak
+      # updates the image's preinstalled SDK ("Invalid cross-device link")
+      options: --privileged --volume /var/lib/flatpak
     steps:
     - uses: actions/checkout@v4
       with:
