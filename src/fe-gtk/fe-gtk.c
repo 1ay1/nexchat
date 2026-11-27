@@ -1483,8 +1483,11 @@ fe_xdrag_step (gpointer data)
 			}
 			if (!strcmp (what, "check"))
 			{
-				int n = 0;
+				int n = 0, fn;
+				double build, gap;
 				char *sel = gtk_xtext_selection_text (xt, &n);
+				gtk_xtext_frame_stats (xt, &fn, &build, &gap);
+				g_printerr ("xdrag-frames: %d %.1f %.1f\n", fn, build, gap);
 				g_printerr ("xdrag-step: %d %d %d ", (int) x, (int) y,
 							gtk_xtext_backing_diff (xt, NULL, NULL) + 100000 * gtk_xtext_stray_marks (xt));
 				if (sel)

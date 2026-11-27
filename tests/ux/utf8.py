@@ -103,6 +103,14 @@ except subprocess.TimeoutExpired as e:
 srv.kill()
 
 checks = re.findall(rb"^xdrag-step: (\d+) (\d+) (-?\d+) (.*)$", out, re.M)
+# how the frames went: if this is slow, whether building them is (our
+# code) or waiting for the next one is (the toolkit / the desktop)
+frames = [tuple(map(float, f)) for f in re.findall(rb"^xdrag-frames: (\d+) ([\d.]+) ([\d.]+)$", out, re.M)]
+if frames:
+    nf = sum(f[0] for f in frames)
+    print("  frames: %d over %d checks, build %.1f ms avg, %.1f ms apart avg" % (
+        nf, len(frames), sum(f[0] * f[1] for f in frames) / max(nf, 1),
+        sum(f[2] for f in frames if f[0] > 1) / max(1, sum(1 for f in frames if f[0] > 1))))
 if not checks:
     bad("no results (crashed?): %r" % out[-300:])
 seen = set()

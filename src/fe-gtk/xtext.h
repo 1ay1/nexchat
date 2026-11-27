@@ -147,6 +147,8 @@ struct _GtkXText
 	GskRenderNode *last_node;	/* the last frame (tests compare it with a fresh one) */
 	GChecksum *frame_sum;		/* while building a frame for a test: what's drawn */
 	char *last_sum;				/* ...and the last frame's */
+	gint64 frame_last, frame_build_us, frame_gap_us;	/* tests: frame timing */
+	int frame_count;
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 	int click_x, click_y;			/* where the last press was */
 	const char *cursor_name;		/* pointer shape now (static string), NULL: default */
@@ -298,6 +300,8 @@ int gtk_xtext_stray_marks (GtkXText *xtext);
 gboolean gtk_xtext_redraw_pending (GtkXText *xtext);
 /* tests: the scroll position, in lines (fractional while between rows) */
 double gtk_xtext_scroll_value (GtkXText *xtext);
+/* tests: frames since the last call, average build and gap times in ms */
+void gtk_xtext_frame_stats (GtkXText *xtext, int *n, double *build_ms, double *gap_ms);
 /* tests: entries wrapped for some other width than the current one (0: right) */
 int gtk_xtext_layout_diff (GtkXText *xtext);
 int gtk_xtext_lastlog (xtext_buffer *out, xtext_buffer *search_area);

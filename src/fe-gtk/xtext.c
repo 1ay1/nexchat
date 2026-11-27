@@ -1600,6 +1600,18 @@ gtk_xtext_scroll_value (GtkXText *xtext)
 	return gtk_adjustment_get_value (xtext->adj);
 }
 
+/* tests: frames since the last call, their average build time and the
+   average time between them (ms); resets */
+void
+gtk_xtext_frame_stats (GtkXText *xtext, int *n, double *build_ms, double *gap_ms)
+{
+	*n = xtext->frame_count;
+	*build_ms = *n ? xtext->frame_build_us / 1000.0 / *n : 0;
+	*gap_ms = *n > 1 ? xtext->frame_gap_us / 1000.0 / (*n - 1) : 0;
+	xtext->frame_count = 0;
+	xtext->frame_build_us = xtext->frame_gap_us = 0;
+}
+
 /* tests: entries whose wrap points (or the line total) differ from what
    wrapping again at the current width gives -- 0 when the layout is
    right for the size the widget has now */
@@ -1677,8 +1689,20 @@ gtk_xtext_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 
 	xtext->redraw_pending = FALSE;
 	g_clear_pointer (&xtext->last_sum, g_free);
-	/* the fingerprint only when a test may ask for it */
-	node = xtext_page_node_sum (xtext, xtext_testing () ? &xtext->last_sum : NULL);
+	/* the fingerprint only when a test may ask for it; and how long
+	   building the frame took, and since the last one (xdrag-step) */
+	if (xtext_testing ())
+	{
+		gint64 t0 = g_get_monotonic_time ();
+		if (xtext->frame_last)
+			xtext->frame_gap_us += t0 - xtext->frame_last;
+		node = xtext_page_node_sum (xtext, &xtext->last_sum);
+		xtext->frame_last = g_get_monotonic_time ();
+		xtext->frame_build_us += xtext->frame_last - t0;
+		xtext->frame_count++;
+	}
+	else
+		node = xtext_page_node (xtext);
 	if (!node)
 		return;
 	gtk_snapshot_append_node (snapshot, node);
