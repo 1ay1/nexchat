@@ -1402,7 +1402,7 @@ fe_xdrag_step (gpointer data)
 	/* the last step asked for a redraw: let the frame happen first, as it
 	   would between two real events. A desktop that doesn't deliver it
 	   (GitHub's macOS runner draws an inactive window every ~9 s) gets it
-	   built after 400 ms by the same ::snapshot GTK would call */
+	   built after 120 ms by the same ::snapshot GTK would call */
 	static gint64 since;
 
 	if (!gtk_xtext_redraw_pending (xt))
@@ -1413,7 +1413,7 @@ fe_xdrag_step (gpointer data)
 
 		if (!since)
 			since = now;
-		if (now - since < 400000)
+		if (now - since < 120000)
 			return G_SOURCE_CONTINUE;
 		since = 0;
 		gtk_xtext_force_frame (xt);

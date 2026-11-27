@@ -1516,8 +1516,9 @@ gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_fu
 		return -1;
 	/* the same drawing, call for call: the frame depended only on the state.
 	   Compared by fingerprint, not by rendering twice: a GPU renderer may
-	   antialias the same text a little differently each time (macOS's does) */
-	if (!png_now && !png_full && xtext->last_sum)
+	   antialias the same text a little differently each time (macOS's does).
+	   PNGs, when asked for, are only for looking at */
+	if (xtext->last_sum)
 	{
 		char *now = NULL;
 		gboolean same;
@@ -1527,6 +1528,17 @@ gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_fu
 		g_free (now);
 		if (same)
 		{
+			if (png_now || png_full)
+			{
+				ta = xtext_node_texture (xtext, xtext->last_node);
+				tb = xtext_node_texture (xtext, full);
+				if (ta && png_now)
+					gdk_texture_save_to_png (ta, png_now);
+				if (tb && png_full)
+					gdk_texture_save_to_png (tb, png_full);
+				g_clear_object (&ta);
+				g_clear_object (&tb);
+			}
 			gsk_render_node_unref (full);
 			return 0;
 		}
