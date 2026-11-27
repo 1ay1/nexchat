@@ -1273,7 +1273,15 @@ fe_self_shot (gpointer data)
 				win = c;
 	}
 
-	if (win)
+	if (win && (gtk_widget_get_width (win) <= 0 || gtk_widget_get_height (win) <= 0))
+	{
+		/* mapped but never laid out (GitHub's macOS runner does this to
+		   dialogs): nothing to shoot, and GSK won't render a 0x0 area */
+		g_printerr ("NEXCHAT_SHOT: window not laid out (%dx%d), no shot\n",
+					gtk_widget_get_width (win), gtk_widget_get_height (win));
+		win = NULL;
+	}
+	else if (win)
 	{
 		int w = gtk_widget_get_width (win), h = gtk_widget_get_height (win);
 		GdkPaintable *p = gtk_widget_paintable_new (win);
@@ -1294,8 +1302,11 @@ fe_self_shot (gpointer data)
 			GskRenderer *r = gtk_native_get_renderer (GTK_NATIVE (win));
 			graphene_rect_t rect = GRAPHENE_RECT_INIT (0, 0, w * scale, h * scale);
 			GdkTexture *t = gsk_renderer_render_texture (r, node, &rect);
-			gdk_texture_save_to_png (t, path);
-			g_object_unref (t);
+			if (t)
+			{
+				gdk_texture_save_to_png (t, path);
+				g_object_unref (t);
+			}
 			gsk_render_node_unref (node);
 		}
 		g_object_unref (p);
