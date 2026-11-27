@@ -74,7 +74,12 @@ def check(d, name):
         need = {"mid": 0.4, "start": 0.4, "end": 0.9, "emoji": 0.3}[s]
         chk(frac > need and cr(fill, bg) > 3,
             "%s: %s box filled (%.0f%%, %.1f:1 on the background)" % (name, s, frac * 100, cr(fill, bg)))
-        chk(p[x - 2, y + h // 2] != fill and p[x + w + 1, y + h // 2] != fill,
+        # just outside the box: not more box. Looked at on its top and
+        # bottom rows, where the next letter's ink (the same colour as the
+        # box) doesn't reach; one of the two clear on each side
+        def clear(cx):
+            return any(p[cx, cy] != fill for cy in (y, y + h - 1))
+        chk(clear(x - 2) and clear(x + w + 1),
             "%s: %s box ends at its edges" % (name, s))
         if s in ("mid", "start"):
             through = [c for c in inside if cr(c, fill) > 3]
