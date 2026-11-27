@@ -42,13 +42,16 @@ one() # DISP SCHEME OUTDIR
 	app=$!; echo $app >> "$out/pids"
 	i=0; while ! DISPLAY=$d xdotool search --pid $app --onlyvisible >/dev/null 2>&1 && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
 	DISPLAY=$d xdotool windowfocus --sync "$(DISPLAY=$d xdotool search --pid $app --onlyvisible | head -1)" 2>/dev/null || true
+	# ask for a shot and wait for the picture itself (the app removes the
+	# trigger before it shoots, so that says nothing about the PNG)
+	snap() { echo "$out/$1.png" > "$out/shoot"
+		i=0; while [ ! -s "$out/$1.png" ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done
+		sleep 0.1; }
 	shoot() { i=0; while ! grep -q "^xlay: $1 " "$out/log" && [ $i -lt 150 ]; do sleep 0.05; i=$((i+1)); done
-		sleep 0.25; echo "$out/$2.png" > "$out/shoot"
-		i=0; while [ -e "$out/shoot" ] && [ $i -lt 60 ]; do sleep 0.05; i=$((i+1)); done; }
+		sleep 0.25; snap "$2"; }
 	shoot 1 end; shoot 2 mid; shoot 3 emoji; shoot 4 start
 	DISPLAY=$d xdotool windowfocus 0 2>/dev/null || true
-	sleep 0.4; echo "$out/inactive.png" > "$out/shoot"
-	i=0; while [ -e "$out/shoot" ] && [ $i -lt 60 ]; do sleep 0.05; i=$((i+1)); done
+	sleep 0.4; snap inactive
 	# done with this half: nothing of it outlives the test
 	kill $(cat "$out/pids") 2>/dev/null || true
 }
