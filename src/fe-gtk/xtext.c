@@ -1471,6 +1471,23 @@ gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_fu
 	if (!xtext->last_node)
 		return -1;
 	full = xtext_page_node (xtext);
+	/* the same tree, node for node: the frame depended only on the state.
+	   Compared as GSK's own serialisation, so a GPU renderer drawing the
+	   same text a little differently twice (macOS's does) isn't a diff */
+	if (!png_now && !png_full && full)
+	{
+		GBytes *ba = gsk_render_node_serialize (xtext->last_node);
+		GBytes *bb = gsk_render_node_serialize (full);
+		gboolean same = g_bytes_equal (ba, bb);
+
+		g_bytes_unref (ba);
+		g_bytes_unref (bb);
+		if (same)
+		{
+			gsk_render_node_unref (full);
+			return 0;
+		}
+	}
 	ta = xtext_node_texture (xtext, xtext->last_node);
 	tb = xtext_node_texture (xtext, full);
 	gsk_render_node_unref (full);

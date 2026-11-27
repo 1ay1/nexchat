@@ -54,6 +54,9 @@ jobs:
         run: ninja -C build
 
       - name: Test
+        # a test whose nexchat crashes prints where (fe-gtk.c crash_trace)
+        env:
+          NEXCHAT_CRASH_TRACE: 1
         run: meson test -C build --print-errorlogs
 
       - name: Crash reports

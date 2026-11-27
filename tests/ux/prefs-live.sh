@@ -8,7 +8,7 @@ bin=$1
 tmp=$(mktemp -d)
 app=
 trap 'st=$?; [ -n "$app" ] && kill $app 2>/dev/null; rm -rf "$tmp"; exit $st' EXIT
-export GTK_A11Y=none G_DEBUG=fatal-criticals NEXCHAT_SCHEME=dark
+export GTK_A11Y=none G_DEBUG=fatal-criticals NEXCHAT_SCHEME=dark NEXCHAT_CRASH_TRACE=1
 
 fail=0
 ok() { echo "ok:   $1"; }
@@ -25,7 +25,8 @@ i=0; while ! grep -q 'pair:Tokyo Night' "$tmp/cfg/colors.conf" 2>/dev/null && [ 
 grep -q '^scheme = pair:Tokyo Night' "$tmp/cfg/colors.conf" && ok "scheme saved the moment it's picked" || {
 	bad "not saved"; cat "$tmp/cfg/colors.conf"
 	# nothing below can work then: say what the app did, and stop
-	sleep 3; echo "--- app log"; grep -a '^prefs-\|^window\|^focus\|WARN\|CRIT\|rror' "$tmp/log" | tail -40
+	sleep 3; echo "--- app log"; grep -a '^prefs-\|^window\|^focus\|WARN\|CRIT\|rror\|NEXCHAT_SHOT' "$tmp/log" | tail -40
+	sed -n '/=== nexchat crashed/,$p' "$tmp/log" | head -40
 	# GitHub's macOS runner maps the Preferences window at 0x0 and never
 	# lays it out (no key window there): nothing to test on that desktop
 	if grep -q 'title="Preferences.* 0x0 ' "$tmp/log"; then

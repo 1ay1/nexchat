@@ -74,6 +74,38 @@
 #include <canberra.h>
 #endif
 
+#if defined(__APPLE__) || defined(__GLIBC__)
+#include <execinfo.h>
+#include <signal.h>
+/* tests: NEXCHAT_CRASH_TRACE=1 prints where it crashed to stderr (the
+   macOS CI runner keeps no crash report for a bare binary) */
+static void
+crash_trace (int sig)
+{
+	void *frames[64];
+	int n = backtrace (frames, 64);
+	static const char head[] = "\n=== nexchat crashed, backtrace:\n";
+
+	if (write (2, head, sizeof head - 1) < 0)
+		;
+	backtrace_symbols_fd (frames, n, 2);
+	signal (sig, SIG_DFL);
+	raise (sig);
+}
+
+static void
+crash_trace_init (void)
+{
+	if (!g_getenv ("NEXCHAT_CRASH_TRACE"))
+		return;
+	signal (SIGSEGV, crash_trace);
+	signal (SIGBUS, crash_trace);
+	signal (SIGABRT, crash_trace);
+}
+#else
+static void crash_trace_init (void) {}
+#endif
+
 GdkPixbuf *channelwin_pix;
 
 #ifdef USE_LIBCANBERRA
@@ -241,6 +273,8 @@ fe_args (int argc, char *argv[])
 	GError *error = NULL;
 	GOptionContext *context;
 	char *buffer;
+
+	crash_trace_init ();
 
 #ifndef WIN32
 	{
