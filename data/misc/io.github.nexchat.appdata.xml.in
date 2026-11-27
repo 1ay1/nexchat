@@ -26,6 +26,18 @@
     <binary>nexchat</binary>
   </provides>
   <releases>
+    <release date="2026-11-27" version="0.3.1">
+      <description>
+        <p>Fixes, and a quicker start.</p>
+        <ul>
+          <li>Reconnecting to a bouncer catches up on everything you missed, not just the last 100 lines</li>
+          <li>Servers with self-signed certificates that only name the host in the CN connect again (OpenSSL 4)</li>
+          <li>No crash when a colour scheme is picked in Preferences right at startup on macOS</li>
+          <li>Spell checking loads its dictionaries after the window is up</li>
+          <li>The Flatpak runs on the GNOME 51 runtime</li>
+        </ul>
+      </description>
+    </release>
     <release date="2026-11-27" version="0.3.0">
       <description>
         <p>A new chat area drawn by GTK 4, every colour scheme readable, and smarter nick completion.</p>
