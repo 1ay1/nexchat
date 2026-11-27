@@ -1600,6 +1600,21 @@ gtk_xtext_scroll_value (GtkXText *xtext)
 	return gtk_adjustment_get_value (xtext->adj);
 }
 
+/* tests: the frame GTK hasn't asked for yet, built now by the same
+   ::snapshot it would call (a desktop that hardly draws an inactive
+   window, like GitHub's macOS runner, leaves a test waiting otherwise) */
+void
+gtk_xtext_force_frame (GtkXText *xtext)
+{
+	GtkSnapshot *s = gtk_snapshot_new ();
+	GskRenderNode *n;
+
+	GTK_WIDGET_GET_CLASS (xtext)->snapshot (GTK_WIDGET (xtext), s);
+	n = gtk_snapshot_free_to_node (s);
+	if (n)
+		gsk_render_node_unref (n);
+}
+
 /* tests: frames since the last call, their average build time and the
    average time between them (ms); resets */
 void

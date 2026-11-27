@@ -300,6 +300,8 @@ int gtk_xtext_stray_marks (GtkXText *xtext);
 gboolean gtk_xtext_redraw_pending (GtkXText *xtext);
 /* tests: the scroll position, in lines (fractional while between rows) */
 double gtk_xtext_scroll_value (GtkXText *xtext);
+/* tests: build the pending frame now, as ::snapshot would */
+void gtk_xtext_force_frame (GtkXText *xtext);
 /* tests: frames since the last call, average build and gap times in ms */
 void gtk_xtext_frame_stats (GtkXText *xtext, int *n, double *build_ms, double *gap_ms);
 /* tests: entries wrapped for some other width than the current one (0: right) */
