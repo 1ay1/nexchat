@@ -16,8 +16,8 @@
 <link rel="alternate" hreflang="en" href="https://1ay1.github.io/nexchat/">
 <link rel="alternate" hreflang="x-default" href="https://1ay1.github.io/nexchat/">
 <meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0e0f10" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#100f0f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fffcf0" media="(prefers-color-scheme: light)">
 
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="img/icon-32.png" type="image/png" sizes="32x32">
@@ -72,7 +72,7 @@
           "Windows",
           "macOS"
         ],
-        "softwareVersion": "0.3.0",
+        "softwareVersion": "0.3.1",
         "downloadUrl": "https://github.com/1ay1/nexchat/releases/latest",
         "installUrl": "https://1ay1.github.io/nexchat/#install",
         "softwareHelp": "https://1ay1.github.io/nexchat/#faq",
@@ -229,217 +229,231 @@
   }
   </script>
 <style>
-  /* Plain, like a project page should be: one readable column, the system
-     font, real headings, a contents bar that follows you. Light and dark
-     follow the system. */
+  /* One narrow monospace column, like a man page: short key/value rows
+     instead of cards, commands you can copy, nothing that moves. Flexoki
+     colours; light and dark follow the system. No web fonts. */
   :root {
-    --fg: #16181b; --muted: #5d6570; --bg: #fbfbfa; --card: #f1f1ef;
-    --rule: #dcdcd8; --link: #1a5fb4; --accent: #6b4fbb; --code: #ececea;
+    --bg: #fffcf0; --bg-soft: #f2f0e5; --border: #dad8ce;
+    --text: #100f0f; --dim: #403e3c; --faint: #6f6e69;
+    --accent: #5e409d; --key: #24837b; --cmd: #66800b;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --fg: #e6e6e3; --muted: #9aa1ab; --bg: #0e0f10; --card: #17191b;
-      --rule: #2a2d31; --link: #8ab4f8; --accent: #b39ddb; --code: #1c1f22;
+      --bg: #100f0f; --bg-soft: #1c1b1a; --border: #343331;
+      --text: #cecdc3; --dim: #b7b5ac; --faint: #878580;
+      --accent: #8b7ec8; --key: #3aa99f; --cmd: #879a39;
     }
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 4rem; }
+  html { scroll-behavior: smooth; scroll-padding-top: 4rem; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   body {
-    margin: 0;
-    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
-    color: var(--fg);
-    background: var(--bg);
+    margin: 0; background: var(--bg); color: var(--dim);
+    font: 14px/1.75 var(--mono); font-feature-settings: "zero", "kern";
+    -webkit-font-smoothing: antialiased; overflow-wrap: break-word;
   }
-  a { color: var(--link); }
   .wrap { max-width: 52rem; margin: 0 auto; padding: 0 1.25rem; }
+  a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: .2em; }
+  a:hover { text-decoration-color: currentColor; }
+  ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .skip { position: absolute; left: -999px; }
+  .skip:focus { left: 1rem; top: .5rem; z-index: 3; background: var(--bg); padding: .2rem .5rem; }
+  .dim { color: var(--faint); }
 
-  /* the contents bar */
-  nav.top {
+  /* the bar */
+  header.bar {
     position: sticky; top: 0; z-index: 2;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: saturate(1.4) blur(8px);
-    border-bottom: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
   }
-  nav.top .wrap { display: flex; align-items: center; gap: 1.25rem; height: 3.25rem; overflow-x: auto; }
-  nav.top .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: var(--fg); text-decoration: none; white-space: nowrap; }
-  nav.top .brand img { width: 22px; height: 22px; border: 0; }
-  nav.top ul { display: flex; gap: 1.1rem; list-style: none; margin: 0 0 0 auto; padding: 0; }
-  nav.top ul a { color: var(--muted); text-decoration: none; font-size: .95rem; white-space: nowrap; }
-  nav.top ul a:hover { color: var(--fg); }
+  header.bar .wrap { display: flex; align-items: center; gap: 2ch; height: 3rem; }
+  .brand { color: var(--text); font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .brand .mark { color: var(--accent); margin-right: .6ch; }
+  .brand .ver { color: var(--faint); font-weight: 400; font-size: .85em; margin-left: 1ch; }
+  header.bar nav { display: flex; gap: 2ch; margin-left: auto; overflow-x: auto; }
+  header.bar nav a { color: var(--faint); text-decoration: none; white-space: nowrap; }
+  header.bar nav a:hover { color: var(--text); }
 
-  /* the opening */
-  header.hero { padding: 3.5rem 0 1.5rem; }
-  header.hero h1 { font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.1; margin: 0; letter-spacing: -.02em; }
-  header.hero h1 .what { font-size: .42em; font-weight: 500; color: var(--muted); letter-spacing: 0; vertical-align: .35em; margin-left: .2em; }
-  header.hero .tag { font-size: 1.25rem; color: var(--muted); margin: .4rem 0 1.25rem; }
-  header.hero .lede { font-size: 1.1rem; max-width: 40rem; }
-  .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 .5rem; }
-  .btn {
-    display: inline-block; padding: .6rem 1.1rem; border-radius: .5rem;
-    text-decoration: none; font-weight: 600; border: 1px solid var(--rule); color: var(--fg); background: var(--card);
+  /* text */
+  h1, h2, h3 { color: var(--text); line-height: 1.35; }
+  h1 { font-size: clamp(1.35rem, 4.2vw, 1.75rem); margin: 3.5rem 0 .5rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.05rem; margin: 0 0 1rem; }
+  h2::before { content: "## "; color: var(--faint); font-weight: 400; }
+  h3 { font-size: 1em; margin: 1.75rem 0 .5rem; }
+  p, ul, dl, pre, figure { margin: 0 0 1rem; }
+  p { max-width: 72ch; }
+  .lead { font-size: 1.05rem; margin-bottom: 2rem; }
+  ul.plain { list-style: none; padding: 0; max-width: 72ch; }
+  ul.plain li { padding-left: 2ch; text-indent: -2ch; margin: .35rem 0; }
+  ul.plain li::before { content: "– "; color: var(--faint); }
+
+  section { border-top: 1px solid var(--border); padding: 2.25rem 0 1.25rem; }
+  section.hero { border-top: 0; padding-top: 0; }
+
+  /* key/value rows: the term on the left, one line of plain words on the right */
+  dl.kv { display: grid; grid-template-columns: minmax(9ch, max-content) 1fr; column-gap: 3ch; row-gap: .45rem; }
+  dl.kv dt { color: var(--key); white-space: nowrap; }
+  dl.kv dd { margin: 0; }
+  dl.kv kbd + kbd { margin-left: .3ch; }
+
+  code, kbd, pre { font-family: var(--mono); font-size: .93em; }
+  code { color: var(--text); }
+  kbd { color: var(--text); background: var(--bg-soft); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 3px; padding: 0 .45ch; }
+  code.cmd { color: var(--text); }
+  code.cmd::before { content: "$ "; color: var(--accent); user-select: none; }
+  pre { position: relative; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 4px; padding: .9rem 1rem; overflow-x: auto; line-height: 1.6; }
+  pre code { font-size: 1em; }
+  .c { color: var(--faint); }
+  button.copy {
+    font: inherit; font-size: .8em; color: var(--faint); background: none; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 3px; padding: 0 .6ch; margin-left: 1.5ch; vertical-align: .1em;
   }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.copy:hover { color: var(--text); border-color: var(--faint); }
+  pre button.copy { position: absolute; top: .6rem; right: .6rem; margin: 0; background: var(--bg-soft); }
 
-  figure { margin: 1.5rem 0; }
-  figure img, picture img { display: block; max-width: 100%; height: auto; border-radius: .5rem; border: 1px solid var(--rule); }
-  figcaption { color: var(--muted); font-size: .92rem; margin-top: .5rem; }
+  figure img, picture img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 4px; }
+  figcaption { color: var(--faint); font-size: .88em; margin-top: .5rem; }
 
-  main section { padding: 2.5rem 0 .5rem; border-top: 1px solid var(--rule); }
-  main section:first-child { border-top: 0; }
-  h2 { font-size: 1.6rem; margin: 0 0 .75rem; letter-spacing: -.01em; }
-  h3 { font-size: 1.1rem; margin: 1.5rem 0 .4rem; }
-  p, ul, dl { margin: .6rem 0; }
-  li { margin: .25rem 0; }
+  details { margin: 0 0 .75rem; }
+  details summary { cursor: pointer; color: var(--text); margin-bottom: .5rem; }
+  details summary::marker { color: var(--accent); }
 
-  /* feature grids */
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .9rem; margin: 1rem 0; }
-  .card { background: var(--card); border: 1px solid var(--rule); border-radius: .6rem; padding: .9rem 1rem; }
-  .card h3 { margin: 0 0 .3rem; font-size: 1rem; }
-  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  dl.faq dt { color: var(--text); font-weight: 700; margin-top: 1.25rem; }
+  dl.faq dt:first-child { margin-top: 0; }
+  dl.faq dd { margin: .2rem 0 0; max-width: 72ch; }
 
-  code, pre, kbd { font: .88em/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; }
-  code { background: var(--code); padding: .05em .3em; border-radius: .25rem; }
-  pre { background: var(--code); padding: .9rem 1rem; border-radius: .5rem; overflow-x: auto; }
-  pre code { background: none; padding: 0; font-size: 1em; }
-  kbd { background: var(--card); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: .3rem; padding: .05em .4em; font-size: .85em; }
+  footer { border-top: 1px solid var(--border); margin-top: 1.5rem; padding: 1.5rem 0 3rem; color: var(--faint); font-size: .88em; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 2ch; margin-bottom: .75rem; }
+  footer nav a { color: var(--dim); }
 
-  table.keys { border-collapse: collapse; width: 100%; font-size: .95rem; }
-  table.keys td { padding: .35rem .5rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
-  table.keys td:first-child { white-space: nowrap; width: 1%; }
-
-  details { border: 1px solid var(--rule); border-radius: .5rem; padding: .3rem .9rem; margin: .6rem 0; background: var(--card); }
-  details summary { cursor: pointer; font-weight: 600; padding: .3rem 0; }
-
-  dt { font-weight: 700; margin-top: 1.1rem; }
-  dd { margin: .2rem 0 0 0; }
-
-  footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding: 1.5rem 0 3rem; color: var(--muted); font-size: .9rem; }
-  footer ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
-
-  @media (max-width: 640px) {
-    body { font-size: 16px; }
-    nav.top ul { gap: .8rem; }
-    nav.top ul li.opt { display: none; }
-    header.hero { padding-top: 2rem; }
+  @media (max-width: 600px) {
+    body { font-size: 13.5px; }
+    header.bar nav .opt { display: none; }
+    h1 { margin-top: 2.25rem; }
+    dl.kv { grid-template-columns: 1fr; row-gap: 0; }
+    dl.kv dd { margin-bottom: .6rem; }
   }
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
-<nav class="top" aria-label="Contents">
+<header class="bar" id="top">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="icon.svg" alt="" width="22" height="22">nexchat</a>
-    <ul>
-      <li><a href="#desktop">Desktop</a></li>
-      <li><a href="#terminal">Terminal</a></li>
-      <li class="opt"><a href="#hexchat">From HexChat</a></li>
-      <li><a href="#install">Install</a></li>
-      <li class="opt"><a href="#build">Build</a></li>
-      <li><a href="#faq">FAQ</a></li>
-      <li><a href="https://github.com/1ay1/nexchat">GitHub</a></li>
-    </ul>
+    <a class="brand" href="#top" aria-label="nexchat home"><span class="mark" aria-hidden="true">▌</span>nexchat<span class="ver">v0.3.1</span></a>
+    <nav aria-label="Contents">
+      <a href="#install">install</a>
+      <a href="#terminal">terminal</a>
+      <a class="opt" href="#hexchat">from hexchat</a>
+      <a class="opt" href="#build">build</a>
+      <a href="#faq">faq</a>
+      <a href="https://github.com/1ay1/nexchat">github</a>
+    </nav>
   </div>
-</nav>
-
-<div class="wrap" id="top">
-
-<header class="hero">
-  <h1>nexchat <span class="what">IRC client</span></h1>
-  <p class="tag">HexChat, continued.</p>
-  <p class="lede">A free, open source IRC client for Linux, BSD, Windows and macOS — on the desktop and in the terminal. It continues <a href="https://hexchat.github.io/">HexChat</a>, whose repository was archived in 2024: the same layout, menus, dialogs and keybindings, on GTK4, with modern IRCv3 and bouncer support.</p>
-  <div class="actions">
-    <a class="btn primary" href="https://github.com/1ay1/nexchat/releases/latest">Download nexchat</a>
-    <a class="btn" href="#terminal">The terminal client</a>
-    <a class="btn" href="https://github.com/1ay1/nexchat">Source code</a>
-  </div>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark-1180.webp 1180w, img/nexchat-dark.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem">
-    <img src="img/nexchat-light-1180.webp" srcset="img/nexchat-light-1180.webp 1180w, img/nexchat-light.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem"
-         width="2360" height="1120" loading="eager" fetchpriority="high" decoding="async"
-         alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
-  </picture>
 </header>
 
-<main>
+<main id="main" class="wrap">
+
+<section class="hero">
+  <h1>An IRC client for the desktop and the terminal.</h1>
+  <p class="lead"><a href="https://hexchat.github.io/">HexChat</a>, continued: the same window, menus and keys, on GTK4, with IRCv3 and bouncers. <span class="dim">Your HexChat setup carries over.</span></p>
+
+  <dl class="kv">
+    <dt>download</dt><dd><a href="https://github.com/1ay1/nexchat/releases/latest">latest release</a> <span class="dim">· Windows, macOS, Linux</span></dd>
+    <dt>flatpak</dt><dd><code class="cmd">flatpak install --user nexchat-*.flatpak</code></dd>
+    <dt>terminal</dt><dd><code class="cmd">nexchat --tui</code> <span class="dim">· the same client, over SSH or in tmux</span></dd>
+  </dl>
+
+  <figure>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="img/nexchat-dark-1180.webp 1180w, img/nexchat-dark.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem">
+      <img src="img/nexchat-light-1180.webp" srcset="img/nexchat-light-1180.webp 1180w, img/nexchat-light.webp 2360w" sizes="(max-width: 52rem) 100vw, 49.5rem"
+           width="2360" height="1120" loading="eager" fetchpriority="high" decoding="async"
+           alt="The nexchat IRC client: the channel tree on the left, a conversation with timestamps and coloured nicks in the middle, the user list with op and voice icons on the right">
+    </picture>
+    <figcaption>the window: channel tree, conversation, user list. Light or dark, as your system is.</figcaption>
+  </figure>
+</section>
 
 <section id="desktop">
-  <h2>An IRC client on the desktop</h2>
-  <p>The HexChat you know, moved onto GTK4. Nothing is redesigned for its own sake.</p>
-  <div class="grid">
-    <div class="card"><h3>GTK4 everywhere</h3><p>HiDPI and Wayland done properly, on Linux, the BSDs, Windows and macOS.</p></div>
-    <div class="card"><h3>Light and dark</h3><p>Colours follow the system's mode, with 800+ colour schemes to pick from. Colours you set yourself stay as they are.</p></div>
-    <div class="card"><h3>At home on a Mac</h3><p>The system menu bar, &#8984; shortcuts, a menu bar icon, a self-contained <code>nexchat.app</code>.</p></div>
-    <div class="card"><h3>A native tray</h3><p>StatusNotifierItem on Linux and BSD, the notification area on Windows, a menu bar item on macOS.</p></div>
-    <div class="card"><h3>Modern IRC (IRCv3)</h3><p>SASL and STS, chat history, multiline messages, replies, typing notices, read markers and message redaction, where the network offers them.</p></div>
-    <div class="card"><h3>Stay online</h3><p>Set up a bouncer (soju) in one click, or connect to the one you have (soju, ZNC); your networks, history and search keep going while you're away.</p></div>
-    <div class="card"><h3>Scripting</h3><p>Python, Perl and Lua, plus C plugins — the HexChat API, unchanged.</p></div>
-    <div class="card"><h3>Everything HexChat had</h3><p>DCC file transfers, FiSH encryption, logs, notify lists, auto-replace, URL grabber and the network list, with Libera.Chat, OFTC and dozens more.</p></div>
-  </div>
+  <h2>what's in it</h2>
+  <dl class="kv">
+    <dt>layout</dt><dd>HexChat's window, unchanged: a channel tree or tabs, the user list with mode icons.</dd>
+    <dt>gtk4</dt><dd>HiDPI and Wayland done properly, on Linux, the BSDs, Windows and macOS.</dd>
+    <dt>ircv3</dt><dd>SASL, STS, chat history, multiline, replies, typing, read markers, redaction.</dd>
+    <dt>bouncers</dt><dd>set up soju in one click, or use yours: soju networks and search, ZNC playback.</dd>
+    <dt>colours</dt><dd>follow the system's light and dark; 800+ schemes; colours you set stay put.</dd>
+    <dt>scripts</dt><dd>Python, Perl, Lua and C plugins. The HexChat API, unchanged.</dd>
+    <dt>macos</dt><dd>the system menu bar, &#8984; shortcuts, a menu bar icon, one <code>nexchat.app</code>.</dd>
+    <dt>tray</dt><dd>StatusNotifierItem on Linux and BSD, the notification area on Windows.</dd>
+    <dt>the rest</dt><dd>DCC, FiSH, logs, notify lists, auto-replace, the URL grabber, and a network list with Libera.Chat, OFTC and dozens more.</dd>
+  </dl>
 </section>
 
 <section id="terminal">
-  <h2>A terminal IRC client too</h2>
-  <p><code>nexchat --tui</code> runs the same client in a terminal: the same networks, settings, logs and scripts as the window, over SSH or in a tmux pane. It's the GUI's equal, not a cut-down version — every window is there, with the keyboard and the mouse.</p>
+  <h2>in a terminal</h2>
+  <p><code>nexchat --tui</code> is the same client, not a cut-down one: the same networks, settings, logs and scripts as the window, with every window there and both the keyboard and the mouse.</p>
   <figure>
     <picture>
       <source media="(prefers-color-scheme: light)" srcset="img/tui-light.webp">
       <img src="img/tui-dark.webp" width="1096" height="662" loading="lazy" decoding="async"
            alt="nexchat, a terminal IRC client (TUI): the channel tree, a conversation with times shown only where they change, the user list grouped by rank, and a framed input line">
     </picture>
-    <figcaption>nexchat --tui in a 120&times;34 terminal (Dracula; light scheme in light mode).</figcaption>
+    <figcaption>nexchat --tui in a 120&times;34 terminal.</figcaption>
   </figure>
 
-  <div class="grid">
-    <div class="card"><h3>Keys and mouse</h3><p>Click tabs and nicks, drag to select and copy, drag the dividers, hover to see what's clickable.</p></div>
-    <div class="card"><h3>Commands as you type</h3><p>Type <code>/</code> for every command, what it takes and what it does; values for its arguments as you go.</p></div>
-    <div class="card"><h3>Ctrl-P finds anything</h3><p>Every menu action, every tab, every command in one fuzzy list.</p></div>
-    <div class="card"><h3>600+ themes</h3><p>Pick a scheme and see it as you move through the list, or keep your terminal's own colours.</p></div>
-    <div class="card"><h3>Any size</h3><p>From a phone-sized corner to a wide monitor: columns give way in order, and a narrow screen stacks each message under its nick.</p></div>
-    <div class="card"><h3>Everything live</h3><p>Preferences, <code>/set</code> and the theme apply at once; your <code>keybindings.conf</code> and <code>replace.conf</code> work here too.</p></div>
-  </div>
+  <dl class="kv">
+    <dt>mouse</dt><dd>click tabs and nicks, drag to select and copy, drag the dividers.</dd>
+    <dt>commands</dt><dd>type <code>/</code> for every command, what it takes, and values as you go.</dd>
+    <dt>themes</dt><dd>600+, previewed as you move through the list, or your terminal's own colours.</dd>
+    <dt>any size</dt><dd>from a phone-sized corner to a wide monitor; narrow screens stack each message under its nick.</dd>
+    <dt>live</dt><dd>preferences, <code>/set</code> and the theme apply at once; <code>keybindings.conf</code> works here too.</dd>
+  </dl>
 
   <figure>
     <img src="img/tui-commands.webp" width="1096" height="662" loading="lazy" decoding="async"
          alt="The command popup in the terminal client: /kick with its usage, the argument being typed underlined, and the matching nicks to pick from">
-    <figcaption>Typing <code>/kick ma</code>: the usage, the argument you're on, and the people it could be.</figcaption>
+    <figcaption>typing <code>/kick ma</code>: the usage, the argument you're on, and who it could be.</figcaption>
   </figure>
 
-  <h3>Keys worth knowing</h3>
-  <table class="keys">
-    <tr><td><kbd>Ctrl</kbd> <kbd>P</kbd></td><td>every command, action and tab</td></tr>
-    <tr><td><kbd>Ctrl</kbd> <kbd>G</kbd></td><td>go to a channel or conversation</td></tr>
-    <tr><td><kbd>Ctrl</kbd> <kbd>F</kbd></td><td>find in the chat (<kbd>&uarr;</kbd> <kbd>&darr;</kbd> step through matches)</td></tr>
-    <tr><td><kbd>Alt</kbd> <kbd>1</kbd>&hellip;<kbd>9</kbd></td><td>switch tabs; <kbd>Alt</kbd> <kbd>A</kbd> the next with activity</td></tr>
-    <tr><td><kbd>F10</kbd></td><td>the menus; <kbd>F1</kbd> every key</td></tr>
-  </table>
-  <p>The design, every window and how it's tested: <a href="https://github.com/1ay1/nexchat/blob/master/docs/tui-design.md">docs/tui-design.md</a>.</p>
+  <h3>keys worth knowing</h3>
+  <dl class="kv">
+    <dt><kbd>Ctrl</kbd><kbd>P</kbd></dt><dd>every command, action and tab, in one fuzzy list</dd>
+    <dt><kbd>Ctrl</kbd><kbd>G</kbd></dt><dd>go to a channel or conversation</dd>
+    <dt><kbd>Ctrl</kbd><kbd>F</kbd></dt><dd>find in the chat; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> step through matches</dd>
+    <dt><kbd>Alt</kbd><kbd>1</kbd>&hellip;<kbd>9</kbd></dt><dd>switch tabs; <kbd>Alt</kbd> <kbd>A</kbd> the next with activity</dd>
+    <dt><kbd>F10</kbd></dt><dd>the menus; <kbd>F1</kbd> every key</dd>
+  </dl>
+  <p class="dim">How it's designed and tested: <a href="https://github.com/1ay1/nexchat/blob/master/docs/tui-design.md">docs/tui-design.md</a></p>
 </section>
 
 <section id="hexchat">
-  <h2>Coming from HexChat</h2>
-  <ul>
-    <li>On first start, nexchat copies <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>) to its own folder. Your HexChat folder is left as it is.</li>
-    <li>Plugins keep working. The C API is unchanged (<code>hexchat-plugin.h</code>, or the new <code>nexchat-plugin.h</code>).</li>
-    <li>Scripts keep working. Python can use <code>import hexchat</code> or <code>import nexchat</code>, Lua has both names, and Perl has <code>HexChat::</code> and <code>Nexchat::</code>.</li>
+  <h2>coming from hexchat</h2>
+  <ul class="plain">
+    <li>On first start nexchat copies <code>~/.config/hexchat</code> (or <code>%APPDATA%\HexChat</code>). Your HexChat folder is left alone.</li>
+    <li>C plugins keep working: <code>hexchat-plugin.h</code> is unchanged, <code>nexchat-plugin.h</code> is the new name.</li>
+    <li>Scripts keep working: <code>import hexchat</code> or <code>import nexchat</code> in Python, both names in Lua, <code>HexChat::</code> and <code>Nexchat::</code> in Perl.</li>
     <li>Themes (<code>.hct</code>) and <code>colors.conf</code> work the same.</li>
     <li>The <a href="https://hexchat.readthedocs.org/en/latest/">HexChat documentation</a> still applies.</li>
   </ul>
-  <p>More in <a href="https://github.com/1ay1/nexchat/blob/master/docs/coming-from-hexchat.md">Coming from HexChat</a>: what's different, what's new, and running both.</p>
+  <p class="dim">What's different, what's new, and running both: <a href="https://github.com/1ay1/nexchat/blob/master/docs/coming-from-hexchat.md">Coming from HexChat</a></p>
 </section>
 
 <section id="install">
-  <h2>Install</h2>
-  <p>Download the latest release from <a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>:</p>
-  <div class="grid">
-    <div class="card"><h3>Windows</h3><p>The <code>setup.exe</code> installer, or the <code>portable.zip</code> to run from any folder (settings stay beside it).</p></div>
-    <div class="card"><h3>macOS</h3><p>The <code>.dmg</code> (Apple Silicon); drag nexchat to Applications. The first time, right-click it and choose Open. The terminal client is inside: <code>nexchat.app/Contents/MacOS/nexchat --tui</code>.</p></div>
-    <div class="card"><h3>Linux</h3><p>The <code>.flatpak</code>: <code>flatpak install --user nexchat-*.flatpak</code>. On Arch, <code>packaging/arch/nexchat-git</code>.</p></div>
-  </div>
+  <h2>install</h2>
+  <p>Everything is on <a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>.</p>
+  <dl class="kv">
+    <dt>windows</dt><dd><code>setup.exe</code>, or <code>portable.zip</code> to run from any folder (settings stay beside it).</dd>
+    <dt>macos</dt><dd>the <code>.dmg</code> (Apple Silicon). Drag nexchat to Applications; the first time, right-click it and choose Open.</dd>
+    <dt>linux</dt><dd><code class="cmd">flatpak install --user nexchat-*.flatpak</code></dd>
+    <dt>arch</dt><dd><code>packaging/arch/nexchat-git</code> in the source tree.</dd>
+    <dt>terminal</dt><dd><code>nexchat --tui</code>; on a Mac, <code>nexchat.app/Contents/MacOS/nexchat --tui</code>.</dd>
+  </dl>
 </section>
 
 <section id="build">
-  <h2>Build from source</h2>
-  <p>It builds with meson and needs GTK 4.14 or newer, GLib 2.76, OpenSSL and meson 0.59. The terminal client also needs a C++23 compiler and cmake (<code>-Dtui=enabled</code>; it's built when they're there).</p>
+  <h2>build from source</h2>
+  <p>meson 0.59, GTK 4.14, GLib 2.76 and OpenSSL. The terminal client also wants a C++23 compiler and cmake; it's built when they're there.</p>
 
   <details open>
     <summary>Linux and BSD</summary>
@@ -447,8 +461,8 @@
 cd nexchat
 meson setup build
 ninja -C build
-./build/src/fe-gtk/nexchat          # the window
-./build/src/fe-gtk/nexchat --tui    # the terminal client</code></pre>
+./build/src/fe-gtk/nexchat          <span class="c"># the window</span>
+./build/src/fe-gtk/nexchat --tui    <span class="c"># the terminal client</span></code></pre>
   </details>
 
   <details>
@@ -472,8 +486,8 @@ ninja -C build</code></pre>
 </section>
 
 <section id="faq">
-  <h2>Questions</h2>
-  <dl>
+  <h2>questions</h2>
+  <dl class="faq">
     <dt>Is HexChat discontinued?</dt>
     <dd>Yes. HexChat's repository was archived in 2024, and it never left GTK2. nexchat continues it on GTK4, keeping the layout, menus and keybindings.</dd>
     <dt>What is a good HexChat alternative?</dt>
@@ -481,7 +495,7 @@ ninja -C build</code></pre>
     <dt>Can I keep my HexChat settings, plugins and scripts?</dt>
     <dd>Yes. On first start nexchat copies your HexChat configuration folder and leaves the original alone. C plugins build against the unchanged plugin API, and Python, Perl and Lua scripts keep working under their HexChat names.</dd>
     <dt>Can I use nexchat over SSH or without a desktop?</dt>
-    <dd>Yes. nexchat --tui runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window.</dd>
+    <dd>Yes. <code>nexchat --tui</code> runs the same client in a terminal, with the same networks, settings, logs and scripts as the desktop window.</dd>
     <dt>Does nexchat support IRCv3?</dt>
     <dd>Yes. SASL, STS, server-time, chat history, multiline messages, replies, typing notices, read markers and message redaction, among others, wherever the network supports them.</dd>
     <dt>Does nexchat work with a bouncer like soju or ZNC?</dt>
@@ -495,16 +509,34 @@ ninja -C build</code></pre>
 
 </main>
 
-<footer>
-  <ul>
-    <li><a href="https://github.com/1ay1/nexchat">Source code</a></li>
-    <li><a href="https://github.com/1ay1/nexchat/issues">Issues</a></li>
-    <li><a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">Roadmap</a></li>
-    <li><a href="https://github.com/1ay1/nexchat/releases">Releases</a></li>
-  </ul>
-  <p>X-Chat &copy; 1998&ndash;2010 Peter &#381;elezn&yacute;. HexChat &copy; 2009&ndash;2014 Berke Viktor. nexchat is released under the GPL v2.</p>
+<footer class="wrap">
+  <nav aria-label="Project">
+    <a href="https://github.com/1ay1/nexchat">source</a>
+    <a href="https://github.com/1ay1/nexchat/releases">releases</a>
+    <a href="https://github.com/1ay1/nexchat/issues">issues</a>
+    <a href="https://github.com/1ay1/nexchat/blob/master/ROADMAP.md">roadmap</a>
+  </nav>
+  <p>GPL v2 · X-Chat &copy; 1998&ndash;2010 Peter &#381;elezn&yacute; · HexChat &copy; 2009&ndash;2014 Berke Viktor</p>
 </footer>
 
-</div>
+<script>
+  // copy buttons for commands; without JS the page reads the same
+  if (navigator.clipboard) {
+    for (const el of document.querySelectorAll("code.cmd, pre")) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "copy"; b.textContent = "copy";
+      b.setAttribute("aria-label", "Copy command");
+      b.addEventListener("click", () => {
+        const src = el.tagName === "PRE" ? el.querySelector("code") : el;
+        const text = src.innerText.split("\n").map(l => l.replace(/\s+#.*$/, "")).join("\n").trim();
+        navigator.clipboard.writeText(text).then(() => {
+          b.textContent = "copied";
+          setTimeout(() => { b.textContent = "copy"; }, 1500);
+        });
+      });
+      el.tagName === "PRE" ? el.appendChild(b) : el.after(b);
+    }
+  }
+</script>
 </body>
 </html>
