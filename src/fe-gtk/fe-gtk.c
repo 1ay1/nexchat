@@ -1389,11 +1389,18 @@ fe_timing_idle (gpointer d)
    plays those events on the text box one per frame (as a hand would),
    then prints "xdrag-diff: N" (pixels that differ from a full redraw;
    0 = nothing left half-drawn). NEXCHAT_XDRAG_PNG=prefix saves both. */
+/* NEXCHAT_XDRAG: the steps (NULL once done), the one up next, and
+   whether the last one was a pointer event (the only kind that may run
+   back to back: the others change other widgets, whose layout the next
+   step reads, so they get a frame each) */
+static char **xdrag_steps;
+static int xdrag_at;
+static gboolean xdrag_chain;
+
 static gboolean
 fe_xdrag_step (gpointer data)
 {
 	char **steps = data;
-	static int i;
 	GtkXText *xt;
 
 	if (!current_sess || !current_sess->gui || !current_sess->gui->xtext)
@@ -1419,51 +1426,59 @@ fe_xdrag_step (gpointer data)
 		gtk_xtext_force_frame (xt);
 		g_printerr ("xdrag-forced-frame\n");
 	}
-	if (steps[i])
+	if (steps[xdrag_at])
 	{
 		char what[16];
 		double x, y;
-		static int waited;
-		/* "wait N": N frames (of 30 ms) before the next step */
-		if (sscanf (steps[i], "wait %lf", &x) == 1)
+		/* "wait N" and "size": until when (monotonic), timed rather than
+		   counted, so they last as long however fast the steps run */
+		static gint64 until;
+		gint64 now = g_get_monotonic_time ();
+		/* "wait N": N × 30 ms before the next step */
+		if (sscanf (steps[xdrag_at], "wait %lf", &x) == 1)
 		{
-			if (++waited < (int) x)
+			if (!until)
+				until = now + (gint64) (x * 30000);
+			if (now < until)
 				return G_SOURCE_CONTINUE;
-			waited = 0;
+			until = 0;
 		}
 		/* "size W H": the main window resized, through GTK, so the same
 		   steps run on any backend; the next step waits for the new size
 		   to arrive (up to ~3 s: a compositor may refuse it) */
-		else if (sscanf (steps[i], "size %lf %lf", &x, &y) == 2)
+		else if (sscanf (steps[xdrag_at], "size %lf %lf", &x, &y) == 2)
 		{
 			GtkWidget *top = GTK_WIDGET (gtk_widget_get_root (GTK_WIDGET (xt)));
 
-			if (waited == 0)
+			if (!until)
+			{
 				gtk_window_set_default_size (GTK_WINDOW (top), (int) x, (int) y);
+				until = now + 3 * G_USEC_PER_SEC;
+			}
 			/* below the window's minimum it stops at the minimum */
 			if (((gtk_widget_get_width (top) != (int) x && gtk_widget_get_width (top) > (int) x) ||
 				  gtk_widget_get_width (top) < (int) x ||
 				  gtk_widget_get_height (top) != (int) y)
-				 && ++waited < 100)
+				 && now < until)
 				return G_SOURCE_CONTINUE;
-			waited = 0;
+			until = 0;
 		}
 		/* "text …": the input box holds that (focused); "caret N": the
 		   cursor N characters in, -1 the end */
-		else if (g_str_has_prefix (steps[i], "text "))
+		else if (g_str_has_prefix (steps[xdrag_at], "text "))
 		{
 			GtkWidget *in = current_sess->gui->input_box;
 			gtk_widget_grab_focus (in);
-			gtk_editable_set_text (GTK_EDITABLE (in), steps[i] + 5);
+			gtk_editable_set_text (GTK_EDITABLE (in), steps[xdrag_at] + 5);
 			gtk_editable_set_position (GTK_EDITABLE (in), -1);
 		}
-		else if (sscanf (steps[i], "caret %lf", &x) == 1)
+		else if (sscanf (steps[xdrag_at], "caret %lf", &x) == 1)
 			gtk_editable_set_position (GTK_EDITABLE (current_sess->gui->input_box), (int) x);
 		/* "lay N": the layout and the pixels, checked now. "xlay: N W H BAD
 		   VALUE BOTTOM TOP DIFF": W H the window, BAD entries wrapped for
 		   another width, TOP the message at the top, DIFF pixels unlike a
 		   full redraw */
-		else if (sscanf (steps[i], "lay %lf", &x) == 1)
+		else if (sscanf (steps[xdrag_at], "lay %lf", &x) == 1)
 		{
 			GtkWidget *top = GTK_WIDGET (gtk_widget_get_root (GTK_WIDGET (xt)));
 			char *t = gtk_xtext_line_text_at (xt, 200, 2);
@@ -1484,9 +1499,10 @@ fe_xdrag_step (gpointer data)
 					g_printerr ("xcaret: %d none\n", (int) x);
 			}
 		}
-		else if (sscanf (steps[i], "%15s %lf %lf", what, &x, &y) == 3)
+		else if (sscanf (steps[xdrag_at], "%15s %lf %lf", what, &x, &y) == 3)
 		{
 			gtk_xtext_test_event (xt, what, x, y);
+			xdrag_chain = TRUE;
 			/* "check": what a release left, now (several drags per run) */
 			if (!strcmp (what, "pos"))
 				g_printerr ("xdrag-pos: %d %.3f %d\n", (int) x, gtk_xtext_scroll_value (xt),
@@ -1512,7 +1528,7 @@ fe_xdrag_step (gpointer data)
 				g_free (sel);
 			}
 		}
-		i++;
+		xdrag_at++;
 		return G_SOURCE_CONTINUE;
 	}
 	{
@@ -1535,9 +1551,62 @@ fe_xdrag_step (gpointer data)
 		g_free (b);
 	}
 	g_strfreev (steps);
+	xdrag_steps = NULL;
 	if (g_getenv ("NEXCHAT_XDRAG_QUIT"))
 		hexchat_exit ();
 	return G_SOURCE_REMOVE;
+}
+
+/* Steps run back to back until one leaves a frame to draw (or has to
+   wait); the next runs once that frame is drawn, as real input comes at
+   most one motion per frame. Not one step per fixed timer: 30 ms a step
+   made a drag-and-check ~200 ms, and macOS stretches timers further for a
+   low-priority process (utf8 ran out of time under taskpolicy -c utility) */
+static gboolean
+fe_xdrag_pump (void)
+{
+	int n;
+
+	for (n = 0; n < 256 && xdrag_steps; n++)
+	{
+		int at = xdrag_at;
+
+		xdrag_chain = FALSE;
+		if (fe_xdrag_step (xdrag_steps) == G_SOURCE_REMOVE)
+			break;
+		if (xdrag_at == at || !xdrag_chain)
+			break;	/* waiting (a frame, a "wait", a size), or not a pointer event */
+		if (current_sess && current_sess->gui && current_sess->gui->xtext &&
+			 gtk_xtext_redraw_pending (GTK_XTEXT (current_sess->gui->xtext)))
+			break;
+	}
+	return xdrag_steps ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
+}
+
+/* every frame of the chat box: the steps after the frame just drawn */
+static gboolean
+fe_xdrag_tick (GtkWidget *w, GdkFrameClock *clock, gpointer data)
+{
+	return fe_xdrag_pump ();
+}
+
+/* until the chat box exists, and after if the desktop stops drawing the
+   window (GitHub's macOS runner draws an inactive one every ~9 s): the
+   steps go on from a timer, the step forcing the frame it waits for */
+static gboolean
+fe_xdrag_timer (gpointer data)
+{
+	static GtkWidget *ticking;
+
+	if (!xdrag_steps)
+		return G_SOURCE_REMOVE;
+	if (!ticking && current_sess && current_sess->gui && current_sess->gui->xtext)
+	{
+		ticking = current_sess->gui->xtext;
+		g_object_add_weak_pointer (G_OBJECT (ticking), (gpointer *) &ticking);
+		gtk_widget_add_tick_callback (ticking, fe_xdrag_tick, NULL, NULL);
+	}
+	return fe_xdrag_pump ();
 }
 
 /* tests: NEXCHAT_XCHECK=FILE: whenever FILE appears (after real mouse
@@ -1762,7 +1831,12 @@ fe_main (void)
 #endif
 	replybar_test_init ();
 	if (g_getenv ("NEXCHAT_XDRAG"))
-		g_timeout_add (30, fe_xdrag_step, g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1));
+	{
+		xdrag_steps = g_strsplit (g_getenv ("NEXCHAT_XDRAG"), ";", -1);
+		/* steps advance on the chat box's frames; this timer only starts
+		   them and keeps them going if frames stop coming */
+		g_timeout_add (30, fe_xdrag_timer, NULL);
+	}
 	if (g_getenv ("NEXCHAT_XCHECK"))
 		g_timeout_add (100, fe_xcheck_poll, (gpointer) g_getenv ("NEXCHAT_XCHECK"));
 
