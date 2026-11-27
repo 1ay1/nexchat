@@ -145,6 +145,8 @@ struct _GtkXText
 	GdkTexture *bg_texture;		/* tiled background image, NULL = use palette[XTEXT_BG] */
 	GtkSnapshot *snap;				/* while a frame is being built: where rows go */
 	GskRenderNode *last_node;	/* the last frame (tests compare it with a fresh one) */
+	GChecksum *frame_sum;		/* while building a frame for a test: what's drawn */
+	char *last_sum;				/* ...and the last frame's */
 	int pointer_y;					/* last pointer y seen by motion, for drag-scroll */
 	int click_x, click_y;			/* where the last press was */
 	const char *cursor_name;		/* pointer shape now (static string), NULL: default */

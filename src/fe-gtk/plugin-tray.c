@@ -715,6 +715,11 @@ tray_cleanup (void)
 void
 tray_apply_setup (void)
 {
+	/* not set up yet (tray_plugin_init runs on the first idle): settings
+	   applied or a tray icon asked for before that crashed in
+	   hexchat_get_info (NULL); init makes the icon itself */
+	if (!ph)
+		return;
 	if (sticon)
 	{
 		if (!prefs.hex_gui_tray)

@@ -256,6 +256,12 @@ xtext_fill_rect (GtkXText *xtext, const GdkRGBA *col, int x, int y, int w, int h
 {
 	if (!xtext->snap || w <= 0 || h <= 0)
 		return;
+	if (xtext->frame_sum)
+	{
+		char k[96];
+		g_snprintf (k, sizeof k, "r%d,%d,%d,%d:%.4f,%.4f,%.4f;", x, y, w, h, col->red, col->green, col->blue);
+		g_checksum_update (xtext->frame_sum, (guchar *) k, -1);
+	}
 	gtk_snapshot_append_color (xtext->snap, col, &GRAPHENE_RECT_INIT (x, y, w, h));
 }
 
@@ -566,6 +572,13 @@ backend_draw_text_emph (GtkXText *xtext, int dofill, xtext_gc *gc, int x, int y,
 							  str_width, xtext->fontsize);
 	if (!xtext->snap)
 		return;
+	if (xtext->frame_sum)
+	{
+		char k[96];
+		g_snprintf (k, sizeof k, "t%d,%d,%d:%.4f,%.4f,%.4f:", x, y, emphasis, gc->fg.red, gc->fg.green, gc->fg.blue);
+		g_checksum_update (xtext->frame_sum, (guchar *) k, -1);
+		g_checksum_update (xtext->frame_sum, (guchar *) str, len);
+	}
 
 	pango_layout_set_attributes (xtext->layout, attr_lists[emphasis]);
 	pango_layout_set_text (xtext->layout, str, len);
@@ -806,6 +819,7 @@ gtk_xtext_destroy (GObject * object)
 
 	g_clear_object (&xtext->bg_texture);
 	g_clear_pointer (&xtext->last_node, gsk_render_node_unref);
+	g_clear_pointer (&xtext->last_sum, g_free);
 
 	if (xtext->font)
 	{
@@ -1427,20 +1441,50 @@ xtext_draw_toast (GtkXText *xtext, GtkSnapshot *s)
 	g_object_unref (layout);
 }
 
+/* a test that compares frames is running (fe-gtk.c's hooks): only then
+   are frames fingerprinted */
+static gboolean
+xtext_testing (void)
+{
+	static int t = -1;
+
+	if (t < 0)
+		t = g_getenv ("NEXCHAT_XDRAG") || g_getenv ("NEXCHAT_XCHECK") ? 1 : 0;
+	return t;
+}
+
 /* the whole frame as a render node: the visible rows (the renderer below,
    through the three node calls at the top), then the jump button and the
-   toast on top */
+   toast on top. *sum, if asked for: a fingerprint of everything drawn
+   (each box and text run, where, in what colour) */
 static GskRenderNode *
-xtext_page_node (GtkXText *xtext)
+xtext_page_node_sum (GtkXText *xtext, char **sum)
 {
 	GtkSnapshot *s = gtk_snapshot_new ();
 
 	xtext->snap = s;
+	xtext->frame_sum = sum ? g_checksum_new (G_CHECKSUM_SHA256) : NULL;
 	gtk_xtext_render_page_now (xtext);
+	if (sum)
+	{
+		char k[64];
+		g_snprintf (k, sizeof k, "j%d:%d:%s", xtext_jump_visible (xtext), xtext->jump_hover,
+						xtext->toast ? xtext->toast : "");
+		g_checksum_update (xtext->frame_sum, (guchar *) k, -1);
+		*sum = g_strdup (g_checksum_get_string (xtext->frame_sum));
+		g_checksum_free (xtext->frame_sum);
+		xtext->frame_sum = NULL;
+	}
 	xtext->snap = NULL;
 	xtext_draw_jump (xtext, s);
 	xtext_draw_toast (xtext, s);
 	return gtk_snapshot_free_to_node (s);
+}
+
+static GskRenderNode *
+xtext_page_node (GtkXText *xtext)
+{
+	return xtext_page_node_sum (xtext, NULL);
 }
 
 /* tests: a node tree drawn to pixels, as GSK would put it on screen */
@@ -1470,24 +1514,25 @@ gtk_xtext_backing_diff (GtkXText *xtext, const char *png_now, const char *png_fu
 
 	if (!xtext->last_node)
 		return -1;
-	full = xtext_page_node (xtext);
-	/* the same tree, node for node: the frame depended only on the state.
-	   Compared as GSK's own serialisation, so a GPU renderer drawing the
-	   same text a little differently twice (macOS's does) isn't a diff */
-	if (!png_now && !png_full && full)
+	/* the same drawing, call for call: the frame depended only on the state.
+	   Compared by fingerprint, not by rendering twice: a GPU renderer may
+	   antialias the same text a little differently each time (macOS's does) */
+	if (!png_now && !png_full && xtext->last_sum)
 	{
-		GBytes *ba = gsk_render_node_serialize (xtext->last_node);
-		GBytes *bb = gsk_render_node_serialize (full);
-		gboolean same = g_bytes_equal (ba, bb);
+		char *now = NULL;
+		gboolean same;
 
-		g_bytes_unref (ba);
-		g_bytes_unref (bb);
+		full = xtext_page_node_sum (xtext, &now);
+		same = now && !strcmp (now, xtext->last_sum);
+		g_free (now);
 		if (same)
 		{
 			gsk_render_node_unref (full);
 			return 0;
 		}
 	}
+	else
+		full = xtext_page_node (xtext);
 	ta = xtext_node_texture (xtext, xtext->last_node);
 	tb = xtext_node_texture (xtext, full);
 	gsk_render_node_unref (full);
@@ -1631,7 +1676,9 @@ gtk_xtext_snapshot (GtkWidget *widget, GtkSnapshot *snapshot)
 	GskRenderNode *node;
 
 	xtext->redraw_pending = FALSE;
-	node = xtext_page_node (xtext);
+	g_clear_pointer (&xtext->last_sum, g_free);
+	/* the fingerprint only when a test may ask for it */
+	node = xtext_page_node_sum (xtext, xtext_testing () ? &xtext->last_sum : NULL);
 	if (!node)
 		return;
 	gtk_snapshot_append_node (snapshot, node);
