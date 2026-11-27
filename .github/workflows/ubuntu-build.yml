@@ -25,6 +25,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y meson libcanberra-dev libglib2.0-dev libgtk-4-dev libluajit-5.1-dev libpci-dev libperl-dev libssl-dev python3-dev python3-cffi mono-devel desktop-file-utils gettext xvfb x11-apps libxtst6 libenchant-2-2 hunspell-en-us python3-gi dbus xdotool x11-utils openbox weston sway libwayland-dev wayland-protocols fonts-dejavu-core cmake g++-14 python3-pyte
 
+      # compiled objects kept between runs: meson uses ccache when it finds it
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ubuntu-24.04
+          max-size: 500M
+
       - name: Configure
         # g++-14: maya (the TUI) is C++23
         run: CXX=g++-14 meson build -Dtext-frontend=true -Dtheme-manager=true -Dauto_features=enabled
