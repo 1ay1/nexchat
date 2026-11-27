@@ -242,7 +242,19 @@ conn_open (conn *c, const char *host, int port, gboolean tls, gboolean allow_loc
 	SSL_CTX_set_verify (c->ctx, SSL_VERIFY_PEER, NULL);
 	c->ssl = SSL_new (c->ctx);
 	SSL_set_tlsext_host_name (c->ssl, host);
-	SSL_set1_host (c->ssl, host);
+	{
+		/* the name (or IP literal) the chain must be issued to */
+		X509_VERIFY_PARAM *vp = SSL_get0_param (c->ssl);
+		GInetAddress *ip = g_inet_address_new_from_string (host);
+
+		if (ip)
+		{
+			X509_VERIFY_PARAM_set1_ip_asc (vp, host);
+			g_object_unref (ip);
+		}
+		else
+			X509_VERIFY_PARAM_set1_host (vp, host, 0);
+	}
 	SSL_set_fd (c->ssl, g_socket_get_fd (c->sock));
 	if (SSL_connect (c->ssl) != 1)
 	{

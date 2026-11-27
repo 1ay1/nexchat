@@ -624,7 +624,7 @@ ssl_do_connect (server * serv)
 		{
 		case X509_V_OK:
 			{
-				X509 *cert = SSL_get_peer_certificate (serv->ssl);
+				X509 *cert = SSL_get1_peer_certificate (serv->ssl);
 				int hostname_err;
 				if ((hostname_err = _SSL_check_hostname(cert, serv->hostname)) != 0)
 				{

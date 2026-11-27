@@ -10,7 +10,6 @@ for pc in "$s/lib/pkgconfig/gio-2.0.pc" "$s/lib/pkgconfig/glib-2.0.pc"; do
 		-e "s|^glib_compile_schemas=.*|glib_compile_schemas=$(command -v glib-compile-schemas)|" \
 		-e "s|^glib_compile_resources=.*|glib_compile_resources=$(command -v glib-compile-resources)|" \
 		-e "s|^gdbus_codegen=.*|gdbus_codegen=$(command -v gdbus-codegen)|" \
-		-e "s|^glib_genmarshal=.*|glib_genmarshal=$(command -v glib-genmarshal)|" \
 		-e "s|^glib_mkenums=.*|glib_mkenums=$(command -v glib-mkenums)|" \
 		"$pc"
 done

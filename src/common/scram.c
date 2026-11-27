@@ -28,20 +28,11 @@
 #define CLIENT_KEY "Client Key"
 #define SERVER_KEY "Server Key"
 
-// EVP_MD_CTX_create() and EVP_MD_CTX_destroy() were renamed in OpenSSL 1.1.0
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
-#define EVP_MD_CTX_new(ctx) EVP_MD_CTX_create(ctx)
-#define EVP_MD_CTX_free(ctx) EVP_MD_CTX_destroy(ctx)
-#endif
-
 scram_session
 *scram_session_create (const char *digest, const char *username, const char *password)
 {
 	scram_session *session;
 	const EVP_MD *md;
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
-	OpenSSL_add_all_algorithms ();
-#endif
 	md = EVP_get_digestbyname (digest);
 
 	if (md == NULL)

@@ -13,7 +13,8 @@ gnome = import('gnome')
 cc = meson.get_compiler('c')
 
 
-libgio_dep = dependency('gio-2.0', version: '>= 2.36.0')
+# GTK 4.14 itself needs GLib 2.76 (see GLIB_VERSION_MIN_REQUIRED below)
+libgio_dep = dependency('gio-2.0', version: '>= 2.76.0')
 libgmodule_dep = dependency('gmodule-2.0')
 
 libcanberra_dep = dependency('libcanberra', version: '>= 0.22',
@@ -28,7 +29,7 @@ global_deps = []
 if cc.get_id() == 'msvc'
   libssl_dep = cc.find_library('libssl')
 else
-  libssl_dep = dependency('openssl', version: '>= 0.9.8',
+  libssl_dep = dependency('openssl', version: '>= 3.0.0',
                           required: get_option('tls'))
 endif
 
@@ -69,30 +70,6 @@ config_h.set_quoted('HEXCHATLIBDIR',
 config_h.set_quoted('NEXCHAT_LIBEXECDIR',
   join_paths(get_option('prefix'), get_option('libexecdir'), 'nexchat')
 )
-
-if libssl_dep.found()
-  config_h.set('HAVE_X509_GET_SIGNATURE_NID',
-    cc.has_function('X509_get_signature_nid', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_SSL_CTX_GET_SSL_METHOD',
-    cc.has_function('SSL_CTX_get_ssl_method', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_DH_SET0_PQG',
-    cc.has_function('DH_set0_pqg', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_DH_GET0_KEY',
-    cc.has_function('DH_get0_key', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_DH_SET0_KEY',
-    cc.has_function('DH_set0_key', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_ERR_REMOVE_THREAD_STATE',
-    cc.has_function('ERR_remove_thread_state', dependencies: libssl_dep)
-  )
-  config_h.set('HAVE_ASN1_STRING_GET0_DATA',
-    cc.has_function('ASN1_STRING_get0_data', dependencies: libssl_dep)
-  )
-endif
 
 configure_file(output: 'config.h', configuration: config_h)
 config_h_include = include_directories('.')

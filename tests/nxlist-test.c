@@ -72,13 +72,8 @@ main (int argc, char **argv)
 	int num;
 	int marker = 7;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_init ();
 	win = gtk_window_new ();
-#else
-	gtk_init (&argc, &argv);
-	win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-#endif
 
 	/* ---- store ---- */
 	s = nx_store_new (FALSE, N_COLS, G_TYPE_STRING, G_TYPE_INT, G_TYPE_BOOLEAN, G_TYPE_POINTER);
@@ -125,11 +120,7 @@ main (int argc, char **argv)
 	/* ---- view ---- */
 	box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
 	gtk_widget_set_size_request (box, 300, 300);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_window_set_child (GTK_WINDOW (win), box);
-#else
-	gtk_container_add (GTK_CONTAINER (win), box);
-#endif
 	view = nx_view_new_scrolled (box, s);
 	name_col = nx_view_add_column (view, "Name", NX_COL_TEXT, C_NAME);
 	nx_col_set_editable (name_col, TRUE);
@@ -140,11 +131,7 @@ main (int argc, char **argv)
 	nx_view_on_select (view, on_select, NULL);
 	tview = nx_view_new_scrolled (box, t);
 	nx_view_add_column (tview, NULL, NX_COL_TEXT, C_NAME);
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_window_present (GTK_WINDOW (win));
-#else
-	gtk_widget_show_all (win);
-#endif
 	pump ();
 	/* GTK3 puts the cursor on the first row when the view takes focus */
 	nx_view_unselect_all (view);
@@ -200,11 +187,7 @@ main (int argc, char **argv)
 	CHECK (nx_view_get_selected (view) == NULL, "nothing selected after clear");
 
 	(void) toggles; (void) edits;
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_window_destroy (GTK_WINDOW (win));
-#else
-	gtk_widget_destroy (win);
-#endif
 	g_object_unref (s);
 	g_object_unref (t);
 

@@ -1,11 +1,8 @@
-/* nxmenu.h: the same calls must behave the same on GTK3 (GtkMenu) and GTK4
- * (GMenu + actions): callbacks and their order (GTK3's radio order: the one
- * going off, then the one going on), quiet state changes, insertion order,
- * removal, sensitivity, labels and per-item data. On GTK4 the generated
- * model is also checked (sections for separators, one action per radio
- * group, disabled actions for insensitive items).
- *
- * Builds against either GTK (see meson.build / CI).
+/* nxmenu.h over GMenu + actions: callbacks and their order (radios: the
+ * one going off, then the one going on), quiet state changes, insertion
+ * order, removal, sensitivity, labels and per-item data, plus the generated
+ * model (sections for separators, one action per radio group, disabled
+ * actions for insensitive items).
  */
 #include <string.h>
 #include <stdio.h>
@@ -28,29 +25,6 @@ macos_merge_app_menu (GtkApplication *app, GMenuModel *bar)
 }
 #endif
 
-#if !GTK_CHECK_VERSION(4, 0, 0)
-GtkWidget *
-gtkutil_image_new_from_stock (const char *stock_id, GtkIconSize size)
-{
-	return gtk_image_new_from_icon_name (stock_id, size);
-}
-
-GtkWidget *
-gtkutil_menu_item_new_with_image (const char *label, gboolean is_markup, GtkWidget *image)
-{
-	GtkWidget *item = gtk_menu_item_new_with_mnemonic (label);
-	g_object_ref_sink (image);
-	g_object_unref (image);
-	return item;
-}
-
-GtkWidget *
-gtkutil_menu_item_get_label (GtkWidget *item)
-{
-	GtkWidget *c = gtk_bin_get_child (GTK_BIN (item));
-	return GTK_IS_LABEL (c) ? c : NULL;
-}
-#endif
 
 static int fails;
 static GString *trace;
@@ -71,7 +45,6 @@ check_trace (const char *want, const char *what)
 	g_string_truncate (trace, 0);
 }
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 static void
 show_count (nx_menu *m, gpointer ud)
 {
@@ -162,7 +135,6 @@ dump_model (GMenuModel *m, GString *out, int depth)
 		g_free (action);
 	}
 }
-#endif
 
 int
 main (int argc, char **argv)
@@ -170,17 +142,10 @@ main (int argc, char **argv)
 	nx_menu *m, *sub;
 	nx_item *plain, *chk, *r1, *r2, *r3, *sep, *subitem, *first, *x;
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	gtk_init ();
-#else
-	gtk_init (&argc, &argv);
-#endif
 	trace = g_string_new (NULL);
 
 	m = nx_menu_new ();
-#if !GTK_CHECK_VERSION(4, 0, 0)
-	g_object_ref_sink (m);
-#endif
 	plain = nx_menu_add_item (m, NX_MENU_APPEND, "_Plain", NX_ITEM_MNEMONIC, NULL, cb, "plain");
 	chk = nx_menu_add_check (m, NX_MENU_APPEND, "Check", 0, FALSE, cb, "chk");
 	sep = nx_menu_add_separator (m, NX_MENU_APPEND);
@@ -274,7 +239,6 @@ main (int argc, char **argv)
 	x = nx_menu_add_item (m, 2, "X", 0, NULL, cb, "x");
 	CHECK (nx_menu_get_item (m, 2) == x && nx_menu_get_item (m, 3) == chk, "insert at 2");
 
-#if GTK_CHECK_VERSION(4, 0, 0)
 	{
 		GString *d = g_string_new (NULL);
 		const char *want =
@@ -367,9 +331,6 @@ main (int argc, char **argv)
 popup_done:
 		gtk_window_destroy (GTK_WINDOW (win));
 	}
-#else
-	g_object_unref (m);
-#endif
 
 	if (fails)
 		return 1;

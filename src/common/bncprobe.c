@@ -320,7 +320,7 @@ probe_tls (probe *p)
 		p->cert_errors |= G_TLS_CERTIFICATE_EXPIRED;
 	else if (v != X509_V_OK)
 		p->cert_errors |= G_TLS_CERTIFICATE_UNKNOWN_CA;
-	if ((cert = SSL_get_peer_certificate (p->ssl)))
+	if ((cert = SSL_get1_peer_certificate (p->ssl)))
 	{
 		if (_SSL_check_hostname (cert, p->host) != 0)
 			p->cert_errors |= G_TLS_CERTIFICATE_BAD_IDENTITY;

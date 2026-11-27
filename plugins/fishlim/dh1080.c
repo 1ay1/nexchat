@@ -77,13 +77,8 @@ dh1080_init (void)
 
 		BN_set_word (g, 2);
 
-#ifndef HAVE_DH_SET0_PQG
-		g_dh->p = p;
-		g_dh->g = g;
-#else
 		if (!DH_set0_pqg (g_dh, p, NULL, g))
 			return 1;
-#endif
 
 		if (DH_check (g_dh, &codes))
 			return codes == 0;
@@ -164,12 +159,7 @@ dh1080_generate_key (char **priv_key, char **pub_key)
 		return 0;
 	}
 
-#ifndef HAVE_DH_GET0_KEY
-	dh_pub_key = dh->pub_key;
-	dh_priv_key = dh->priv_key;
-#else
 	DH_get0_key (dh, &dh_pub_key, &dh_priv_key);
-#endif
 
 	MEMZERO (buf);
 	len = BN_bn2bin (dh_priv_key, buf);
@@ -191,9 +181,7 @@ dh1080_compute_key (const char *priv_key, const char *pub_key, char **secret_key
 	gsize pub_key_len;
 	BIGNUM *pk;
 	DH *dh;
-#ifdef HAVE_DH_SET0_KEY
 	BIGNUM *temp_pub_key = BN_new();
-#endif
 
 	g_assert (secret_key != NULL);
 
@@ -218,11 +206,7 @@ dh1080_compute_key (const char *priv_key, const char *pub_key, char **secret_key
 
 		priv_key_data = dh1080_decode_b64 (priv_key, &priv_key_len);
 		priv_key_num = BN_bin2bn(priv_key_data, priv_key_len, NULL);
-#ifndef HAVE_DH_SET0_KEY
-		dh->priv_key = priv_key_num;
-#else
 		DH_set0_key (dh, temp_pub_key, priv_key_num);
-#endif
 
 		shared_len = DH_compute_key (shared_key, pk, dh);
 		SHA256(shared_key, shared_len, sha256);

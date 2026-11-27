@@ -55,10 +55,6 @@
 #include "batch.h"
 #include "mybouncer.h"
 
-#if ! GLIB_CHECK_VERSION (2, 36, 0)
-#include <glib-object.h>			/* for g_type_init() */
-#endif
-
 GSList *popup_list = 0;
 GSList *button_list = 0;
 GSList *dlgbutton_list = 0;
@@ -1130,10 +1126,6 @@ main (int argc, char *argv[])
 			}
 		}
 	}
-
-#if ! GLIB_CHECK_VERSION (2, 36, 0)
-	g_type_init ();
-#endif
 
 	if (check_config_dir () == 0)
 	{
