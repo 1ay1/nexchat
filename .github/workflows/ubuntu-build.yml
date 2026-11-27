@@ -8,6 +8,12 @@ on:
     branches:
       - master
 
+# a newer push to the same branch replaces a run still going (runners,
+# the macOS one above all, are the bottleneck)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # every feature on (plugins, text frontend, theme manager), and the tests
   # (smoke-gui: connect + join + render with criticals fatal, the compat
