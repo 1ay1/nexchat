@@ -1437,6 +1437,18 @@ remove_cb (GtkWidget *b, gpointer data)
 {
 	bncwin *w = data;
 	char *err = NULL;
+
+	/* it moves every network back: the first press asks, as the TUI does */
+	if (!g_object_get_data (G_OBJECT (b), "sure"))
+	{
+		g_object_set_data (G_OBJECT (b), "sure", GINT_TO_POINTER (1));
+		gtk_button_set_label (GTK_BUTTON (b), _("Remove, sure?"));
+		gtk_widget_add_css_class (b, "destructive-action");
+		return;
+	}
+	g_object_set_data (G_OBJECT (b), "sure", NULL);
+	gtk_button_set_label (GTK_BUTTON (b), _("_Remove..."));
+	gtk_widget_remove_css_class (b, "destructive-action");
 	if (!mybouncer_remove (&err))
 	{
 		say (w, "no", err ? err : "?");
@@ -1796,12 +1808,23 @@ ch_net_changed (GObject *o, GParamSpec *ps, gpointer data)
 		ch_fill (w);
 }
 
+/* the Channels, Access and Storage tabs are about our soju only: say so */
+static void
+ours_only (GtkWidget *v)
+{
+	GtkWidget *l = label (_("For the bouncer nexchat runs on this computer. A bouncer elsewhere "
+									 "keeps these settings on the bouncer itself."), TRUE);
+	gtk_widget_add_css_class (l, "dim-label");
+	gtk_box_append (GTK_BOX (v), l);
+}
+
 static GtkWidget *
 channels_page (bncwin *w)
 {
 	GtkWidget *v = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8), *row, *sw, *add;
 
 	nx_set_border_width (v, 8);
+	ours_only (v);
 	row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
 	gtk_box_append (GTK_BOX (row), gtk_label_new_with_mnemonic (_("_Network:")));
 	w->ch_net = gtk_drop_down_new (NULL, NULL);
@@ -1929,6 +1952,7 @@ access_page (bncwin *w)
 	GtkWidget *v = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8), *row, *set, *show;
 
 	nx_set_border_width (v, 8);
+	ours_only (v);
 	gtk_box_append (GTK_BOX (v), label (_("<b>Connecting to it</b>"), FALSE));
 	w->ac_where = label ("", TRUE);
 	gtk_label_set_selectable (GTK_LABEL (w->ac_where), TRUE);
@@ -2035,6 +2059,7 @@ storage_page (bncwin *w)
 	GtkWidget *v = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8), *row, *set, *sw, *again;
 
 	nx_set_border_width (v, 8);
+	ours_only (v);
 	gtk_box_append (GTK_BOX (v), label (_("<b>History</b>"), FALSE));
 	w->st_db = gtk_check_button_new_with_mnemonic (_("In the bouncer's _database (search and missed messages work)"));
 	w->st_files = gtk_check_button_new_with_mnemonic (_("As plain _text files, one per channel and day"));

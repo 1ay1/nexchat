@@ -372,6 +372,41 @@ sync_from_base (ircnet *e, ircnet *base)
 	return dirty;
 }
 
+/* "irc.libera.chat/+6697" or "irc.libera.chat:6697" is on host */
+static gboolean
+same_host (const char *hostname, const char *host)
+{
+	size_t n = strcspn (hostname, "/:");
+	return host && *host && n == strcspn (host, "/:") && !g_ascii_strncasecmp (hostname, host, n);
+}
+
+/* a network just appeared on the bouncer: the entry that went there
+   directly would connect a second time at startup (the same nick twice,
+   one with a _). It stops connecting by itself, and says so once. */
+static void
+quiet_direct_twin (server *serv, ircnet *base, ircnet *e, const char *host)
+{
+	GSList *l, *sl;
+
+	for (l = network_list; l; l = l->next)
+	{
+		ircnet *d = l->data;
+
+		if (d == base || d == e || !(d->flags & FLAG_AUTO_CONNECT) || (d->flags & FLAG_BOUNCER) ||
+			 d->logintype == LOGIN_PASS || mybouncer_owns (d) || strchr (d->name, '/'))
+			continue;
+		for (sl = d->servlist; sl; sl = sl->next)
+			if (same_host (((ircserver *) sl->data)->hostname, host))
+				break;
+		if (!sl)
+			continue;
+		d->flags &= ~FLAG_AUTO_CONNECT;
+		PrintTextf (serv->server_session,
+						_("\00303*\t%s is on your bouncer now, as %s: %s doesn't connect at startup any more, "
+						  "so you aren't on the network twice.\n"), d->name, e->name, d->name);
+	}
+}
+
 static void
 sync_networks (server *serv)
 {
@@ -408,6 +443,7 @@ sync_networks (server *serv)
 			e->pass = g_strdup (base->pass);
 			e->logintype = base->logintype;
 			dirty = TRUE;
+			quiet_direct_twin (serv, base, e, n->host);
 		}
 		/* how to reach the bouncer is the bouncer entry's, always: an edited
 		   address, port or password there must reach every network on it */
@@ -1420,7 +1456,7 @@ print_list (session *sess, server *serv)
 		if (mybouncer_state () == MYBNC_AVAILABLE)
 			PrintText (sess, _("soju is installed on this computer: /bouncer setup and nexchat sets it up and moves your networks onto it.\n"));
 		else
-			PrintText (sess, _("Server > Stay Online... sets you up with a bouncer.\n"));
+			PrintText (sess, _("Server > Bouncer... sets you up with a bouncer.\n"));
 		return;
 	}
 	PrintTextf (sess, _("Connected through %s. Its networks:\n"), bouncer_kind_name (s->kind));
@@ -1605,7 +1641,14 @@ bouncer_cmd (session *sess, char *word[], char *word_eol[])
 		g_free (t);
 		return TRUE;
 	}
-	if (!g_ascii_strcasecmp (word[2], "REMOVE") && !*word[3])
+	if (!g_ascii_strcasecmp (word[2], "REMOVE") && *word[3])
+	{
+		/* REMOVE is the whole bouncer, DEL one network: a name here means DEL */
+		PrintTextf (sess, _("/bouncer remove (alone) stops your own bouncer. To have the bouncer leave %s: /bouncer del %s\n"),
+						word[3], word[3]);
+		return TRUE;
+	}
+	if (!g_ascii_strcasecmp (word[2], "REMOVE"))
 	{
 		if (mybouncer_state () != MYBNC_SET_UP)
 			PrintText (sess, _("nexchat isn't running a bouncer for you.\n"));
@@ -1653,7 +1696,7 @@ bouncer_cmd (session *sess, char *word[], char *word_eol[])
 		ok = bouncer_add_network (serv, word[3], host, port, tls, nick, &err);
 		g_free (host);
 	}
-	else if ((!g_ascii_strcasecmp (word[2], "DEL") || !g_ascii_strcasecmp (word[2], "REMOVE")) && *word[3])
+	else if (!g_ascii_strcasecmp (word[2], "DEL") && *word[3])
 	{
 		bnc_state *s = state (serv);
 		const char *id = word[3];

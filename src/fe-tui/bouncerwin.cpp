@@ -258,6 +258,12 @@ public:
         nx_bnc_rows_free(rows, n);
     }
 
+    // Channels, Access, Storage are our soju's only (as the GUI says)
+    void ours_only() {
+        sheet_.para("For the bouncer nexchat runs on this computer. A bouncer elsewhere keeps these "
+                    "settings on the bouncer itself.", role::muted());
+    }
+
     void channels_tab() {
         const int count = nx_bnc_owned_count();
         if (!count) { sheet_.para("No network is on the bouncer yet.", role::muted()); return; }
@@ -1058,9 +1064,9 @@ public:
             head();
             switch (nx_bnc_state() == NX_MYBNC_SET_UP ? tab_ : T_NETWORKS) {
             case T_NETWORKS: networks_tab(); break;
-            case T_CHANNELS: channels_tab(); break;
-            case T_ACCESS: access_tab(); break;
-            case T_STORAGE: storage_tab(); break;
+            case T_CHANNELS: ours_only(); channels_tab(); break;
+            case T_ACCESS: ours_only(); access_tab(); break;
+            case T_STORAGE: ours_only(); storage_tab(); break;
             }
             break;
         }
