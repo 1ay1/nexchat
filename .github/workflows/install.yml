@@ -1,0 +1,63 @@
+name: Install scripts
+# The one-line installers (site/install.sh, site/install.ps1) on a real
+# Mac, Ubuntu and Windows: they install the latest release, nexchat runs,
+# and running them again (an update) works too.
+on:
+  push:
+    paths: ['site/install.*', '.github/workflows/install.yml']
+  pull_request:
+    paths: ['site/install.*', '.github/workflows/install.yml']
+  workflow_dispatch:
+  # weekly against the latest release (a release made by release.yml's
+  # GITHUB_TOKEN doesn't start other workflows, so `release:` wouldn't fire)
+  schedule:
+    - cron: '41 6 * * 1'
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: flatpak (Linux; the script says to install it first)
+        if: runner.os == 'Linux'
+        run: |
+          # without flatpak it explains, and stops
+          if sh site/install.sh > out.txt 2>&1; then cat out.txt; exit 1; fi
+          grep -q 'sudo apt install flatpak' out.txt
+          sudo apt-get update -q && sudo apt-get install -yq flatpak
+      - name: Install
+        run: sh site/install.sh < /dev/null
+      - name: Runs
+        run: |
+          export PATH=$HOME/.local/bin:$PATH
+          nexchat --version | tee v.txt
+          grep -q "^nexchat $(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/1ay1/nexchat/releases/latest | sed 's|.*/v||')" v.txt
+      - name: Again (update)
+        run: sh site/install.sh < /dev/null
+      - name: A given version, a bad option
+        run: |
+          sh site/install.sh --dry-run --version 0.3.1 | grep -q 'nexchat 0.3.1'
+          ! sh site/install.sh --nonsense
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        shell: pwsh
+        run: Get-Content -Raw site/install.ps1 | Invoke-Expression
+      - name: Installed
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\nexchat\bin\nexchat.exe'
+          if (-not (Test-Path $exe)) { Get-ChildItem -Recurse "$env:LOCALAPPDATA\Programs" -Filter nexchat.exe | Select-Object FullName; throw "not at $exe" }
+          $u = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' | Where-Object DisplayName -eq 'nexchat'
+          if (-not $u) { throw 'no uninstall entry' }
+          Write-Host "nexchat $($u.DisplayVersion) in $($u.InstallLocation)"
+      - name: Again (update), Windows PowerShell 5 too
+        shell: powershell
+        run: Get-Content -Raw site/install.ps1 | Invoke-Expression

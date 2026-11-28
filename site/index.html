@@ -359,8 +359,9 @@
   <p class="lead"><a href="https://hexchat.github.io/">HexChat</a>, continued: the same window, menus and keys, on GTK4, with IRCv3 and bouncers. <span class="dim">Your HexChat setup carries over.</span></p>
 
   <dl class="kv">
-    <dt>download</dt><dd><a href="https://github.com/1ay1/nexchat/releases/latest">latest release</a> <span class="dim">· Windows, macOS, Linux</span></dd>
-    <dt>flatpak</dt><dd><code class="cmd">flatpak install --user nexchat-*.flatpak</code></dd>
+    <dt>mac, linux</dt><dd><code class="cmd">curl -fsSL https://1ay1.github.io/nexchat/install.sh | sh</code></dd>
+    <dt>windows</dt><dd><code class="cmd">irm https://1ay1.github.io/nexchat/install.ps1 | iex</code> <span class="dim">· in PowerShell</span></dd>
+    <dt>homebrew</dt><dd><code class="cmd">brew install --cask 1ay1/nexchat/nexchat</code></dd>
     <dt>terminal</dt><dd><code class="cmd">nexchat --tui</code> <span class="dim">· the same client, over SSH or in tmux</span></dd>
   </dl>
 
@@ -381,7 +382,7 @@
     <dt>layout</dt><dd>HexChat's window, unchanged: a channel tree or tabs, the user list with mode icons.</dd>
     <dt>gtk4</dt><dd>HiDPI and Wayland done properly, on Linux, the BSDs, Windows and macOS.</dd>
     <dt>ircv3</dt><dd>SASL, STS, chat history, multiline, replies, typing, read markers, redaction.</dd>
-    <dt>bouncers</dt><dd>set up soju in one click, or use yours: soju networks and search, ZNC playback.</dd>
+    <dt>bouncers</dt><dd>set up soju in one click, or use yours: soju networks and search, ZNC playback. <a href="https://github.com/1ay1/nexchat/blob/master/docs/bouncer.md">the bouncer manual</a></dd>
     <dt>colours</dt><dd>follow the system's light and dark; 800+ schemes; colours you set stay put.</dd>
     <dt>scripts</dt><dd>Python, Perl, Lua and C plugins. The HexChat API, unchanged.</dd>
     <dt>macos</dt><dd>the system menu bar, &#8984; shortcuts, a menu bar icon, one <code>nexchat.app</code>.</dd>
@@ -441,13 +442,14 @@
 
 <section id="install">
   <h2>install</h2>
-  <p>Everything is on <a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>.</p>
+  <p>One line, no admin rights; run it again to update. Every download is checked against the release's checksums.</p>
   <dl class="kv">
-    <dt>windows</dt><dd><code>setup.exe</code>, or <code>portable.zip</code> to run from any folder (settings stay beside it).</dd>
-    <dt>macos</dt><dd>the <code>.dmg</code> (Apple Silicon). Drag nexchat to Applications; the first time, right-click it and choose Open.</dd>
-    <dt>linux</dt><dd><code class="cmd">flatpak install --user nexchat-*.flatpak</code></dd>
-    <dt>arch</dt><dd><code>packaging/arch/nexchat-git</code> in the source tree.</dd>
-    <dt>terminal</dt><dd><code>nexchat --tui</code>; on a Mac, <code>nexchat.app/Contents/MacOS/nexchat --tui</code>.</dd>
+    <dt>macos</dt><dd><code class="cmd">curl -fsSL https://1ay1.github.io/nexchat/install.sh | sh</code><br><span class="dim">or</span> <code class="cmd">brew install --cask 1ay1/nexchat/nexchat</code><br><span class="dim">Apple Silicon, macOS 11+. Puts nexchat in Applications and <code>nexchat</code> in your terminal.</span></dd>
+    <dt>linux</dt><dd><code class="cmd">curl -fsSL https://1ay1.github.io/nexchat/install.sh | sh</code><br><span class="dim">x86_64. Installs the Flatpak for you (it needs <code>flatpak</code>; the script says how to get it).</span></dd>
+    <dt>arch</dt><dd><code class="cmd">yay -S nexchat-git</code> <span class="dim">· from the AUR, with the terminal client</span></dd>
+    <dt>windows</dt><dd><code class="cmd">irm https://1ay1.github.io/nexchat/install.ps1 | iex</code><br><span class="dim">In PowerShell. Start menu entry, irc:// links, uninstall from Settings &gt; Apps.</span></dd>
+    <dt>by hand</dt><dd><a href="https://github.com/1ay1/nexchat/releases/latest">GitHub Releases</a>: <code>.dmg</code>, <code>setup.exe</code>, <code>portable.zip</code> (runs from any folder), <code>.flatpak</code>.</dd>
+    <dt>terminal</dt><dd><code>nexchat --tui</code></dd>
   </dl>
 </section>
 

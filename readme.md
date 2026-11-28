@@ -16,7 +16,7 @@ Coming from HexChat:
 - Plugins and scripts keep working. The C API is unchanged (`hexchat-plugin.h`, or the new `nexchat-plugin.h`). Python can use `import hexchat` or `import nexchat`, Lua has both `hexchat` and `nexchat`, and Perl has `HexChat::` and `Nexchat::`.
 - Themes (`.hct`) and `colors.conf` work the same.
 
-More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's different, what's new, and running both.
+More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's different, what's new, and running both. Staying in your channels with nexchat closed (soju, ZNC, Ergo): [docs/bouncer.md](docs/bouncer.md).
 
 ### In the terminal
 
@@ -29,9 +29,25 @@ More in [docs/coming-from-hexchat.md](docs/coming-from-hexchat.md): what's diffe
 
 The HexChat documentation still applies: [docs](https://hexchat.readthedocs.org/en/latest/index.html), [Python API](https://hexchat.readthedocs.org/en/latest/script_python.html), [Perl API](https://hexchat.readthedocs.org/en/latest/script_perl.html).
 
-## Download
+## Install
 
-Windows (installer or portable zip), macOS (`.dmg`) and Linux (`.flatpak`) packages are on the [Releases page](https://github.com/1ay1/nexchat/releases/latest).
+```sh
+# macOS and Linux
+curl -fsSL https://1ay1.github.io/nexchat/install.sh | sh
+
+# Windows, in PowerShell
+irm https://1ay1.github.io/nexchat/install.ps1 | iex
+
+# Homebrew (macOS)
+brew install --cask 1ay1/nexchat/nexchat
+
+# Arch Linux (AUR)
+yay -S nexchat-git
+```
+
+No admin rights needed; run the same line again to update. The scripts check every download against the release's `SHA256SUMS.txt`. On Linux it installs the Flatpak (and tells you how to get `flatpak` if you don't have it).
+
+Or download by hand from the [Releases page](https://github.com/1ay1/nexchat/releases/latest): Windows installer or portable zip, macOS `.dmg` (Apple Silicon), Linux `.flatpak`.
 
 ## Building
 

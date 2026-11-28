@@ -206,4 +206,9 @@ jobs:
             | **Linux** | `nexchat-${{ needs.source.outputs.version }}-linux-x86_64.flatpak`: `flatpak install --user nexchat-*.flatpak` |
             | Source | `nexchat-${{ needs.source.outputs.version }}.tar.xz` |
 
+            Or in one line (installs, or updates to, this release):
+            - macOS, Linux: `curl -fsSL https://1ay1.github.io/nexchat/install.sh | sh`
+            - Windows (PowerShell): `irm https://1ay1.github.io/nexchat/install.ps1 | iex`
+            - Homebrew: `brew install --cask 1ay1/nexchat/nexchat`
+
             Your HexChat settings, themes and scripts are picked up on first start.
