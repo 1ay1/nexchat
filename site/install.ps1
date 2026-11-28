@@ -39,9 +39,12 @@ try {
     Write-Host "nexchat $version" -ForegroundColor White
     Write-Host "==> Downloading $file"
     Invoke-WebRequest -UseBasicParsing -Uri "$dl/$file" -OutFile "$tmp\$file"
-    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$dl/SHA256SUMS.txt").Content
-    $want = ($sums -split "`n" | Where-Object { $_ -match "\s\.?/?$([regex]::Escape($file))\s*$" } |
-             ForEach-Object { ($_ -split '\s+')[0] }) | Select-Object -First 1
+    # to a file and read back: served as octet-stream, .Content would be bytes
+    Invoke-WebRequest -UseBasicParsing -Uri "$dl/SHA256SUMS.txt" -OutFile "$tmp\SHA256SUMS.txt"
+    $want = Get-Content "$tmp\SHA256SUMS.txt" | ForEach-Object {
+        $f = -split $_
+        if ($f.Count -ge 2 -and ($f[1] -replace '^\./', '') -eq $file) { $f[0] }
+    } | Select-Object -First 1
     if (-not $want) { Fail "$file isn't in SHA256SUMS.txt" }
     $got = (Get-FileHash -Algorithm SHA256 "$tmp\$file").Hash.ToLower()
     if ($got -ne $want.ToLower()) { Fail "checksum mismatch (got $got, want $want)" }
