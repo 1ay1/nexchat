@@ -55,12 +55,37 @@ def focus_at(dpy, x, y):
     """Bare Xvfb has no window manager, so nothing has keyboard focus.
     PointerRoot focus + moving the pointer onto the window gives it the keys,
     which is what a click-less WM would do."""
+    if already_focused_at(dpy, x, y):
+        return
     xtst.XTestFakeMotionEvent(dpy, -1, x, y, 0)
     x11.XSetInputFocus(dpy, POINTER_ROOT, REVERT_TO_POINTER_ROOT, 0)
     x11.XSync(dpy, 0)
     # the toolkit sees FocusIn asynchronously; keys sent before it lands are
     # dropped (the first characters of --type went missing without this)
     time.sleep(0.5)
+
+
+def already_focused_at(dpy, x, y):
+    """PointerRoot focus and the pointer already at (x, y): the last call
+    left it so, no FocusIn is coming, so there's nothing to wait for (the
+    0.5s wait on every call was most of a key-driven test's time)."""
+    try:
+        x11.XGetInputFocus.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)]
+        x11.XDefaultRootWindow.restype = ctypes.c_ulong
+        x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        x11.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong] + [ctypes.POINTER(ctypes.c_ulong)] * 2 + \
+            [ctypes.POINTER(ctypes.c_int)] * 4 + [ctypes.POINTER(ctypes.c_uint)]
+        foc, rev = ctypes.c_ulong(), ctypes.c_int()
+        x11.XGetInputFocus(dpy, ctypes.byref(foc), ctypes.byref(rev))
+        if foc.value != POINTER_ROOT:
+            return False
+        r, c = ctypes.c_ulong(), ctypes.c_ulong()
+        rx, ry, wx, wy, m = ctypes.c_int(), ctypes.c_int(), ctypes.c_int(), ctypes.c_int(), ctypes.c_uint()
+        x11.XQueryPointer(dpy, x11.XDefaultRootWindow(dpy), ctypes.byref(r), ctypes.byref(c),
+                          ctypes.byref(rx), ctypes.byref(ry), ctypes.byref(wx), ctypes.byref(wy), ctypes.byref(m))
+        return (rx.value, ry.value) == (x, y)
+    except (AttributeError, ctypes.ArgumentError):
+        return False
 
 MODS = {"ctrl": "Control_L", "control": "Control_L", "alt": "Alt_L",
         "shift": "Shift_L", "super": "Super_L", "meta": "Meta_L"}
@@ -254,8 +279,10 @@ def main(argv):
             time.sleep(0.05)
         time.sleep(delay)
     # pointer stays at the last click so a popup menu opened there stays up
+    # 20 ms a key: faster drops keys into a popup that's still opening
+    # when the machine is busy (a full parallel test run)
     if text is not None:
-        type_text(dpy, text, 0.03)
+        type_text(dpy, text, float(os.environ.get("NX_TYPE_DELAY", "0.02")))
     for combo in argv:
         press(dpy, combo)
         time.sleep(delay)

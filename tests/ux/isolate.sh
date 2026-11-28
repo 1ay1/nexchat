@@ -10,6 +10,9 @@ else
 fi
 # no accessibility bus in a private test session (GTK4 asserts without it)
 export GTK_A11Y=none NO_AT_BRIDGE=1
+# NEXCHAT_TABS_DUMP every 100 ms, not every second: a check that waits for
+# the next two dumps then takes 0.2s instead of 2s
+export NEXCHAT_DUMP_MS=${NEXCHAT_DUMP_MS:-100}
 XDG_CONFIG_HOME=$(mktemp -d)
 export XDG_CONFIG_HOME
 unset GTK_THEME

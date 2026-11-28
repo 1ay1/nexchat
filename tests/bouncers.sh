@@ -28,11 +28,10 @@ run () # name host/port user pass logintype extra-flags "lines"...
 	printf 'v=2.16.2\n\nN=%s\nU=%s\nP=%s\nL=%s\nF=%s\nD=0\nS=%s\n\n' \
 		"$name" "$user" "$pass" "$login" "$flags" "$hostport" > "$tmp/cfg/servlist.conf"
 	fi
-	{
-		sleep 2
-		for l in "$@"; do echo "$l"; sleep 1.2; done
-		echo "/quit"; sleep 0.5
-	} | timeout 40 "$bin" -n -d "$tmp/cfg" "irc://$name" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+	# each line goes once the client is in, the next once the reply has come
+	# (output quiet for a moment): no fixed pauses
+	for l in "$@"; do printf '%s\n' "$l"; done |
+		timeout 60 python3 "$here/textdrive.py" "$tmp/out" -- "$bin" -n -d "$tmp/cfg" "irc://$name" || true
 }
 
 # F=0: no global user info, no TLS. L=7 server password (PASS), L=6 SASL

@@ -26,11 +26,11 @@ wait_window "$disp"
 wait_for grep -q '^tab: #t' "$tmp/log"
 sleep 0.5
 
-k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 "$@"; }
-t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 --type "$1"; }
+k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.1 --at 450,580 "$@"; }
+t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.1 --at 450,580 --type "$1"; }
 # the popup / input as of a full dump taken after the last keys
 state() {
-	n0=$(grep -c '^tabs:$' "$tmp/log")
+	n0=$(grep -c '^tabs:$' "$tmp/log" 2>/dev/null || true)
 	_i=0
 	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
 		_i=$((_i+1)); [ $_i -gt 100 ] && { echo "(no dump: app gone?)"; return; }
@@ -40,18 +40,26 @@ state() {
 }
 
 fail=0
+# the state is read until it's what's expected (or 5s): fast when the app
+# is quick, and still right when it's slow under a parallel test run
 check() {
-	got=$(state "$1")
-	case "$got" in
-		$2) echo "ok:   $3";;
-		*) echo "FAIL: $3 (got: $got)"; fail=1;;
-	esac
+	_n=0
+	while :; do
+		got=$(state "$1")
+		case "$got" in $2) echo "ok:   $3"; return;; esac
+		_n=$((_n+1)); [ $_n -ge 25 ] && break
+	done
+	echo "FAIL: $3 (got: $got)"; fail=1
 }
 
 closed() {
-	got=$(state cmdpopup)
-	if [ -z "$(echo "$got" | sed 's/^cmdpopup: *//')" ]; then echo "ok:   $1"
-	else echo "FAIL: $1 (got: $got)"; fail=1; fi
+	_n=0
+	while :; do
+		got=$(state cmdpopup)
+		[ -z "$(echo "$got" | sed 's/^cmdpopup: *//')" ] && { echo "ok:   $1"; return; }
+		_n=$((_n+1)); [ $_n -ge 25 ] && break
+	done
+	echo "FAIL: $1 (got: $got)"; fail=1
 }
 
 # just "/": everything, the everyday commands first under a heading, with

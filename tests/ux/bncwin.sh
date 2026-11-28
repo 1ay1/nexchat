@@ -39,13 +39,13 @@ fail=0
 ok() { echo "ok:   $1"; }
 bad() { echo "FAIL: $1"; fail=1; }
 state() {
-	n0=$(grep -c '^tabs:$' "$tmp/log"); i=0
+	n0=$(grep -c '^tabs:$' "$tmp/log" 2>/dev/null || true); i=0
 	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
 		i=$((i+1)); [ $i -gt 100 ] && { echo "(no dump)"; return; }; sleep 0.1
 	done
 	awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log" | grep "^$1:" | head -1
 }
-until_state() { i=0; while [ $i -lt ${3:-40} ]; do case "$(state "$1")" in $2) return 0;; esac; i=$((i+1)); sleep 0.5; done; return 1; }
+until_state() { i=0; while [ $i -lt $(( ${3:-40} * 5 )) ]; do case "$(state "$1")" in $2) return 0;; esac; i=$((i+1)); sleep 0.1; done; return 1; }
 press_until() { n=0; while [ $n -lt 5 ]; do k $1; until_state "$2" "$3" 6 && return 0; n=$((n+1)); done; return 1; }
 
 mkdir -p "$tmp/cfg"

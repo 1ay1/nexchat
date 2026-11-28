@@ -16,10 +16,10 @@ disp=${DISP:-:78}
 tmp=$(mktemp -d)
 app=; xv=; wm=
 cleanup() {
-	[ -n "$app" ] && kill $app 2>/dev/null
-	[ -n "$wm" ] && kill $wm 2>/dev/null
-	pkill -f "soju -config $tmp/cfg/bouncer/config" 2>/dev/null
-	bnc_stop; kill $xv 2>/dev/null; rm -rf "$tmp"
+	[ -n "$app" ] && kill $app 2>/dev/null || true
+	[ -n "$wm" ] && kill $wm 2>/dev/null || true
+	pkill -f "soju -config $tmp/cfg/bouncer/config" 2>/dev/null || true
+	bnc_stop; kill $xv 2>/dev/null || true; rm -rf "$tmp"
 }
 trap 'st=$?; cleanup; exit $st' EXIT
 start_xvfb "$xvfb" "$disp"
@@ -38,18 +38,18 @@ fail=0
 ok() { echo "ok:   $1"; }
 bad() { echo "FAIL: $1"; fail=1; }
 state() {
-	n0=$(grep -c '^tabs:$' "$tmp/log"); i=0
+	n0=$(grep -c '^tabs:$' "$tmp/log" 2>/dev/null || true); i=0
 	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
 		i=$((i+1)); [ $i -gt 100 ] && { echo "(no dump)"; return; }; sleep 0.1
 	done
 	awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log" | grep "^$1:" | head -1
 }
-until_state() { i=0; while [ $i -lt 30 ]; do case "$(state "$1")" in $2) return 0;; esac; i=$((i+1)); sleep 0.5; done; return 1; }
+until_state() { i=0; while [ $i -lt 150 ]; do case "$(state "$1")" in $2) return 0;; esac; i=$((i+1)); sleep 0.1; done; return 1; }
 press_until() { # KEY PATTERN: the first key can come before the window has focus
 	n=0
 	while [ $n -lt 5 ]; do
 		k $1
-		j=0; while [ $j -lt 6 ]; do case "$(state bncsetup)" in $2) return 0;; esac; j=$((j+1)); sleep 0.5; done
+		j=0; while [ $j -lt 30 ]; do case "$(state bncsetup)" in $2) return 0;; esac; j=$((j+1)); sleep 0.1; done
 		n=$((n+1))
 	done
 	return 1

@@ -34,7 +34,7 @@ bad() { echo "FAIL: $1"; fail=1; }
 
 # the last full dump's line for KEY
 state() {
-	n0=$(grep -c '^tabs:$' "$tmp/log")
+	n0=$(grep -c '^tabs:$' "$tmp/log" 2>/dev/null || true)
 	i=0
 	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
 		i=$((i+1)); [ $i -gt 100 ] && { echo "(no dump)"; return; }
@@ -42,11 +42,11 @@ state() {
 	done
 	awk '/^tabs:$/{n++} {r[n]=r[n] $0 "\n"} END{printf "%s", r[n-1]}' "$tmp/log" | grep "^$1:" | head -1
 }
-until_state() { # KEY PATTERN, up to 15 s
+until_state() { # KEY PATTERN, up to 15 s (each state() is one 0.1s dump)
 	i=0
-	while [ $i -lt 30 ]; do
+	while [ $i -lt 150 ]; do
 		case "$(state "$1")" in $2) return 0;; esac
-		i=$((i+1)); sleep 0.5
+		i=$((i+1)); sleep 0.1
 	done
 	return 1
 }

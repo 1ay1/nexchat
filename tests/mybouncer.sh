@@ -39,15 +39,13 @@ printf 'net_throttle = 0\nirc_nick1 = me1\n' > "$tmp/cfg/hexchat.conf"
 # a network as people have it: SASL login, a channel, a favourite
 printf 'v=2.16.2\n\nN=Lab\nI=me1\nU=me1\nP=pw12345\nL=6\nF=64\nD=0\nS=127.0.0.1/%s\nJ=#home\n\n' "$ERGO_PORT" > "$tmp/cfg/servlist.conf"
 
-run () { # lines...
-	{
-		sleep 1
-		for l in "$@"; do echo "$l"; sleep 1.5; done
-		echo "/quit"; sleep 0.5
-	} | timeout 40 "$bin" -n -d "$tmp/cfg" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+run () { # lines... ("?regex" waits for that output; tests/textdrive.py)
+	here=$(cd "$(dirname "$0")" && pwd)
+	for l in "$@"; do printf '%s\n' "$l"; done |
+		timeout 60 python3 "$here/textdrive.py" "$tmp/out" --offline -- "$bin" -n -d "$tmp/cfg" || true
 }
 
-run "/bouncer setup" "/echo waited"
+run "/bouncer setup" "?moved to your bouncer"
 has 'Your bouncer is running while nexchat is' "set up, and says how it's kept running"
 has 'Lab: done' "the network was moved"
 has '1 network moved to your bouncer' "and counted"
@@ -60,7 +58,7 @@ grep -A12 '^N=Lab$' "$tmp/cfg/servlist.conf" | grep -q '^U=me/Lab$' && ok "and l
 grep -q 'pw12345' "$tmp/cfg/bouncer/soju.log" && bad "the network password ended up in soju's log" || ok "no password in soju's log"
 
 # connect: through soju, logged in to the network with SASL, in #home
-run "/server Lab" "/echo waited" "/echo waited"
+run "/server Lab" "?Now talking on #home"
 pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && ok "soju keeps running after nexchat quits" || bad "soju quit with nexchat"
 has 'BOUNCER_NETID=' "connecting to Lab goes through soju"
 has 'Now talking on #home' "and it's in the channel that was a favourite"
@@ -90,7 +88,7 @@ grep ' 353 ' "$tmp/whois" | grep -q 'me1' && ok "still in #home with nexchat clo
 # change its settings: each lands in soju
 run "/bouncer set net Lab realname Real Name Here" "/bouncer set channel Lab #other add" \
 	"/bouncer set channel Lab #other detached on" "/bouncer set commands Lab PRIVMSG me1 :hi|PRIVMSG me1 :there" \
-	"/bouncer set title My Bouncer" "/echo waited" "/bouncer set logs files" "/echo waited" "/bouncer set"
+	"/bouncer set title My Bouncer" "/bouncer set logs files" "/bouncer set"
 [ "$(grep -c 'Done\.' "$tmp/out")" = 6 ] && ok "every setting was taken" || { bad "a setting failed"; grep -i '\*' "$tmp/out"; }
 grep -q '^title "My Bouncer"' "$tmp/cfg/bouncer/config" && ok "title in soju's config" || bad "title"
 grep -q '^message-store fs ' "$tmp/cfg/bouncer/config" && ok "logs kept as files" || bad "logs as files"
@@ -109,7 +107,7 @@ grep -A12 "^N=Lab$" "$tmp/cfg/servlist.conf" | grep -q "^P=pw12345$" && grep -A1
 pgrep -f "soju -config $tmp/cfg/bouncer/config" > /dev/null && bad "soju still running after remove" || ok "soju stopped by remove"
 
 # set up again: soju's database still has the account
-run "/bouncer setup" "/echo waited" "/bouncer remove"
+run "/bouncer setup" "?moved to your bouncer" "/bouncer remove"
 has 'Lab: done' "set up again after remove"
 grep -q "Couldn't make an account" "$tmp/out" && bad "account already there" || ok "the old account is reused"
 

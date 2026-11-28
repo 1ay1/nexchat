@@ -42,10 +42,10 @@ wait_for grep -q '^tab: #t' "$tmp/log"
 # the script is sent after the JOIN: give it a moment to arrive
 sleep 2
 
-k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 "$@"; }
-t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.25 --at 450,580 --type "$1"; }
+k() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.1 --at 450,580 "$@"; }
+t() { DISPLAY=$disp python3 "$here/xkey.py" --delay 0.1 --at 450,580 --type "$1"; }
 state() {
-	n0=$(grep -c '^tabs:$' "$tmp/log")
+	n0=$(grep -c '^tabs:$' "$tmp/log" 2>/dev/null || true)
 	_i=0
 	while [ "$(grep -c '^tabs:$' "$tmp/log")" -lt $((n0 + 2)) ]; do
 		_i=$((_i+1)); [ $_i -gt 100 ] && { echo "(no dump: app gone?)"; return; }
@@ -55,11 +55,13 @@ state() {
 }
 fail=0
 check() {
-	got=$(state "$1")
-	case "$got" in
-		$2) echo "ok:   $3";;
-		*) echo "FAIL: $3 (got: $got)"; fail=1;;
-	esac
+	_n=0
+	while :; do
+		got=$(state "$1")
+		case "$got" in $2) echo "ok:   $3"; return;; esac
+		_n=$((_n+1)); [ $_n -ge 25 ] && break
+	done
+	echo "FAIL: $3 (got: $got)"; fail=1
 }
 clear_input() { k ctrl+a BackSpace; }
 

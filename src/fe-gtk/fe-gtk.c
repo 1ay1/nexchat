@@ -1143,9 +1143,10 @@ fe_keys_step (gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
-/* tests: NEXCHAT_TABS_DUMP=1 prints every tab's text on stderr each second,
-   each round after a "tabs:" line; =text also prints the front window's
-   lines ("line: ...") */
+/* tests: NEXCHAT_TABS_DUMP=1 prints every tab's text on stderr each second
+   (NEXCHAT_DUMP_MS=n: every n ms; the tests use 100, so a check waits a
+   fraction of a second, not two), each round after a "tabs:" line; =text
+   also prints the front window's lines ("line: ...") */
 static void
 fe_dump_line (GtkXText *xtext, unsigned char *text, void *d)
 {
@@ -1803,7 +1804,13 @@ fe_main (void)
 	if (g_getenv ("NEXCHAT_SHOT_ON"))
 		g_timeout_add (300, fe_shot_on, (gpointer) g_getenv ("NEXCHAT_SHOT_ON"));
 	if (g_getenv ("NEXCHAT_TABS_DUMP"))
-		g_timeout_add_seconds (1, fe_tabs_dump, NULL);
+	{
+		int ms = g_getenv ("NEXCHAT_DUMP_MS") ? atoi (g_getenv ("NEXCHAT_DUMP_MS")) : 0;
+		if (ms > 0)
+			g_timeout_add (MAX (ms, 20), fe_tabs_dump, NULL);
+		else
+			g_timeout_add_seconds (1, fe_tabs_dump, NULL);
+	}
 	/* tests: NEXCHAT_BNC_PROBE=host:port:tls:user:pass runs the Stay online
 	   check and prints "probe: <kind>" or "probe-error: ..." */
 	if (g_getenv ("NEXCHAT_BNC_PROBE"))

@@ -17,11 +17,23 @@ trap 'st=$?; kill $xpid 2>/dev/null || true; rm -rf "$tmp"; exit $st' EXIT
 sleep 1
 fail=0
 
-run () # cfgdir shot.png [env...]
+run () # cfgdir shot.png [env...]   (SECS=n: shoot after n s, default 2)
 {
 	cfg=$1; png=$2; shift 2
 	grep -q gui_slist_skip "$cfg/hexchat.conf" 2>/dev/null || echo 'gui_slist_skip = 1' >> "$cfg/hexchat.conf"
-	env DISPLAY=$disp NEXCHAT_SHOT="$png:3" "$@" timeout 6 "$bin" -a -d "$cfg" >/dev/null 2>&1 || true
+	rm -f "$png"
+	env DISPLAY=$disp NEXCHAT_SHOT="$png:${SECS:-2}" "$@" timeout 10 "$bin" -a -d "$cfg" >/dev/null 2>&1 &
+	_app=$!
+	# done once the picture is written (it's renamed into place whole, or
+	# its size stops changing): no waiting out a fixed timeout
+	_i=0; _last=-1
+	while kill -0 $_app 2>/dev/null && [ $_i -lt 100 ]; do
+		if [ -s "$png" ]; then
+			_sz=$(wc -c < "$png"); [ "$_sz" = "$_last" ] && break; _last=$_sz
+		fi
+		sleep 0.1; _i=$((_i+1))
+	done
+	kill $_app 2>/dev/null || true; wait $_app 2>/dev/null || true
 }
 
 px () # png x y -> rrggbb
@@ -86,7 +98,7 @@ got=$(px "$out/chat-green-css.png" 100 40)
 
 # Preferences > Colors shows the list with the current scheme
 d="$tmp/prefs"; mkdir -p "$d"; printf 'scheme = Nord\n' > "$d/colors.conf"
-run "$d" "$out/prefs-colors.png" NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_SHOT_WIN=1 NEXCHAT_PREFS_PAGE=4
+SECS=3 run "$d" "$out/prefs-colors.png" NEXCHAT_MENU_ACTIVATE="Settings/Preferences" NEXCHAT_SHOT_WIN=1 NEXCHAT_PREFS_PAGE=4
 if python3 "$here/pngtext.py" "$out/prefs-colors.png" 2>/dev/null | grep -q "Nord"; then echo "ok:   prefs shows Nord"
 else echo "note: pngtext can't read prefs (see $out/prefs-colors.png)"; fi
 # nothing was saved by just looking
@@ -111,7 +123,7 @@ for c in 0 1 2 3 4; do
 	printf 'gui_input_cursor = %d\ngui_input_blink = 0\n' "$c" > "$d/hexchat.conf"
 	( sleep 1.5; DISPLAY=$disp python3 "$here/xkey.py" --delay 0.1 --click 300,385 h e l l o Left Left ) &
 	keys=$!
-	run "$d" "$out/cursor-$c.png"
+	SECS=3 run "$d" "$out/cursor-$c.png"
 	wait $keys || true
 done
 echo "shots in $out"

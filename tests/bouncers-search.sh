@@ -27,11 +27,10 @@ run () # name host/port user pass logintype extra-flags "lines"...
 	printf 'v=2.16.2\n\nN=%s\nU=%s\nP=%s\nL=%s\nF=%s\nD=0\nS=%s\n\n' \
 		"$name" "$user" "$pass" "$login" "$flags" "$hostport" > "$tmp/cfg/servlist.conf"
 	fi
-	{
-		sleep 2
-		for l in "$@"; do echo "$l"; sleep 1.2; done
-		echo "/quit"; sleep 0.5
-	} | timeout 40 "$bin" -n -d "$tmp/cfg" "irc://$name" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+	# each line goes once the client is in, the next once the reply has come
+	# (output quiet for a moment): no fixed pauses
+	for l in "$@"; do printf '%s\n' "$l"; done |
+		timeout 60 python3 "$here/textdrive.py" "$tmp/out" -- "$bin" -n -d "$tmp/cfg" "irc://$name" || true
 }
 
 # F=0: no global user info, no TLS. L=7 server password (PASS), L=6 SASL
@@ -40,17 +39,12 @@ run () # name host/port user pass logintype extra-flags "lines"...
 keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
 	"/bouncer add srch 127.0.0.1:$ERGO_PORT -notls"
 # join once (soju stays in #srch for us), then go away
-{
-	sleep 1; echo "/server soju/srch"; sleep 3; echo "/join #srch"; sleep 2; echo "/quit"; sleep 0.5
-} | timeout 20 "$bin" -n -d "$tmp/cfg" -a >/dev/null 2>&1 || true
+printf '%s\n' "/server soju/srch" "?BOUNCER_NETID=" "/join #srch" "?End of /NAMES|366" |
+	timeout 30 python3 "$here/textdrive.py" "$tmp/join.out" --offline -- "$bin" -n -d "$tmp/cfg" -a || true
 bnc_say bob "#srch" "the Release is out" "unrelated chatter" "release notes are up"
-sleep 1
-{
-	sleep 1; echo "/server soju/srch"; sleep 4
-	echo "/lastlog -s release"; sleep 2
-	echo "/lastlog -s zzznothing"; sleep 2
-	echo "/quit"; sleep 0.5
-} | timeout 25 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+printf '%s\n' "/server soju/srch" "?BOUNCER_NETID=" "/lastlog -s release" "?matches on the bouncer" \
+	"/lastlog -s zzznothing" "?No matches for" |
+	timeout 40 python3 "$here/textdrive.py" "$tmp/out" --offline -- "$bin" -n -d "$tmp/cfg" -a || true
 has "Searching the bouncer's history of 1 place" "search: asks soju"
 has '<bob> the Release is out' "search: finds what was said while closed"
 has '<bob> release notes are up' "search: every match"

@@ -28,11 +28,10 @@ run () # name host/port user pass logintype extra-flags "lines"...
 	printf 'v=2.16.2\n\nN=%s\nU=%s\nP=%s\nL=%s\nF=%s\nD=0\nS=%s\n\n' \
 		"$name" "$user" "$pass" "$login" "$flags" "$hostport" > "$tmp/cfg/servlist.conf"
 	fi
-	{
-		sleep 2
-		for l in "$@"; do echo "$l"; sleep 1.2; done
-		echo "/quit"; sleep 0.5
-	} | timeout 40 "$bin" -n -d "$tmp/cfg" "irc://$name" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+	# each line goes once the client is in, the next once the reply has come
+	# (output quiet for a moment): no fixed pauses
+	for l in "$@"; do printf '%s\n' "$l"; done |
+		timeout 60 python3 "$here/textdrive.py" "$tmp/out" -- "$bin" -n -d "$tmp/cfg" "irc://$name" || true
 }
 
 # F=0: no global user info, no TLS. L=7 server password (PASS), L=6 SASL
@@ -60,22 +59,38 @@ grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && ok "soju: its network is a
 	{ bad "soju: no entry"; cat "$tmp/cfg/servlist.conf"; }
 grep -A3 '^N=soju/libera$' "$tmp/cfg/servlist.conf" | grep -q '^U=ayush/libera$' &&
 	ok "soju: the entry logs in as ayush/libera" || bad "soju: entry user"
-{
-	sleep 1; echo "/server soju/libera"; sleep 3; echo "/quit"; sleep 0.5
-} | timeout 20 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+printf '%s\n' "/server soju/libera" "?NETWORK=ErgoTest" |
+	timeout 30 python3 "$here/textdrive.py" "$tmp/out" --offline -- "$bin" -n -d "$tmp/cfg" -a || true
 grep -q 'BOUNCER_NETID=' "$tmp/out" && grep -q 'NETWORK=ErgoTest' "$tmp/out" &&
 	ok "soju: connecting with the entry lands on that network" || { bad "soju: entry connect"; tail -20 "$tmp/out"; }
 keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 "/bouncer del libera"
-sleep 1
 grep -q '^N=soju/libera$' "$tmp/cfg/servlist.conf" && bad "soju: entry stays after removing" ||
 	ok "soju: removed on the bouncer, gone from the list"
+
+# --- /bouncer remove NAME doesn't remove anything: that's /bouncer del
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
+	"/bouncer add keepnet 127.0.0.1:$ERGO_PORT -notls" \
+	"/bouncer remove keepnet" \
+	"/bouncer"
+has '/bouncer del keepnet' "soju: remove with a name points to del"
+has "keepnet  127.0.0.1:$ERGO_PORT" "soju: and the network is still there"
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 "/bouncer del keepnet"
+
+# --- a network going onto the bouncer: the entry that connected to it
+# directly at startup stops doing so (not on the network twice)
+printf 'N=direct\nU=ayush\nF=8\nD=0\nS=127.0.0.1/%s\n\n' "$ERGO_PORT" >> "$tmp/cfg/servlist.conf"
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
+	"/bouncer add twin 127.0.0.1:$ERGO_PORT -notls"
+has 'direct is on your bouncer now, as soju/twin' "soju: the direct entry's startup connect is said to stop"
+grep -A3 '^N=direct$' "$tmp/cfg/servlist.conf" | grep -q '^F=0$' &&
+	ok "soju: and it doesn't auto-connect any more" || { bad "soju: direct entry flags"; grep -A3 '^N=direct$' "$tmp/cfg/servlist.conf"; }
+keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 "/bouncer del twin"
 
 # --- connecting to soju itself opens each of its networks in a tab
 keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
 	"/bouncer add tabnet 127.0.0.1:$ERGO_PORT -notls"
-{
-	sleep 6; echo "/quit"; sleep 0.5
-} | timeout 20 "$bin" -n -d "$tmp/cfg" "irc://soju" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+printf '%s\n' "?opened in (a )?tab" "?BOUNCER_NETID=" |
+	timeout 30 python3 "$here/textdrive.py" "$tmp/out" -- "$bin" -n -d "$tmp/cfg" "irc://soju" || true
 has 'opened in \(a \)\?tab' "soju: its networks open by themselves"
 grep -q 'BOUNCER_NETID=' "$tmp/out" && ok "soju: and connect straight onto them" || bad "soju: no network tab"
 
@@ -83,11 +98,8 @@ grep -q 'BOUNCER_NETID=' "$tmp/out" && ok "soju: and connect straight onto them"
 # (soju sends the state change because we asked for -notify)
 keepcfg=1 run soju "127.0.0.1/$SOJU_PORT" ayush secret123 7 0 \
 	"/bouncer add downnet 127.0.0.1:$ERGO_PORT -notls"
-{
-	sleep 1; echo "/server soju/downnet"; sleep 3
-	kill $(echo $BNC_PIDS | cut -d" " -f1) 2>/dev/null || true; sleep 4
-	echo "/quit"; sleep 0.5
-} | timeout 25 "$bin" -n -d "$tmp/cfg" -a 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$tmp/out" || true
+printf '%s\n' "/server soju/downnet" "?BOUNCER_NETID=" "!kill $(echo $BNC_PIDS | cut -d' ' -f1) 2>/dev/null" "?soju lost downnet" |
+	timeout 40 python3 "$here/textdrive.py" "$tmp/out" --offline -- "$bin" -n -d "$tmp/cfg" -a || true
 has 'soju lost downnet' "soju: losing the network behind it is said"
 
 if [ $fail -ne 0 ]; then
